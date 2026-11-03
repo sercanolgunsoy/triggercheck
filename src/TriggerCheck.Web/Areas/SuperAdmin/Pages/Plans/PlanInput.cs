@@ -6,30 +6,31 @@ using TriggerCheck.Domain;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Web.Areas.SuperAdmin.Services;
+using TriggerCheck.Web.Localization;
 
 namespace TriggerCheck.Web.Areas.SuperAdmin.Pages.Plans;
 
 /// <summary>Form model for creating / editing a plan (no direct entity binding).</summary>
 public class PlanInput
 {
-    [Required(ErrorMessage = "Plan adı zorunludur"), StringLength(100, ErrorMessage = "En fazla 100 karakter")]
-    [Display(Name = "Plan adı")] public string Name { get; set; } = "";
+    [Required(ErrorMessage = "Plan name is required."), StringLength(100, ErrorMessage = "At most {1} characters.")]
+    [Display(Name = "Plan name")] public string Name { get; set; } = "";
 
-    [Required(ErrorMessage = "Minimum aralık zorunludur")]
-    [Display(Name = "Minimum kontrol aralığı")] public int? MinIntervalSeconds { get; set; }
+    [Required(ErrorMessage = "Minimum interval is required.")]
+    [Display(Name = "Minimum check interval")] public int? MinIntervalSeconds { get; set; }
 
-    [Required(ErrorMessage = "Maks. monitör zorunludur"), Range(1, 1_000_000, ErrorMessage = "Maks. monitör en az 1 olmalıdır")]
-    [Display(Name = "Maks. monitör")] public int? MaxMonitors { get; set; }
+    [Required(ErrorMessage = "Max monitors is required."), Range(1, 1_000_000, ErrorMessage = "Max monitors must be at least 1.")]
+    [Display(Name = "Max monitors")] public int? MaxMonitors { get; set; }
 
-    [Required(ErrorMessage = "Saklama süresi zorunludur"), Range(1, 3650, ErrorMessage = "Saklama süresi 1 ile 3650 gün arasında olmalıdır")]
-    [Display(Name = "Veri saklama (gün)")] public int? RetentionDays { get; set; }
+    [Required(ErrorMessage = "Retention is required."), Range(1, 3650, ErrorMessage = "Retention must be between {1} and {2} days.")]
+    [Display(Name = "Data retention (days)")] public int? RetentionDays { get; set; }
 
-    [Required(ErrorMessage = "Aylık ücret zorunludur"), Range(typeof(decimal), "0", "1000000", ErrorMessage = "Aylık ücret 0 veya daha büyük olmalıdır",
+    [Required(ErrorMessage = "Monthly price is required."), Range(typeof(decimal), "0", "1000000", ErrorMessage = "Monthly price must be 0 or greater.",
         ParseLimitsInInvariantCulture = true, ConvertValueInInvariantCulture = true)]
     [ModelBinder(typeof(FlexibleDecimalModelBinder))]
-    [Display(Name = "Aylık ücret ($)")] public decimal? MonthlyPrice { get; set; }
+    [Display(Name = "Monthly price ($)")] public decimal? MonthlyPrice { get; set; }
 
-    [Display(Name = "Aktif (yeni müşterilere sunulur)")] public bool IsActive { get; set; } = true;
+    [Display(Name = "Active (offered to new customers)")] public bool IsActive { get; set; } = true;
 
     public static PlanInput From(Plan p) => new()
     {
@@ -48,18 +49,18 @@ public class PlanInput
     }
 
     /// <summary>Rules that DataAnnotations can't express: supported interval and unique name (case-insensitive).</summary>
-    public async Task ValidateAsync(AppDbContext db, ModelStateDictionary ms, int? currentId, string prefix = "Input")
+    public async Task ValidateAsync(AppDbContext db, ModelStateDictionary ms, Text<AdminResource> L, int? currentId, string prefix = "Input")
     {
         if (MinIntervalSeconds is int i && !PlanRules.SupportedIntervals.Contains(i))
             ms.AddModelError($"{prefix}.{nameof(MinIntervalSeconds)}",
-                $"Desteklenmeyen aralık. Geçerli değerler: {string.Join(", ", PlanRules.SupportedIntervals.Select(s => s + " sn"))}.");
+                L["Unsupported interval. Valid values: {0}.", string.Join(", ", PlanRules.SupportedIntervals.Select(Fmt.Interval))]);
 
         if (!string.IsNullOrWhiteSpace(Name))
         {
             var name = Name.Trim().ToUpperInvariant();
             var names = await db.Plans.Where(p => p.Id != currentId).Select(p => p.Name).ToListAsync();
             if (names.Any(n => n.ToUpperInvariant() == name))
-                ms.AddModelError($"{prefix}.{nameof(Name)}", "Bu isimde bir plan zaten var.");
+                ms.AddModelError($"{prefix}.{nameof(Name)}", L["A plan with this name already exists."]);
         }
     }
 }

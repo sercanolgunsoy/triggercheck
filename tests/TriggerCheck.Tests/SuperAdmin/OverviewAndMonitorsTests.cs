@@ -15,6 +15,9 @@ public class OverviewAndMonitorsTests
         var demo = await f.DemoCustomerAsync();
         var userId = await f.WithDbAsync(db => db.Users.Where(u => u.CustomerId == demo.Id).Select(u => u.Id).FirstAsync());
         var sa = await f.LoginSuperAdminAsync();
+        var tr = await f.LoginSuperAdminAsync();
+        await tr.SetLanguageAsync("tr");
+        foreach (var client in new[] { sa, tr })
         foreach (var url in new[]
         {
             "/SuperAdmin", "/SuperAdmin/Index", "/SuperAdmin/Customers/Index", "/SuperAdmin/Customers/Create",
@@ -23,7 +26,7 @@ public class OverviewAndMonitorsTests
             "/SuperAdmin/Plans/Index", "/SuperAdmin/Plans/Create", $"/SuperAdmin/Plans/Edit/{demo.PlanId}", "/SuperAdmin/Monitors/Index"
         })
         {
-            var r = await sa.GetAsync(url);
+            var r = await client.GetAsync(url);
             Assert.True(r.StatusCode == HttpStatusCode.OK, $"{url} returned {(int)r.StatusCode}");
         }
         Assert.Equal(HttpStatusCode.NotFound, (await sa.GetAsync("/SuperAdmin/Customers/Details/9999")).StatusCode);
@@ -50,13 +53,13 @@ public class OverviewAndMonitorsTests
         var sa = await f.LoginSuperAdminAsync();
         var html = WebUtility.HtmlDecode(await sa.GetStringAsync("/SuperAdmin/Index"));
 
-        Assert.Contains("1 aktif", html);
-        Assert.Contains("1 askıda", html);
+        Assert.Contains("1 active", html);
+        Assert.Contains("1 suspended", html);
         Assert.Contains("DOWN 1", html);
         Assert.Contains("HTTP 503 hata-kodu", html);
-        Assert.Contains("1 monitör gecikmede", html);
-        Assert.Matches(new Regex(@"son 24 saat: <strong>2</strong>"), html);
-        Assert.Contains("15,00 $", html); // MRR: only the active Standard customer counts
+        Assert.Contains("Overdue monitors: 1", html);
+        Assert.Matches(new Regex(@"last 24 hours: <strong>2</strong>"), html);
+        Assert.Contains("$15.00", html); // MRR: only the active Standard customer counts
     }
 
     [Fact]
@@ -89,7 +92,7 @@ public class OverviewAndMonitorsTests
 
         var monitorId = await f.WithDbAsync(db => db.Monitors.Where(m => m.Name == "Example.com").Select(m => m.Id).SingleAsync());
         var r = await sa.PostFormAsync($"/SuperAdmin/Monitors/Index?handler=Pause&id={monitorId}", [], "/SuperAdmin/Monitors/Index");
-        Assert.Contains("duraklatıldı", await sa.FollowAsync(r));
+        Assert.Contains("\"Example.com\" was paused.", await sa.FollowAsync(r));
         var m = await f.WithDbAsync(db => db.Monitors.SingleAsync(x => x.Id == monitorId));
         Assert.False(m.IsEnabled);
         Assert.Equal(MonitorStatus.Paused, m.Status);
@@ -100,7 +103,7 @@ public class OverviewAndMonitorsTests
         Assert.Equal(61, Rows(await sa.GetStringAsync($"/SuperAdmin/Monitors/Index?CustomerId={demo.Id}&Type=Http&p=1")) + Rows(await sa.GetStringAsync($"/SuperAdmin/Monitors/Index?CustomerId={demo.Id}&Type=Http&p=2")));
 
         r = await sa.PostFormAsync($"/SuperAdmin/Monitors/Index?handler=Resume&id={monitorId}", [], "/SuperAdmin/Monitors/Index");
-        Assert.Contains("yeniden başlatıldı", await sa.FollowAsync(r));
+        Assert.Contains("\"Example.com\" was resumed.", await sa.FollowAsync(r));
         m = await f.WithDbAsync(db => db.Monitors.SingleAsync(x => x.Id == monitorId));
         Assert.True(m.IsEnabled);
         Assert.Equal(MonitorStatus.Unknown, m.Status);

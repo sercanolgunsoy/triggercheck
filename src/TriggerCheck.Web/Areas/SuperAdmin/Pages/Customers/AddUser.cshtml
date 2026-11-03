@@ -1,15 +1,15 @@
 @page "{customerId:int}"
 @model TriggerCheck.Web.Areas.SuperAdmin.Pages.Customers.AddUserModel
-@{ ViewData["Title"] = "Kullanıcı ekle"; }
+@{ ViewData["Title"] = L["Add user"]; }
 
 <nav aria-label="breadcrumb"><ol class="breadcrumb">
-    <li class="breadcrumb-item"><a asp-page="Index">Müşteriler</a></li>
+    <li class="breadcrumb-item"><a asp-page="Index">@L["Customers"]</a></li>
     <li class="breadcrumb-item"><a asp-page="Details" asp-route-id="@Model.Customer.Id">@Model.Customer.Name</a></li>
-    <li class="breadcrumb-item active">Kullanıcı ekle</li>
+    <li class="breadcrumb-item active">@L["Add user"]</li>
 </ol></nav>
 
 <div class="row"><div class="col-lg-6">
-<h2 class="mb-3">Kullanıcı ekle</h2>
+<h2 class="mb-3">@L["Add user"]</h2>
 <form method="post" class="card"><div class="card-body">
     <div asp-validation-summary="ModelOnly" class="text-danger"></div>
     <div class="mb-3">
@@ -26,18 +26,18 @@
         <label asp-for="Input.Password" class="form-label"></label>
         <input asp-for="Input.Password" class="form-control" autocomplete="new-password" />
         <span asp-validation-for="Input.Password" class="text-danger small"></span>
-        <div class="form-text">En az 8 karakter; büyük harf, küçük harf ve rakam içermeli.</div>
+        <div class="form-text">@L["At least 8 characters, with an uppercase letter, a lowercase letter and a digit."]</div>
     </div>
     <div class="mb-3">
         <label asp-for="Input.Role" class="form-label"></label>
         <select asp-for="Input.Role" class="form-select">
-            <option value="@Roles.CustomerAdmin">CustomerAdmin: tam yetki</option>
-            <option value="@Roles.CustomerViewer">CustomerViewer: salt okunur</option>
+            <option value="@Roles.CustomerAdmin">CustomerAdmin: @L["full access"]</option>
+            <option value="@Roles.CustomerViewer">CustomerViewer: @L["read-only"]</option>
         </select>
         <span asp-validation-for="Input.Role" class="text-danger small"></span>
     </div>
-    <button type="submit" class="btn btn-primary">Ekle</button>
-    <a asp-page="Details" asp-route-id="@Model.Customer.Id" class="btn btn-link">Vazgeç</a>
+    <button type="submit" class="btn btn-primary">@L["Add"]</button>
+    <a asp-page="Details" asp-route-id="@Model.Customer.Id" class="btn btn-link">@L["Cancel"]</a>
 </div></form>
 </div></div>
 

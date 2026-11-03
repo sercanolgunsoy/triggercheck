@@ -4,4 +4,493 @@
   <resheader name="version"><value>2.0</value></resheader>
   <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
   <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="&quot;{0}&quot; was activated again." xml:space="preserve">
+    <value>"{0}" yeniden etkinleştirildi.</value>
+  </data>
+  <data name="&quot;{0}&quot; was paused." xml:space="preserve">
+    <value>"{0}" duraklatıldı.</value>
+  </data>
+  <data name="&quot;{0}&quot; was resumed." xml:space="preserve">
+    <value>"{0}" yeniden başlatıldı.</value>
+  </data>
+  <data name="&quot;{0}&quot; was suspended. Its users cannot sign in and its monitors are not checked." xml:space="preserve">
+    <value>"{0}" askıya alındı. Kullanıcıları giriş yapamaz ve monitörleri kontrol edilmez.</value>
+  </data>
+  <data name="A monitor counts as overdue when its next check time is more than twice its interval in the past." xml:space="preserve">
+    <value>Bir sonraki kontrol zamanı, aralığının 2 katından daha eski olan monitörler gecikmiş sayılır.</value>
+  </data>
+  <data name="A plan in use cannot be deleted" xml:space="preserve">
+    <value>Kullanımda olan plan silinemez</value>
+  </data>
+  <data name="A plan with this name already exists." xml:space="preserve">
+    <value>Bu isimde bir plan zaten var.</value>
+  </data>
+  <data name="A user with this e-mail address already exists." xml:space="preserve">
+    <value>Bu e-posta adresi ile kayıtlı bir kullanıcı zaten var.</value>
+  </data>
+  <data name="Activate" xml:space="preserve">
+    <value>Etkinleştir</value>
+  </data>
+  <data name="Active (offered to new customers)" xml:space="preserve">
+    <value>Aktif (yeni müşterilere sunulur)</value>
+  </data>
+  <data name="Add" xml:space="preserve">
+    <value>Ekle</value>
+  </data>
+  <data name="Add user" xml:space="preserve">
+    <value>Kullanıcı ekle</value>
+  </data>
+  <data name="Admin e-mail" xml:space="preserve">
+    <value>Yönetici e-postası</value>
+  </data>
+  <data name="Admin e-mail is required." xml:space="preserve">
+    <value>Yönetici e-postası zorunludur</value>
+  </data>
+  <data name="Admin full name" xml:space="preserve">
+    <value>Yönetici ad soyad</value>
+  </data>
+  <data name="Admin password" xml:space="preserve">
+    <value>Yönetici şifresi</value>
+  </data>
+  <data name="Alert channels and alert history" xml:space="preserve">
+    <value>Bildirim kanalları ve bildirim geçmişi</value>
+  </data>
+  <data name="All customers" xml:space="preserve">
+    <value>Tüm müşteriler</value>
+  </data>
+  <data name="All monitors" xml:space="preserve">
+    <value>Tüm monitörler</value>
+  </data>
+  <data name="All plans" xml:space="preserve">
+    <value>Tüm planlar</value>
+  </data>
+  <data name="All statuses" xml:space="preserve">
+    <value>Tüm durumlar</value>
+  </data>
+  <data name="All types" xml:space="preserve">
+    <value>Tüm tipler</value>
+  </data>
+  <data name="At least 8 characters, with an uppercase letter, a lowercase letter and a digit." xml:space="preserve">
+    <value>En az 8 karakter; büyük harf, küçük harf ve rakam içermeli.</value>
+  </data>
+  <data name="At most {1} characters." xml:space="preserve">
+    <value>En fazla {1} karakter</value>
+  </data>
+  <data name="Breakdown by plan" xml:space="preserve">
+    <value>Plan bazında dağılım</value>
+  </data>
+  <data name="Cause" xml:space="preserve">
+    <value>Neden</value>
+  </data>
+  <data name="Check interval raised to the new plan minimum ({1}) for {0} monitor(s)." xml:space="preserve">
+    <value>{0} monitörün kontrol aralığı yeni plan minimumuna ({1}) yükseltildi.</value>
+  </data>
+  <data name="Check interval raised to the plan minimum ({1}) for {0} monitor(s)." xml:space="preserve">
+    <value>{0} monitörün kontrol aralığı plan minimumuna ({1}) yükseltildi.</value>
+  </data>
+  <data name="Checks performed" xml:space="preserve">
+    <value>Yapılan kontroller</value>
+  </data>
+  <data name="Contact e-mail" xml:space="preserve">
+    <value>İletişim e-postası</value>
+  </data>
+  <data name="Contact e-mail is required." xml:space="preserve">
+    <value>İletişim e-postası zorunludur</value>
+  </data>
+  <data name="current" xml:space="preserve">
+    <value>mevcut</value>
+  </data>
+  <data name="Customer &quot;{0}&quot; and all its data ({1} monitors, {2} users) were deleted." xml:space="preserve">
+    <value>"{0}" müşterisi ve tüm verileri ({1} monitör, {2} kullanıcı) silindi.</value>
+  </data>
+  <data name="Customer &quot;{0}&quot; and its admin user ({1}) were created." xml:space="preserve">
+    <value>"{0}" müşterisi ve yönetici kullanıcısı ({1}) oluşturuldu.</value>
+  </data>
+  <data name="Customer details" xml:space="preserve">
+    <value>Müşteri bilgileri</value>
+  </data>
+  <data name="Customer details were saved." xml:space="preserve">
+    <value>Müşteri bilgileri kaydedildi.</value>
+  </data>
+  <data name="Customer name" xml:space="preserve">
+    <value>Müşteri adı</value>
+  </data>
+  <data name="Customer name is required." xml:space="preserve">
+    <value>Müşteri adı zorunludur</value>
+  </data>
+  <data name="Customers (active)" xml:space="preserve">
+    <value>Müşteri (aktif)</value>
+  </data>
+  <data name="Customers listed: {0}" xml:space="preserve">
+    <value>{0} müşteri listelendi.</value>
+  </data>
+  <data name="Customers on this plan: {0} ({1} monitors in total)." xml:space="preserve">
+    <value>Bu planı {0} müşteri kullanıyor (toplam {1} monitör).</value>
+  </data>
+  <data name="Data retention (days)" xml:space="preserve">
+    <value>Veri saklama (gün)</value>
+  </data>
+  <data name="Deactivate" xml:space="preserve">
+    <value>Pasifleştir</value>
+  </data>
+  <data name="Delete customer" xml:space="preserve">
+    <value>Müşteriyi sil</value>
+  </data>
+  <data name="Delete customer permanently" xml:space="preserve">
+    <value>Müşteriyi kalıcı olarak sil</value>
+  </data>
+  <data name="Delete permanently" xml:space="preserve">
+    <value>Kalıcı olarak sil</value>
+  </data>
+  <data name="Delete the plan {0}?" xml:space="preserve">
+    <value>{0} planı silinsin mi?</value>
+  </data>
+  <data name="Delete {0}?" xml:space="preserve">
+    <value>{0} silinsin mi?</value>
+  </data>
+  <data name="Details" xml:space="preserve">
+    <value>Detay</value>
+  </data>
+  <data name="Edit / change plan" xml:space="preserve">
+    <value>Düzenle / Plan değiştir</value>
+  </data>
+  <data name="Edit customer" xml:space="preserve">
+    <value>Müşteri düzenle</value>
+  </data>
+  <data name="Edit plan" xml:space="preserve">
+    <value>Plan düzenle</value>
+  </data>
+  <data name="Enabled monitors (active customers):" xml:space="preserve">
+    <value>Etkin monitör (aktif müşteriler):</value>
+  </data>
+  <data name="Enter a valid e-mail." xml:space="preserve">
+    <value>Geçerli bir e-posta girin</value>
+  </data>
+  <data name="Enter a valid number." xml:space="preserve">
+    <value>Geçerli bir sayı girin.</value>
+  </data>
+  <data name="Estimated monthly revenue (MRR)" xml:space="preserve">
+    <value>Tahmini aylık gelir (MRR)</value>
+  </data>
+  <data name="First admin user (CustomerAdmin)" xml:space="preserve">
+    <value>İlk yönetici kullanıcı (CustomerAdmin)</value>
+  </data>
+  <data name="full access" xml:space="preserve">
+    <value>tam yetki</value>
+  </data>
+  <data name="Full name is required." xml:space="preserve">
+    <value>Ad soyad zorunludur</value>
+  </data>
+  <data name="If max monitors is lowered, existing monitors are not deleted; customers over the limit cannot add new monitors." xml:space="preserve">
+    <value>Maks. monitör düşürülürse mevcut monitörler silinmez; sınırı aşan müşteriler yeni monitör ekleyemez.</value>
+  </data>
+  <data name="If the backlog keeps growing, the monitoring engine cannot keep up or may be down." xml:space="preserve">
+    <value>Gecikme sürekli artıyorsa izleme motoru yetişemiyor ya da kapalı olabilir.</value>
+  </data>
+  <data name="If the minimum interval is raised, faster monitors of these customers are automatically slowed down to the new minimum." xml:space="preserve">
+    <value>Minimum aralık yükseltilirse bu müşterilerin daha hızlı monitörleri otomatik olarak yeni minimuma çekilir.</value>
+  </data>
+  <data name="If the number of monitors exceeds the limit of the new plan, the monitors are not deleted; the customer cannot add new monitors." xml:space="preserve">
+    <value>Monitör sayısı yeni planın sınırını aşarsa monitörler silinmez; müşteri yeni monitör ekleyemez.</value>
+  </data>
+  <data name="If the plan is deactivated, existing customers keep it, but it is no longer offered to new customers." xml:space="preserve">
+    <value>Plan pasifleştirilirse mevcut müşteriler planı korur, yeni müşterilere sunulmaz.</value>
+  </data>
+  <data name="Impact" xml:space="preserve">
+    <value>Etki</value>
+  </data>
+  <data name="Impact of a plan change" xml:space="preserve">
+    <value>Plan değişikliğinin etkisi</value>
+  </data>
+  <data name="inactive" xml:space="preserve">
+    <value>pasif</value>
+  </data>
+  <data name="inactive plan" xml:space="preserve">
+    <value>pasif plan</value>
+  </data>
+  <data name="Inactive plans are not offered to new customers; existing customers keep their plan. A plan that has customers cannot be deleted." xml:space="preserve">
+    <value>Pasif planlar yeni müşterilere sunulmaz; mevcut müşteriler planlarını korur. Müşterisi olan plan silinemez.</value>
+  </data>
+  <data name="Invalid role." xml:space="preserve">
+    <value>Geçersiz rol.</value>
+  </data>
+  <data name="last 24 hours:" xml:space="preserve">
+    <value>son 24 saat:</value>
+  </data>
+  <data name="Last check ({0})" xml:space="preserve">
+    <value>Son kontrol ({0})</value>
+  </data>
+  <data name="last hour" xml:space="preserve">
+    <value>son 1 saat</value>
+  </data>
+  <data name="Locked" xml:space="preserve">
+    <value>Kilitli</value>
+  </data>
+  <data name="Max monitors" xml:space="preserve">
+    <value>Maks. monitör</value>
+  </data>
+  <data name="Max monitors is required." xml:space="preserve">
+    <value>Maks. monitör zorunludur</value>
+  </data>
+  <data name="Max monitors must be at least 1." xml:space="preserve">
+    <value>Maks. monitör en az 1 olmalıdır</value>
+  </data>
+  <data name="Min. interval" xml:space="preserve">
+    <value>Min. aralık</value>
+  </data>
+  <data name="min. {0}, max. {1} monitors" xml:space="preserve">
+    <value>min. {0}, maks. {1} monitör</value>
+  </data>
+  <data name="min. {0}, max. {1} monitors, {2}/month" xml:space="preserve">
+    <value>min. {0}, maks. {1} monitör, {2}/ay</value>
+  </data>
+  <data name="Minimum check interval" xml:space="preserve">
+    <value>Minimum kontrol aralığı</value>
+  </data>
+  <data name="Minimum interval is required." xml:space="preserve">
+    <value>Minimum aralık zorunludur</value>
+  </data>
+  <data name="Monitor limit" xml:space="preserve">
+    <value>Monitör sınırı</value>
+  </data>
+  <data name="Monitors to slow down" xml:space="preserve">
+    <value>Yavaşlatılacak monitör</value>
+  </data>
+  <data name="Monthly price" xml:space="preserve">
+    <value>Aylık ücret</value>
+  </data>
+  <data name="Monthly price ($)" xml:space="preserve">
+    <value>Aylık ücret ($)</value>
+  </data>
+  <data name="Monthly price is required." xml:space="preserve">
+    <value>Aylık ücret zorunludur</value>
+  </data>
+  <data name="Monthly price must be 0 or greater." xml:space="preserve">
+    <value>Aylık ücret 0 veya daha büyük olmalıdır</value>
+  </data>
+  <data name="New customer" xml:space="preserve">
+    <value>Yeni müşteri</value>
+  </data>
+  <data name="New password" xml:space="preserve">
+    <value>Yeni şifre</value>
+  </data>
+  <data name="New password is required." xml:space="preserve">
+    <value>Yeni şifre zorunludur</value>
+  </data>
+  <data name="New plan" xml:space="preserve">
+    <value>Yeni plan</value>
+  </data>
+  <data name="No monitors found." xml:space="preserve">
+    <value>Monitör bulunamadı.</value>
+  </data>
+  <data name="No monitors." xml:space="preserve">
+    <value>Monitör yok.</value>
+  </data>
+  <data name="No open incidents." xml:space="preserve">
+    <value>Açık olay yok.</value>
+  </data>
+  <data name="No users." xml:space="preserve">
+    <value>Kullanıcı yok.</value>
+  </data>
+  <data name="Oldest pending check:" xml:space="preserve">
+    <value>En eski bekleyen kontrol:</value>
+  </data>
+  <data name="Open incidents" xml:space="preserve">
+    <value>Açık olaylar</value>
+  </data>
+  <data name="Overdue monitors: {0}" xml:space="preserve">
+    <value>{0} monitör gecikmede.</value>
+  </data>
+  <data name="Pause" xml:space="preserve">
+    <value>Duraklat</value>
+  </data>
+  <data name="Paused" xml:space="preserve">
+    <value>Duraklatıldı</value>
+  </data>
+  <data name="Pending" xml:space="preserve">
+    <value>Bekliyor</value>
+  </data>
+  <data name="Plan &quot;{0}&quot; is used by {1} customer(s) and cannot be deleted. Move the customers to another plan first, or deactivate the plan." xml:space="preserve">
+    <value>"{0}" planı {1} müşteri tarafından kullanılıyor; silinemez. Önce müşterileri başka plana taşıyın ya da planı pasifleştirin.</value>
+  </data>
+  <data name="Plan &quot;{0}&quot; was created." xml:space="preserve">
+    <value>"{0}" planı oluşturuldu.</value>
+  </data>
+  <data name="Plan &quot;{0}&quot; was deleted." xml:space="preserve">
+    <value>"{0}" planı silindi.</value>
+  </data>
+  <data name="Plan &quot;{0}&quot; was updated." xml:space="preserve">
+    <value>"{0}" planı güncellendi.</value>
+  </data>
+  <data name="Plan name" xml:space="preserve">
+    <value>Plan adı</value>
+  </data>
+  <data name="Plan name is required." xml:space="preserve">
+    <value>Plan adı zorunludur</value>
+  </data>
+  <data name="Platform overview" xml:space="preserve">
+    <value>Platform genel bakış</value>
+  </data>
+  <data name="Price" xml:space="preserve">
+    <value>Fiyat</value>
+  </data>
+  <data name="read-only" xml:space="preserve">
+    <value>salt okunur</value>
+  </data>
+  <data name="Reset password" xml:space="preserve">
+    <value>Şifre sıfırla</value>
+  </data>
+  <data name="Response" xml:space="preserve">
+    <value>Yanıt</value>
+  </data>
+  <data name="Resume" xml:space="preserve">
+    <value>Devam ettir</value>
+  </data>
+  <data name="Retention" xml:space="preserve">
+    <value>Saklama</value>
+  </data>
+  <data name="Retention is required." xml:space="preserve">
+    <value>Saklama süresi zorunludur</value>
+  </data>
+  <data name="Retention must be between {1} and {2} days." xml:space="preserve">
+    <value>Saklama süresi {1} ile {2} gün arasında olmalıdır</value>
+  </data>
+  <data name="Role is required." xml:space="preserve">
+    <value>Rol zorunludur</value>
+  </data>
+  <data name="Scheduler health" xml:space="preserve">
+    <value>Zamanlayıcı sağlığı</value>
+  </data>
+  <data name="Search by name or e-mail" xml:space="preserve">
+    <value>Ad veya e-posta ile ara</value>
+  </data>
+  <data name="Search target / name" xml:space="preserve">
+    <value>Hedef / ad ara</value>
+  </data>
+  <data name="Select a plan." xml:space="preserve">
+    <value>Plan seçin</value>
+  </data>
+  <data name="Select a valid, active plan." xml:space="preserve">
+    <value>Geçerli ve aktif bir plan seçin.</value>
+  </data>
+  <data name="Show in all monitors" xml:space="preserve">
+    <value>Tüm monitörlerde göster</value>
+  </data>
+  <data name="Showing the newest {0} incidents." xml:space="preserve">
+    <value>En yeni {0} olay gösteriliyor.</value>
+  </data>
+  <data name="Started ({0})" xml:space="preserve">
+    <value>Başlangıç ({0})</value>
+  </data>
+  <data name="sum of the plan prices of active customers" xml:space="preserve">
+    <value>aktif müşterilerin plan ücretleri toplamı</value>
+  </data>
+  <data name="Suspend" xml:space="preserve">
+    <value>Askıya al</value>
+  </data>
+  <data name="Suspend the customer? All its users are signed out and its monitors are no longer checked." xml:space="preserve">
+    <value>Müşteri askıya alınsın mı? Tüm kullanıcılarının oturumu kapanır ve monitörleri kontrol edilmez.</value>
+  </data>
+  <data name="Suspended" xml:space="preserve">
+    <value>Askıda</value>
+  </data>
+  <data name="suspended" xml:space="preserve">
+    <value>askıda</value>
+  </data>
+  <data name="The customer could not be created: {0}" xml:space="preserve">
+    <value>Müşteri oluşturulamadı: {0}</value>
+  </data>
+  <data name="The customer is already active." xml:space="preserve">
+    <value>Müşteri zaten aktif.</value>
+  </data>
+  <data name="The customer is already suspended." xml:space="preserve">
+    <value>Müşteri zaten askıda.</value>
+  </data>
+  <data name="The monitoring engine is running on time." xml:space="preserve">
+    <value>İzleme motoru zamanında çalışıyor.</value>
+  </data>
+  <data name="The number of monitors ({0}) exceeds the limit of the plan ({1}). The customer cannot add new monitors." xml:space="preserve">
+    <value>Monitör sayısı ({0}) planın izin verdiği üst sınırı ({1}) aşıyor. Müşteri yeni monitör ekleyemez.</value>
+  </data>
+  <data name="The password must be at least {2} characters long." xml:space="preserve">
+    <value>Şifre en az {2} karakter olmalıdır</value>
+  </data>
+  <data name="The password of {0} was reset; its open sessions were ended." xml:space="preserve">
+    <value>{0} şifresi sıfırlandı; açık oturumları sonlandırıldı.</value>
+  </data>
+  <data name="The plan was changed from {0} to {1}." xml:space="preserve">
+    <value>Plan {0} → {1} olarak değiştirildi.</value>
+  </data>
+  <data name="The user's open sessions are ended and the account is unlocked." xml:space="preserve">
+    <value>Kullanıcının açık oturumları sonlandırılır ve hesap kilidi kaldırılır.</value>
+  </data>
+  <data name="This cannot be undone. The following data will be deleted permanently:" xml:space="preserve">
+    <value>Bu işlem geri alınamaz. Aşağıdaki veriler kalıcı olarak silinecek:</value>
+  </data>
+  <data name="This customer is suspended: its users cannot sign in and its monitors are not checked." xml:space="preserve">
+    <value>Bu müşteri askıda: kullanıcıları giriş yapamaz, monitörleri kontrol edilmez.</value>
+  </data>
+  <data name="Times: {0} (Europe/Istanbul)" xml:space="preserve">
+    <value>Saatler: {0} (Europe/Istanbul)</value>
+  </data>
+  <data name="To confirm, type the customer name exactly as shown." xml:space="preserve">
+    <value>Onay için müşteri adını birebir aynı yazmalısınız.</value>
+  </data>
+  <data name="To stop the customer temporarily, suspend it instead of deleting it." xml:space="preserve">
+    <value>Geçici olarak durdurmak istiyorsanız silmek yerine müşteriyi askıya alın.</value>
+  </data>
+  <data name="Type the customer name to confirm:" xml:space="preserve">
+    <value>Onaylamak için müşteri adını yazın:</value>
+  </data>
+  <data name="Unlock" xml:space="preserve">
+    <value>Kilidi aç</value>
+  </data>
+  <data name="Unsupported interval. Valid values: {0}." xml:space="preserve">
+    <value>Desteklenmeyen aralık. Geçerli değerler: {0}.</value>
+  </data>
+  <data name="User {0} ({1}) was added." xml:space="preserve">
+    <value>{0} kullanıcısı ({1}) eklendi.</value>
+  </data>
+  <data name="User:" xml:space="preserve">
+    <value>Kullanıcı:</value>
+  </data>
+  <data name="Warning: the customer has {0} monitors, but the {1} plan allows at most {2}. The monitors were not deleted; the customer cannot add new monitors." xml:space="preserve">
+    <value>Uyarı: müşterinin {0} monitörü var, {1} planı en fazla {2} monitöre izin veriyor. Monitörler silinmedi; müşteri yeni monitör ekleyemez.</value>
+  </data>
+  <data name="Warning: {0} customer(s) exceed the new monitor limit ({1}). The monitors were not deleted; these customers cannot add new monitors." xml:space="preserve">
+    <value>Uyarı: {0} müşterinin monitör sayısı yeni sınırı ({1}) aşıyor. Monitörler silinmedi; bu müşteriler yeni monitör ekleyemez.</value>
+  </data>
+  <data name="When moving to a slower plan, monitors faster than the plan minimum are automatically slowed down to the plan minimum." xml:space="preserve">
+    <value>Daha yavaş bir plana geçildiğinde, plan minimumundan hızlı monitörlerin aralığı otomatik olarak plan minimumuna çekilir.</value>
+  </data>
+  <data name="{0} active" xml:space="preserve">
+    <value>{0} aktif</value>
+  </data>
+  <data name="{0} days" xml:space="preserve">
+    <value>{0} gün</value>
+  </data>
+  <data name="{0} monitors, their incidents and {1} check results" xml:space="preserve">
+    <value>{0} monitör, bunların olayları ve {1} kontrol sonucu</value>
+  </data>
+  <data name="{0} suspended" xml:space="preserve">
+    <value>{0} askıda</value>
+  </data>
+  <data name="{0} user accounts" xml:space="preserve">
+    <value>{0} kullanıcı hesabı</value>
+  </data>
+  <data name="{0} was activated." xml:space="preserve">
+    <value>{0} etkinleştirildi.</value>
+  </data>
+  <data name="{0} was deactivated; its open sessions were ended." xml:space="preserve">
+    <value>{0} pasifleştirildi; açık oturumları sonlandırıldı.</value>
+  </data>
+  <data name="{0} was deleted." xml:space="preserve">
+    <value>{0} silindi.</value>
+  </data>
+  <data name="{0} was unlocked." xml:space="preserve">
+    <value>{0} kilidi kaldırıldı.</value>
+  </data>
+  <data name="{0}–{1} / {2} monitors" xml:space="preserve">
+    <value>{0}–{1} / {2} monitör</value>
+  </data>
 </root>

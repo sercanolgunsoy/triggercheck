@@ -5,11 +5,12 @@ using Microsoft.EntityFrameworkCore;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Web.Infrastructure;
+using TriggerCheck.Web.Localization;
 
 namespace TriggerCheck.Web.Areas.SuperAdmin.Pages.Monitors;
 
 [Authorize(Policy = Policies.SuperAdmin)]
-public class IndexModel(AppDbContext db) : PageModel
+public class IndexModel(AppDbContext db, Text<AdminResource> L) : PageModel
 {
     public const int PageSize = 50;
 
@@ -67,7 +68,7 @@ public class IndexModel(AppDbContext db) : PageModel
             m.IsEnabled = false;
             m.Status = MonitorStatus.Paused;
             m.StatusChangedAtUtc = now;
-            TempData["Success"] = $"\"{m.Name}\" duraklatıldı.";
+            TempData["Success"] = L["\"{0}\" was paused.", m.Name].Value;
         }
         else if (!paused && !m.IsEnabled)
         {
@@ -76,7 +77,7 @@ public class IndexModel(AppDbContext db) : PageModel
             m.ConsecutiveFailures = 0;
             m.StatusChangedAtUtc = now;
             m.NextCheckAtUtc = now;
-            TempData["Success"] = $"\"{m.Name}\" yeniden başlatıldı.";
+            TempData["Success"] = L["\"{0}\" was resumed.", m.Name].Value;
         }
         await db.SaveChangesAsync();
         return RedirectToPage(new { CustomerId, Status, Type, Q, p = PageNo });

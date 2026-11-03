@@ -9,11 +9,12 @@ using TriggerCheck.Domain.Entities;
 using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Infrastructure.Identity;
 using TriggerCheck.Web.Infrastructure;
+using TriggerCheck.Web.Localization;
 
 namespace TriggerCheck.Web.Areas.SuperAdmin.Pages.Customers;
 
 [Authorize(Policy = Policies.SuperAdmin)]
-public class AddUserModel(AppDbContext db, UserManager<ApplicationUser> users) : PageModel
+public class AddUserModel(AppDbContext db, UserManager<ApplicationUser> users, Text<AdminResource> L) : PageModel
 {
     [BindProperty] public InputModel Input { get; set; } = new();
     public Customer Customer { get; private set; } = null!;
@@ -22,16 +23,16 @@ public class AddUserModel(AppDbContext db, UserManager<ApplicationUser> users) :
 
     public class InputModel
     {
-        [Required(ErrorMessage = "E-posta zorunludur"), EmailAddress(ErrorMessage = "Geçerli bir e-posta girin"), StringLength(256)]
-        [Display(Name = "E-posta")] public string Email { get; set; } = "";
+        [Required(ErrorMessage = "E-mail is required."), EmailAddress(ErrorMessage = "Enter a valid e-mail."), StringLength(256, ErrorMessage = "At most {1} characters.")]
+        [Display(Name = "E-mail")] public string Email { get; set; } = "";
 
-        [Required(ErrorMessage = "Ad soyad zorunludur"), StringLength(200)]
-        [Display(Name = "Ad soyad")] public string FullName { get; set; } = "";
+        [Required(ErrorMessage = "Full name is required."), StringLength(200, ErrorMessage = "At most {1} characters.")]
+        [Display(Name = "Full name")] public string FullName { get; set; } = "";
 
-        [Required(ErrorMessage = "Şifre zorunludur"), DataType(DataType.Password), StringLength(100, MinimumLength = 8, ErrorMessage = "Şifre en az 8 karakter olmalıdır")]
-        [Display(Name = "Şifre")] public string Password { get; set; } = "";
+        [Required(ErrorMessage = "Password is required."), DataType(DataType.Password), StringLength(100, MinimumLength = 8, ErrorMessage = "The password must be at least {2} characters long.")]
+        [Display(Name = "Password")] public string Password { get; set; } = "";
 
-        [Required, Display(Name = "Rol")] public string Role { get; set; } = Roles.CustomerViewer;
+        [Required(ErrorMessage = "Role is required."), Display(Name = "Role")] public string Role { get; set; } = Roles.CustomerViewer;
     }
 
     public async Task<IActionResult> OnGetAsync(int customerId)
@@ -49,9 +50,9 @@ public class AddUserModel(AppDbContext db, UserManager<ApplicationUser> users) :
         Customer = c;
 
         if (!AllowedRoles.Contains(Input.Role))
-            ModelState.AddModelError("Input.Role", "Geçersiz rol.");
+            ModelState.AddModelError("Input.Role", L["Invalid role."]);
         if (ModelState.IsValid && await users.FindByEmailAsync(Input.Email.Trim()) is not null)
-            ModelState.AddModelError("Input.Email", "Bu e-posta adresi ile kayıtlı bir kullanıcı zaten var.");
+            ModelState.AddModelError("Input.Email", L["A user with this e-mail address already exists."]);
         if (!ModelState.IsValid) return Page();
 
         await using var tx = await db.Database.BeginTransactionAsync();
@@ -72,7 +73,7 @@ public class AddUserModel(AppDbContext db, UserManager<ApplicationUser> users) :
         }
         await tx.CommitAsync();
 
-        TempData["Success"] = $"{email} kullanıcısı ({Input.Role}) eklendi.";
+        TempData["Success"] = L["User {0} ({1}) was added.", email, Input.Role].Value;
         return RedirectToPage("Details", new { id = customerId });
     }
 }

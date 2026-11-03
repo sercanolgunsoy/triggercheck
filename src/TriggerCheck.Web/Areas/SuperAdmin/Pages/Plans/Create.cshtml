@@ -1,18 +1,18 @@
 @page
 @model TriggerCheck.Web.Areas.SuperAdmin.Pages.Plans.CreateModel
-@{ ViewData["Title"] = "Yeni plan"; }
+@{ ViewData["Title"] = L["New plan"]; }
 
 <nav aria-label="breadcrumb"><ol class="breadcrumb">
-    <li class="breadcrumb-item"><a asp-page="Index">Planlar</a></li>
-    <li class="breadcrumb-item active">Yeni plan</li>
+    <li class="breadcrumb-item"><a asp-page="Index">@L["Plans"]</a></li>
+    <li class="breadcrumb-item active">@L["New plan"]</li>
 </ol></nav>
 
 <div class="row"><div class="col-lg-7">
-<h2 class="mb-3">Yeni plan</h2>
+<h2 class="mb-3">@L["New plan"]</h2>
 <form method="post" class="card"><div class="card-body">
     <partial name="_PlanForm" for="Input" />
-    <button type="submit" class="btn btn-primary">Oluştur</button>
-    <a asp-page="Index" class="btn btn-link">Vazgeç</a>
+    <button type="submit" class="btn btn-primary">@L["Create"]</button>
+    <a asp-page="Index" class="btn btn-link">@L["Cancel"]</a>
 </div></form>
 </div></div>
 
