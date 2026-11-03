@@ -2,11 +2,15 @@
 @*
     Rendered with the page's Input object; field names are prefixed via ViewData.TemplateInfo so they bind to "Input.*".
 *@
+@{
+    var emailHelp = L["The e-mail address that alerts are sent to."].Value;
+    var webhookHelp = L["Incident details are POSTed to this address as JSON (http/https)."].Value;
+}
 <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
 <div class="row g-3">
     <div class="col-md-6">
         <label asp-for="Name" class="form-label"></label>
-        <input asp-for="Name" class="form-control" placeholder="Örn. Operasyon ekibi" />
+        <input asp-for="Name" class="form-control" placeholder="@L["e.g. Operations team"]" />
         <span asp-validation-for="Name" class="text-danger small"></span>
     </div>
     <div class="col-md-6">
@@ -14,7 +18,7 @@
         <select asp-for="Type" class="form-select" id="channel-type">
             @foreach (var t in Enum.GetValues<AlertChannelType>())
             {
-                <option value="@t" selected="@(Model.Type == t)">@AlertChannelInput.TypeName(t)</option>
+                <option value="@t" selected="@(Model.Type == t)">@AlertChannelInput.TypeName(t, L)</option>
             }
         </select>
         <span asp-validation-for="Type" class="text-danger small"></span>
@@ -37,7 +41,7 @@
     var sel = document.getElementById('channel-type'), help = document.getElementById('channel-help'), target = document.getElementById('channel-target');
     function update() {
         var email = sel.value === 'Email';
-        help.textContent = email ? 'Bildirimlerin gönderileceği e-posta adresi.' : 'Olay bilgisi bu adrese JSON olarak POST edilir (http/https).';
+        help.textContent = email ? @Json.Serialize(emailHelp) : @Json.Serialize(webhookHelp);
         target.placeholder = email ? 'ops@example.com' : 'https://hooks.example.com/triggercheck';
     }
     sel.addEventListener('change', update);

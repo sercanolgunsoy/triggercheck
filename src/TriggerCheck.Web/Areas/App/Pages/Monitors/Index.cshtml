@@ -1,22 +1,22 @@
 @page
 @model TriggerCheck.Web.Areas.App.Pages.Monitors.IndexModel
 @{
-    ViewData["Title"] = "Monitörler";
+    ViewData["Title"] = L["Monitors"].Value;
     var isAdmin = User.IsInRole(Roles.CustomerAdmin);
     var filters = new (MonitorStatus? Value, string Label)[]
     {
-        (null, "Tümü"), (MonitorStatus.Up, "Up"), (MonitorStatus.Down, "Down"), (MonitorStatus.Paused, "Duraklatıldı"), (MonitorStatus.Unknown, "Bekliyor")
+        (null, L["All"]), (MonitorStatus.Up, L["Up"]), (MonitorStatus.Down, L["Down"]), (MonitorStatus.Paused, L["Paused"]), (MonitorStatus.Unknown, L["Pending"])
     };
 }
 
 <div class="d-flex justify-content-between align-items-center mb-3">
     <div>
-        <h2 class="mb-0">Monitörler</h2>
-        <div class="text-muted small">@Model.TotalCount / @Model.MaxMonitors monitör kullanılıyor · saatler @AppFormat.TimeZoneLabel</div>
+        <h2 class="mb-0">@L["Monitors"]</h2>
+        <div class="text-muted small">@L["{0} / {1} monitors used", Model.TotalCount, Model.MaxMonitors] · @L["times in {0}", Fmt.TimeZoneLabel]</div>
     </div>
     @if (isAdmin)
     {
-        <a class="btn btn-primary" asp-page="Create">+ Yeni monitör</a>
+        <a class="btn btn-primary" asp-page="Create">+ @L["New monitor"]</a>
     }
 </div>
 
@@ -31,35 +31,35 @@
 
 @if (Model.Monitors.Count == 0)
 {
-    <div class="alert alert-light border">Bu filtreye uyan monitör yok.</div>
+    <div class="alert alert-light border">@L["No monitors match this filter."]</div>
 }
 else
 {
     <div class="table-responsive">
         <table class="table table-hover align-middle">
-            <thead><tr><th>Durum</th><th>Ad</th><th>Tip</th><th>Hedef</th><th>Aralık</th><th class="text-end">Son yanıt</th><th class="text-end">24 sa uptime</th><th>Son kontrol</th><th></th></tr></thead>
+            <thead><tr><th>@L["Status"]</th><th>@L["Name"]</th><th>@L["Type"]</th><th>@L["Target"]</th><th>@L["Interval"]</th><th class="text-end">@L["Last response"]</th><th class="text-end">@L["24 h uptime"]</th><th>@L["Last check"]</th><th></th></tr></thead>
             <tbody>
             @foreach (var m in Model.Monitors)
             {
                 <tr>
                     <td><partial name="_StatusBadge" model="m.Status" /></td>
                     <td><a asp-page="Details" asp-route-id="@m.Id">@m.Name</a></td>
-                    <td>@AppFormat.TypeName(m.Type)</td>
+                    <td>@Fmt.TypeName(m.Type)</td>
                     <td class="text-truncate" style="max-width: 260px">@m.Target@(m.Port is int p ? ":" + p : "")</td>
-                    <td>@PlanRules.FormatInterval(m.IntervalSeconds)</td>
-                    <td class="text-end">@AppFormat.Ms(m.LastResponseTimeMs)</td>
-                    <td class="text-end">@AppFormat.Percent(m.Uptime24h)</td>
-                    <td class="small text-muted">@AppFormat.Time(m.LastCheckedAtUtc)</td>
+                    <td>@Fmt.Interval(m.IntervalSeconds)</td>
+                    <td class="text-end">@Fmt.Ms(m.LastResponseTimeMs)</td>
+                    <td class="text-end">@Fmt.Percent(m.Uptime24h)</td>
+                    <td class="small text-muted">@Fmt.Time(m.LastCheckedAtUtc)</td>
                     <td class="text-end text-nowrap">
-                        <a class="btn btn-sm btn-outline-secondary" asp-page="Details" asp-route-id="@m.Id">Detay</a>
+                        <a class="btn btn-sm btn-outline-secondary" asp-page="Details" asp-route-id="@m.Id">@L["Details"]</a>
                         @if (isAdmin)
                         {
                             <form method="post" asp-page="Details" asp-page-handler="@(m.Status == MonitorStatus.Paused ? "Resume" : "Pause")" asp-route-id="@m.Id" class="d-inline">
                                 <input type="hidden" name="returnTo" value="list" />
-                                <button class="btn btn-sm btn-outline-warning" type="submit">@(m.Status == MonitorStatus.Paused ? "Devam et" : "Duraklat")</button>
+                                <button class="btn btn-sm btn-outline-warning" type="submit">@(m.Status == MonitorStatus.Paused ? L["Resume"] : L["Pause"])</button>
                             </form>
-                            <a class="btn btn-sm btn-outline-primary" asp-page="Edit" asp-route-id="@m.Id">Düzenle</a>
-                            <a class="btn btn-sm btn-outline-danger" asp-page="Delete" asp-route-id="@m.Id">Sil</a>
+                            <a class="btn btn-sm btn-outline-primary" asp-page="Edit" asp-route-id="@m.Id">@L["Edit"]</a>
+                            <a class="btn btn-sm btn-outline-danger" asp-page="Delete" asp-route-id="@m.Id">@L["Delete"]</a>
                         }
                     </td>
                 </tr>

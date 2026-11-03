@@ -1,13 +1,13 @@
 @page
 @model TriggerCheck.Web.Areas.App.Pages.Users.CreateModel
-@{ ViewData["Title"] = "Yeni kullanıcı"; }
+@{ ViewData["Title"] = L["New user"].Value; }
 
 <nav aria-label="breadcrumb"><ol class="breadcrumb">
-    <li class="breadcrumb-item"><a asp-page="Index">Kullanıcılar</a></li>
-    <li class="breadcrumb-item active">Yeni</li>
+    <li class="breadcrumb-item"><a asp-page="Index">@L["Users"]</a></li>
+    <li class="breadcrumb-item active">@L["New"]</li>
 </ol></nav>
 
-<h2 class="mb-3">Yeni kullanıcı</h2>
+<h2 class="mb-3">@L["New user"]</h2>
 <div class="card"><div class="card-body">
     <form method="post" autocomplete="off">
         <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
@@ -25,7 +25,7 @@
             <div class="col-md-6">
                 <label asp-for="Input.Password" class="form-label"></label>
                 <input asp-for="Input.Password" class="form-control" autocomplete="new-password" />
-                <div class="form-text">En az 8 karakter; büyük harf, küçük harf ve rakam içermeli.</div>
+                <div class="form-text">@L["At least 8 characters, with an uppercase letter, a lowercase letter and a digit."]</div>
                 <span asp-validation-for="Input.Password" class="text-danger small"></span>
             </div>
             <div class="col-md-6">
@@ -36,15 +36,15 @@
             <div class="col-md-6">
                 <label asp-for="Input.Role" class="form-label"></label>
                 <select asp-for="Input.Role" class="form-select">
-                    <option value="@Roles.CustomerViewer">@AppFormat.RoleName(Roles.CustomerViewer) (salt okunur)</option>
-                    <option value="@Roles.CustomerAdmin">@AppFormat.RoleName(Roles.CustomerAdmin) (tam yetki)</option>
+                    <option value="@Roles.CustomerViewer">@L["{0} (read-only)", Fmt.RoleName(Roles.CustomerViewer)]</option>
+                    <option value="@Roles.CustomerAdmin">@L["{0} (full access)", Fmt.RoleName(Roles.CustomerAdmin)]</option>
                 </select>
                 <span asp-validation-for="Input.Role" class="text-danger small"></span>
             </div>
         </div>
         <div class="mt-4">
-            <button type="submit" class="btn btn-primary">Oluştur</button>
-            <a asp-page="Index" class="btn btn-link">İptal</a>
+            <button type="submit" class="btn btn-primary">@L["Create"]</button>
+            <a asp-page="Index" class="btn btn-link">@L["Cancel"]</a>
         </div>
     </form>
 </div></div>

@@ -6,14 +6,14 @@ using TriggerCheck.Domain.Entities;
 using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Monitoring;
 using TriggerCheck.Monitoring.Stats;
-using TriggerCheck.Web.Areas.App.Support;
 using TriggerCheck.Web.Infrastructure;
+using TriggerCheck.Web.Localization;
 using MonitorEntity = TriggerCheck.Domain.Entities.Monitor;
 
 namespace TriggerCheck.Web.Areas.App.Pages.Monitors;
 
 /// <summary>Readable by all customer members; the POST handlers (pause/resume/check now) are CustomerAdmin only.</summary>
-public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStatsService stats, ILogger<DetailsModel> logger) : PageModel
+public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStatsService stats, ILogger<DetailsModel> logger, Text<AppResource> L) : PageModel
 {
     public const int MaxChartPoints = 300;
 
@@ -56,14 +56,14 @@ public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStat
             .ToListAsync(ct);
         if (points.Count <= MaxChartPoints)
         {
-            Chart = points.Select(p => new ChartPoint(AppFormat.ShortTime(p.CheckedAtUtc), p.ResponseTimeMs, p.IsUp)).ToList();
+            Chart = points.Select(p => new ChartPoint(Fmt.ShortTime(p.CheckedAtUtc), p.ResponseTimeMs, p.IsUp)).ToList();
         }
         else
         {
             // Downsample to MaxChartPoints buckets: average response time, bucket is "down" if any check failed.
             var bucket = (int)Math.Ceiling(points.Count / (double)MaxChartPoints);
             Chart = points.Chunk(bucket)
-                .Select(b => new ChartPoint(AppFormat.ShortTime(b[0].CheckedAtUtc), (int)b.Average(x => x.ResponseTimeMs), b.All(x => x.IsUp)))
+                .Select(b => new ChartPoint(Fmt.ShortTime(b[0].CheckedAtUtc), (int)b.Average(x => x.ResponseTimeMs), b.All(x => x.IsUp)))
                 .ToList();
         }
 
@@ -102,7 +102,7 @@ public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStat
             foreach (var i in open) i.ResolvedAtUtc = now;
             await db.SaveChangesAsync(ct);
         }
-        TempData["Success"] = $"\"{m.Name}\" duraklatıldı. Devam ettirilene kadar kontrol edilmeyecek.";
+        TempData["Success"] = L["\"{0}\" was paused. It will not be checked until it is resumed.", m.Name].Value;
         return Back(id, returnTo);
     }
 
@@ -122,7 +122,7 @@ public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStat
             m.NextCheckAtUtc = now;
             await db.SaveChangesAsync(ct);
         }
-        TempData["Success"] = $"\"{m.Name}\" yeniden izleniyor.";
+        TempData["Success"] = L["\"{0}\" is being monitored again.", m.Name].Value;
         return Back(id, returnTo);
     }
 
@@ -134,27 +134,28 @@ public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStat
 
         if (m.Status == MonitorStatus.Paused || !m.IsEnabled)
         {
-            TempData["Error"] = "Duraklatılmış monitör kontrol edilemez. Önce devam ettirin.";
+            TempData["Error"] = L["A paused monitor cannot be checked. Resume it first."].Value;
             return Back(id, null);
         }
 
         var runner = HttpContext.RequestServices.GetService<IMonitorCheckRunner>();
         if (runner is null)
         {
-            TempData["Error"] = "Anlık kontrol servisi şu anda kullanılamıyor.";
+            TempData["Error"] = L["The on-demand check service is currently unavailable."].Value;
             return Back(id, null);
         }
 
         try
         {
             var r = await runner.RunAsync(m.Id, ct);
-            if (r.IsUp) TempData["Success"] = $"Kontrol başarılı: {r.ResponseTimeMs} ms{(r.StatusCode is int sc ? $" (HTTP {sc})" : "")}.";
-            else TempData["Error"] = $"Kontrol başarısız: {r.Error ?? "bilinmeyen hata"}{(r.StatusCode is int sc ? $" (HTTP {sc})" : "")}.";
+            var http = r.StatusCode is int sc ? $" (HTTP {sc})" : "";
+            if (r.IsUp) TempData["Success"] = L["Check succeeded: {0}{1}.", Fmt.Ms(r.ResponseTimeMs), http].Value;
+            else TempData["Error"] = L["Check failed: {0}{1}.", r.Error ?? L["an unknown error"].Value, http].Value;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogError(ex, "Manual check failed for monitor {MonitorId}", m.Id);
-            TempData["Error"] = "Kontrol çalıştırılırken bir hata oluştu.";
+            TempData["Error"] = L["An error occurred while running the check."].Value;
         }
         return Back(id, null);
     }

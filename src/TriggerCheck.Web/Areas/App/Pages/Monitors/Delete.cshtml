@@ -1,21 +1,22 @@
 @page "{id:int}"
 @model TriggerCheck.Web.Areas.App.Pages.Monitors.DeleteModel
-@{ ViewData["Title"] = "Monitörü sil"; }
+@{ ViewData["Title"] = L["Delete monitor"].Value; }
 
 <nav aria-label="breadcrumb"><ol class="breadcrumb">
-    <li class="breadcrumb-item"><a asp-page="Index">Monitörler</a></li>
+    <li class="breadcrumb-item"><a asp-page="Index">@L["Monitors"]</a></li>
     <li class="breadcrumb-item"><a asp-page="Details" asp-route-id="@Model.Monitor.Id">@Model.Monitor.Name</a></li>
-    <li class="breadcrumb-item active">Sil</li>
+    <li class="breadcrumb-item active">@L["Delete"]</li>
 </ol></nav>
 
 <div class="card border-danger">
-    <div class="card-header bg-danger text-white">Monitörü sil</div>
+    <div class="card-header bg-danger text-white">@L["Delete monitor"]</div>
     <div class="card-body">
-        <p><strong>@Model.Monitor.Name</strong> (@Model.Monitor.Target) monitörünü silmek istediğinize emin misiniz?</p>
-        <p class="text-muted">Bu işlem geri alınamaz. @Model.CheckCount kontrol sonucu ve @Model.IncidentCount olay kaydı da silinecek.</p>
+        <p>@Html.Raw(string.Format(Html.Encode(L["Are you sure you want to delete the monitor {0} ({1})?"].Value),
+               "<strong>" + Html.Encode(Model.Monitor.Name) + "</strong>", Html.Encode(Model.Monitor.Target)))</p>
+        <p class="text-muted">@L["This cannot be undone. {0} check results and {1} incident records will also be deleted.", Model.CheckCount, Model.IncidentCount]</p>
         <form method="post" asp-route-id="@Model.Monitor.Id">
-            <button type="submit" class="btn btn-danger">Evet, sil</button>
-            <a asp-page="Details" asp-route-id="@Model.Monitor.Id" class="btn btn-link">Vazgeç</a>
+            <button type="submit" class="btn btn-danger">@L["Yes, delete"]</button>
+            <a asp-page="Details" asp-route-id="@Model.Monitor.Id" class="btn btn-link">@L["Cancel"]</a>
         </form>
     </div>
 </div>

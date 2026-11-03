@@ -5,11 +5,12 @@ using TriggerCheck.Domain.Entities;
 using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Web.Areas.App.Support;
 using TriggerCheck.Web.Infrastructure;
+using TriggerCheck.Web.Localization;
 
 namespace TriggerCheck.Web.Areas.App.Pages.Monitors;
 
 [Authorize(Policy = Policies.CustomerAdmin)]
-public class EditModel(AppDbContext db, ICurrentCustomer current) : MonitorFormPageModel
+public class EditModel(AppDbContext db, ICurrentCustomer current, Text<AppResource> L) : MonitorFormPageModel
 {
     public int Id { get; private set; }
 
@@ -32,7 +33,7 @@ public class EditModel(AppDbContext db, ICurrentCustomer current) : MonitorFormP
         Id = id;
         Plan = (await current.GetCustomerAsync(ct)).Plan;
 
-        Input.Validate(Plan, ModelState);
+        Input.Validate(Plan, ModelState, L);
         if (!ModelState.IsValid) return Page();
 
         var probeChanged = m.Type != Input.Type || m.Target != Input.Target || m.Port != (Input.Type == MonitorType.Tcp ? Input.Port : null);
@@ -50,7 +51,7 @@ public class EditModel(AppDbContext db, ICurrentCustomer current) : MonitorFormP
         }
 
         await db.SaveChangesAsync(ct);
-        TempData["Success"] = $"\"{m.Name}\" monitörü güncellendi.";
+        TempData["Success"] = L["Monitor \"{0}\" was updated.", m.Name].Value;
         return RedirectToPage("Details", new { id });
     }
 }

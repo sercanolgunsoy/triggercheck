@@ -1,19 +1,22 @@
 @page "{id:int}"
 @model TriggerCheck.Web.Areas.App.Pages.Alerts.DeleteModel
-@{ ViewData["Title"] = "Bildirim kanalını sil"; }
+@{ ViewData["Title"] = L["Delete alert channel"].Value; }
 
 <nav aria-label="breadcrumb"><ol class="breadcrumb">
-    <li class="breadcrumb-item"><a asp-page="Index">Bildirim kanalları</a></li>
-    <li class="breadcrumb-item active">Sil</li>
+    <li class="breadcrumb-item"><a asp-page="Index">@L["Alert channels"]</a></li>
+    <li class="breadcrumb-item active">@L["Delete"]</li>
 </ol></nav>
 
 <div class="card border-danger">
-    <div class="card-header bg-danger text-white">Bildirim kanalını sil</div>
+    <div class="card-header bg-danger text-white">@L["Delete alert channel"]</div>
     <div class="card-body">
-        <p><strong>@Model.Channel.Name</strong> (@AlertChannelInput.TypeName(Model.Channel.Type): <span class="font-monospace">@Model.Channel.Target</span>) kanalını silmek istediğinize emin misiniz?</p>
+        <p>@Html.Raw(string.Format(Html.Encode(L["Are you sure you want to delete the channel {0} ({1}: {2})?"].Value),
+               "<strong>" + Html.Encode(Model.Channel.Name) + "</strong>",
+               Html.Encode(AlertChannelInput.TypeName(Model.Channel.Type, L)),
+               "<span class=\"font-monospace\">" + Html.Encode(Model.Channel.Target) + "</span>"))</p>
         <form method="post" asp-route-id="@Model.Channel.Id">
-            <button type="submit" class="btn btn-danger">Evet, sil</button>
-            <a asp-page="Index" class="btn btn-link">Vazgeç</a>
+            <button type="submit" class="btn btn-danger">@L["Yes, delete"]</button>
+            <a asp-page="Index" class="btn btn-link">@L["Cancel"]</a>
         </form>
     </div>
 </div>

@@ -5,11 +5,12 @@ using Microsoft.EntityFrameworkCore;
 using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Web.Areas.App.Support;
 using TriggerCheck.Web.Infrastructure;
+using TriggerCheck.Web.Localization;
 
 namespace TriggerCheck.Web.Areas.App.Pages.Alerts;
 
 [Authorize(Policy = Policies.CustomerAdmin)]
-public class EditModel(AppDbContext db, ICurrentCustomer current) : PageModel
+public class EditModel(AppDbContext db, ICurrentCustomer current, Text<AppResource> L) : PageModel
 {
     [BindProperty] public AlertChannelInput Input { get; set; } = new();
     public int Id { get; private set; }
@@ -31,12 +32,12 @@ public class EditModel(AppDbContext db, ICurrentCustomer current) : PageModel
         if (c is null) return NotFound();
         Id = id;
 
-        Input.Validate(ModelState);
+        Input.Validate(ModelState, L);
         if (!ModelState.IsValid) return Page();
 
         Input.ApplyTo(c);
         await db.SaveChangesAsync(ct);
-        TempData["Success"] = $"\"{c.Name}\" bildirim kanalı güncellendi.";
+        TempData["Success"] = L["Alert channel \"{0}\" was updated.", c.Name].Value;
         return RedirectToPage("Index");
     }
 }

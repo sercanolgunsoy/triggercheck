@@ -1,13 +1,15 @@
 @model TriggerCheck.Web.Areas.App.Pages.Monitors.MonitorFormPageModel
 @{
     var isHttp = Model.Input.Type is MonitorType.Http or MonitorType.Keyword;
+    var urlHelp = L["Full URL starting with http:// or https://."].Value;
+    var hostHelp = L["Host name or IP address (without a scheme), e.g. example.com"].Value;
 }
 <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
 
 <div class="row g-3">
     <div class="col-md-6">
         <label asp-for="Input.Name" class="form-label"></label>
-        <input asp-for="Input.Name" class="form-control" placeholder="Örn. Web sitesi" />
+        <input asp-for="Input.Name" class="form-control" placeholder="@L["e.g. Website"]" />
         <span asp-validation-for="Input.Name" class="text-danger small"></span>
     </div>
     <div class="col-md-6">
@@ -15,7 +17,7 @@
         <select asp-for="Input.Type" class="form-select" id="monitor-type">
             @foreach (var t in Enum.GetValues<MonitorType>())
             {
-                <option value="@t" selected="@(Model.Input.Type == t)">@AppFormat.TypeName(t)</option>
+                <option value="@t" selected="@(Model.Input.Type == t)">@Fmt.TypeName(t)</option>
             }
         </select>
         <span asp-validation-for="Input.Type" class="text-danger small"></span>
@@ -24,7 +26,7 @@
     <div class="col-md-8">
         <label asp-for="Input.Target" class="form-label"></label>
         <input asp-for="Input.Target" class="form-control" id="monitor-target" placeholder="https://example.com" />
-        <div class="form-text" id="target-help">@(isHttp ? "http:// veya https:// ile başlayan tam URL." : "Alan adı veya IP adresi (şema olmadan), örn. example.com")</div>
+        <div class="form-text" id="target-help">@(isHttp ? urlHelp : hostHelp)</div>
         <span asp-validation-for="Input.Target" class="text-danger small"></span>
     </div>
     <div class="col-md-4" data-types="Tcp">
@@ -35,16 +37,16 @@
 
     <div class="col-md-12" data-types="Keyword">
         <label asp-for="Input.Keyword" class="form-label"></label>
-        <input asp-for="Input.Keyword" class="form-control" placeholder="Yanıt gövdesinde aranacak metin" />
+        <input asp-for="Input.Keyword" class="form-control" placeholder="@L["Text to look for in the response body"]" />
         <span asp-validation-for="Input.Keyword" class="text-danger small"></span>
     </div>
 
     <div class="col-md-4" data-types="Http Keyword">
         <label asp-for="Input.HttpMethod" class="form-label"></label>
         <select asp-for="Input.HttpMethod" class="form-select">
-            @foreach (var hm in TriggerCheck.Web.Areas.App.Support.MonitorInput.HttpMethods)
+            @foreach (var hm in MonitorInput.HttpMethods)
             {
-                <option value="@hm" selected="@(Model.Input.HttpMethod == hm)">@hm</option>
+                <option value="@hm" selected="@(Model.Input.HttpMethod == hm)">@MonitorInput.HttpMethodName(hm, L)</option>
             }
         </select>
         <span asp-validation-for="Input.HttpMethod" class="text-danger small"></span>
@@ -52,7 +54,7 @@
     <div class="col-md-8" data-types="Http Keyword">
         <label asp-for="Input.ExpectedStatusCodes" class="form-label"></label>
         <input asp-for="Input.ExpectedStatusCodes" class="form-control" placeholder="200-299,301" />
-        <div class="form-text">Virgülle ayrılmış kodlar veya aralıklar, örn. 200-299,301</div>
+        <div class="form-text">@L["Comma-separated codes or ranges, e.g. 200-299,301"]</div>
         <span asp-validation-for="Input.ExpectedStatusCodes" class="text-danger small"></span>
     </div>
 
@@ -61,10 +63,10 @@
         <select asp-for="Input.IntervalSeconds" class="form-select">
             @foreach (var i in Model.AllowedIntervals)
             {
-                <option value="@i" selected="@(Model.Input.IntervalSeconds == i)">@PlanRules.FormatInterval(i)</option>
+                <option value="@i" selected="@(Model.Input.IntervalSeconds == i)">@Fmt.Interval(i)</option>
             }
         </select>
-        <div class="form-text">Planınız (@Model.Plan.Name) en hızlı @PlanRules.FormatInterval(Model.Plan.MinIntervalSeconds) aralığa izin verir.</div>
+        <div class="form-text">@L["Your plan ({0}) allows intervals down to {1}.", Model.Plan.Name, Fmt.Interval(Model.Plan.MinIntervalSeconds)]</div>
         <span asp-validation-for="Input.IntervalSeconds" class="text-danger small"></span>
     </div>
     <div class="col-md-4">
@@ -80,7 +82,7 @@
                 <option value="@n" selected="@(Model.Input.FailureThreshold == n)">@n</option>
             }
         </select>
-        <div class="form-text">Art arda bu kadar hatalı kontrol sonrası DOWN olur.</div>
+        <div class="form-text">@L["The monitor goes DOWN after this many consecutive failed checks."]</div>
         <span asp-validation-for="Input.FailureThreshold" class="text-danger small"></span>
     </div>
 </div>
@@ -96,7 +98,7 @@
             el.style.display = el.getAttribute('data-types').split(' ').indexOf(t) >= 0 ? '' : 'none';
         });
         var http = t === 'Http' || t === 'Keyword';
-        help.textContent = http ? 'http:// veya https:// ile başlayan tam URL.' : 'Alan adı veya IP adresi (şema olmadan), örn. example.com';
+        help.textContent = http ? @Json.Serialize(urlHelp) : @Json.Serialize(hostHelp);
         target.placeholder = http ? 'https://example.com' : 'example.com';
     }
     sel.addEventListener('change', update);

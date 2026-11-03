@@ -1,46 +1,46 @@
 @page
 @model TriggerCheck.Web.Areas.App.Pages.Alerts.IndexModel
 @{
-    ViewData["Title"] = "Bildirim Kanalları";
+    ViewData["Title"] = L["Alert channels"].Value;
     var isAdmin = User.IsInRole(Roles.CustomerAdmin);
 }
 
 <div class="d-flex justify-content-between align-items-center mb-3">
     <div>
-        <h2 class="mb-0">Bildirim kanalları</h2>
-        <div class="text-muted small">Monitörleriniz DOWN / UP olduğunda etkin kanallara bildirim gönderilir.</div>
+        <h2 class="mb-0">@L["Alert channels"]</h2>
+        <div class="text-muted small">@L["When your monitors go DOWN / UP, the enabled channels are notified."]</div>
     </div>
     @if (isAdmin)
     {
-        <a class="btn btn-primary" asp-page="Create">+ Yeni kanal</a>
+        <a class="btn btn-primary" asp-page="Create">+ @L["New channel"]</a>
     }
 </div>
 
 @if (Model.Channels.Count == 0)
 {
-    <div class="alert alert-light border">Henüz bildirim kanalı yok. Kesintilerden haberdar olmak için bir e-posta veya webhook kanalı ekleyin.</div>
+    <div class="alert alert-light border">@L["No alert channels yet. Add an e-mail or webhook channel to hear about downtime."]</div>
 }
 else
 {
     <div class="table-responsive">
         <table class="table table-hover align-middle">
-            <thead><tr><th>Ad</th><th>Tip</th><th>Hedef</th><th>Durum</th><th></th></tr></thead>
+            <thead><tr><th>@L["Name"]</th><th>@L["Type"]</th><th>@L["Target"]</th><th>@L["Status"]</th><th></th></tr></thead>
             <tbody>
             @foreach (var c in Model.Channels)
             {
                 <tr>
                     <td>@c.Name</td>
-                    <td>@AlertChannelInput.TypeName(c.Type)</td>
+                    <td>@AlertChannelInput.TypeName(c.Type, L)</td>
                     <td class="text-truncate font-monospace small" style="max-width: 320px">@c.Target</td>
-                    <td>@if (c.IsEnabled) { <span class="badge bg-success">Etkin</span> } else { <span class="badge bg-secondary">Devre dışı</span> }</td>
+                    <td>@if (c.IsEnabled) { <span class="badge bg-success">@L["Enabled"]</span> } else { <span class="badge bg-secondary">@L["Disabled"]</span> }</td>
                     <td class="text-end text-nowrap">
                         @if (isAdmin)
                         {
                             <form method="post" asp-page-handler="Toggle" asp-route-id="@c.Id" class="d-inline">
-                                <button type="submit" class="btn btn-sm btn-outline-warning">@(c.IsEnabled ? "Devre dışı bırak" : "Etkinleştir")</button>
+                                <button type="submit" class="btn btn-sm btn-outline-warning">@(c.IsEnabled ? L["Disable"] : L["Enable"])</button>
                             </form>
-                            <a class="btn btn-sm btn-outline-primary" asp-page="Edit" asp-route-id="@c.Id">Düzenle</a>
-                            <a class="btn btn-sm btn-outline-danger" asp-page="Delete" asp-route-id="@c.Id">Sil</a>
+                            <a class="btn btn-sm btn-outline-primary" asp-page="Edit" asp-route-id="@c.Id">@L["Edit"]</a>
+                            <a class="btn btn-sm btn-outline-danger" asp-page="Delete" asp-route-id="@c.Id">@L["Delete"]</a>
                         }
                     </td>
                 </tr>

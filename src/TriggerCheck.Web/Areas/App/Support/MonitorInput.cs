@@ -2,8 +2,10 @@ using System.ComponentModel.DataAnnotations;
 using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
+using Microsoft.Extensions.Localization;
 using TriggerCheck.Domain;
 using TriggerCheck.Domain.Entities;
+using TriggerCheck.Web.Localization;
 using MonitorEntity = TriggerCheck.Domain.Entities.Monitor;
 
 namespace TriggerCheck.Web.Areas.App.Support;
@@ -13,40 +15,49 @@ public class MonitorInput
 {
     public static readonly string[] HttpMethods = ["GET", "HEAD", "POST"];
 
-    [Required(ErrorMessage = "Ad zorunludur"), StringLength(200, ErrorMessage = "Ad en fazla 200 karakter olabilir")]
-    [Display(Name = "Ad")]
+    /// <summary>Option text for an HTTP method in the form's dropdown.</summary>
+    public static string HttpMethodName(string method, IStringLocalizer L) => method switch
+    {
+        "GET" => L["GET"],
+        "HEAD" => L["HEAD"],
+        "POST" => L["POST"],
+        _ => method
+    };
+
+    [Required(ErrorMessage = "Name is required."), StringLength(200, ErrorMessage = "Name can be at most 200 characters.")]
+    [Display(Name = "Name")]
     public string Name { get; set; } = "";
 
-    [Display(Name = "Tip")]
+    [Display(Name = "Type")]
     public MonitorType Type { get; set; } = MonitorType.Http;
 
-    [Required(ErrorMessage = "Hedef zorunludur"), StringLength(2048)]
-    [Display(Name = "Hedef")]
+    [Required(ErrorMessage = "Target is required."), StringLength(2048, ErrorMessage = "Target can be at most 2048 characters.")]
+    [Display(Name = "Target")]
     public string Target { get; set; } = "";
 
     [Display(Name = "Port")]
     public int? Port { get; set; }
 
-    [StringLength(500)]
-    [Display(Name = "Anahtar kelime")]
+    [StringLength(500, ErrorMessage = "Keyword can be at most 500 characters.")]
+    [Display(Name = "Keyword")]
     public string? Keyword { get; set; }
 
-    [Display(Name = "HTTP metodu")]
+    [Display(Name = "HTTP method")]
     public string HttpMethod { get; set; } = "GET";
 
-    [StringLength(100)]
-    [Display(Name = "Beklenen durum kodları")]
+    [StringLength(100, ErrorMessage = "Expected status codes can be at most 100 characters.")]
+    [Display(Name = "Expected status codes")]
     public string? ExpectedStatusCodes { get; set; } = "200-299";
 
-    [Display(Name = "Kontrol aralığı")]
+    [Display(Name = "Check interval")]
     public int IntervalSeconds { get; set; } = 300;
 
-    [Range(1, 60, ErrorMessage = "Zaman aşımı 1-60 saniye arasında olmalıdır")]
-    [Display(Name = "Zaman aşımı (sn)")]
+    [Range(1, 60, ErrorMessage = "Timeout must be between 1 and 60 seconds.")]
+    [Display(Name = "Timeout (sec)")]
     public int TimeoutSeconds { get; set; } = 10;
 
-    [Range(1, 5, ErrorMessage = "Hata eşiği 1-5 arasında olmalıdır")]
-    [Display(Name = "Hata eşiği")]
+    [Range(1, 5, ErrorMessage = "Failure threshold must be between 1 and 5.")]
+    [Display(Name = "Failure threshold")]
     public int FailureThreshold { get; set; } = 2;
 
     private static readonly Regex StatusCodesRx = new(@"^\s*\d{3}(\s*-\s*\d{3})?(\s*,\s*\d{3}(\s*-\s*\d{3})?)*\s*$", RegexOptions.Compiled);
@@ -59,8 +70,9 @@ public class MonitorInput
         IntervalSeconds = m.IntervalSeconds, TimeoutSeconds = m.TimeoutSeconds, FailureThreshold = m.FailureThreshold
     };
 
-    /// <summary>Business validation (type-specific fields + plan rules). Errors are added with the "Input." prefix.</summary>
-    public void Validate(Plan plan, ModelStateDictionary ms, string prefix = "Input.")
+    /// <summary>Business validation (type-specific fields + plan rules). Errors are added with the "Input." prefix,
+    /// in the language of <paramref name="L"/>.</summary>
+    public void Validate(Plan plan, ModelStateDictionary ms, IStringLocalizer L, string prefix = "Input.")
     {
         Name = Name?.Trim() ?? "";
         Target = Target?.Trim() ?? "";
@@ -68,38 +80,39 @@ public class MonitorInput
         HttpMethod = (HttpMethod ?? "GET").Trim().ToUpperInvariant();
 
         if (!Enum.IsDefined(Type))
-            ms.AddModelError(prefix + nameof(Type), "Geçersiz monitör tipi.");
+            ms.AddModelError(prefix + nameof(Type), L["Invalid monitor type."]);
 
         switch (Type)
         {
             case MonitorType.Http:
             case MonitorType.Keyword:
                 if (!Uri.TryCreate(Target, UriKind.Absolute, out var uri) || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps) || string.IsNullOrEmpty(uri.Host))
-                    ms.AddModelError(prefix + nameof(Target), "Hedef, http:// veya https:// ile başlayan geçerli bir URL olmalıdır.");
+                    ms.AddModelError(prefix + nameof(Target), L["The target must be a valid URL starting with http:// or https://."]);
                 if (!HttpMethods.Contains(HttpMethod))
-                    ms.AddModelError(prefix + nameof(HttpMethod), "HTTP metodu GET, HEAD veya POST olmalıdır.");
+                    ms.AddModelError(prefix + nameof(HttpMethod), L["The HTTP method must be GET, HEAD or POST."]);
                 if (string.IsNullOrWhiteSpace(ExpectedStatusCodes))
                     ExpectedStatusCodes = "200-299";
                 else if (!StatusCodesRx.IsMatch(ExpectedStatusCodes))
-                    ms.AddModelError(prefix + nameof(ExpectedStatusCodes), "Beklenen durum kodları \"200-299,301\" biçiminde olmalıdır.");
+                    ms.AddModelError(prefix + nameof(ExpectedStatusCodes), L["Expected status codes must look like \"200-299,301\"."]);
                 if (Type == MonitorType.Keyword && string.IsNullOrWhiteSpace(Keyword))
-                    ms.AddModelError(prefix + nameof(Keyword), "Anahtar kelime monitörü için aranacak metin zorunludur.");
+                    ms.AddModelError(prefix + nameof(Keyword), L["A keyword monitor needs the text to search for."]);
                 break;
             case MonitorType.Tcp:
             case MonitorType.Ping:
                 if (!IsHostOrIp(Target))
-                    ms.AddModelError(prefix + nameof(Target), "Hedef, şema içermeyen bir alan adı veya IP adresi olmalıdır (örn. example.com).");
+                    ms.AddModelError(prefix + nameof(Target), L["The target must be a host name or IP address without a scheme (e.g. example.com)."]);
                 if (Type == MonitorType.Tcp && (Port is null || Port < 1 || Port > 65535))
-                    ms.AddModelError(prefix + nameof(Port), "TCP monitörü için 1-65535 arasında bir port zorunludur.");
+                    ms.AddModelError(prefix + nameof(Port), L["A TCP monitor needs a port between 1 and 65535."]);
                 break;
         }
 
         if (!PlanRules.IsIntervalAllowed(plan, IntervalSeconds))
             ms.AddModelError(prefix + nameof(IntervalSeconds),
-                $"Bu kontrol aralığı planınızda ({plan.Name}) kullanılamaz. İzin verilen: {string.Join(", ", PlanRules.AllowedIntervals(plan).Select(PlanRules.FormatInterval))}.");
+                L["This check interval is not available on your plan ({0}). Allowed: {1}.", plan.Name,
+                    string.Join(", ", PlanRules.AllowedIntervals(plan).Select(Fmt.Interval))]);
 
         if (TimeoutSeconds >= IntervalSeconds)
-            ms.AddModelError(prefix + nameof(TimeoutSeconds), "Zaman aşımı, kontrol aralığından kısa olmalıdır.");
+            ms.AddModelError(prefix + nameof(TimeoutSeconds), L["The timeout must be shorter than the check interval."]);
     }
 
     public static bool IsHostOrIp(string? value)

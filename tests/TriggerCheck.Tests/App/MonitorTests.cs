@@ -68,7 +68,7 @@ public class MonitorTests : IClassFixture<TestWebAppFactory>
         else
         {
             Assert.Equal(HttpStatusCode.OK, r.StatusCode);
-            Assert.Contains("planınızda", await r.ReadHtmlAsync());
+            Assert.Contains("This check interval is not available on your plan (Standard). Allowed: 5 min, 1 min.", await r.ReadHtmlAsync());
             Assert.Null(await FindByNameAsync(name));
         }
     }
@@ -96,11 +96,11 @@ public class MonitorTests : IClassFixture<TestWebAppFactory>
     }
 
     [Fact]
-    public async Task Bad_url_shows_turkish_error()
+    public async Task Bad_url_shows_error()
     {
         var r = await (await AdminAsync()).PostFormAsync("/App/Monitors/Create", MonitorForm("BadUrl", ("Target", "example.com")));
         var html = await r.ReadHtmlAsync();
-        Assert.Contains("http:// veya https://", html);
+        Assert.Contains("The target must be a valid URL starting with http:// or https://.", html);
     }
 
     [Theory]
@@ -259,10 +259,10 @@ public class MonitorTests : IClassFixture<TestWebAppFactory>
         var html = await (await AdminAsync()).GetHtmlAsync($"/App/Monitors/Details/{id}");
         Assert.Contains("rtChart", html);
         Assert.Contains("chart.js@4.4.1", html);
-        Assert.Contains("%90", html);          // 24h uptime
-        Assert.Contains("1 sa 5 dk", html);    // incident duration
+        Assert.Contains("90%", html);          // 24h uptime
+        Assert.Contains("1 h 5 min", html);    // incident duration
         Assert.Contains("HTTP 503", html);
-        Assert.Contains("Şimdi kontrol et", html);
+        Assert.Contains("Check now", html);
     }
 
     [Fact]

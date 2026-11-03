@@ -8,11 +8,12 @@ using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Infrastructure.Identity;
 using TriggerCheck.Web.Areas.App.Support;
 using TriggerCheck.Web.Infrastructure;
+using TriggerCheck.Web.Localization;
 
 namespace TriggerCheck.Web.Areas.App.Pages.Users;
 
 [Authorize(Policy = Policies.CustomerAdmin)]
-public class IndexModel(AppDbContext db, UserManager<ApplicationUser> users, ICurrentCustomer current) : PageModel
+public class IndexModel(AppDbContext db, UserManager<ApplicationUser> users, ICurrentCustomer current, Text<AppResource> L) : PageModel
 {
     public record Row(string Id, string Email, string FullName, string? Role, bool IsActive, DateTime CreatedAtUtc, bool IsSelf);
 
@@ -58,14 +59,14 @@ public class IndexModel(AppDbContext db, UserManager<ApplicationUser> users, ICu
 
     public async Task<IActionResult> OnPostChangeRoleAsync(string id, string role, CancellationToken ct)
     {
-        if (role is not (Roles.CustomerAdmin or Roles.CustomerViewer)) return Fail("Geçersiz rol.");
+        if (role is not (Roles.CustomerAdmin or Roles.CustomerViewer)) return Fail(L["Invalid role."]);
         var u = await FindAsync(id, ct);
         if (u is null) return NotFound();
-        if (IsSelf(u)) return Fail("Kendi rolünüzü değiştiremezsiniz.");
+        if (IsSelf(u)) return Fail(L["You cannot change your own role."]);
 
         var isAdmin = await users.IsInRoleAsync(u, Roles.CustomerAdmin);
         if (isAdmin && role == Roles.CustomerViewer && u.IsActive && !await HasOtherActiveAdminAsync(u.Id))
-            return Fail("Hesapta en az bir aktif yönetici kalmalıdır.");
+            return Fail(L["The account must keep at least one active admin."]);
 
         var existing = await users.GetRolesAsync(u);
         var toRemove = existing.Where(r => r is Roles.CustomerAdmin or Roles.CustomerViewer && r != role).ToList();
@@ -73,7 +74,7 @@ public class IndexModel(AppDbContext db, UserManager<ApplicationUser> users, ICu
         if (!existing.Contains(role)) await users.AddToRoleAsync(u, role);
         await users.UpdateSecurityStampAsync(u); // forces the user's cookie (role claims) to be refreshed
 
-        TempData["Success"] = $"{u.Email} kullanıcısının rolü \"{AppFormat.RoleName(role)}\" olarak değiştirildi.";
+        TempData["Success"] = L["The role of {0} was changed to \"{1}\".", u.Email ?? "", Fmt.RoleName(role)].Value;
         return RedirectToPage("Index");
     }
 
@@ -81,16 +82,16 @@ public class IndexModel(AppDbContext db, UserManager<ApplicationUser> users, ICu
     {
         var u = await FindAsync(id, ct);
         if (u is null) return NotFound();
-        if (IsSelf(u)) return Fail("Kendi hesabınızı pasifleştiremezsiniz.");
+        if (IsSelf(u)) return Fail(L["You cannot deactivate your own account."]);
 
         if (u.IsActive && await users.IsInRoleAsync(u, Roles.CustomerAdmin) && !await HasOtherActiveAdminAsync(u.Id))
-            return Fail("Hesapta en az bir aktif yönetici kalmalıdır.");
+            return Fail(L["The account must keep at least one active admin."]);
 
         u.IsActive = !u.IsActive;
         await users.UpdateAsync(u);
         await users.UpdateSecurityStampAsync(u); // drops existing sessions
 
-        TempData["Success"] = $"{u.Email} {(u.IsActive ? "aktifleştirildi" : "pasifleştirildi")}.";
+        TempData["Success"] = (u.IsActive ? L["{0} was activated.", u.Email ?? ""] : L["{0} was deactivated.", u.Email ?? ""]).Value;
         return RedirectToPage("Index");
     }
 
@@ -98,15 +99,15 @@ public class IndexModel(AppDbContext db, UserManager<ApplicationUser> users, ICu
     {
         var u = await FindAsync(id, ct);
         if (u is null) return NotFound();
-        if (IsSelf(u)) return Fail("Kendi hesabınızı silemezsiniz.");
+        if (IsSelf(u)) return Fail(L["You cannot delete your own account."]);
 
         if (u.IsActive && await users.IsInRoleAsync(u, Roles.CustomerAdmin) && !await HasOtherActiveAdminAsync(u.Id))
-            return Fail("Hesapta en az bir aktif yönetici kalmalıdır.");
+            return Fail(L["The account must keep at least one active admin."]);
 
         var r = await users.DeleteAsync(u);
-        if (!r.Succeeded) return Fail(string.Join(" ", r.Errors.Select(IdentityErrorsTr.Describe)));
+        if (!r.Succeeded) return Fail(string.Join(" ", r.Errors.Select(e => IdentityErrorMessages.Describe(e, L))));
 
-        TempData["Success"] = $"{u.Email} silindi.";
+        TempData["Success"] = L["{0} was deleted.", u.Email ?? ""].Value;
         return RedirectToPage("Index");
     }
 }

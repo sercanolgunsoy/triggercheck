@@ -103,3 +103,11 @@ public static class AppTestData
         Assert.Contains(contains, r.Headers.Location!.ToString(), StringComparison.OrdinalIgnoreCase);
     }
 }
+
+/// <summary>Temporarily sets CurrentUICulture (for testing the culture-aware Fmt helpers directly).</summary>
+public sealed class UiCulture : IDisposable
+{
+    private readonly System.Globalization.CultureInfo _previous = System.Globalization.CultureInfo.CurrentUICulture;
+    public UiCulture(string name) => System.Globalization.CultureInfo.CurrentUICulture = new System.Globalization.CultureInfo(name);
+    public void Dispose() => System.Globalization.CultureInfo.CurrentUICulture = _previous;
+}
