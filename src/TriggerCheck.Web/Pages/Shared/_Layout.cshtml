@@ -1,0 +1,75 @@
+@using System.Security.Claims
+@{
+    var isSuper = User.IsInRole(Roles.SuperAdmin);
+    var isCustomer = User.IsInRole(Roles.CustomerAdmin) || User.IsInRole(Roles.CustomerViewer);
+    var isCustomerAdmin = User.IsInRole(Roles.CustomerAdmin);
+    var displayName = User.FindFirstValue(AppClaims.FullName) ?? User.Identity?.Name;
+}
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - TriggerCheck</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/TriggerCheck.Web.styles.css" asp-append-version="true" />
+    @await RenderSectionAsync("Head", required: false)
+</head>
+<body>
+<header>
+    <nav class="navbar navbar-expand-md navbar-dark @(isSuper ? "bg-danger" : "bg-dark") mb-4">
+        <div class="container">
+            <a class="navbar-brand fw-bold" asp-area="" asp-page="/Index">TriggerCheck @(isSuper ? "· SuperAdmin" : "")</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav"><span class="navbar-toggler-icon"></span></button>
+            <div class="collapse navbar-collapse" id="mainNav">
+                <ul class="navbar-nav me-auto">
+                    @if (isCustomer)
+                    {
+                        <li class="nav-item"><a class="nav-link" asp-area="App" asp-page="/Index">Panel</a></li>
+                        <li class="nav-item"><a class="nav-link" asp-area="App" asp-page="/Monitors/Index">Monitörler</a></li>
+                        <li class="nav-item"><a class="nav-link" asp-area="App" asp-page="/Incidents/Index">Olaylar</a></li>
+                        <li class="nav-item"><a class="nav-link" asp-area="App" asp-page="/Alerts/Index">Bildirim Kanalları</a></li>
+                        @if (isCustomerAdmin)
+                        {
+                            <li class="nav-item"><a class="nav-link" asp-area="App" asp-page="/Users/Index">Kullanıcılar</a></li>
+                        }
+                        <li class="nav-item"><a class="nav-link" asp-area="App" asp-page="/Account/Index">Hesap & Plan</a></li>
+                    }
+                    @if (isSuper)
+                    {
+                        <li class="nav-item"><a class="nav-link" asp-area="SuperAdmin" asp-page="/Index">Genel Bakış</a></li>
+                        <li class="nav-item"><a class="nav-link" asp-area="SuperAdmin" asp-page="/Customers/Index">Müşteriler</a></li>
+                        <li class="nav-item"><a class="nav-link" asp-area="SuperAdmin" asp-page="/Plans/Index">Planlar</a></li>
+                        <li class="nav-item"><a class="nav-link" asp-area="SuperAdmin" asp-page="/Monitors/Index">Tüm Monitörler</a></li>
+                    }
+                </ul>
+                @if (User.Identity?.IsAuthenticated == true)
+                {
+                    <span class="navbar-text text-light me-3">@displayName</span>
+                    <form method="post" asp-area="" asp-page="/Account/Logout" class="d-inline">
+                        <button type="submit" class="btn btn-outline-light btn-sm">Çıkış</button>
+                    </form>
+                }
+                else
+                {
+                    <a class="btn btn-outline-light btn-sm" asp-area="" asp-page="/Account/Login">Giriş</a>
+                }
+            </div>
+        </div>
+    </nav>
+</header>
+<div class="container">
+    @if (TempData["Success"] is string ok) { <div class="alert alert-success alert-dismissible fade show">@ok<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div> }
+    @if (TempData["Error"] is string err) { <div class="alert alert-danger alert-dismissible fade show">@err<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div> }
+    <main role="main" class="pb-5">
+        @RenderBody()
+    </main>
+</div>
+<footer class="border-top footer text-muted"><div class="container">&copy; 2026 TriggerCheck</div></footer>
+<script src="~/lib/jquery/dist/jquery.min.js"></script>
+<script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+<script src="~/js/site.js" asp-append-version="true"></script>
+@await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>
