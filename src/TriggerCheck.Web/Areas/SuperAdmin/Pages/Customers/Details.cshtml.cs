@@ -9,12 +9,13 @@ using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Infrastructure.Identity;
 using TriggerCheck.Web.Areas.SuperAdmin.Services;
 using TriggerCheck.Web.Infrastructure;
+using TriggerCheck.Web.Localization;
 using MonitorEntity = TriggerCheck.Domain.Entities.Monitor;
 
 namespace TriggerCheck.Web.Areas.SuperAdmin.Pages.Customers;
 
 [Authorize(Policy = Policies.SuperAdmin)]
-public class DetailsModel(AppDbContext db, UserManager<ApplicationUser> users) : PageModel
+public class DetailsModel(AppDbContext db, UserManager<ApplicationUser> users, Text<AdminResource> L) : PageModel
 {
     public Customer Customer { get; private set; } = null!;
     public List<UserRow> Users { get; private set; } = [];
@@ -52,13 +53,13 @@ public class DetailsModel(AppDbContext db, UserManager<ApplicationUser> users) :
     {
         var c = await db.Customers.FindAsync(id);
         if (c is null) return NotFound();
-        if (!c.IsActive) { TempData["Error"] = "Müşteri zaten askıda."; return RedirectToPage(new { id }); }
+        if (!c.IsActive) { TempData["Error"] = L["The customer is already suspended."].Value; return RedirectToPage(new { id }); }
 
         c.IsActive = false;
         await db.SaveChangesAsync();
         // Invalidate existing sessions (security stamp) in addition to ActiveAccountFilter's per-request check.
         await SuperAdminOps.InvalidateCustomerSessionsAsync(users, id);
-        TempData["Success"] = $"\"{c.Name}\" askıya alındı. Kullanıcıları giriş yapamaz ve monitörleri kontrol edilmez.";
+        TempData["Success"] = L["\"{0}\" was suspended. Its users cannot sign in and its monitors are not checked.", c.Name].Value;
         return RedirectToPage(new { id });
     }
 
@@ -66,14 +67,14 @@ public class DetailsModel(AppDbContext db, UserManager<ApplicationUser> users) :
     {
         var c = await db.Customers.FindAsync(id);
         if (c is null) return NotFound();
-        if (c.IsActive) { TempData["Error"] = "Müşteri zaten aktif."; return RedirectToPage(new { id }); }
+        if (c.IsActive) { TempData["Error"] = L["The customer is already active."].Value; return RedirectToPage(new { id }); }
 
         c.IsActive = true;
         var now = DateTime.UtcNow;
         var monitors = await db.Monitors.Where(m => m.CustomerId == id).ToListAsync();
         foreach (var m in monitors) m.NextCheckAtUtc = now; // resume checking immediately
         await db.SaveChangesAsync();
-        TempData["Success"] = $"\"{c.Name}\" yeniden etkinleştirildi.";
+        TempData["Success"] = L["\"{0}\" was activated again.", c.Name].Value;
         return RedirectToPage(new { id });
     }
 
@@ -85,7 +86,9 @@ public class DetailsModel(AppDbContext db, UserManager<ApplicationUser> users) :
         var r = await users.UpdateAsync(u);
         if (r.Succeeded) r = await users.UpdateSecurityStampAsync(u);
         if (!r.Succeeded) TempData["Error"] = string.Join(" ", r.Errors.Select(e => e.Description));
-        else TempData["Success"] = u.IsActive ? $"{u.Email} etkinleştirildi." : $"{u.Email} pasifleştirildi; açık oturumları sonlandırıldı.";
+        else TempData["Success"] = u.IsActive
+            ? L["{0} was activated.", u.Email ?? ""].Value
+            : L["{0} was deactivated; its open sessions were ended.", u.Email ?? ""].Value;
         return RedirectToPage(new { id });
     }
 
@@ -95,7 +98,7 @@ public class DetailsModel(AppDbContext db, UserManager<ApplicationUser> users) :
         if (u is null) return NotFound();
         var r = await users.DeleteAsync(u);
         if (!r.Succeeded) TempData["Error"] = string.Join(" ", r.Errors.Select(e => e.Description));
-        else TempData["Success"] = $"{u.Email} silindi.";
+        else TempData["Success"] = L["{0} was deleted.", u.Email ?? ""].Value;
         return RedirectToPage(new { id });
     }
 
@@ -105,7 +108,7 @@ public class DetailsModel(AppDbContext db, UserManager<ApplicationUser> users) :
         if (u is null) return NotFound();
         await users.SetLockoutEndDateAsync(u, null);
         await users.ResetAccessFailedCountAsync(u);
-        TempData["Success"] = $"{u.Email} kilidi kaldırıldı.";
+        TempData["Success"] = L["{0} was unlocked.", u.Email ?? ""].Value;
         return RedirectToPage(new { id });
     }
 }

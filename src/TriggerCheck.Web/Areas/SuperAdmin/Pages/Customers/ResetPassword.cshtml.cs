@@ -6,15 +6,16 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using TriggerCheck.Infrastructure.Identity;
 using TriggerCheck.Web.Infrastructure;
+using TriggerCheck.Web.Localization;
 
 namespace TriggerCheck.Web.Areas.SuperAdmin.Pages.Customers;
 
 [Authorize(Policy = Policies.SuperAdmin)]
-public class ResetPasswordModel(UserManager<ApplicationUser> users) : PageModel
+public class ResetPasswordModel(UserManager<ApplicationUser> users, Text<AdminResource> L) : PageModel
 {
     [BindProperty]
-    [Required(ErrorMessage = "Yeni şifre zorunludur"), DataType(DataType.Password), StringLength(100, MinimumLength = 8, ErrorMessage = "Şifre en az 8 karakter olmalıdır")]
-    [Display(Name = "Yeni şifre")]
+    [Required(ErrorMessage = "New password is required."), DataType(DataType.Password), StringLength(100, MinimumLength = 8, ErrorMessage = "The password must be at least {2} characters long.")]
+    [Display(Name = "New password")]
     public string NewPassword { get; set; } = "";
 
     public ApplicationUser TargetUser { get; private set; } = null!;
@@ -47,7 +48,7 @@ public class ResetPasswordModel(UserManager<ApplicationUser> users) : PageModel
         await users.SetLockoutEndDateAsync(TargetUser, null);
         await users.ResetAccessFailedCountAsync(TargetUser);
 
-        TempData["Success"] = $"{TargetUser.Email} şifresi sıfırlandı; açık oturumları sonlandırıldı.";
+        TempData["Success"] = L["The password of {0} was reset; its open sessions were ended.", TargetUser.Email ?? ""].Value;
         return RedirectToPage("Details", new { id = customerId });
     }
 }

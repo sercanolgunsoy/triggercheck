@@ -27,20 +27,20 @@ public class PlanManagementTests
         // Unsupported interval
         var r = await sa.PostFormAsync(url, PlanForm("Starter", 45));
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
-        Assert.Contains("Desteklenmeyen aralık", await r.BodyAsync());
+        Assert.Contains("Unsupported interval. Valid values: 5 min, 1 min, 30 sec, 15 sec.", await r.BodyAsync());
 
         // Duplicate name (case-insensitive)
         r = await sa.PostFormAsync(url, PlanForm("standard", 60));
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
-        Assert.Contains("Bu isimde bir plan zaten var", await r.BodyAsync());
+        Assert.Contains("A plan with this name already exists.", await r.BodyAsync());
 
         // Range checks
         r = await sa.PostFormAsync(url, PlanForm("Starter", 60, maxMonitors: 0, retention: 4000, price: "-1"));
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
         var body = await r.BodyAsync();
-        Assert.Contains("Maks. monitör en az 1", body);
-        Assert.Contains("1 ile 3650 gün", body);
-        Assert.Contains("0 veya daha büyük", body);
+        Assert.Contains("Max monitors must be at least 1.", body);
+        Assert.Contains("Retention must be between 1 and 3650 days.", body);
+        Assert.Contains("Monthly price must be 0 or greater.", body);
 
         Assert.False(await f.WithDbAsync(db => db.Plans.AnyAsync(p => p.Name == "Starter")));
 
@@ -75,12 +75,12 @@ public class PlanManagementTests
         var stdId = await f.PlanIdAsync("Standard");
         var r = await sa.PostFormAsync($"/SuperAdmin/Plans/Edit/{stdId}", PlanForm("Standard", 45, 50, 90, "15"));
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
-        Assert.Contains("Desteklenmeyen aralık", await r.BodyAsync());
+        Assert.Contains("Unsupported interval. Valid values: 5 min, 1 min, 30 sec, 15 sec.", await r.BodyAsync());
         Assert.Equal(60, await f.WithDbAsync(db => db.Plans.Where(p => p.Id == stdId).Select(p => p.MinIntervalSeconds).SingleAsync()));
 
         // Renaming to another existing plan's name is rejected; keeping its own name is fine.
         r = await sa.PostFormAsync($"/SuperAdmin/Plans/Edit/{stdId}", PlanForm("Pro", 60, 50, 90, "15"));
-        Assert.Contains("Bu isimde bir plan zaten var", await r.BodyAsync());
+        Assert.Contains("A plan with this name already exists.", await r.BodyAsync());
     }
 
     [Fact]
@@ -106,7 +106,7 @@ public class PlanManagementTests
         var sa = await f.LoginSuperAdminAsync();
         var r = await sa.PostFormAsync($"/SuperAdmin/Plans/Edit/{stdId}", PlanForm("Standard", 300, 50, 90, "15"));
         var html = await sa.FollowAsync(r);
-        Assert.Contains("2 monitörün kontrol aralığı", html);
+        Assert.Contains("Check interval raised to the new plan minimum (5 min) for 2 monitor(s).", html);
 
         var intervals = await f.WithDbAsync(db => db.Monitors.Select(m => new { m.CustomerId, m.IntervalSeconds }).ToListAsync());
         Assert.All(intervals.Where(m => m.CustomerId != proCustomerId), m => Assert.Equal(300, m.IntervalSeconds));
@@ -122,11 +122,11 @@ public class PlanManagementTests
         var basicId = await f.PlanIdAsync("Basic");
 
         var r = await sa.PostFormAsync($"/SuperAdmin/Plans/Index?handler=Delete&id={stdId}", [], "/SuperAdmin/Plans/Index");
-        Assert.Contains("silinemez", await sa.FollowAsync(r));
+        Assert.Contains("cannot be deleted", await sa.FollowAsync(r));
         Assert.True(await f.WithDbAsync(db => db.Plans.AnyAsync(p => p.Id == stdId)));
 
         r = await sa.PostFormAsync($"/SuperAdmin/Plans/Index?handler=Delete&id={basicId}", [], "/SuperAdmin/Plans/Index");
-        Assert.Contains("planı silindi", await sa.FollowAsync(r));
+        Assert.Contains("Plan \"Basic\" was deleted.", await sa.FollowAsync(r));
         Assert.False(await f.WithDbAsync(db => db.Plans.AnyAsync(p => p.Id == basicId)));
     }
 

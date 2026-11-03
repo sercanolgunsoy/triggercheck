@@ -1,44 +1,44 @@
 @page
 @model IndexModel
-@{ ViewData["Title"] = "Genel Bakış"; }
+@{ ViewData["Title"] = L["Overview"]; }
 
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <h2 class="mb-0">Platform genel bakış</h2>
-    <small class="text-muted">Saatler: @SaFormat.TzLabel (Europe/Istanbul)</small>
+    <h2 class="mb-0">@L["Platform overview"]</h2>
+    <small class="text-muted">@L["Times: {0} (Europe/Istanbul)", Fmt.TimeZoneLabel]</small>
 </div>
 
 <div class="row g-3 mb-4">
     <div class="col-sm-6 col-lg-3">
         <div class="card h-100"><div class="card-body">
-            <div class="text-muted small">Müşteriler</div>
-            <div class="fs-2 fw-bold">@Model.CustomersTotal</div>
-            <div class="small"><span class="text-success">@Model.CustomersActive aktif</span> · <span class="text-danger">@Model.CustomersSuspended askıda</span></div>
+            <div class="text-muted small">@L["Customers"]</div>
+            <div class="fs-2 fw-bold">@Fmt.Number(Model.CustomersTotal)</div>
+            <div class="small"><span class="text-success">@L["{0} active", Fmt.Number(Model.CustomersActive)]</span> · <span class="text-danger">@L["{0} suspended", Fmt.Number(Model.CustomersSuspended)]</span></div>
         </div></div>
     </div>
     <div class="col-sm-6 col-lg-3">
         <div class="card h-100"><div class="card-body">
-            <div class="text-muted small">Monitörler</div>
-            <div class="fs-2 fw-bold">@Model.MonitorsTotal</div>
+            <div class="text-muted small">@L["Monitors"]</div>
+            <div class="fs-2 fw-bold">@Fmt.Number(Model.MonitorsTotal)</div>
             <div class="small">
-                <span class="badge bg-success">UP @Model.MonitorsByStatus[MonitorStatus.Up]</span>
-                <span class="badge bg-danger">DOWN @Model.MonitorsByStatus[MonitorStatus.Down]</span>
-                <span class="badge bg-secondary">DURAKLATILDI @Model.MonitorsByStatus[MonitorStatus.Paused]</span>
-                <span class="badge bg-warning text-dark">BEKLİYOR @Model.MonitorsByStatus[MonitorStatus.Unknown]</span>
+                <span class="badge bg-success">@Fmt.StatusName(MonitorStatus.Up) @Model.MonitorsByStatus[MonitorStatus.Up]</span>
+                <span class="badge bg-danger">@Fmt.StatusName(MonitorStatus.Down) @Model.MonitorsByStatus[MonitorStatus.Down]</span>
+                <span class="badge bg-secondary">@Fmt.StatusName(MonitorStatus.Paused) @Model.MonitorsByStatus[MonitorStatus.Paused]</span>
+                <span class="badge bg-warning text-dark">@Fmt.StatusName(MonitorStatus.Unknown) @Model.MonitorsByStatus[MonitorStatus.Unknown]</span>
             </div>
         </div></div>
     </div>
     <div class="col-sm-6 col-lg-3">
         <div class="card h-100"><div class="card-body">
-            <div class="text-muted small">Yapılan kontroller</div>
-            <div class="fs-2 fw-bold">@Model.ChecksLastHour.ToString("N0")</div>
-            <div class="small text-muted">son 1 saat · son 24 saat: <strong>@Model.ChecksLast24h.ToString("N0")</strong></div>
+            <div class="text-muted small">@L["Checks performed"]</div>
+            <div class="fs-2 fw-bold">@Fmt.Number(Model.ChecksLastHour)</div>
+            <div class="small text-muted">@L["last hour"] · @L["last 24 hours:"] <strong>@Fmt.Number(Model.ChecksLast24h)</strong></div>
         </div></div>
     </div>
     <div class="col-sm-6 col-lg-3">
         <div class="card h-100"><div class="card-body">
-            <div class="text-muted small">Tahmini aylık gelir (MRR)</div>
-            <div class="fs-2 fw-bold">@SaFormat.Money(Model.EstimatedMrr)</div>
-            <div class="small text-muted">aktif müşterilerin plan ücretleri toplamı</div>
+            <div class="text-muted small">@L["Estimated monthly revenue (MRR)"]</div>
+            <div class="fs-2 fw-bold">@Fmt.Money(Model.EstimatedMrr)</div>
+            <div class="small text-muted">@L["sum of the plan prices of active customers"]</div>
         </div></div>
     </div>
 </div>
@@ -46,18 +46,18 @@
 <div class="row g-3 mb-4">
     <div class="col-lg-6">
         <div class="card h-100">
-            <div class="card-header fw-semibold">Plan bazında dağılım</div>
+            <div class="card-header fw-semibold">@L["Breakdown by plan"]</div>
             <div class="table-responsive">
             <table class="table table-sm mb-0 align-middle">
-                <thead><tr><th>Plan</th><th class="text-end">Müşteri (aktif)</th><th class="text-end">Monitör</th><th class="text-end">Fiyat</th></tr></thead>
+                <thead><tr><th>@L["Plan"]</th><th class="text-end">@L["Customers (active)"]</th><th class="text-end">@L["Monitors"]</th><th class="text-end">@L["Price"]</th></tr></thead>
                 <tbody>
                 @foreach (var p in Model.MonitorsPerPlan)
                 {
                     <tr>
-                        <td>@p.PlanName @if (!p.PlanActive) { <span class="badge bg-light text-dark border">pasif</span> }</td>
-                        <td class="text-end">@p.Customers (@p.ActiveCustomers)</td>
-                        <td class="text-end">@p.Monitors</td>
-                        <td class="text-end">@SaFormat.Money(p.Price)</td>
+                        <td>@p.PlanName @if (!p.PlanActive) { <span class="badge bg-light text-dark border">@L["inactive"]</span> }</td>
+                        <td class="text-end">@Fmt.Number(p.Customers) (@Fmt.Number(p.ActiveCustomers))</td>
+                        <td class="text-end">@Fmt.Number(p.Monitors)</td>
+                        <td class="text-end">@Fmt.Money(p.Price)</td>
                     </tr>
                 }
                 </tbody>
@@ -67,21 +67,21 @@
     </div>
     <div class="col-lg-6">
         <div class="card h-100 @(Model.OverdueMonitors > 0 ? "border-warning" : "border-success")">
-            <div class="card-header fw-semibold">Zamanlayıcı sağlığı</div>
+            <div class="card-header fw-semibold">@L["Scheduler health"]</div>
             <div class="card-body">
                 @if (Model.OverdueMonitors == 0)
                 {
-                    <p class="text-success fw-semibold mb-2" id="scheduler-ok">İzleme motoru zamanında çalışıyor.</p>
+                    <p class="text-success fw-semibold mb-2" id="scheduler-ok">@L["The monitoring engine is running on time."]</p>
                 }
                 else
                 {
-                    <p class="text-warning fw-semibold mb-2" id="scheduler-overdue">@Model.OverdueMonitors monitör gecikmede.</p>
-                    <p class="small mb-2">En eski bekleyen kontrol: @SaFormat.Time(Model.OldestOverdueNextCheckUtc) @SaFormat.TzLabel</p>
+                    <p class="text-warning fw-semibold mb-2" id="scheduler-overdue">@L["Overdue monitors: {0}", Fmt.Number(Model.OverdueMonitors)]</p>
+                    <p class="small mb-2">@L["Oldest pending check:"] @Fmt.Time(Model.OldestOverdueNextCheckUtc) @Fmt.TimeZoneLabel</p>
                 }
                 <p class="small text-muted mb-0">
-                    Etkin monitör (aktif müşteriler): <strong>@Model.EnabledMonitors</strong>.
-                    Bir sonraki kontrol zamanı, aralığının 2 katından daha eski olan monitörler gecikmiş sayılır.
-                    Gecikme sürekli artıyorsa izleme motoru yetişemiyor ya da kapalı olabilir.
+                    @L["Enabled monitors (active customers):"] <strong>@Fmt.Number(Model.EnabledMonitors)</strong>.
+                    @L["A monitor counts as overdue when its next check time is more than twice its interval in the past."]
+                    @L["If the backlog keeps growing, the monitoring engine cannot keep up or may be down."]
                 </p>
             </div>
         </div>
@@ -90,23 +90,23 @@
 
 <div class="card">
     <div class="card-header fw-semibold d-flex justify-content-between">
-        <span>Açık olaylar</span>
-        <span class="badge @(Model.OpenIncidentCount > 0 ? "bg-danger" : "bg-success")">@Model.OpenIncidentCount</span>
+        <span>@L["Open incidents"]</span>
+        <span class="badge @(Model.OpenIncidentCount > 0 ? "bg-danger" : "bg-success")">@Fmt.Number(Model.OpenIncidentCount)</span>
     </div>
     @if (Model.OpenIncidents.Count == 0)
     {
-        <div class="card-body text-muted">Açık olay yok.</div>
+        <div class="card-body text-muted">@L["No open incidents."]</div>
     }
     else
     {
         <div class="table-responsive">
         <table class="table table-sm table-hover mb-0 align-middle">
-            <thead><tr><th>Başlangıç (@SaFormat.TzLabel)</th><th>Müşteri</th><th>Monitör</th><th>Neden</th></tr></thead>
+            <thead><tr><th>@L["Started ({0})", Fmt.TimeZoneLabel]</th><th>@L["Customer"]</th><th>@L["Monitor"]</th><th>@L["Cause"]</th></tr></thead>
             <tbody>
             @foreach (var i in Model.OpenIncidents)
             {
                 <tr>
-                    <td class="text-nowrap">@SaFormat.Time(i.StartedAtUtc)</td>
+                    <td class="text-nowrap">@Fmt.Time(i.StartedAtUtc)</td>
                     <td><a asp-page="/Customers/Details" asp-route-id="@i.CustomerId">@i.CustomerName</a></td>
                     <td>@i.MonitorName<div class="small text-muted text-break">@i.Target</div></td>
                     <td class="small">@i.Cause</td>
@@ -117,7 +117,7 @@
         </div>
         @if (Model.OpenIncidentCount > Model.OpenIncidents.Count)
         {
-            <div class="card-footer small text-muted">En yeni @Model.OpenIncidents.Count olay gösteriliyor.</div>
+            <div class="card-footer small text-muted">@L["Showing the newest {0} incidents.", Model.OpenIncidents.Count]</div>
         }
     }
 </div>

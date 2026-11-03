@@ -1,14 +1,14 @@
 @page "{id:int}"
 @model TriggerCheck.Web.Areas.SuperAdmin.Pages.Customers.EditModel
-@{ ViewData["Title"] = "Müşteri düzenle"; }
+@{ ViewData["Title"] = L["Edit customer"]; }
 
 <nav aria-label="breadcrumb"><ol class="breadcrumb">
-    <li class="breadcrumb-item"><a asp-page="Index">Müşteriler</a></li>
+    <li class="breadcrumb-item"><a asp-page="Index">@L["Customers"]</a></li>
     <li class="breadcrumb-item"><a asp-page="Details" asp-route-id="@Model.Customer.Id">@Model.Customer.Name</a></li>
-    <li class="breadcrumb-item active">Düzenle</li>
+    <li class="breadcrumb-item active">@L["Edit"]</li>
 </ol></nav>
 
-<h2 class="mb-3">Müşteri düzenle</h2>
+<h2 class="mb-3">@L["Edit customer"]</h2>
 
 <div class="row g-4">
     <div class="col-lg-6">
@@ -29,29 +29,29 @@
                 <select asp-for="Input.PlanId" class="form-select">
                     @foreach (var p in Model.Plans)
                     {
-                        <option value="@p.Id">@p.Name@(p.IsActive ? "" : " (pasif)"): min. @SaFormat.Interval(p.MinIntervalSeconds), maks. @p.MaxMonitors monitör</option>
+                        <option value="@p.Id">@p.Name@(p.IsActive ? "" : $" ({L["inactive"]})"): @L["min. {0}, max. {1} monitors", Fmt.Interval(p.MinIntervalSeconds), Fmt.Number(p.MaxMonitors)]</option>
                     }
                 </select>
                 <span asp-validation-for="Input.PlanId" class="text-danger small"></span>
             </div>
-            <button type="submit" class="btn btn-primary">Kaydet</button>
-            <a asp-page="Details" asp-route-id="@Model.Customer.Id" class="btn btn-link">Vazgeç</a>
+            <button type="submit" class="btn btn-primary">@L["Save"]</button>
+            <a asp-page="Details" asp-route-id="@Model.Customer.Id" class="btn btn-link">@L["Cancel"]</a>
         </div></form>
     </div>
     <div class="col-lg-6">
         <div class="card">
-            <div class="card-header fw-semibold">Plan değişikliğinin etkisi</div>
+            <div class="card-header fw-semibold">@L["Impact of a plan change"]</div>
             <div class="table-responsive">
             <table class="table table-sm mb-0">
-                <thead class="table-light"><tr><th>Plan</th><th>Min. aralık</th><th class="text-end">Yavaşlatılacak monitör</th><th class="text-end">Monitör sınırı</th></tr></thead>
+                <thead class="table-light"><tr><th>@L["Plan"]</th><th>@L["Min. interval"]</th><th class="text-end">@L["Monitors to slow down"]</th><th class="text-end">@L["Monitor limit"]</th></tr></thead>
                 <tbody>
                 @foreach (var p in Model.Plans)
                 {
                     var fast = Model.FastMonitorsPerPlan[p.Id];
                     var over = Model.MonitorCount > p.MaxMonitors;
                     <tr class="@(p.Id == Model.Customer.PlanId ? "table-primary" : "")">
-                        <td>@p.Name @if (p.Id == Model.Customer.PlanId) { <small class="text-muted">(mevcut)</small> }</td>
-                        <td>@SaFormat.Interval(p.MinIntervalSeconds)</td>
+                        <td>@p.Name @if (p.Id == Model.Customer.PlanId) { <small class="text-muted">(@L["current"])</small> }</td>
+                        <td>@Fmt.Interval(p.MinIntervalSeconds)</td>
                         <td class="text-end @(fast > 0 ? "text-warning fw-semibold" : "")">@fast</td>
                         <td class="text-end @(over ? "text-danger fw-semibold" : "")">@Model.MonitorCount / @p.MaxMonitors</td>
                     </tr>
@@ -60,8 +60,8 @@
             </table>
             </div>
             <div class="card-footer small text-muted">
-                Daha yavaş bir plana geçildiğinde, plan minimumundan hızlı monitörlerin aralığı otomatik olarak plan minimumuna çekilir.
-                Monitör sayısı yeni planın sınırını aşarsa monitörler silinmez; müşteri yeni monitör ekleyemez.
+                @L["When moving to a slower plan, monitors faster than the plan minimum are automatically slowed down to the plan minimum."]
+                @L["If the number of monitors exceeds the limit of the new plan, the monitors are not deleted; the customer cannot add new monitors."]
             </div>
         </div>
     </div>

@@ -14,7 +14,7 @@
         <select asp-for="MinIntervalSeconds" class="form-select">
             @foreach (var s in PlanRules.SupportedIntervals)
             {
-                <option value="@s">@SaFormat.Interval(s) (@s sn)</option>
+                <option value="@s">@Fmt.Interval(s)@(s >= 60 ? $" ({L["{0} sec", s]})" : "")</option>
             }
         </select>
         <span asp-validation-for="MinIntervalSeconds" class="text-danger small"></span>

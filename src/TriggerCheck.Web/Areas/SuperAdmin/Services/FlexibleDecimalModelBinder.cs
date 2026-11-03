@@ -1,5 +1,6 @@
 using System.Globalization;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
+using TriggerCheck.Web.Localization;
 
 namespace TriggerCheck.Web.Areas.SuperAdmin.Services;
 
@@ -7,7 +8,7 @@ namespace TriggerCheck.Web.Areas.SuperAdmin.Services;
 /// Binds decimals independent of the server culture: accepts "9.90", "9,90", "1.234,56" and "1,234.56".
 /// (HTML number inputs always post '.', while Turkish users type ','.)
 /// </summary>
-public class FlexibleDecimalModelBinder : IModelBinder
+public class FlexibleDecimalModelBinder(Text<AdminResource> L) : IModelBinder
 {
     public Task BindModelAsync(ModelBindingContext ctx)
     {
@@ -19,7 +20,7 @@ public class FlexibleDecimalModelBinder : IModelBinder
         if (string.IsNullOrEmpty(raw)) return Task.CompletedTask; // [Required] reports the error
 
         if (TryParse(raw, out var value)) ctx.Result = ModelBindingResult.Success(value);
-        else ctx.ModelState.TryAddModelError(ctx.ModelName, "Geçerli bir sayı girin.");
+        else ctx.ModelState.TryAddModelError(ctx.ModelName, L["Enter a valid number."]);
         return Task.CompletedTask;
     }
 

@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -5,13 +6,14 @@ using Microsoft.EntityFrameworkCore;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Web.Infrastructure;
+using TriggerCheck.Web.Localization;
 
 namespace TriggerCheck.Web.Areas.SuperAdmin.Pages.Customers;
 
 [Authorize(Policy = Policies.SuperAdmin)]
-public class DeleteModel(AppDbContext db, ILogger<DeleteModel> logger) : PageModel
+public class DeleteModel(AppDbContext db, ILogger<DeleteModel> logger, Text<AdminResource> L) : PageModel
 {
-    [BindProperty] public string? ConfirmName { get; set; }
+    [BindProperty, Display(Name = "Customer name")] public string? ConfirmName { get; set; }
     public Customer Customer { get; private set; } = null!;
     public int MonitorCount { get; private set; }
     public int UserCount { get; private set; }
@@ -35,7 +37,7 @@ public class DeleteModel(AppDbContext db, ILogger<DeleteModel> logger) : PageMod
         if (!await LoadAsync(id)) return NotFound();
         if (!string.Equals(ConfirmName?.Trim(), Customer.Name, StringComparison.Ordinal))
         {
-            ModelState.AddModelError(nameof(ConfirmName), "Onay için müşteri adını birebir aynı yazmalısınız.");
+            ModelState.AddModelError(nameof(ConfirmName), L["To confirm, type the customer name exactly as shown."]);
             return Page();
         }
 
@@ -48,7 +50,7 @@ public class DeleteModel(AppDbContext db, ILogger<DeleteModel> logger) : PageMod
         await tx.CommitAsync();
 
         logger.LogWarning("Customer {CustomerId} ({Name}) deleted by {User}", id, Customer.Name, User.Identity?.Name);
-        TempData["Success"] = $"\"{Customer.Name}\" müşterisi ve tüm verileri ({MonitorCount} monitör, {UserCount} kullanıcı) silindi.";
+        TempData["Success"] = L["Customer \"{0}\" and all its data ({1} monitors, {2} users) were deleted.", Customer.Name, MonitorCount, UserCount].Value;
         return RedirectToPage("Index");
     }
 }

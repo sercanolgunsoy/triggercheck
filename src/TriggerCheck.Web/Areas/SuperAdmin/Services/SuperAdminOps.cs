@@ -7,40 +7,6 @@ using TriggerCheck.Infrastructure.Identity;
 
 namespace TriggerCheck.Web.Areas.SuperAdmin.Services;
 
-/// <summary>Display helpers for the SuperAdmin panel. All times are shown in Europe/Istanbul (TSİ).</summary>
-public static class SaFormat
-{
-    private static readonly TimeZoneInfo Tz = ResolveTz();
-
-    private static TimeZoneInfo ResolveTz()
-    {
-        foreach (var id in new[] { "Europe/Istanbul", "Turkey Standard Time" })
-        {
-            try { return TimeZoneInfo.FindSystemTimeZoneById(id); } catch { /* try next */ }
-        }
-        return TimeZoneInfo.CreateCustomTimeZone("TRT", TimeSpan.FromHours(3), "TSİ", "TSİ");
-    }
-
-    public static DateTime ToLocal(DateTime utc) =>
-        TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utc, DateTimeKind.Utc), Tz);
-
-    public static string Time(DateTime? utc) => utc is DateTime d ? ToLocal(d).ToString("dd.MM.yyyy HH:mm:ss") : "—";
-    public static string Date(DateTime? utc) => utc is DateTime d ? ToLocal(d).ToString("dd.MM.yyyy") : "—";
-    public static string Money(decimal v) => v.ToString("N2", System.Globalization.CultureInfo.GetCultureInfo("tr-TR")) + " $";
-    public static string Interval(int s) => PlanRules.FormatInterval(s);
-
-    public static string TypeName(MonitorType t) => t switch
-    {
-        MonitorType.Http => "HTTP(S)",
-        MonitorType.Keyword => "Keyword",
-        MonitorType.Tcp => "TCP",
-        MonitorType.Ping => "Ping",
-        _ => t.ToString()
-    };
-
-    public const string TzLabel = "TSİ";
-}
-
 public record PlanChangeResult(int AdjustedMonitors, int MonitorCount, bool OverMonitorLimit);
 
 /// <summary>Business operations shared by several SuperAdmin pages.</summary>

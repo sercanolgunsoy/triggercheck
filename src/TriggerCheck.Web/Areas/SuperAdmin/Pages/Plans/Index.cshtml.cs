@@ -4,11 +4,12 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Web.Infrastructure;
+using TriggerCheck.Web.Localization;
 
 namespace TriggerCheck.Web.Areas.SuperAdmin.Pages.Plans;
 
 [Authorize(Policy = Policies.SuperAdmin)]
-public class IndexModel(AppDbContext db) : PageModel
+public class IndexModel(AppDbContext db, Text<AdminResource> L) : PageModel
 {
     public List<Row> Rows { get; private set; } = [];
 
@@ -37,12 +38,12 @@ public class IndexModel(AppDbContext db) : PageModel
         var used = await db.Customers.CountAsync(c => c.PlanId == id);
         if (used > 0)
         {
-            TempData["Error"] = $"\"{plan.Name}\" planı {used} müşteri tarafından kullanılıyor; silinemez. Önce müşterileri başka plana taşıyın ya da planı pasifleştirin.";
+            TempData["Error"] = L["Plan \"{0}\" is used by {1} customer(s) and cannot be deleted. Move the customers to another plan first, or deactivate the plan.", plan.Name, used].Value;
             return RedirectToPage();
         }
         db.Plans.Remove(plan);
         await db.SaveChangesAsync();
-        TempData["Success"] = $"\"{plan.Name}\" planı silindi.";
+        TempData["Success"] = L["Plan \"{0}\" was deleted.", plan.Name].Value;
         return RedirectToPage();
     }
 }

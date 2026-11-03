@@ -61,7 +61,7 @@ public class CustomerManagementTests
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
         var html = await resp.BodyAsync();
         Assert.Contains("text-danger", html);
-        Assert.True(html.Contains("zaten var") || html.Contains("Password", StringComparison.OrdinalIgnoreCase), "error message expected");
+        Assert.True(html.Contains("A user with this e-mail address already exists.") || html.Contains("Password", StringComparison.OrdinalIgnoreCase), "error message expected");
 
         Assert.Equal(before, await f.WithDbAsync(db => db.Customers.CountAsync()));
         Assert.False(await f.WithDbAsync(db => db.Customers.AnyAsync(c => c.Name == "Orphan Ltd")));
@@ -86,7 +86,7 @@ public class CustomerManagementTests
         Assert.Contains(">Basic:", create);
 
         var edit = await sa.GetStringAsync($"/SuperAdmin/Customers/Edit/{demo.Id}");
-        Assert.Contains(">Standard (pasif):", edit);
+        Assert.Contains(">Standard (inactive):", edit);
 
         // Posting an inactive plan on create is rejected server-side.
         var resp = await sa.PostFormAsync("/SuperAdmin/Customers/Create", NewCustomerForm(demo.PlanId, "x@acme.test"));
@@ -109,7 +109,7 @@ public class CustomerManagementTests
             ["Input.Name"] = demo.Name, ["Input.ContactEmail"] = demo.ContactEmail, ["Input.PlanId"] = basicId.ToString()
         });
         var html = await sa.FollowAsync(resp);
-        Assert.Contains("1 monitörün kontrol aralığı", html);
+        Assert.Contains("Check interval raised to the plan minimum (5 min) for 1 monitor(s).", html);
 
         var intervals = await f.WithDbAsync(db => db.Monitors.Where(m => m.CustomerId == demo.Id).Select(m => m.IntervalSeconds).ToListAsync());
         Assert.All(intervals, i => Assert.Equal(300, i));
@@ -130,7 +130,7 @@ public class CustomerManagementTests
             ["Input.Name"] = demo.Name, ["Input.ContactEmail"] = demo.ContactEmail, ["Input.PlanId"] = basicId.ToString()
         });
         var html = await sa.FollowAsync(resp);
-        Assert.Contains("Uyarı: müşterinin 12 monitörü var", html);
+        Assert.Contains("Warning: the customer has 12 monitors, but the Basic plan allows at most 10.", html);
         Assert.Equal(12, await f.WithDbAsync(db => db.Monitors.CountAsync(m => m.CustomerId == demo.Id)));
         Assert.Equal(basicId, (await f.DemoCustomerAsync()).PlanId);
     }
@@ -167,7 +167,7 @@ public class CustomerManagementTests
         var detailsUrl = $"/SuperAdmin/Customers/Details/{demo.Id}";
         var resp = await sa.PostFormAsync($"{detailsUrl}?handler=Suspend", [], detailsUrl);
         var html = await sa.FollowAsync(resp);
-        Assert.Contains("askıya alındı", html);
+        Assert.Contains("\"Demo Company\" was suspended.", html);
 
         Assert.False((await f.DemoCustomerAsync()).IsActive);
         var stampAfter = await f.WithDbAsync(db => db.Users.Where(u => u.Email == TestWebAppFactory.DemoAdminEmail).Select(u => u.SecurityStamp).SingleAsync());
@@ -181,12 +181,12 @@ public class CustomerManagementTests
         // New login fails.
         var login = await f.TryLoginAsync(TestWebAppFactory.DemoAdminEmail, TestWebAppFactory.DemoAdminPassword);
         Assert.Equal(HttpStatusCode.OK, login.StatusCode);
-        Assert.Contains("Geçersiz giriş denemesi", await login.BodyAsync());
+        Assert.Contains("Invalid login attempt.", await login.BodyAsync());
 
         // Activate.
         var before = DateTime.UtcNow.AddSeconds(-1);
         resp = await sa.PostFormAsync($"{detailsUrl}?handler=Activate", [], detailsUrl);
-        Assert.Contains("yeniden etkinleştirildi", await sa.FollowAsync(resp));
+        Assert.Contains("\"Demo Company\" was activated again.", await sa.FollowAsync(resp));
         Assert.True((await f.DemoCustomerAsync()).IsActive);
         var next = await f.WithDbAsync(db => db.Monitors.Where(m => m.CustomerId == demo.Id).Select(m => m.NextCheckAtUtc).ToListAsync());
         Assert.All(next, n => Assert.True(n >= before));
@@ -214,11 +214,11 @@ public class CustomerManagementTests
 
         var wrong = await sa.PostFormAsync(url, new() { ["ConfirmName"] = "Demo" });
         Assert.Equal(HttpStatusCode.OK, wrong.StatusCode);
-        Assert.Contains("birebir aynı", await wrong.BodyAsync());
+        Assert.Contains("To confirm, type the customer name exactly as shown.", await wrong.BodyAsync());
         Assert.True(await f.WithDbAsync(db => db.Customers.AnyAsync(c => c.Id == demo.Id)));
 
         var ok = await sa.PostFormAsync(url, new() { ["ConfirmName"] = demo.Name });
-        Assert.Contains("silindi", await sa.FollowAsync(ok));
+        Assert.Contains("Customer \"Demo Company\" and all its data", await sa.FollowAsync(ok));
 
         await f.WithDbAsync(async db =>
         {
@@ -267,25 +267,25 @@ public class CustomerManagementTests
         // Reset password
         var resetUrl = $"/SuperAdmin/Customers/ResetPassword/{demo.Id}/{userId}";
         resp = await sa.PostFormAsync(resetUrl, new() { ["NewPassword"] = "Changed123" });
-        Assert.Contains("şifresi sıfırlandı", await sa.FollowAsync(resp));
+        Assert.Contains("The password of viewer@demo.local was reset", await sa.FollowAsync(resp));
         Assert.Equal(HttpStatusCode.OK, (await f.TryLoginAsync("viewer@demo.local", "Viewer123")).StatusCode); // old pw fails
         viewer = await f.LoginAsync("viewer@demo.local", "Changed123");
 
         // Deactivate -> existing session kicked, login blocked
         var detailsUrl = $"/SuperAdmin/Customers/Details/{demo.Id}";
         resp = await sa.PostFormAsync($"{detailsUrl}?handler=ToggleUser", new() { ["userId"] = userId }, detailsUrl);
-        Assert.Contains("pasifleştirildi", await sa.FollowAsync(resp));
+        Assert.Contains("viewer@demo.local was deactivated", await sa.FollowAsync(resp));
         Assert.Equal(HttpStatusCode.Redirect, (await viewer.GetAsync("/App")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await f.TryLoginAsync("viewer@demo.local", "Changed123")).StatusCode);
 
         // Reactivate -> can log in
         resp = await sa.PostFormAsync($"{detailsUrl}?handler=ToggleUser", new() { ["userId"] = userId }, detailsUrl);
-        Assert.Contains("etkinleştirildi", await sa.FollowAsync(resp));
+        Assert.Contains("viewer@demo.local was activated.", await sa.FollowAsync(resp));
         await f.LoginAsync("viewer@demo.local", "Changed123");
 
         // Delete
         resp = await sa.PostFormAsync($"{detailsUrl}?handler=DeleteUser", new() { ["userId"] = userId }, detailsUrl);
-        Assert.Contains("silindi", await sa.FollowAsync(resp));
+        Assert.Contains("viewer@demo.local was deleted.", await sa.FollowAsync(resp));
         Assert.False(await f.WithDbAsync(db => db.Users.AnyAsync(u => u.Id == userId)));
     }
 
@@ -338,6 +338,6 @@ public class CustomerManagementTests
 
         var basicId = await f.PlanIdAsync("Basic");
         var byPlan = System.Net.WebUtility.HtmlDecode(await sa.GetStringAsync($"/SuperAdmin/Customers/Index?PlanId={basicId}"));
-        Assert.Contains("Kayıt bulunamadı", byPlan);
+        Assert.Contains("No records found.", byPlan);
     }
 }

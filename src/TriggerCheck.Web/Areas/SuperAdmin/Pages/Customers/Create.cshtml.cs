@@ -10,33 +10,34 @@ using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Infrastructure.Identity;
 using TriggerCheck.Web.Areas.SuperAdmin.Services;
 using TriggerCheck.Web.Infrastructure;
+using TriggerCheck.Web.Localization;
 
 namespace TriggerCheck.Web.Areas.SuperAdmin.Pages.Customers;
 
 [Authorize(Policy = Policies.SuperAdmin)]
-public class CreateModel(AppDbContext db, UserManager<ApplicationUser> users, ILogger<CreateModel> logger) : PageModel
+public class CreateModel(AppDbContext db, UserManager<ApplicationUser> users, ILogger<CreateModel> logger, Text<AdminResource> L) : PageModel
 {
     [BindProperty] public InputModel Input { get; set; } = new();
     public List<Plan> Plans { get; private set; } = [];
 
     public class InputModel
     {
-        [Required(ErrorMessage = "Müşteri adı zorunludur"), StringLength(200, ErrorMessage = "En fazla 200 karakter")]
-        [Display(Name = "Müşteri adı")] public string Name { get; set; } = "";
+        [Required(ErrorMessage = "Customer name is required."), StringLength(200, ErrorMessage = "At most {1} characters.")]
+        [Display(Name = "Customer name")] public string Name { get; set; } = "";
 
-        [Required(ErrorMessage = "İletişim e-postası zorunludur"), EmailAddress(ErrorMessage = "Geçerli bir e-posta girin"), StringLength(256)]
-        [Display(Name = "İletişim e-postası")] public string ContactEmail { get; set; } = "";
+        [Required(ErrorMessage = "Contact e-mail is required."), EmailAddress(ErrorMessage = "Enter a valid e-mail."), StringLength(256, ErrorMessage = "At most {1} characters.")]
+        [Display(Name = "Contact e-mail")] public string ContactEmail { get; set; } = "";
 
-        [Required(ErrorMessage = "Plan seçin"), Display(Name = "Plan")] public int? PlanId { get; set; }
+        [Required(ErrorMessage = "Select a plan."), Display(Name = "Plan")] public int? PlanId { get; set; }
 
-        [Required(ErrorMessage = "Ad soyad zorunludur"), StringLength(200)]
-        [Display(Name = "Yönetici ad soyad")] public string AdminFullName { get; set; } = "";
+        [Required(ErrorMessage = "Full name is required."), StringLength(200, ErrorMessage = "At most {1} characters.")]
+        [Display(Name = "Admin full name")] public string AdminFullName { get; set; } = "";
 
-        [Required(ErrorMessage = "Yönetici e-postası zorunludur"), EmailAddress(ErrorMessage = "Geçerli bir e-posta girin"), StringLength(256)]
-        [Display(Name = "Yönetici e-postası")] public string AdminEmail { get; set; } = "";
+        [Required(ErrorMessage = "Admin e-mail is required."), EmailAddress(ErrorMessage = "Enter a valid e-mail."), StringLength(256, ErrorMessage = "At most {1} characters.")]
+        [Display(Name = "Admin e-mail")] public string AdminEmail { get; set; } = "";
 
-        [Required(ErrorMessage = "Şifre zorunludur"), DataType(DataType.Password), StringLength(100, MinimumLength = 8, ErrorMessage = "Şifre en az 8 karakter olmalıdır")]
-        [Display(Name = "Yönetici şifresi")] public string AdminPassword { get; set; } = "";
+        [Required(ErrorMessage = "Password is required."), DataType(DataType.Password), StringLength(100, MinimumLength = 8, ErrorMessage = "The password must be at least {2} characters long.")]
+        [Display(Name = "Admin password")] public string AdminPassword { get; set; } = "";
     }
 
     public async Task OnGetAsync()
@@ -50,9 +51,9 @@ public class CreateModel(AppDbContext db, UserManager<ApplicationUser> users, IL
         Plans = await SuperAdminOps.SelectablePlansAsync(db);
         var plan = Plans.FirstOrDefault(p => p.Id == Input.PlanId && p.IsActive);
         if (Input.PlanId is not null && plan is null)
-            ModelState.AddModelError("Input.PlanId", "Geçerli ve aktif bir plan seçin.");
+            ModelState.AddModelError("Input.PlanId", L["Select a valid, active plan."]);
         if (ModelState.IsValid && await users.FindByEmailAsync(Input.AdminEmail.Trim()) is not null)
-            ModelState.AddModelError("Input.AdminEmail", "Bu e-posta adresi ile kayıtlı bir kullanıcı zaten var.");
+            ModelState.AddModelError("Input.AdminEmail", L["A user with this e-mail address already exists."]);
         if (!ModelState.IsValid) return Page();
 
         // Customer + its first admin user are created atomically: UserManager shares this scoped DbContext,
@@ -88,7 +89,7 @@ public class CreateModel(AppDbContext db, UserManager<ApplicationUser> users, IL
             }
 
             await tx.CommitAsync();
-            TempData["Success"] = $"\"{customer.Name}\" müşterisi ve yönetici kullanıcısı ({email}) oluşturuldu.";
+            TempData["Success"] = L["Customer \"{0}\" and its admin user ({1}) were created.", customer.Name, email].Value;
             return RedirectToPage("Details", new { id = customer.Id });
         }
         catch (Exception ex)
@@ -96,7 +97,7 @@ public class CreateModel(AppDbContext db, UserManager<ApplicationUser> users, IL
             logger.LogError(ex, "Customer creation failed");
             await tx.RollbackAsync();
             db.ChangeTracker.Clear();
-            ModelState.AddModelError("", "Müşteri oluşturulamadı: " + ex.Message);
+            ModelState.AddModelError("", L["The customer could not be created: {0}", ex.Message]);
             return Page();
         }
     }

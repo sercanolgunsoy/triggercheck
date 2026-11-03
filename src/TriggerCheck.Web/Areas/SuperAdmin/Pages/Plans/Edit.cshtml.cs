@@ -2,16 +2,16 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
-using TriggerCheck.Domain;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Web.Areas.SuperAdmin.Services;
 using TriggerCheck.Web.Infrastructure;
+using TriggerCheck.Web.Localization;
 
 namespace TriggerCheck.Web.Areas.SuperAdmin.Pages.Plans;
 
 [Authorize(Policy = Policies.SuperAdmin)]
-public class EditModel(AppDbContext db) : PageModel
+public class EditModel(AppDbContext db, Text<AdminResource> L) : PageModel
 {
     [BindProperty] public PlanInput Input { get; set; } = new();
     public Plan Plan { get; private set; } = null!;
@@ -38,7 +38,7 @@ public class EditModel(AppDbContext db) : PageModel
     public async Task<IActionResult> OnPostAsync(int id)
     {
         if (!await LoadAsync(id)) return NotFound();
-        await Input.ValidateAsync(db, ModelState, currentId: id);
+        await Input.ValidateAsync(db, ModelState, L, currentId: id);
         if (!ModelState.IsValid) return Page();
 
         var oldMin = Plan.MinIntervalSeconds;
@@ -52,14 +52,14 @@ public class EditModel(AppDbContext db) : PageModel
         }
         await db.SaveChangesAsync();
 
-        var msg = $"\"{Plan.Name}\" planı güncellendi.";
+        var msg = L["Plan \"{0}\" was updated.", Plan.Name].Value;
         if (adjusted > 0)
-            msg += $" {adjusted} monitörün kontrol aralığı yeni plan minimumuna ({PlanRules.FormatInterval(Plan.MinIntervalSeconds)}) yükseltildi.";
+            msg += " " + L["Check interval raised to the new plan minimum ({1}) for {0} monitor(s).", adjusted, Fmt.Interval(Plan.MinIntervalSeconds)].Value;
         TempData["Success"] = msg;
 
         var overLimit = await db.Customers.Where(c => c.PlanId == id && c.Monitors.Count > Plan.MaxMonitors).CountAsync();
         if (overLimit > 0)
-            TempData["Error"] = $"Uyarı: {overLimit} müşterinin monitör sayısı yeni sınırı ({Plan.MaxMonitors}) aşıyor. Monitörler silinmedi; bu müşteriler yeni monitör ekleyemez.";
+            TempData["Error"] = L["Warning: {0} customer(s) exceed the new monitor limit ({1}). The monitors were not deleted; these customers cannot add new monitors.", overLimit, Plan.MaxMonitors].Value;
         return RedirectToPage("Index");
     }
 }
