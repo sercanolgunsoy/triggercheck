@@ -1,4 +1,6 @@
+using System.Globalization;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Localization;
 using Microsoft.AspNetCore.Mvc;
 using TriggerCheck.Domain;
 using TriggerCheck.Infrastructure;
@@ -23,6 +25,7 @@ builder.Services
     })
     .AddEntityFrameworkStores<AppDbContext>()
     .AddDefaultTokenProviders()
+    .AddErrorDescriber<TurkishIdentityErrorDescriber>()
     .AddClaimsPrincipalFactory<AppClaimsPrincipalFactory>();
 
 builder.Services.Configure<SecurityStampValidatorOptions>(o => o.ValidationInterval = TimeSpan.FromMinutes(1));
@@ -63,6 +66,16 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
     app.UseHttpsRedirection();
 }
+
+// Parse numbers/dates culture-independently ("9.90" from <input type=number> must not become 990 on a tr-TR host);
+// UI texts are Turkish.
+app.UseRequestLocalization(new RequestLocalizationOptions
+{
+    DefaultRequestCulture = new RequestCulture(CultureInfo.InvariantCulture, new CultureInfo("tr-TR")),
+    SupportedCultures = [CultureInfo.InvariantCulture],
+    SupportedUICultures = [new CultureInfo("tr-TR")],
+    RequestCultureProviders = []
+});
 
 app.UseRouting();
 app.UseAuthentication();
