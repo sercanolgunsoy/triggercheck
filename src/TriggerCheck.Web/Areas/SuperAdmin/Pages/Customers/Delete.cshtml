@@ -1,0 +1,33 @@
+@page "{id:int}"
+@model TriggerCheck.Web.Areas.SuperAdmin.Pages.Customers.DeleteModel
+@{ ViewData["Title"] = "Müşteriyi sil"; }
+
+<nav aria-label="breadcrumb"><ol class="breadcrumb">
+    <li class="breadcrumb-item"><a asp-page="Index">Müşteriler</a></li>
+    <li class="breadcrumb-item"><a asp-page="Details" asp-route-id="@Model.Customer.Id">@Model.Customer.Name</a></li>
+    <li class="breadcrumb-item active">Sil</li>
+</ol></nav>
+
+<div class="row justify-content-center">
+    <div class="col-lg-7">
+        <div class="card border-danger">
+            <div class="card-header bg-danger text-white fw-semibold">Müşteriyi kalıcı olarak sil</div>
+            <div class="card-body">
+                <p>Bu işlem geri alınamaz. Aşağıdaki veriler kalıcı olarak silinecek:</p>
+                <ul>
+                    <li><strong>@Model.MonitorCount</strong> monitör, bunların olayları ve <strong>@Model.CheckResultCount.ToString("N0")</strong> kontrol sonucu</li>
+                    <li><strong>@Model.UserCount</strong> kullanıcı hesabı</li>
+                    <li>Bildirim kanalları ve bildirim geçmişi</li>
+                </ul>
+                <p class="mb-2">Geçici olarak durdurmak istiyorsanız silmek yerine müşteriyi <strong>askıya alın</strong>.</p>
+                <form method="post">
+                    <label asp-for="ConfirmName" class="form-label">Onaylamak için müşteri adını yazın: <code>@Model.Customer.Name</code></label>
+                    <input asp-for="ConfirmName" class="form-control mb-1" autocomplete="off" />
+                    <span asp-validation-for="ConfirmName" class="text-danger small d-block mb-3"></span>
+                    <button type="submit" class="btn btn-danger">Kalıcı olarak sil</button>
+                    <a asp-page="Details" asp-route-id="@Model.Customer.Id" class="btn btn-link">Vazgeç</a>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>

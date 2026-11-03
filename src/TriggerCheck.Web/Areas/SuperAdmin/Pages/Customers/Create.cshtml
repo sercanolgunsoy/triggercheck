@@ -1,0 +1,64 @@
+@page
+@model TriggerCheck.Web.Areas.SuperAdmin.Pages.Customers.CreateModel
+@{ ViewData["Title"] = "Yeni müşteri"; }
+
+<nav aria-label="breadcrumb"><ol class="breadcrumb">
+    <li class="breadcrumb-item"><a asp-page="Index">Müşteriler</a></li>
+    <li class="breadcrumb-item active">Yeni müşteri</li>
+</ol></nav>
+
+<h2 class="mb-3">Yeni müşteri</h2>
+
+<form method="post" class="row g-4">
+    <div asp-validation-summary="ModelOnly" class="text-danger col-12"></div>
+    <div class="col-lg-6">
+        <div class="card h-100"><div class="card-header fw-semibold">Müşteri bilgileri</div><div class="card-body">
+            <div class="mb-3">
+                <label asp-for="Input.Name" class="form-label"></label>
+                <input asp-for="Input.Name" class="form-control" />
+                <span asp-validation-for="Input.Name" class="text-danger small"></span>
+            </div>
+            <div class="mb-3">
+                <label asp-for="Input.ContactEmail" class="form-label"></label>
+                <input asp-for="Input.ContactEmail" class="form-control" />
+                <span asp-validation-for="Input.ContactEmail" class="text-danger small"></span>
+            </div>
+            <div class="mb-3">
+                <label asp-for="Input.PlanId" class="form-label"></label>
+                <select asp-for="Input.PlanId" class="form-select">
+                    @foreach (var p in Model.Plans)
+                    {
+                        <option value="@p.Id">@p.Name: min. @SaFormat.Interval(p.MinIntervalSeconds), maks. @p.MaxMonitors monitör, @SaFormat.Money(p.MonthlyPrice)/ay</option>
+                    }
+                </select>
+                <span asp-validation-for="Input.PlanId" class="text-danger small"></span>
+            </div>
+        </div></div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card h-100"><div class="card-header fw-semibold">İlk yönetici kullanıcı (CustomerAdmin)</div><div class="card-body">
+            <div class="mb-3">
+                <label asp-for="Input.AdminFullName" class="form-label"></label>
+                <input asp-for="Input.AdminFullName" class="form-control" />
+                <span asp-validation-for="Input.AdminFullName" class="text-danger small"></span>
+            </div>
+            <div class="mb-3">
+                <label asp-for="Input.AdminEmail" class="form-label"></label>
+                <input asp-for="Input.AdminEmail" class="form-control" autocomplete="off" />
+                <span asp-validation-for="Input.AdminEmail" class="text-danger small"></span>
+            </div>
+            <div class="mb-3">
+                <label asp-for="Input.AdminPassword" class="form-label"></label>
+                <input asp-for="Input.AdminPassword" class="form-control" autocomplete="new-password" />
+                <span asp-validation-for="Input.AdminPassword" class="text-danger small"></span>
+                <div class="form-text">En az 8 karakter; büyük harf, küçük harf ve rakam içermeli.</div>
+            </div>
+        </div></div>
+    </div>
+    <div class="col-12">
+        <button type="submit" class="btn btn-primary">Oluştur</button>
+        <a asp-page="Index" class="btn btn-link">Vazgeç</a>
+    </div>
+</form>
+
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

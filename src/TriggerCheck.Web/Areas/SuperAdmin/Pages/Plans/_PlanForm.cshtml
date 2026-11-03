@@ -1,0 +1,41 @@
+@model TriggerCheck.Web.Areas.SuperAdmin.Pages.Plans.PlanInput
+@*
+    Shared plan form fields. Render with <partial name="_PlanForm" for="Input" /> so field names bind to Input.*.
+*@
+<div asp-validation-summary="ModelOnly" class="text-danger"></div>
+<div class="mb-3">
+    <label asp-for="Name" class="form-label"></label>
+    <input asp-for="Name" class="form-control" />
+    <span asp-validation-for="Name" class="text-danger small"></span>
+</div>
+<div class="row">
+    <div class="col-md-6 mb-3">
+        <label asp-for="MinIntervalSeconds" class="form-label"></label>
+        <select asp-for="MinIntervalSeconds" class="form-select">
+            @foreach (var s in PlanRules.SupportedIntervals)
+            {
+                <option value="@s">@SaFormat.Interval(s) (@s sn)</option>
+            }
+        </select>
+        <span asp-validation-for="MinIntervalSeconds" class="text-danger small"></span>
+    </div>
+    <div class="col-md-6 mb-3">
+        <label asp-for="MaxMonitors" class="form-label"></label>
+        <input asp-for="MaxMonitors" class="form-control" type="number" min="1" />
+        <span asp-validation-for="MaxMonitors" class="text-danger small"></span>
+    </div>
+    <div class="col-md-6 mb-3">
+        <label asp-for="RetentionDays" class="form-label"></label>
+        <input asp-for="RetentionDays" class="form-control" type="number" min="1" max="3650" />
+        <span asp-validation-for="RetentionDays" class="text-danger small"></span>
+    </div>
+    <div class="col-md-6 mb-3">
+        <label asp-for="MonthlyPrice" class="form-label"></label>
+        <input asp-for="MonthlyPrice" class="form-control" type="number" min="0" step="0.01" value="@(Model.MonthlyPrice?.ToString(System.Globalization.CultureInfo.InvariantCulture))" />
+        <span asp-validation-for="MonthlyPrice" class="text-danger small"></span>
+    </div>
+</div>
+<div class="form-check mb-3">
+    <input asp-for="IsActive" class="form-check-input" />
+    <label asp-for="IsActive" class="form-check-label"></label>
+</div>

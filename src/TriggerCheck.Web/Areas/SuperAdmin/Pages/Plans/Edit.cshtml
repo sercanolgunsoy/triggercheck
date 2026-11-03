@@ -1,0 +1,32 @@
+@page "{id:int}"
+@model TriggerCheck.Web.Areas.SuperAdmin.Pages.Plans.EditModel
+@{ ViewData["Title"] = "Plan düzenle"; }
+
+<nav aria-label="breadcrumb"><ol class="breadcrumb">
+    <li class="breadcrumb-item"><a asp-page="Index">Planlar</a></li>
+    <li class="breadcrumb-item active">@Model.Plan.Name</li>
+</ol></nav>
+
+<div class="row g-4">
+<div class="col-lg-7">
+<h2 class="mb-3">Plan düzenle</h2>
+<form method="post" class="card"><div class="card-body">
+    <partial name="_PlanForm" for="Input" />
+    <button type="submit" class="btn btn-primary">Kaydet</button>
+    <a asp-page="Index" class="btn btn-link">Vazgeç</a>
+</div></form>
+</div>
+<div class="col-lg-5">
+    <div class="card mt-lg-5">
+        <div class="card-header fw-semibold">Etki</div>
+        <div class="card-body small">
+            <p>Bu planı <strong>@Model.CustomerCount</strong> müşteri kullanıyor (toplam <strong>@Model.MonitorCount</strong> monitör).</p>
+            <p class="mb-0 text-muted">Minimum aralık yükseltilirse bu müşterilerin daha hızlı monitörleri otomatik olarak yeni minimuma çekilir.
+            Maks. monitör düşürülürse mevcut monitörler silinmez; sınırı aşan müşteriler yeni monitör ekleyemez.
+            Plan pasifleştirilirse mevcut müşteriler planı korur, yeni müşterilere sunulmaz.</p>
+        </div>
+    </div>
+</div>
+</div>
+
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

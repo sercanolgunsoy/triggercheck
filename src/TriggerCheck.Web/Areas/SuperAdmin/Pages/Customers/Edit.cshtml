@@ -1,0 +1,70 @@
+@page "{id:int}"
+@model TriggerCheck.Web.Areas.SuperAdmin.Pages.Customers.EditModel
+@{ ViewData["Title"] = "Müşteri düzenle"; }
+
+<nav aria-label="breadcrumb"><ol class="breadcrumb">
+    <li class="breadcrumb-item"><a asp-page="Index">Müşteriler</a></li>
+    <li class="breadcrumb-item"><a asp-page="Details" asp-route-id="@Model.Customer.Id">@Model.Customer.Name</a></li>
+    <li class="breadcrumb-item active">Düzenle</li>
+</ol></nav>
+
+<h2 class="mb-3">Müşteri düzenle</h2>
+
+<div class="row g-4">
+    <div class="col-lg-6">
+        <form method="post" class="card"><div class="card-body">
+            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+            <div class="mb-3">
+                <label asp-for="Input.Name" class="form-label"></label>
+                <input asp-for="Input.Name" class="form-control" />
+                <span asp-validation-for="Input.Name" class="text-danger small"></span>
+            </div>
+            <div class="mb-3">
+                <label asp-for="Input.ContactEmail" class="form-label"></label>
+                <input asp-for="Input.ContactEmail" class="form-control" />
+                <span asp-validation-for="Input.ContactEmail" class="text-danger small"></span>
+            </div>
+            <div class="mb-3">
+                <label asp-for="Input.PlanId" class="form-label"></label>
+                <select asp-for="Input.PlanId" class="form-select">
+                    @foreach (var p in Model.Plans)
+                    {
+                        <option value="@p.Id">@p.Name@(p.IsActive ? "" : " (pasif)"): min. @SaFormat.Interval(p.MinIntervalSeconds), maks. @p.MaxMonitors monitör</option>
+                    }
+                </select>
+                <span asp-validation-for="Input.PlanId" class="text-danger small"></span>
+            </div>
+            <button type="submit" class="btn btn-primary">Kaydet</button>
+            <a asp-page="Details" asp-route-id="@Model.Customer.Id" class="btn btn-link">Vazgeç</a>
+        </div></form>
+    </div>
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header fw-semibold">Plan değişikliğinin etkisi</div>
+            <div class="table-responsive">
+            <table class="table table-sm mb-0">
+                <thead class="table-light"><tr><th>Plan</th><th>Min. aralık</th><th class="text-end">Yavaşlatılacak monitör</th><th class="text-end">Monitör sınırı</th></tr></thead>
+                <tbody>
+                @foreach (var p in Model.Plans)
+                {
+                    var fast = Model.FastMonitorsPerPlan[p.Id];
+                    var over = Model.MonitorCount > p.MaxMonitors;
+                    <tr class="@(p.Id == Model.Customer.PlanId ? "table-primary" : "")">
+                        <td>@p.Name @if (p.Id == Model.Customer.PlanId) { <small class="text-muted">(mevcut)</small> }</td>
+                        <td>@SaFormat.Interval(p.MinIntervalSeconds)</td>
+                        <td class="text-end @(fast > 0 ? "text-warning fw-semibold" : "")">@fast</td>
+                        <td class="text-end @(over ? "text-danger fw-semibold" : "")">@Model.MonitorCount / @p.MaxMonitors</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+            </div>
+            <div class="card-footer small text-muted">
+                Daha yavaş bir plana geçildiğinde, plan minimumundan hızlı monitörlerin aralığı otomatik olarak plan minimumuna çekilir.
+                Monitör sayısı yeni planın sınırını aşarsa monitörler silinmez; müşteri yeni monitör ekleyemez.
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }
