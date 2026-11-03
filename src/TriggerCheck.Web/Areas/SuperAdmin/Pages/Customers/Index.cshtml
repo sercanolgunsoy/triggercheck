@@ -1,0 +1,62 @@
+@page
+@model TriggerCheck.Web.Areas.SuperAdmin.Pages.Customers.IndexModel
+@{ ViewData["Title"] = "Müşteriler"; }
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="mb-0">Müşteriler</h2>
+    <a asp-page="Create" class="btn btn-primary">+ Yeni müşteri</a>
+</div>
+
+<form method="get" class="row g-2 mb-3">
+    <div class="col-md-5">
+        <input asp-for="Q" class="form-control" placeholder="Ad veya e-posta ile ara" />
+    </div>
+    <div class="col-md-3">
+        <select asp-for="State" class="form-select">
+            <option value="">Tüm durumlar</option>
+            <option value="active">Aktif</option>
+            <option value="suspended">Askıda</option>
+        </select>
+    </div>
+    <div class="col-md-2">
+        <select asp-for="PlanId" class="form-select">
+            <option value="">Tüm planlar</option>
+            @foreach (var p in Model.Plans) { <option value="@p.Id">@p.Name</option> }
+        </select>
+    </div>
+    <div class="col-md-2 d-grid">
+        <button class="btn btn-outline-secondary" type="submit">Filtrele</button>
+    </div>
+</form>
+
+<div class="card">
+<div class="table-responsive">
+<table class="table table-hover align-middle mb-0">
+    <thead class="table-light">
+        <tr><th>Müşteri</th><th>Plan</th><th>Durum</th><th class="text-end">Monitör</th><th class="text-end">Kullanıcı</th><th>Oluşturulma</th><th></th></tr>
+    </thead>
+    <tbody>
+    @if (Model.Rows.Count == 0)
+    {
+        <tr><td colspan="7" class="text-center text-muted py-4">Kayıt bulunamadı.</td></tr>
+    }
+    @foreach (var c in Model.Rows)
+    {
+        <tr>
+            <td><a asp-page="Details" asp-route-id="@c.Id" class="fw-semibold">@c.Name</a><div class="small text-muted">@c.ContactEmail</div></td>
+            <td>@c.PlanName</td>
+            <td>@if (c.IsActive) { <span class="badge bg-success">Aktif</span> } else { <span class="badge bg-danger">Askıda</span> }</td>
+            <td class="text-end @(c.Monitors > c.MaxMonitors ? "text-danger fw-semibold" : "")">@c.Monitors / @c.MaxMonitors</td>
+            <td class="text-end">@c.Users</td>
+            <td>@SaFormat.Date(c.CreatedAtUtc)</td>
+            <td class="text-end text-nowrap">
+                <a asp-page="Details" asp-route-id="@c.Id" class="btn btn-sm btn-outline-primary">Detay</a>
+                <a asp-page="Edit" asp-route-id="@c.Id" class="btn btn-sm btn-outline-secondary">Düzenle</a>
+            </td>
+        </tr>
+    }
+    </tbody>
+</table>
+</div>
+</div>
+<p class="small text-muted mt-2">@Model.Rows.Count müşteri listelendi.</p>

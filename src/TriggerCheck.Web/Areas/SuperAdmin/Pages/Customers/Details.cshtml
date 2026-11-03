@@ -1,0 +1,167 @@
+@page "{id:int}"
+@model TriggerCheck.Web.Areas.SuperAdmin.Pages.Customers.DetailsModel
+@{
+    var c = Model.Customer;
+    ViewData["Title"] = c.Name;
+    var overLimit = Model.Monitors.Count > c.Plan.MaxMonitors;
+}
+
+<nav aria-label="breadcrumb"><ol class="breadcrumb">
+    <li class="breadcrumb-item"><a asp-page="Index">Müşteriler</a></li>
+    <li class="breadcrumb-item active">@c.Name</li>
+</ol></nav>
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <h2 class="mb-0">
+        @c.Name
+        @if (c.IsActive) { <span class="badge bg-success fs-6 align-middle">Aktif</span> }
+        else { <span class="badge bg-danger fs-6 align-middle">Askıda</span> }
+    </h2>
+    <div class="d-flex gap-2">
+        <a asp-page="Edit" asp-route-id="@c.Id" class="btn btn-outline-secondary">Düzenle / Plan değiştir</a>
+        @if (c.IsActive)
+        {
+            <form method="post" asp-page-handler="Suspend" asp-route-id="@c.Id" onsubmit="return confirm('Müşteri askıya alınsın mı? Tüm kullanıcılarının oturumu kapanır ve monitörleri kontrol edilmez.');">
+                <button class="btn btn-warning">Askıya al</button>
+            </form>
+        }
+        else
+        {
+            <form method="post" asp-page-handler="Activate" asp-route-id="@c.Id">
+                <button class="btn btn-success">Etkinleştir</button>
+            </form>
+        }
+        <a asp-page="Delete" asp-route-id="@c.Id" class="btn btn-outline-danger">Sil</a>
+    </div>
+</div>
+
+@if (!c.IsActive)
+{
+    <div class="alert alert-warning">Bu müşteri askıda: kullanıcıları giriş yapamaz, monitörleri kontrol edilmez.</div>
+}
+@if (overLimit)
+{
+    <div class="alert alert-warning">Monitör sayısı (@Model.Monitors.Count) planın izin verdiği üst sınırı (@c.Plan.MaxMonitors) aşıyor. Müşteri yeni monitör ekleyemez.</div>
+}
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <div class="card h-100"><div class="card-header fw-semibold">Müşteri bilgileri</div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-5">İletişim e-postası</dt><dd class="col-7">@c.ContactEmail</dd>
+                    <dt class="col-5">Oluşturulma</dt><dd class="col-7">@SaFormat.Time(c.CreatedAtUtc) @SaFormat.TzLabel</dd>
+                    <dt class="col-5">Bildirim kanalı</dt><dd class="col-7">@Model.AlertChannelCount</dd>
+                    <dt class="col-5">Açık olay</dt><dd class="col-7">@Model.OpenIncidents.Count</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card h-100"><div class="card-header fw-semibold">Plan: @c.Plan.Name @if (!c.Plan.IsActive) { <span class="badge bg-light text-dark border">pasif plan</span> }</div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-5">Min. aralık</dt><dd class="col-7">@SaFormat.Interval(c.Plan.MinIntervalSeconds)</dd>
+                    <dt class="col-5">Monitör</dt><dd class="col-7 @(overLimit ? "text-danger fw-semibold" : "")">@Model.Monitors.Count / @c.Plan.MaxMonitors</dd>
+                    <dt class="col-5">Saklama</dt><dd class="col-7">@c.Plan.RetentionDays gün</dd>
+                    <dt class="col-5">Aylık ücret</dt><dd class="col-7">@SaFormat.Money(c.Plan.MonthlyPrice)</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+        <span>Kullanıcılar (@Model.Users.Count)</span>
+        <a asp-page="AddUser" asp-route-customerId="@c.Id" class="btn btn-sm btn-primary">+ Kullanıcı ekle</a>
+    </div>
+    <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+        <thead class="table-light"><tr><th>E-posta</th><th>Ad soyad</th><th>Rol</th><th>Durum</th><th>Oluşturulma</th><th></th></tr></thead>
+        <tbody>
+        @if (Model.Users.Count == 0) { <tr><td colspan="6" class="text-muted text-center py-3">Kullanıcı yok.</td></tr> }
+        @foreach (var u in Model.Users)
+        {
+            <tr>
+                <td>@u.Email</td>
+                <td>@u.FullName</td>
+                <td><span class="badge @(u.Role.Contains(Roles.CustomerAdmin) ? "bg-primary" : "bg-info text-dark")">@u.Role</span></td>
+                <td>
+                    @if (u.IsActive) { <span class="badge bg-success">Aktif</span> } else { <span class="badge bg-secondary">Pasif</span> }
+                    @if (u.LockedOut) { <span class="badge bg-warning text-dark">Kilitli</span> }
+                </td>
+                <td>@SaFormat.Date(u.CreatedAtUtc)</td>
+                <td class="text-end text-nowrap">
+                    <a asp-page="ResetPassword" asp-route-customerId="@c.Id" asp-route-userId="@u.Id" class="btn btn-sm btn-outline-secondary">Şifre sıfırla</a>
+                    @if (u.LockedOut)
+                    {
+                        <form method="post" asp-page-handler="UnlockUser" asp-route-id="@c.Id" class="d-inline">
+                            <input type="hidden" name="userId" value="@u.Id" />
+                            <button class="btn btn-sm btn-outline-warning">Kilidi aç</button>
+                        </form>
+                    }
+                    <form method="post" asp-page-handler="ToggleUser" asp-route-id="@c.Id" class="d-inline">
+                        <input type="hidden" name="userId" value="@u.Id" />
+                        <button class="btn btn-sm @(u.IsActive ? "btn-outline-warning" : "btn-outline-success")">@(u.IsActive ? "Pasifleştir" : "Etkinleştir")</button>
+                    </form>
+                    <form method="post" asp-page-handler="DeleteUser" asp-route-id="@c.Id" class="d-inline" onsubmit="return confirm('@u.Email silinsin mi?');">
+                        <input type="hidden" name="userId" value="@u.Id" />
+                        <button class="btn btn-sm btn-outline-danger">Sil</button>
+                    </form>
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+        <span>Monitörler (@Model.Monitors.Count)</span>
+        <a asp-page="/Monitors/Index" asp-route-customerId="@c.Id" class="btn btn-sm btn-outline-secondary">Tüm monitörlerde göster</a>
+    </div>
+    <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+        <thead class="table-light"><tr><th>Ad</th><th>Tip</th><th>Hedef</th><th>Aralık</th><th>Son kontrol (@SaFormat.TzLabel)</th><th class="text-end">Yanıt</th><th>Durum</th></tr></thead>
+        <tbody>
+        @if (Model.Monitors.Count == 0) { <tr><td colspan="7" class="text-muted text-center py-3">Monitör yok.</td></tr> }
+        @foreach (var m in Model.Monitors)
+        {
+            <tr>
+                <td>@m.Name</td>
+                <td>@SaFormat.TypeName(m.Type)</td>
+                <td class="small text-break">@m.Target@(m.Port is int port ? ":" + port : "")</td>
+                <td>@SaFormat.Interval(m.IntervalSeconds)</td>
+                <td class="text-nowrap">@SaFormat.Time(m.LastCheckedAtUtc)</td>
+                <td class="text-end">@(m.LastResponseTimeMs is int ms ? ms + " ms" : "—")</td>
+                <td><partial name="_StatusBadge" model="m.Status" /></td>
+            </tr>
+        }
+        </tbody>
+    </table>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header fw-semibold">Açık olaylar (@Model.OpenIncidents.Count)</div>
+    @if (Model.OpenIncidents.Count == 0)
+    {
+        <div class="card-body text-muted">Açık olay yok.</div>
+    }
+    else
+    {
+        <div class="table-responsive">
+        <table class="table table-sm mb-0">
+            <thead class="table-light"><tr><th>Başlangıç (@SaFormat.TzLabel)</th><th>Monitör</th><th>Neden</th></tr></thead>
+            <tbody>
+            @foreach (var i in Model.OpenIncidents)
+            {
+                <tr><td class="text-nowrap">@SaFormat.Time(i.StartedAtUtc)</td><td>@i.Monitor.Name</td><td class="small">@i.Cause</td></tr>
+            }
+            </tbody>
+        </table>
+        </div>
+    }
+</div>

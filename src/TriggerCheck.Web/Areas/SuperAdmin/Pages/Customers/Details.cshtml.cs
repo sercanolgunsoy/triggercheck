@@ -1,0 +1,111 @@
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.EntityFrameworkCore;
+using TriggerCheck.Domain;
+using TriggerCheck.Domain.Entities;
+using TriggerCheck.Infrastructure.Data;
+using TriggerCheck.Infrastructure.Identity;
+using TriggerCheck.Web.Areas.SuperAdmin.Services;
+using TriggerCheck.Web.Infrastructure;
+using MonitorEntity = TriggerCheck.Domain.Entities.Monitor;
+
+namespace TriggerCheck.Web.Areas.SuperAdmin.Pages.Customers;
+
+[Authorize(Policy = Policies.SuperAdmin)]
+public class DetailsModel(AppDbContext db, UserManager<ApplicationUser> users) : PageModel
+{
+    public Customer Customer { get; private set; } = null!;
+    public List<UserRow> Users { get; private set; } = [];
+    public List<MonitorEntity> Monitors { get; private set; } = [];
+    public List<Incident> OpenIncidents { get; private set; } = [];
+    public int AlertChannelCount { get; private set; }
+
+    public record UserRow(string Id, string Email, string FullName, string Role, bool IsActive, DateTime CreatedAtUtc, bool LockedOut);
+
+    public async Task<IActionResult> OnGetAsync(int id)
+    {
+        var c = await db.Customers.AsNoTracking().Include(x => x.Plan).FirstOrDefaultAsync(x => x.Id == id);
+        if (c is null) return NotFound();
+        Customer = c;
+
+        var userList = await db.Users.AsNoTracking().Where(u => u.CustomerId == id).OrderBy(u => u.Email).ToListAsync();
+        var roleRows = await (from ur in db.UserRoles
+                              join r in db.Roles on ur.RoleId equals r.Id
+                              join u in db.Users on ur.UserId equals u.Id
+                              where u.CustomerId == id
+                              select new { ur.UserId, r.Name }).ToListAsync();
+        Users = userList.Select(u => new UserRow(u.Id, u.Email ?? "", u.FullName,
+            string.Join(", ", roleRows.Where(r => r.UserId == u.Id).Select(r => r.Name)),
+            u.IsActive, u.CreatedAtUtc, u.LockoutEnd is DateTimeOffset le && le > DateTimeOffset.UtcNow)).ToList();
+
+        Monitors = await db.Monitors.AsNoTracking().Where(m => m.CustomerId == id).OrderBy(m => m.Name).ToListAsync();
+        OpenIncidents = await db.Incidents.AsNoTracking().Include(i => i.Monitor)
+            .Where(i => i.Monitor.CustomerId == id && i.ResolvedAtUtc == null)
+            .OrderByDescending(i => i.StartedAtUtc).ToListAsync();
+        AlertChannelCount = await db.AlertChannels.CountAsync(a => a.CustomerId == id);
+        return Page();
+    }
+
+    public async Task<IActionResult> OnPostSuspendAsync(int id)
+    {
+        var c = await db.Customers.FindAsync(id);
+        if (c is null) return NotFound();
+        if (!c.IsActive) { TempData["Error"] = "Müşteri zaten askıda."; return RedirectToPage(new { id }); }
+
+        c.IsActive = false;
+        await db.SaveChangesAsync();
+        // Invalidate existing sessions (security stamp) in addition to ActiveAccountFilter's per-request check.
+        await SuperAdminOps.InvalidateCustomerSessionsAsync(users, id);
+        TempData["Success"] = $"\"{c.Name}\" askıya alındı. Kullanıcıları giriş yapamaz ve monitörleri kontrol edilmez.";
+        return RedirectToPage(new { id });
+    }
+
+    public async Task<IActionResult> OnPostActivateAsync(int id)
+    {
+        var c = await db.Customers.FindAsync(id);
+        if (c is null) return NotFound();
+        if (c.IsActive) { TempData["Error"] = "Müşteri zaten aktif."; return RedirectToPage(new { id }); }
+
+        c.IsActive = true;
+        var now = DateTime.UtcNow;
+        var monitors = await db.Monitors.Where(m => m.CustomerId == id).ToListAsync();
+        foreach (var m in monitors) m.NextCheckAtUtc = now; // resume checking immediately
+        await db.SaveChangesAsync();
+        TempData["Success"] = $"\"{c.Name}\" yeniden etkinleştirildi.";
+        return RedirectToPage(new { id });
+    }
+
+    public async Task<IActionResult> OnPostToggleUserAsync(int id, string userId)
+    {
+        var u = await users.Users.FirstOrDefaultAsync(x => x.Id == userId && x.CustomerId == id);
+        if (u is null) return NotFound();
+        u.IsActive = !u.IsActive;
+        var r = await users.UpdateAsync(u);
+        if (r.Succeeded) r = await users.UpdateSecurityStampAsync(u);
+        if (!r.Succeeded) TempData["Error"] = string.Join(" ", r.Errors.Select(e => e.Description));
+        else TempData["Success"] = u.IsActive ? $"{u.Email} etkinleştirildi." : $"{u.Email} pasifleştirildi; açık oturumları sonlandırıldı.";
+        return RedirectToPage(new { id });
+    }
+
+    public async Task<IActionResult> OnPostDeleteUserAsync(int id, string userId)
+    {
+        var u = await users.Users.FirstOrDefaultAsync(x => x.Id == userId && x.CustomerId == id);
+        if (u is null) return NotFound();
+        var r = await users.DeleteAsync(u);
+        if (!r.Succeeded) TempData["Error"] = string.Join(" ", r.Errors.Select(e => e.Description));
+        else TempData["Success"] = $"{u.Email} silindi.";
+        return RedirectToPage(new { id });
+    }
+
+    public async Task<IActionResult> OnPostUnlockUserAsync(int id, string userId)
+    {
+        var u = await users.Users.FirstOrDefaultAsync(x => x.Id == userId && x.CustomerId == id);
+        if (u is null) return NotFound();
+        await users.SetLockoutEndDateAsync(u, null);
+        await users.ResetAccessFailedCountAsync(u);
+        TempData["Success"] = $"{u.Email} kilidi kaldırıldı.";
+        return RedirectToPage(new { id });
+    }
+}
