@@ -38,7 +38,7 @@ public static class Fmt
         return TimeZoneInfo.CreateCustomTimeZone("TRT", TimeSpan.FromHours(3), "TRT", "TRT");
     }
 
-    /// <summary>"TRT" / "TSİ".</summary>
+    /// <summary>Time zone abbreviation shown next to times (Turkish form in SharedResource.tr.resx).</summary>
     public static string TimeZoneLabel => T("TRT");
 
     public static DateTime ToLocal(DateTime utc) =>
@@ -55,7 +55,7 @@ public static class Fmt
     /// <summary>"14:05" (chart labels).</summary>
     public static string ShortTime(DateTime utc) => ToLocal(utc).ToString("HH:mm", CultureInfo.InvariantCulture);
 
-    /// <summary>en "45 sec", "12 min", "1 h 5 min", "2 d 3 h"; tr "45 sn", "12 dk", "1 sa 5 dk", "2 gün 3 sa".</summary>
+    /// <summary>"45 sec", "12 min", "1 h 5 min", "2 d 3 h" (Turkish unit forms in SharedResource.tr.resx).</summary>
     public static string Duration(TimeSpan span)
     {
         if (span < TimeSpan.Zero) span = TimeSpan.Zero;

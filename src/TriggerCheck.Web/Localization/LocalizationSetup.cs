@@ -25,7 +25,7 @@ public static class LocalizationSetup
         services.AddLocalization(o => o.ResourcesPath = "Resources");
         services.AddSingleton(typeof(Text<>));
         services.AddSingleton<IConfigureOptions<MvcOptions>, LocalizedModelBindingMessages>();
-        // Emit "ı", "ş", ... as-is instead of &#x131; (HTML-significant characters are still encoded).
+        // Emit non-ASCII letters as-is instead of &#x131;-style entities (HTML-significant characters are still encoded).
         services.Configure<WebEncoderOptions>(o => o.TextEncoderSettings = new TextEncoderSettings(UnicodeRanges.All));
         return services;
     }
