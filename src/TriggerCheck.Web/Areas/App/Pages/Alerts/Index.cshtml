@@ -1,0 +1,51 @@
+@page
+@model TriggerCheck.Web.Areas.App.Pages.Alerts.IndexModel
+@{
+    ViewData["Title"] = "Bildirim Kanalları";
+    var isAdmin = User.IsInRole(Roles.CustomerAdmin);
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h2 class="mb-0">Bildirim kanalları</h2>
+        <div class="text-muted small">Monitörleriniz DOWN / UP olduğunda etkin kanallara bildirim gönderilir.</div>
+    </div>
+    @if (isAdmin)
+    {
+        <a class="btn btn-primary" asp-page="Create">+ Yeni kanal</a>
+    }
+</div>
+
+@if (Model.Channels.Count == 0)
+{
+    <div class="alert alert-light border">Henüz bildirim kanalı yok. Kesintilerden haberdar olmak için bir e-posta veya webhook kanalı ekleyin.</div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead><tr><th>Ad</th><th>Tip</th><th>Hedef</th><th>Durum</th><th></th></tr></thead>
+            <tbody>
+            @foreach (var c in Model.Channels)
+            {
+                <tr>
+                    <td>@c.Name</td>
+                    <td>@AlertChannelInput.TypeName(c.Type)</td>
+                    <td class="text-truncate font-monospace small" style="max-width: 320px">@c.Target</td>
+                    <td>@if (c.IsEnabled) { <span class="badge bg-success">Etkin</span> } else { <span class="badge bg-secondary">Devre dışı</span> }</td>
+                    <td class="text-end text-nowrap">
+                        @if (isAdmin)
+                        {
+                            <form method="post" asp-page-handler="Toggle" asp-route-id="@c.Id" class="d-inline">
+                                <button type="submit" class="btn btn-sm btn-outline-warning">@(c.IsEnabled ? "Devre dışı bırak" : "Etkinleştir")</button>
+                            </form>
+                            <a class="btn btn-sm btn-outline-primary" asp-page="Edit" asp-route-id="@c.Id">Düzenle</a>
+                            <a class="btn btn-sm btn-outline-danger" asp-page="Delete" asp-route-id="@c.Id">Sil</a>
+                        }
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+}

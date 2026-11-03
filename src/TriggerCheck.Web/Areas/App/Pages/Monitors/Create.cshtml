@@ -1,0 +1,28 @@
+@page
+@model TriggerCheck.Web.Areas.App.Pages.Monitors.CreateModel
+@{ ViewData["Title"] = "Yeni monitör"; }
+
+<nav aria-label="breadcrumb"><ol class="breadcrumb">
+    <li class="breadcrumb-item"><a asp-page="Index">Monitörler</a></li>
+    <li class="breadcrumb-item active">Yeni</li>
+</ol></nav>
+
+<h2 class="mb-3">Yeni monitör</h2>
+
+@if (Model.QuotaReached)
+{
+    <div class="alert alert-warning">
+        Planınızın monitör limitine ulaştınız (@Model.CurrentCount / @Model.Plan.MaxMonitors).
+        Yeni monitör eklemek için <a asp-page="/Account/Index">planınızı</a> yükseltin veya mevcut bir monitörü silin.
+    </div>
+}
+
+<div class="card"><div class="card-body">
+    <form method="post">
+        <partial name="_MonitorForm" model="Model" />
+        <div class="mt-4">
+            <button type="submit" class="btn btn-primary" disabled="@Model.QuotaReached">Oluştur</button>
+            <a asp-page="Index" class="btn btn-link">İptal</a>
+        </div>
+    </form>
+</div></div>

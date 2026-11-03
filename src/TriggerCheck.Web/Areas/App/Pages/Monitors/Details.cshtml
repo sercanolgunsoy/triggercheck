@@ -1,0 +1,176 @@
+@page "{id:int}"
+@model TriggerCheck.Web.Areas.App.Pages.Monitors.DetailsModel
+@{
+    var m = Model.Monitor;
+    ViewData["Title"] = m.Name;
+    var isAdmin = User.IsInRole(Roles.CustomerAdmin);
+    var isPaused = m.Status == MonitorStatus.Paused;
+}
+
+<nav aria-label="breadcrumb"><ol class="breadcrumb">
+    <li class="breadcrumb-item"><a asp-page="Index">Monitörler</a></li>
+    <li class="breadcrumb-item active">@m.Name</li>
+</ol></nav>
+
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+    <div>
+        <h2 class="mb-1">@m.Name <partial name="_StatusBadge" model="m.Status" /></h2>
+        <div class="text-muted">@AppFormat.TypeName(m.Type) · <span class="font-monospace">@m.Target@(m.Port is int p ? ":" + p : "")</span></div>
+    </div>
+    @if (isAdmin)
+    {
+        <div class="d-flex flex-wrap gap-2">
+            @if (!isPaused)
+            {
+                <form method="post" asp-page-handler="CheckNow" asp-route-id="@m.Id">
+                    <button type="submit" class="btn btn-outline-primary">Şimdi kontrol et</button>
+                </form>
+            }
+            <form method="post" asp-page-handler="@(isPaused ? "Resume" : "Pause")" asp-route-id="@m.Id">
+                <button type="submit" class="btn btn-outline-warning">@(isPaused ? "Devam et" : "Duraklat")</button>
+            </form>
+            <a class="btn btn-outline-secondary" asp-page="Edit" asp-route-id="@m.Id">Düzenle</a>
+            <a class="btn btn-outline-danger" asp-page="Delete" asp-route-id="@m.Id">Sil</a>
+        </div>
+    }
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <div class="card h-100"><div class="card-body">
+            <dl class="row mb-0">
+                <dt class="col-sm-5">Durum</dt><dd class="col-sm-7"><partial name="_StatusBadge" model="m.Status" />
+                    @if (m.StatusChangedAtUtc is DateTime sc) { <span class="text-muted small">(@AppFormat.Duration(DateTime.UtcNow - sc) önce)</span> }</dd>
+                <dt class="col-sm-5">Kontrol aralığı</dt><dd class="col-sm-7">@PlanRules.FormatInterval(m.IntervalSeconds)</dd>
+                <dt class="col-sm-5">Zaman aşımı</dt><dd class="col-sm-7">@m.TimeoutSeconds sn</dd>
+                <dt class="col-sm-5">Hata eşiği</dt><dd class="col-sm-7">@m.FailureThreshold (şu an @m.ConsecutiveFailures art arda hata)</dd>
+                @if (m.Type is MonitorType.Http or MonitorType.Keyword)
+                {
+                    <dt class="col-sm-5">HTTP</dt><dd class="col-sm-7">@m.HttpMethod · beklenen @m.ExpectedStatusCodes</dd>
+                }
+                @if (m.Type == MonitorType.Keyword)
+                {
+                    <dt class="col-sm-5">Anahtar kelime</dt><dd class="col-sm-7"><code>@m.Keyword</code></dd>
+                }
+                <dt class="col-sm-5">Son kontrol</dt><dd class="col-sm-7">@AppFormat.Time(m.LastCheckedAtUtc) @AppFormat.TimeZoneLabel</dd>
+                <dt class="col-sm-5">Sonraki kontrol</dt><dd class="col-sm-7">@(isPaused ? "-" : AppFormat.Time(m.NextCheckAtUtc) + " " + AppFormat.TimeZoneLabel)</dd>
+                <dt class="col-sm-5">Son yanıt süresi</dt><dd class="col-sm-7">@AppFormat.Ms(m.LastResponseTimeMs)</dd>
+                <dt class="col-sm-5">Son hata</dt><dd class="col-sm-7 text-danger">@(m.LastError ?? "-")</dd>
+            </dl>
+        </div></div>
+    </div>
+    <div class="col-md-6">
+        <div class="row g-3">
+            @foreach (var (label, s) in new[] { ("Son 24 saat", Model.Stats24h), ("Son 7 gün", Model.Stats7d), ("Son 30 gün", Model.Stats30d) })
+            {
+                <div class="col-4">
+                    <div class="card text-center h-100"><div class="card-body px-1">
+                        <div class="fs-4 fw-semibold @(s?.UptimePercent is double u ? (u >= 99 ? "text-success" : u >= 95 ? "text-warning" : "text-danger") : "text-muted")">@AppFormat.Percent(s?.UptimePercent)</div>
+                        <div class="small text-muted">@label uptime</div>
+                        <div class="small text-muted">ort. @(s?.AvgResponseMs is double a ? $"{a:0} ms" : "-")</div>
+                    </div></div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">Yanıt süresi — son 24 saat (@AppFormat.TimeZoneLabel)</div>
+    <div class="card-body">
+        @if (Model.Chart.Count == 0)
+        {
+            <div class="text-muted">Son 24 saatte kontrol sonucu yok.</div>
+        }
+        else
+        {
+            <div style="height: 260px"><canvas id="rtChart"></canvas></div>
+        }
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-7">
+        <div class="card">
+            <div class="card-header">Son 50 kontrol</div>
+            <div class="table-responsive" style="max-height: 480px">
+                <table class="table table-sm table-striped mb-0">
+                    <thead class="sticky-top bg-body"><tr><th>Zaman (@AppFormat.TimeZoneLabel)</th><th>Sonuç</th><th>Kod</th><th class="text-end">Süre</th><th>Hata</th></tr></thead>
+                    <tbody>
+                    @if (Model.RecentChecks.Count == 0)
+                    {
+                        <tr><td colspan="5" class="text-muted">Henüz kontrol yapılmadı.</td></tr>
+                    }
+                    @foreach (var c in Model.RecentChecks)
+                    {
+                        <tr>
+                            <td class="text-nowrap">@AppFormat.Time(c.CheckedAtUtc)</td>
+                            <td>@if (c.IsUp) { <span class="badge bg-success">UP</span> } else { <span class="badge bg-danger">DOWN</span> }</td>
+                            <td>@(c.StatusCode?.ToString() ?? "-")</td>
+                            <td class="text-end">@c.ResponseTimeMs ms</td>
+                            <td class="small text-danger">@c.Error</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-5">
+        <div class="card">
+            <div class="card-header">Olaylar</div>
+            <ul class="list-group list-group-flush">
+                @if (Model.Incidents.Count == 0)
+                {
+                    <li class="list-group-item text-muted">Kayıtlı olay yok.</li>
+                }
+                @foreach (var i in Model.Incidents)
+                {
+                    <li class="list-group-item">
+                        <div class="d-flex justify-content-between">
+                            <span>@if (i.ResolvedAtUtc is null) { <span class="badge bg-danger">Açık</span> } else { <span class="badge bg-success">Çözüldü</span> }
+                                @AppFormat.Time(i.StartedAtUtc)</span>
+                            <span class="text-muted">@AppFormat.Duration((i.ResolvedAtUtc ?? DateTime.UtcNow) - i.StartedAtUtc)</span>
+                        </div>
+                        @if (!string.IsNullOrEmpty(i.Cause)) { <div class="small text-muted">@i.Cause</div> }
+                    </li>
+                }
+            </ul>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @if (Model.Chart.Count > 0)
+    {
+        <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+        <script>
+        (function () {
+            var data = @Json.Serialize(Model.Chart);
+            if (typeof Chart === 'undefined') return;
+            new Chart(document.getElementById('rtChart'), {
+                type: 'line',
+                data: {
+                    labels: data.map(function (p) { return p.label; }),
+                    datasets: [{
+                        label: 'Yanıt süresi (ms)',
+                        data: data.map(function (p) { return p.ms; }),
+                        borderColor: '#0d6efd',
+                        backgroundColor: 'rgba(13,110,253,0.1)',
+                        fill: true,
+                        tension: 0.2,
+                        pointRadius: data.map(function (p) { return p.isUp ? 0 : 3; }),
+                        pointBackgroundColor: data.map(function (p) { return p.isUp ? '#0d6efd' : '#dc3545'; })
+                    }]
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    animation: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, title: { display: true, text: 'ms' } }, x: { ticks: { maxTicksLimit: 12 } } }
+                }
+            });
+        })();
+        </script>
+    }
+}

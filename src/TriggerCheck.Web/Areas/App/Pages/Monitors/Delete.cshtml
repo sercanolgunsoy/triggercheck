@@ -1,0 +1,21 @@
+@page "{id:int}"
+@model TriggerCheck.Web.Areas.App.Pages.Monitors.DeleteModel
+@{ ViewData["Title"] = "Monitörü sil"; }
+
+<nav aria-label="breadcrumb"><ol class="breadcrumb">
+    <li class="breadcrumb-item"><a asp-page="Index">Monitörler</a></li>
+    <li class="breadcrumb-item"><a asp-page="Details" asp-route-id="@Model.Monitor.Id">@Model.Monitor.Name</a></li>
+    <li class="breadcrumb-item active">Sil</li>
+</ol></nav>
+
+<div class="card border-danger">
+    <div class="card-header bg-danger text-white">Monitörü sil</div>
+    <div class="card-body">
+        <p><strong>@Model.Monitor.Name</strong> (@Model.Monitor.Target) monitörünü silmek istediğinize emin misiniz?</p>
+        <p class="text-muted">Bu işlem geri alınamaz. @Model.CheckCount kontrol sonucu ve @Model.IncidentCount olay kaydı da silinecek.</p>
+        <form method="post" asp-route-id="@Model.Monitor.Id">
+            <button type="submit" class="btn btn-danger">Evet, sil</button>
+            <a asp-page="Details" asp-route-id="@Model.Monitor.Id" class="btn btn-link">Vazgeç</a>
+        </form>
+    </div>
+</div>

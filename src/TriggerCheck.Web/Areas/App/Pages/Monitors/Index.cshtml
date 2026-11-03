@@ -1,0 +1,70 @@
+@page
+@model TriggerCheck.Web.Areas.App.Pages.Monitors.IndexModel
+@{
+    ViewData["Title"] = "Monitörler";
+    var isAdmin = User.IsInRole(Roles.CustomerAdmin);
+    var filters = new (MonitorStatus? Value, string Label)[]
+    {
+        (null, "Tümü"), (MonitorStatus.Up, "Up"), (MonitorStatus.Down, "Down"), (MonitorStatus.Paused, "Duraklatıldı"), (MonitorStatus.Unknown, "Bekliyor")
+    };
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h2 class="mb-0">Monitörler</h2>
+        <div class="text-muted small">@Model.TotalCount / @Model.MaxMonitors monitör kullanılıyor · saatler @AppFormat.TimeZoneLabel</div>
+    </div>
+    @if (isAdmin)
+    {
+        <a class="btn btn-primary" asp-page="Create">+ Yeni monitör</a>
+    }
+</div>
+
+<ul class="nav nav-pills mb-3">
+    @foreach (var f in filters)
+    {
+        <li class="nav-item">
+            <a class="nav-link @(Model.Status == f.Value ? "active" : "")" asp-page="Index" asp-route-status="@f.Value">@f.Label</a>
+        </li>
+    }
+</ul>
+
+@if (Model.Monitors.Count == 0)
+{
+    <div class="alert alert-light border">Bu filtreye uyan monitör yok.</div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead><tr><th>Durum</th><th>Ad</th><th>Tip</th><th>Hedef</th><th>Aralık</th><th class="text-end">Son yanıt</th><th class="text-end">24 sa uptime</th><th>Son kontrol</th><th></th></tr></thead>
+            <tbody>
+            @foreach (var m in Model.Monitors)
+            {
+                <tr>
+                    <td><partial name="_StatusBadge" model="m.Status" /></td>
+                    <td><a asp-page="Details" asp-route-id="@m.Id">@m.Name</a></td>
+                    <td>@AppFormat.TypeName(m.Type)</td>
+                    <td class="text-truncate" style="max-width: 260px">@m.Target@(m.Port is int p ? ":" + p : "")</td>
+                    <td>@PlanRules.FormatInterval(m.IntervalSeconds)</td>
+                    <td class="text-end">@AppFormat.Ms(m.LastResponseTimeMs)</td>
+                    <td class="text-end">@AppFormat.Percent(m.Uptime24h)</td>
+                    <td class="small text-muted">@AppFormat.Time(m.LastCheckedAtUtc)</td>
+                    <td class="text-end text-nowrap">
+                        <a class="btn btn-sm btn-outline-secondary" asp-page="Details" asp-route-id="@m.Id">Detay</a>
+                        @if (isAdmin)
+                        {
+                            <form method="post" asp-page="Details" asp-page-handler="@(m.Status == MonitorStatus.Paused ? "Resume" : "Pause")" asp-route-id="@m.Id" class="d-inline">
+                                <input type="hidden" name="returnTo" value="list" />
+                                <button class="btn btn-sm btn-outline-warning" type="submit">@(m.Status == MonitorStatus.Paused ? "Devam et" : "Duraklat")</button>
+                            </form>
+                            <a class="btn btn-sm btn-outline-primary" asp-page="Edit" asp-route-id="@m.Id">Düzenle</a>
+                            <a class="btn btn-sm btn-outline-danger" asp-page="Delete" asp-route-id="@m.Id">Sil</a>
+                        }
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+}
