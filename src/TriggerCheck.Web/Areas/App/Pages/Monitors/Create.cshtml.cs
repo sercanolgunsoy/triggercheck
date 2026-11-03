@@ -4,12 +4,13 @@ using Microsoft.EntityFrameworkCore;
 using TriggerCheck.Domain;
 using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Web.Infrastructure;
+using TriggerCheck.Web.Localization;
 using MonitorEntity = TriggerCheck.Domain.Entities.Monitor;
 
 namespace TriggerCheck.Web.Areas.App.Pages.Monitors;
 
 [Authorize(Policy = Policies.CustomerAdmin)]
-public class CreateModel(AppDbContext db, ICurrentCustomer current) : MonitorFormPageModel
+public class CreateModel(AppDbContext db, ICurrentCustomer current, Text<AppResource> L) : MonitorFormPageModel
 {
     public int CurrentCount { get; private set; }
     public bool QuotaReached => !PlanRules.CanAddMonitor(Plan, CurrentCount);
@@ -35,11 +36,11 @@ public class CreateModel(AppDbContext db, ICurrentCustomer current) : MonitorFor
 
         if (QuotaReached)
         {
-            ModelState.AddModelError("", $"Planınızın monitör limitine ulaştınız ({Plan.MaxMonitors}). Yeni monitör eklemek için planınızı yükseltin.");
+            ModelState.AddModelError("", L["You have reached the monitor limit of your plan ({0}). Upgrade your plan to add a new monitor.", Plan.MaxMonitors]);
             return Page();
         }
 
-        Input.Validate(Plan, ModelState);
+        Input.Validate(Plan, ModelState, L);
         if (!ModelState.IsValid) return Page();
 
         var now = DateTime.UtcNow;
@@ -56,7 +57,7 @@ public class CreateModel(AppDbContext db, ICurrentCustomer current) : MonitorFor
         db.Monitors.Add(monitor);
         await db.SaveChangesAsync(ct);
 
-        TempData["Success"] = $"\"{monitor.Name}\" monitörü oluşturuldu. İlk kontrol birazdan yapılacak.";
+        TempData["Success"] = L["Monitor \"{0}\" was created. The first check will run shortly.", monitor.Name].Value;
         return RedirectToPage("Details", new { id = monitor.Id });
     }
 }

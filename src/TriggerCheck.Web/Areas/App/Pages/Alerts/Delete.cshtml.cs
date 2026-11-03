@@ -5,11 +5,12 @@ using Microsoft.EntityFrameworkCore;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Web.Infrastructure;
+using TriggerCheck.Web.Localization;
 
 namespace TriggerCheck.Web.Areas.App.Pages.Alerts;
 
 [Authorize(Policy = Policies.CustomerAdmin)]
-public class DeleteModel(AppDbContext db, ICurrentCustomer current) : PageModel
+public class DeleteModel(AppDbContext db, ICurrentCustomer current, Text<AppResource> L) : PageModel
 {
     public AlertChannel Channel { get; private set; } = null!;
 
@@ -29,7 +30,7 @@ public class DeleteModel(AppDbContext db, ICurrentCustomer current) : PageModel
         if (c is null) return NotFound();
         db.AlertChannels.Remove(c);
         await db.SaveChangesAsync(ct);
-        TempData["Success"] = $"\"{c.Name}\" bildirim kanalı silindi.";
+        TempData["Success"] = L["Alert channel \"{0}\" was deleted.", c.Name].Value;
         return RedirectToPage("Index");
     }
 }

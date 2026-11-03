@@ -1,12 +1,12 @@
 @page
 @model TriggerCheck.Web.Areas.App.Pages.Incidents.IndexModel
 @{
-    ViewData["Title"] = "Olaylar";
-    var filters = new (string? Value, string Label)[] { (null, "Tümü"), ("open", $"Açık ({Model.OpenCount})"), ("resolved", "Çözülmüş") };
+    ViewData["Title"] = L["Incidents"].Value;
+    var filters = new (string? Value, string Label)[] { (null, L["All"]), ("open", L["Open ({0})", Model.OpenCount]), ("resolved", L["Resolved"]) };
 }
 
-<h2 class="mb-1">Olaylar</h2>
-<div class="text-muted small mb-3">Monitörlerinizin kesinti kayıtları · saatler @AppFormat.TimeZoneLabel</div>
+<h2 class="mb-1">@L["Incidents"]</h2>
+<div class="text-muted small mb-3">@L["Downtime records of your monitors"] · @L["times in {0}", Fmt.TimeZoneLabel]</div>
 
 <ul class="nav nav-pills mb-3">
     @foreach (var f in filters)
@@ -17,22 +17,22 @@
 
 @if (Model.Items.Count == 0)
 {
-    <div class="alert alert-light border">Kayıtlı olay yok.</div>
+    <div class="alert alert-light border">@L["No incidents recorded."]</div>
 }
 else
 {
     <div class="table-responsive">
         <table class="table table-hover align-middle">
-            <thead><tr><th>Durum</th><th>Monitör</th><th>Başlangıç</th><th>Bitiş</th><th>Süre</th><th>Neden</th></tr></thead>
+            <thead><tr><th>@L["Status"]</th><th>@L["Monitor"]</th><th>@L["Started"]</th><th>@L["Ended"]</th><th>@L["Duration"]</th><th>@L["Cause"]</th></tr></thead>
             <tbody>
             @foreach (var i in Model.Items)
             {
                 <tr class="@(i.ResolvedAtUtc is null ? "table-danger" : "")">
-                    <td>@if (i.ResolvedAtUtc is null) { <span class="badge bg-danger">Açık</span> } else { <span class="badge bg-success">Çözüldü</span> }</td>
+                    <td>@if (i.ResolvedAtUtc is null) { <span class="badge bg-danger">@L["Open"]</span> } else { <span class="badge bg-success">@L["Resolved"]</span> }</td>
                     <td><a asp-page="/Monitors/Details" asp-route-id="@i.MonitorId">@i.MonitorName</a></td>
-                    <td class="text-nowrap">@AppFormat.Time(i.StartedAtUtc)</td>
-                    <td class="text-nowrap">@AppFormat.Time(i.ResolvedAtUtc)</td>
-                    <td class="text-nowrap">@AppFormat.Duration((i.ResolvedAtUtc ?? DateTime.UtcNow) - i.StartedAtUtc)@(i.ResolvedAtUtc is null ? " (sürüyor)" : "")</td>
+                    <td class="text-nowrap">@Fmt.Time(i.StartedAtUtc)</td>
+                    <td class="text-nowrap">@Fmt.Time(i.ResolvedAtUtc)</td>
+                    <td class="text-nowrap">@Fmt.Duration((i.ResolvedAtUtc ?? DateTime.UtcNow) - i.StartedAtUtc)@(i.ResolvedAtUtc is null ? " " + L["(ongoing)"].Value : "")</td>
                     <td class="small">@i.Cause</td>
                 </tr>
             }
@@ -44,11 +44,11 @@ else
     {
         <nav><ul class="pagination">
             <li class="page-item @(Model.PageNumber <= 1 ? "disabled" : "")">
-                <a class="page-link" asp-page="Index" asp-route-filter="@Model.Filter" asp-route-p="@(Model.PageNumber - 1)">Önceki</a>
+                <a class="page-link" asp-page="Index" asp-route-filter="@Model.Filter" asp-route-p="@(Model.PageNumber - 1)">@L["Previous"]</a>
             </li>
-            <li class="page-item disabled"><span class="page-link">Sayfa @Model.PageNumber / @Model.TotalPages (@Model.TotalCount kayıt)</span></li>
+            <li class="page-item disabled"><span class="page-link">@L["Page {0} / {1} ({2} records)", Model.PageNumber, Model.TotalPages, Model.TotalCount]</span></li>
             <li class="page-item @(Model.PageNumber >= Model.TotalPages ? "disabled" : "")">
-                <a class="page-link" asp-page="Index" asp-route-filter="@Model.Filter" asp-route-p="@(Model.PageNumber + 1)">Sonraki</a>
+                <a class="page-link" asp-page="Index" asp-route-filter="@Model.Filter" asp-route-p="@(Model.PageNumber + 1)">@L["Next"]</a>
             </li>
         </ul></nav>
     }

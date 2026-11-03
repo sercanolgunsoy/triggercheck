@@ -5,11 +5,12 @@ using TriggerCheck.Domain;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Web.Infrastructure;
+using TriggerCheck.Web.Localization;
 
 namespace TriggerCheck.Web.Areas.App.Pages.Alerts;
 
 /// <summary>Listing is visible to all customer members; the toggle handler is CustomerAdmin only.</summary>
-public class IndexModel(AppDbContext db, ICurrentCustomer current) : PageModel
+public class IndexModel(AppDbContext db, ICurrentCustomer current, Text<AppResource> L) : PageModel
 {
     public List<AlertChannel> Channels { get; private set; } = [];
 
@@ -27,7 +28,7 @@ public class IndexModel(AppDbContext db, ICurrentCustomer current) : PageModel
         if (c is null) return NotFound();
         c.IsEnabled = !c.IsEnabled;
         await db.SaveChangesAsync(ct);
-        TempData["Success"] = $"\"{c.Name}\" kanalı {(c.IsEnabled ? "etkinleştirildi" : "devre dışı bırakıldı")}.";
+        TempData["Success"] = (c.IsEnabled ? L["Channel \"{0}\" was enabled.", c.Name] : L["Channel \"{0}\" was disabled.", c.Name]).Value;
         return RedirectToPage("Index");
     }
 }

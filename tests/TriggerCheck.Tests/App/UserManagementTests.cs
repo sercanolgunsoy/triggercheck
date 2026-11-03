@@ -57,7 +57,7 @@ public class UserManagementTests : IClassFixture<TestWebAppFactory>
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
         var count = await _f.WithDbAsync(db => db.Users.CountAsync(u => u.Email == email));
         Assert.Equal(createFirst ? 1 : 0, count);
-        if (role == "SuperAdmin") Assert.Contains("Geçersiz rol", await r.ReadHtmlAsync());
+        if (role == "SuperAdmin") Assert.Contains("Invalid role.", await r.ReadHtmlAsync());
     }
 
     [Theory]

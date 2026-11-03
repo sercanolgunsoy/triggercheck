@@ -70,14 +70,14 @@ public class ViewerPermissionTests : IClassFixture<ViewerPermissionTests.Fixture
         var c = await ViewerAsync();
         var html = await c.GetHtmlAsync($"/App/Monitors/Details/{_f.MonitorId}");
         Assert.Contains("ViewerSees", html);
-        Assert.DoesNotContain("Şimdi kontrol et", html);
-        Assert.DoesNotContain("Duraklat", html);
-        Assert.DoesNotContain("Düzenle", html);
+        Assert.DoesNotContain("Check now", html);
+        Assert.DoesNotContain(">Pause<", html);
+        Assert.DoesNotContain(">Edit<", html);
 
         var list = await c.GetHtmlAsync("/App/Monitors/Index");
-        Assert.DoesNotContain("Yeni monitör", list);
-        Assert.DoesNotContain("Düzenle", list);
-        Assert.DoesNotContain("Kullanıcılar", list); // nav item is admin-only
+        Assert.DoesNotContain("New monitor", list);
+        Assert.DoesNotContain(">Edit<", list);
+        Assert.DoesNotContain(">Users<", list); // nav item is admin-only
     }
 
     [Theory]
@@ -155,7 +155,7 @@ public class ViewerPermissionTests : IClassFixture<ViewerPermissionTests.Fixture
             ["Password.ConfirmPassword"] = "NewViewer123"
         }, "/App/Account/Index");
         Assert.Equal(HttpStatusCode.OK, bad.StatusCode);
-        Assert.Contains("Mevcut şifre hatalı", await bad.ReadHtmlAsync());
+        Assert.Contains("The current password is incorrect.", await bad.ReadHtmlAsync());
 
         var ok = await c.PostFormAsync("/App/Account/Index?handler=ChangePassword", new()
         {

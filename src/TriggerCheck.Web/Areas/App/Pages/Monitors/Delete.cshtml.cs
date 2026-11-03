@@ -4,12 +4,13 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Web.Infrastructure;
+using TriggerCheck.Web.Localization;
 using MonitorEntity = TriggerCheck.Domain.Entities.Monitor;
 
 namespace TriggerCheck.Web.Areas.App.Pages.Monitors;
 
 [Authorize(Policy = Policies.CustomerAdmin)]
-public class DeleteModel(AppDbContext db, ICurrentCustomer current) : PageModel
+public class DeleteModel(AppDbContext db, ICurrentCustomer current, Text<AppResource> L) : PageModel
 {
     public MonitorEntity Monitor { get; private set; } = null!;
     public int CheckCount { get; private set; }
@@ -37,7 +38,7 @@ public class DeleteModel(AppDbContext db, ICurrentCustomer current) : PageModel
         db.Monitors.Remove(m); // CheckResults and Incidents are removed by cascade.
         await db.SaveChangesAsync(ct);
 
-        TempData["Success"] = $"\"{m.Name}\" monitörü silindi.";
+        TempData["Success"] = L["Monitor \"{0}\" was deleted.", m.Name].Value;
         return RedirectToPage("Index");
     }
 }

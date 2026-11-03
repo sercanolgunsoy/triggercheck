@@ -25,11 +25,11 @@ public class MonitorQuotaTests : IClassFixture<TestWebAppFactory>
         Assert.Equal(max, await _f.WithDbAsync(db => db.Monitors.CountAsync(m => m.CustomerId == cid)));
 
         var page = await c.GetHtmlAsync("/App/Monitors/Create");
-        Assert.Contains("monitör limitine ulaştınız", page);
+        Assert.Contains("You have reached the monitor limit of your plan", page);
 
         var r = await c.PostFormAsync("/App/Monitors/Create", MonitorForm("OverQuota"));
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
-        Assert.Contains("monitör limitine ulaştınız", await r.ReadHtmlAsync());
+        Assert.Contains("You have reached the monitor limit of your plan", await r.ReadHtmlAsync());
         Assert.Equal(max, await _f.WithDbAsync(db => db.Monitors.CountAsync(m => m.CustomerId == cid)));
     }
 }
