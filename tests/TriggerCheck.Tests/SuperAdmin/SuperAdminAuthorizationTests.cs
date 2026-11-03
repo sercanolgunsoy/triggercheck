@@ -86,7 +86,7 @@ public class SuperAdminAuthorizationTests : IClassFixture<TestWebAppFactory>
         {
             var c = await db.Customers.SingleAsync(x => x.Id == demo.Id);
             Assert.True(c.IsActive);
-            Assert.Equal("Demo Şirketi", c.Name);
+            Assert.Equal("Demo Company", c.Name);
             Assert.Equal(demo.PlanId, c.PlanId);
             Assert.False(await db.Customers.AnyAsync(x => x.Name == "Evil"));
             Assert.False(await db.Users.AnyAsync(u => u.Email == "evil@e.test" || u.Email == "evil2@e.test"));

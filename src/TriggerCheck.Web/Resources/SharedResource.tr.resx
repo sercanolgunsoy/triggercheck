@@ -1,0 +1,313 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="'{0}' is already taken." xml:space="preserve">
+    <value>'{0}' zaten kullanılıyor.</value>
+  </data>
+  <data name="'{0}' is not a valid e-mail address." xml:space="preserve">
+    <value>'{0}' geçersiz bir e-posta adresi.</value>
+  </data>
+  <data name="'{0}' is not a valid role name." xml:space="preserve">
+    <value>'{0}' geçersiz bir rol adı.</value>
+  </data>
+  <data name="'{0}' is not a valid user name." xml:space="preserve">
+    <value>'{0}' geçersiz bir kullanıcı adı.</value>
+  </data>
+  <data name="A non-empty request body is required." xml:space="preserve">
+    <value>İstek gövdesi boş olamaz.</value>
+  </data>
+  <data name="A value for '{0}' was not provided." xml:space="preserve">
+    <value>'{0}' için bir değer girilmedi.</value>
+  </data>
+  <data name="A value is required." xml:space="preserve">
+    <value>Bir değer girilmelidir.</value>
+  </data>
+  <data name="Access denied" xml:space="preserve">
+    <value>Erişim reddedildi</value>
+  </data>
+  <data name="Account &amp; plan" xml:space="preserve">
+    <value>Hesap &amp; Plan</value>
+  </data>
+  <data name="Actions" xml:space="preserve">
+    <value>İşlemler</value>
+  </data>
+  <data name="Active" xml:space="preserve">
+    <value>Aktif</value>
+  </data>
+  <data name="Admin" xml:space="preserve">
+    <value>Yönetici</value>
+  </data>
+  <data name="Alert channels" xml:space="preserve">
+    <value>Bildirim Kanalları</value>
+  </data>
+  <data name="All" xml:space="preserve">
+    <value>Tümü</value>
+  </data>
+  <data name="All monitors" xml:space="preserve">
+    <value>Tüm Monitörler</value>
+  </data>
+  <data name="An unknown error occurred." xml:space="preserve">
+    <value>Bilinmeyen bir hata oluştu.</value>
+  </data>
+  <data name="Back" xml:space="preserve">
+    <value>Geri</value>
+  </data>
+  <data name="Cancel" xml:space="preserve">
+    <value>Vazgeç</value>
+  </data>
+  <data name="Create" xml:space="preserve">
+    <value>Oluştur</value>
+  </data>
+  <data name="Created" xml:space="preserve">
+    <value>Oluşturulma</value>
+  </data>
+  <data name="Customer" xml:space="preserve">
+    <value>Müşteri</value>
+  </data>
+  <data name="Customers" xml:space="preserve">
+    <value>Müşteriler</value>
+  </data>
+  <data name="Dashboard" xml:space="preserve">
+    <value>Panel</value>
+  </data>
+  <data name="Delete" xml:space="preserve">
+    <value>Sil</value>
+  </data>
+  <data name="Disabled" xml:space="preserve">
+    <value>Devre dışı</value>
+  </data>
+  <data name="DOWN" xml:space="preserve">
+    <value>DOWN</value>
+  </data>
+  <data name="E-mail" xml:space="preserve">
+    <value>E-posta</value>
+  </data>
+  <data name="E-mail is required." xml:space="preserve">
+    <value>E-posta zorunludur.</value>
+  </data>
+  <data name="Edit" xml:space="preserve">
+    <value>Düzenle</value>
+  </data>
+  <data name="Enabled" xml:space="preserve">
+    <value>Etkin</value>
+  </data>
+  <data name="Enter a valid e-mail address." xml:space="preserve">
+    <value>Geçerli bir e-posta adresi girin.</value>
+  </data>
+  <data name="Filter" xml:space="preserve">
+    <value>Filtrele</value>
+  </data>
+  <data name="Free" xml:space="preserve">
+    <value>Ücretsiz</value>
+  </data>
+  <data name="Full name" xml:space="preserve">
+    <value>Ad soyad</value>
+  </data>
+  <data name="Inactive" xml:space="preserve">
+    <value>Pasif</value>
+  </data>
+  <data name="Incidents" xml:space="preserve">
+    <value>Olaylar</value>
+  </data>
+  <data name="Incorrect password." xml:space="preserve">
+    <value>Şifre hatalı.</value>
+  </data>
+  <data name="Interval" xml:space="preserve">
+    <value>Aralık</value>
+  </data>
+  <data name="Invalid login attempt." xml:space="preserve">
+    <value>Geçersiz giriş denemesi.</value>
+  </data>
+  <data name="Invalid token." xml:space="preserve">
+    <value>Geçersiz token.</value>
+  </data>
+  <data name="Keyword" xml:space="preserve">
+    <value>Anahtar kelime</value>
+  </data>
+  <data name="Language" xml:space="preserve">
+    <value>Dil</value>
+  </data>
+  <data name="Lockout is not enabled for this user." xml:space="preserve">
+    <value>Bu kullanıcı için hesap kilitleme etkin değil.</value>
+  </data>
+  <data name="Monitor" xml:space="preserve">
+    <value>Monitör</value>
+  </data>
+  <data name="Monitor your websites and services at intervals down to 15 seconds. Know the moment something goes down." xml:space="preserve">
+    <value>Web sitelerinizi ve servislerinizi 15 saniyeye kadar inen aralıklarla izleyin. Kesinti anında haberdar olun.</value>
+  </data>
+  <data name="Monitors" xml:space="preserve">
+    <value>Monitörler</value>
+  </data>
+  <data name="Name" xml:space="preserve">
+    <value>Ad</value>
+  </data>
+  <data name="Next" xml:space="preserve">
+    <value>Sonraki</value>
+  </data>
+  <data name="No" xml:space="preserve">
+    <value>Hayır</value>
+  </data>
+  <data name="No records found." xml:space="preserve">
+    <value>Kayıt bulunamadı.</value>
+  </data>
+  <data name="Overview" xml:space="preserve">
+    <value>Genel Bakış</value>
+  </data>
+  <data name="Password" xml:space="preserve">
+    <value>Şifre</value>
+  </data>
+  <data name="Password is required." xml:space="preserve">
+    <value>Şifre zorunludur.</value>
+  </data>
+  <data name="PAUSED" xml:space="preserve">
+    <value>DURAKLATILDI</value>
+  </data>
+  <data name="PENDING" xml:space="preserve">
+    <value>BEKLİYOR</value>
+  </data>
+  <data name="Plan" xml:space="preserve">
+    <value>Plan</value>
+  </data>
+  <data name="Plans" xml:space="preserve">
+    <value>Planlar</value>
+  </data>
+  <data name="Previous" xml:space="preserve">
+    <value>Önceki</value>
+  </data>
+  <data name="Remember me" xml:space="preserve">
+    <value>Beni hatırla</value>
+  </data>
+  <data name="Role" xml:space="preserve">
+    <value>Rol</value>
+  </data>
+  <data name="Save" xml:space="preserve">
+    <value>Kaydet</value>
+  </data>
+  <data name="Search" xml:space="preserve">
+    <value>Ara</value>
+  </data>
+  <data name="Sign in" xml:space="preserve">
+    <value>Giriş yap</value>
+  </data>
+  <data name="Sign out" xml:space="preserve">
+    <value>Çıkış</value>
+  </data>
+  <data name="Status" xml:space="preserve">
+    <value>Durum</value>
+  </data>
+  <data name="Target" xml:space="preserve">
+    <value>Hedef</value>
+  </data>
+  <data name="TCP port" xml:space="preserve">
+    <value>TCP port</value>
+  </data>
+  <data name="The account is temporarily locked. Try again in a few minutes." xml:space="preserve">
+    <value>Hesap geçici olarak kilitlendi. Birkaç dakika sonra tekrar deneyin.</value>
+  </data>
+  <data name="The e-mail address '{0}' is already in use." xml:space="preserve">
+    <value>'{0}' e-posta adresi zaten kullanılıyor.</value>
+  </data>
+  <data name="The field must be a number." xml:space="preserve">
+    <value>Bu alan bir sayı olmalıdır.</value>
+  </data>
+  <data name="The field {0} must be a number." xml:space="preserve">
+    <value>{0} alanı bir sayı olmalıdır.</value>
+  </data>
+  <data name="The password must be at least {0} characters long." xml:space="preserve">
+    <value>Şifre en az {0} karakter olmalıdır.</value>
+  </data>
+  <data name="The password must contain at least one digit ('0'-'9')." xml:space="preserve">
+    <value>Şifre en az bir rakam ('0'-'9') içermelidir.</value>
+  </data>
+  <data name="The password must contain at least one lowercase letter ('a'-'z')." xml:space="preserve">
+    <value>Şifre en az bir küçük harf ('a'-'z') içermelidir.</value>
+  </data>
+  <data name="The password must contain at least one special character." xml:space="preserve">
+    <value>Şifre en az bir özel karakter içermelidir.</value>
+  </data>
+  <data name="The password must contain at least one uppercase letter ('A'-'Z')." xml:space="preserve">
+    <value>Şifre en az bir büyük harf ('A'-'Z') içermelidir.</value>
+  </data>
+  <data name="The password must contain at least {0} different characters." xml:space="preserve">
+    <value>Şifre en az {0} farklı karakter içermelidir.</value>
+  </data>
+  <data name="The record was changed by someone else. Please try again." xml:space="preserve">
+    <value>Kayıt başka biri tarafından değiştirildi, lütfen tekrar deneyin.</value>
+  </data>
+  <data name="The recovery code could not be redeemed." xml:space="preserve">
+    <value>Kurtarma kodu kullanılamadı.</value>
+  </data>
+  <data name="The role '{0}' already exists." xml:space="preserve">
+    <value>'{0}' rolü zaten mevcut.</value>
+  </data>
+  <data name="The supplied value is invalid for {0}." xml:space="preserve">
+    <value>{0} için girilen değer geçersiz.</value>
+  </data>
+  <data name="The supplied value is invalid." xml:space="preserve">
+    <value>Girilen değer geçersiz.</value>
+  </data>
+  <data name="The user already has a password." xml:space="preserve">
+    <value>Kullanıcının zaten bir şifresi var.</value>
+  </data>
+  <data name="The user is already in the '{0}' role." xml:space="preserve">
+    <value>Kullanıcı zaten '{0}' rolünde.</value>
+  </data>
+  <data name="The user is not in the '{0}' role." xml:space="preserve">
+    <value>Kullanıcı '{0}' rolünde değil.</value>
+  </data>
+  <data name="The value '{0}' is not valid for {1}." xml:space="preserve">
+    <value>'{0}' değeri {1} için geçerli değil.</value>
+  </data>
+  <data name="The value '{0}' is not valid." xml:space="preserve">
+    <value>'{0}' değeri geçerli değil.</value>
+  </data>
+  <data name="This login is already linked to another user." xml:space="preserve">
+    <value>Bu giriş zaten başka bir kullanıcıya bağlı.</value>
+  </data>
+  <data name="TRT" xml:space="preserve">
+    <value>TSİ</value>
+  </data>
+  <data name="Type" xml:space="preserve">
+    <value>Tip</value>
+  </data>
+  <data name="UP" xml:space="preserve">
+    <value>UP</value>
+  </data>
+  <data name="Users" xml:space="preserve">
+    <value>Kullanıcılar</value>
+  </data>
+  <data name="Viewer" xml:space="preserve">
+    <value>Görüntüleyici</value>
+  </data>
+  <data name="Yes" xml:space="preserve">
+    <value>Evet</value>
+  </data>
+  <data name="You do not have permission to view this page." xml:space="preserve">
+    <value>Bu sayfayı görüntüleme yetkiniz yok.</value>
+  </data>
+  <data name="Your account is inactive. Please contact your administrator." xml:space="preserve">
+    <value>Hesabınız pasif durumda. Lütfen yöneticinizle iletişime geçin.</value>
+  </data>
+  <data name="{0} d" xml:space="preserve">
+    <value>{0} gün</value>
+  </data>
+  <data name="{0} d {1} h" xml:space="preserve">
+    <value>{0} gün {1} sa</value>
+  </data>
+  <data name="{0} h" xml:space="preserve">
+    <value>{0} sa</value>
+  </data>
+  <data name="{0} h {1} min" xml:space="preserve">
+    <value>{0} sa {1} dk</value>
+  </data>
+  <data name="{0} min" xml:space="preserve">
+    <value>{0} dk</value>
+  </data>
+  <data name="{0} sec" xml:space="preserve">
+    <value>{0} sn</value>
+  </data>
+</root>

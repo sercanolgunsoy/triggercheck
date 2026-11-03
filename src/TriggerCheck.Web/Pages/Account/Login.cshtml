@@ -1,27 +1,27 @@
 @page
 @model TriggerCheck.Web.Pages.Account.LoginModel
-@{ ViewData["Title"] = "Giriş"; }
+@{ ViewData["Title"] = L["Sign in"]; }
 <div class="row justify-content-center">
     <div class="col-md-5">
-        <h2 class="mb-4">Giriş yap</h2>
+        <h2 class="mb-4">@L["Sign in"]</h2>
         @if (Model.Message is not null) { <div class="alert alert-warning">@Model.Message</div> }
         <form method="post">
             <div asp-validation-summary="ModelOnly" class="text-danger"></div>
             <div class="mb-3">
-                <label asp-for="Input.Email" class="form-label">E-posta</label>
+                <label asp-for="Input.Email" class="form-label">@L["E-mail"]</label>
                 <input asp-for="Input.Email" class="form-control" autocomplete="username" />
                 <span asp-validation-for="Input.Email" class="text-danger"></span>
             </div>
             <div class="mb-3">
-                <label asp-for="Input.Password" class="form-label">Şifre</label>
+                <label asp-for="Input.Password" class="form-label">@L["Password"]</label>
                 <input asp-for="Input.Password" class="form-control" autocomplete="current-password" />
                 <span asp-validation-for="Input.Password" class="text-danger"></span>
             </div>
             <div class="form-check mb-3">
                 <input asp-for="Input.RememberMe" class="form-check-input" />
-                <label asp-for="Input.RememberMe" class="form-check-label">Beni hatırla</label>
+                <label asp-for="Input.RememberMe" class="form-check-label">@L["Remember me"]</label>
             </div>
-            <button type="submit" class="btn btn-primary w-100">Giriş</button>
+            <button type="submit" class="btn btn-primary w-100">@L["Sign in"]</button>
         </form>
     </div>
 </div>

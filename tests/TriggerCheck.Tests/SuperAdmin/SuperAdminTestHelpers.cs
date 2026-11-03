@@ -32,7 +32,7 @@ internal static class SuperAdminTestHelpers
         WebUtility.HtmlDecode(await resp.Content.ReadAsStringAsync());
 
     public static Task<Customer> DemoCustomerAsync(this TestWebAppFactory f) =>
-        f.WithDbAsync(db => db.Customers.Include(c => c.Plan).SingleAsync(c => c.Name == "Demo Şirketi"));
+        f.WithDbAsync(db => db.Customers.Include(c => c.Plan).SingleAsync(c => c.Name == "Demo Company"));
 
     public static Task<int> PlanIdAsync(this TestWebAppFactory f, string name) =>
         f.WithDbAsync(db => db.Plans.Where(p => p.Name == name).Select(p => p.Id).SingleAsync());

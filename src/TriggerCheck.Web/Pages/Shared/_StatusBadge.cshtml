@@ -1,11 +1,12 @@
 @model TriggerCheck.Domain.Entities.MonitorStatus
 @{
-    var (cls, text) = Model switch
+    var cls = Model switch
     {
-        MonitorStatus.Up => ("bg-success", "UP"),
-        MonitorStatus.Down => ("bg-danger", "DOWN"),
-        MonitorStatus.Paused => ("bg-secondary", "DURAKLATILDI"),
-        _ => ("bg-warning text-dark", "BEKLİYOR")
+        MonitorStatus.Up => "bg-success",
+        MonitorStatus.Down => "bg-danger",
+        MonitorStatus.Paused => "bg-secondary",
+        _ => "bg-warning text-dark"
     };
+    var text = Fmt.StatusName(Model);
 }
 <span class="badge @cls">@text</span>

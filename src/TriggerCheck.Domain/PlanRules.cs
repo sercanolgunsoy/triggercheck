@@ -20,5 +20,6 @@ public static class PlanRules
     /// <summary>When a customer is moved to a slower plan, monitors faster than the plan allows are slowed down to the plan minimum.</summary>
     public static int ClampInterval(Plan plan, int intervalSeconds) => Math.Max(intervalSeconds, plan.MinIntervalSeconds);
 
-    public static string FormatInterval(int seconds) => seconds >= 60 ? $"{seconds / 60} dk" : $"{seconds} sn";
+    /// <summary>Neutral English form for logs; the UI uses the localized TriggerCheck.Web.Localization.Fmt.Interval.</summary>
+    public static string FormatInterval(int seconds) => seconds >= 60 && seconds % 60 == 0 ? $"{seconds / 60} min" : $"{seconds} sec";
 }

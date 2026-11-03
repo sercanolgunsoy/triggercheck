@@ -325,15 +325,15 @@ public class CustomerManagementTests
 
         var all = await sa.GetStringAsync("/SuperAdmin/Customers/Index");
         Assert.Contains("Zeta Bilişim", System.Net.WebUtility.HtmlDecode(all));
-        Assert.Contains("Demo Şirketi", System.Net.WebUtility.HtmlDecode(all));
+        Assert.Contains("Demo Company", System.Net.WebUtility.HtmlDecode(all));
 
         var suspended = System.Net.WebUtility.HtmlDecode(await sa.GetStringAsync("/SuperAdmin/Customers/Index?State=suspended"));
         Assert.Contains("Zeta Bilişim", suspended);
-        Assert.DoesNotContain("Demo Şirketi", suspended);
+        Assert.DoesNotContain("Demo Company", suspended);
 
         // Search matches a user's e-mail too.
         var byUser = System.Net.WebUtility.HtmlDecode(await sa.GetStringAsync("/SuperAdmin/Customers/Index?Q=ADMIN@demo"));
-        Assert.Contains("Demo Şirketi", byUser);
+        Assert.Contains("Demo Company", byUser);
         Assert.DoesNotContain("Zeta Bilişim", byUser);
 
         var basicId = await f.PlanIdAsync("Basic");
