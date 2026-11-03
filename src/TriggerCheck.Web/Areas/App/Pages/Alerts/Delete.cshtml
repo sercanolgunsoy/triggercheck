@@ -1,0 +1,19 @@
+@page "{id:int}"
+@model TriggerCheck.Web.Areas.App.Pages.Alerts.DeleteModel
+@{ ViewData["Title"] = "Bildirim kanalını sil"; }
+
+<nav aria-label="breadcrumb"><ol class="breadcrumb">
+    <li class="breadcrumb-item"><a asp-page="Index">Bildirim kanalları</a></li>
+    <li class="breadcrumb-item active">Sil</li>
+</ol></nav>
+
+<div class="card border-danger">
+    <div class="card-header bg-danger text-white">Bildirim kanalını sil</div>
+    <div class="card-body">
+        <p><strong>@Model.Channel.Name</strong> (@AlertChannelInput.TypeName(Model.Channel.Type): <span class="font-monospace">@Model.Channel.Target</span>) kanalını silmek istediğinize emin misiniz?</p>
+        <form method="post" asp-route-id="@Model.Channel.Id">
+            <button type="submit" class="btn btn-danger">Evet, sil</button>
+            <a asp-page="Index" class="btn btn-link">Vazgeç</a>
+        </form>
+    </div>
+</div>

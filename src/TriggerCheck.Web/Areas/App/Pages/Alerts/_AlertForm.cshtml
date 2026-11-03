@@ -1,0 +1,46 @@
+@model TriggerCheck.Web.Areas.App.Support.AlertChannelInput
+@*
+    Rendered with the page's Input object; field names are prefixed via ViewData.TemplateInfo so they bind to "Input.*".
+*@
+<div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+<div class="row g-3">
+    <div class="col-md-6">
+        <label asp-for="Name" class="form-label"></label>
+        <input asp-for="Name" class="form-control" placeholder="Örn. Operasyon ekibi" />
+        <span asp-validation-for="Name" class="text-danger small"></span>
+    </div>
+    <div class="col-md-6">
+        <label asp-for="Type" class="form-label"></label>
+        <select asp-for="Type" class="form-select" id="channel-type">
+            @foreach (var t in Enum.GetValues<AlertChannelType>())
+            {
+                <option value="@t" selected="@(Model.Type == t)">@AlertChannelInput.TypeName(t)</option>
+            }
+        </select>
+        <span asp-validation-for="Type" class="text-danger small"></span>
+    </div>
+    <div class="col-md-12">
+        <label asp-for="Target" class="form-label"></label>
+        <input asp-for="Target" class="form-control" id="channel-target" />
+        <div class="form-text" id="channel-help"></div>
+        <span asp-validation-for="Target" class="text-danger small"></span>
+    </div>
+    <div class="col-md-12">
+        <div class="form-check">
+            <input asp-for="IsEnabled" class="form-check-input" />
+            <label asp-for="IsEnabled" class="form-check-label"></label>
+        </div>
+    </div>
+</div>
+<script>
+(function () {
+    var sel = document.getElementById('channel-type'), help = document.getElementById('channel-help'), target = document.getElementById('channel-target');
+    function update() {
+        var email = sel.value === 'Email';
+        help.textContent = email ? 'Bildirimlerin gönderileceği e-posta adresi.' : 'Olay bilgisi bu adrese JSON olarak POST edilir (http/https).';
+        target.placeholder = email ? 'ops@example.com' : 'https://hooks.example.com/triggercheck';
+    }
+    sel.addEventListener('change', update);
+    update();
+})();
+</script>

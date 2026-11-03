@@ -1,0 +1,57 @@
+@page
+@model TriggerCheck.Web.Areas.App.Pages.Users.IndexModel
+@{ ViewData["Title"] = "Kullanıcılar"; }
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h2 class="mb-0">Kullanıcılar</h2>
+        <div class="text-muted small">Yöneticiler her şeyi yönetebilir; görüntüleyiciler yalnızca okuyabilir.</div>
+    </div>
+    <a class="btn btn-primary" asp-page="Create">+ Yeni kullanıcı</a>
+</div>
+
+<div class="table-responsive">
+    <table class="table table-hover align-middle">
+        <thead><tr><th>Ad soyad</th><th>E-posta</th><th>Rol</th><th>Durum</th><th>Oluşturulma (@AppFormat.TimeZoneLabel)</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var u in Model.Users)
+        {
+            <tr>
+                <td>@u.FullName @if (u.IsSelf) { <span class="badge bg-info text-dark">Siz</span> }</td>
+                <td>@u.Email</td>
+                <td>
+                    @if (u.IsSelf)
+                    {
+                        @AppFormat.RoleName(u.Role)
+                    }
+                    else
+                    {
+                        <form method="post" asp-page-handler="ChangeRole" asp-route-id="@u.Id" class="d-flex gap-1">
+                            <select name="role" class="form-select form-select-sm" style="width: auto">
+                                <option value="@Roles.CustomerAdmin" selected="@(u.Role == Roles.CustomerAdmin)">@AppFormat.RoleName(Roles.CustomerAdmin)</option>
+                                <option value="@Roles.CustomerViewer" selected="@(u.Role == Roles.CustomerViewer)">@AppFormat.RoleName(Roles.CustomerViewer)</option>
+                            </select>
+                            <button type="submit" class="btn btn-sm btn-outline-secondary">Kaydet</button>
+                        </form>
+                    }
+                </td>
+                <td>@if (u.IsActive) { <span class="badge bg-success">Aktif</span> } else { <span class="badge bg-secondary">Pasif</span> }</td>
+                <td class="small text-muted">@AppFormat.Time(u.CreatedAtUtc)</td>
+                <td class="text-end text-nowrap">
+                    @if (!u.IsSelf)
+                    {
+                        <form method="post" asp-page-handler="ToggleActive" asp-route-id="@u.Id" class="d-inline">
+                            <button type="submit" class="btn btn-sm btn-outline-warning">@(u.IsActive ? "Pasifleştir" : "Aktifleştir")</button>
+                        </form>
+                        <form method="post" asp-page-handler="Delete" asp-route-id="@u.Id" class="d-inline"
+                              data-confirm="@u.Email kullanıcısı silinsin mi? Bu işlem geri alınamaz."
+                              onsubmit="return confirm(this.dataset.confirm);">
+                            <button type="submit" class="btn btn-sm btn-outline-danger">Sil</button>
+                        </form>
+                    }
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+</div>

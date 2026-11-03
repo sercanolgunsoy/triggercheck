@@ -1,0 +1,55 @@
+@page
+@model TriggerCheck.Web.Areas.App.Pages.Incidents.IndexModel
+@{
+    ViewData["Title"] = "Olaylar";
+    var filters = new (string? Value, string Label)[] { (null, "Tümü"), ("open", $"Açık ({Model.OpenCount})"), ("resolved", "Çözülmüş") };
+}
+
+<h2 class="mb-1">Olaylar</h2>
+<div class="text-muted small mb-3">Monitörlerinizin kesinti kayıtları · saatler @AppFormat.TimeZoneLabel</div>
+
+<ul class="nav nav-pills mb-3">
+    @foreach (var f in filters)
+    {
+        <li class="nav-item"><a class="nav-link @(Model.Filter == f.Value ? "active" : "")" asp-page="Index" asp-route-filter="@f.Value">@f.Label</a></li>
+    }
+</ul>
+
+@if (Model.Items.Count == 0)
+{
+    <div class="alert alert-light border">Kayıtlı olay yok.</div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead><tr><th>Durum</th><th>Monitör</th><th>Başlangıç</th><th>Bitiş</th><th>Süre</th><th>Neden</th></tr></thead>
+            <tbody>
+            @foreach (var i in Model.Items)
+            {
+                <tr class="@(i.ResolvedAtUtc is null ? "table-danger" : "")">
+                    <td>@if (i.ResolvedAtUtc is null) { <span class="badge bg-danger">Açık</span> } else { <span class="badge bg-success">Çözüldü</span> }</td>
+                    <td><a asp-page="/Monitors/Details" asp-route-id="@i.MonitorId">@i.MonitorName</a></td>
+                    <td class="text-nowrap">@AppFormat.Time(i.StartedAtUtc)</td>
+                    <td class="text-nowrap">@AppFormat.Time(i.ResolvedAtUtc)</td>
+                    <td class="text-nowrap">@AppFormat.Duration((i.ResolvedAtUtc ?? DateTime.UtcNow) - i.StartedAtUtc)@(i.ResolvedAtUtc is null ? " (sürüyor)" : "")</td>
+                    <td class="small">@i.Cause</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+
+    @if (Model.TotalPages > 1)
+    {
+        <nav><ul class="pagination">
+            <li class="page-item @(Model.PageNumber <= 1 ? "disabled" : "")">
+                <a class="page-link" asp-page="Index" asp-route-filter="@Model.Filter" asp-route-p="@(Model.PageNumber - 1)">Önceki</a>
+            </li>
+            <li class="page-item disabled"><span class="page-link">Sayfa @Model.PageNumber / @Model.TotalPages (@Model.TotalCount kayıt)</span></li>
+            <li class="page-item @(Model.PageNumber >= Model.TotalPages ? "disabled" : "")">
+                <a class="page-link" asp-page="Index" asp-route-filter="@Model.Filter" asp-route-p="@(Model.PageNumber + 1)">Sonraki</a>
+            </li>
+        </ul></nav>
+    }
+}
