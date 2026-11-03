@@ -394,9 +394,6 @@
   <data name="Suspended" xml:space="preserve">
     <value>Askıda</value>
   </data>
-  <data name="suspended" xml:space="preserve">
-    <value>askıda</value>
-  </data>
   <data name="The customer could not be created: {0}" xml:space="preserve">
     <value>Müşteri oluşturulamadı: {0}</value>
   </data>

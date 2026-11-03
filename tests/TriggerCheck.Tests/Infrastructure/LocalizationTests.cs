@@ -148,6 +148,19 @@ public class LocalizationTests(TestWebAppFactory f) : IClassFixture<TestWebAppFa
         Assert.True(bad.Count == 0, "Placeholder mismatch or empty translation:\n" + string.Join("\n", bad));
     }
 
+    /// <summary>Resource names are case-insensitive: "Suspended" and "suspended" collide and one is silently dropped.</summary>
+    [Theory]
+    [InlineData("SharedResource")]
+    [InlineData("AppResource")]
+    [InlineData("AdminResource")]
+    public void Keys_are_unique_ignoring_case(string resource)
+    {
+        var dupes = XDocument.Load(Path.Combine(Web, "Resources", resource + ".tr.resx")).Root!.Elements("data")
+            .Select(e => (string)e.Attribute("name")!).GroupBy(k => k, StringComparer.OrdinalIgnoreCase)
+            .Where(g => g.Count() > 1).Select(g => string.Join(" / ", g)).ToList();
+        Assert.True(dupes.Count == 0, "Keys differing only by case:\n" + string.Join("\n", dupes));
+    }
+
     /// <summary>All Turkish UI text lives in the .tr.resx files; source files contain English only.</summary>
     [Fact]
     public void No_Turkish_text_left_in_web_sources()

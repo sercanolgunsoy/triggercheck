@@ -60,7 +60,7 @@
         <tr>
             <td>
                 <a asp-page="/Customers/Details" asp-route-id="@m.CustomerId">@m.CustomerName</a>
-                @if (!m.CustomerActive) { <span class="badge bg-danger">@L["suspended"]</span> }
+                @if (!m.CustomerActive) { <span class="badge bg-danger">@L["Suspended"]</span> }
             </td>
             <td>@m.Name<div class="small text-muted text-break">@m.Target@(m.Port is int port ? ":" + port : "")</div></td>
             <td>@Fmt.TypeName(m.Type)</td>
