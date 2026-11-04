@@ -27,7 +27,7 @@
             <td class="text-end">@Fmt.Number(p.Monitors)</td>
             <td class="text-end text-nowrap">
                 <a asp-page="Edit" asp-route-id="@p.Id" class="btn btn-sm btn-outline-secondary">@L["Edit"]</a>
-                <form method="post" asp-page-handler="Delete" asp-route-id="@p.Id" class="d-inline" data-confirm="@L["Delete the plan {0}?", p.Name]" onsubmit="return confirm(this.dataset.confirm);">
+                <form method="post" asp-page-handler="Delete" asp-route-id="@p.Id" class="d-inline" data-confirm="@L["Delete the plan {0}?", p.Name]">
                     @if (p.Customers > 0) { <button class="btn btn-sm btn-outline-danger" disabled title="@L["A plan in use cannot be deleted"]">@L["Delete"]</button> }
                     else { <button class="btn btn-sm btn-outline-danger">@L["Delete"]</button> }
                 </form>

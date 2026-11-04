@@ -4,6 +4,7 @@ using System.Net.Mail;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TriggerCheck.Domain.Entities;
+using TriggerCheck.Domain.Security;
 using TriggerCheck.Monitoring.Checks;
 
 namespace TriggerCheck.Monitoring.Alerting;
@@ -73,7 +74,7 @@ public sealed class WebhookNotifier(IHttpClientFactory httpClientFactory) : INot
     public async Task<NotifyResult> SendAsync(string target, AlertMessage message, CancellationToken ct)
     {
         if (!Uri.TryCreate(target?.Trim(), UriKind.Absolute, out var uri) || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
-            return NotifyResult.Fail($"Invalid webhook URL '{target}'");
+            return NotifyResult.Fail($"Invalid webhook URL '{SecretMasker.MaskWebhookUrl(target)}'");
 
         var payload = new WebhookPayload(message.MonitorId, message.MonitorName, message.Target, message.StatusText,
             message.Error, message.OccurredAtUtc);

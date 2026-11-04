@@ -31,7 +31,7 @@ else
                 <tr>
                     <td>@c.Name</td>
                     <td>@AlertChannelInput.TypeName(c.Type, L)</td>
-                    <td class="text-truncate font-monospace small" style="max-width: 320px">@c.Target</td>
+                    <td class="text-truncate font-monospace small" style="max-width: 320px">@AlertChannelInput.DisplayTarget(c)</td>
                     <td>@if (c.IsEnabled) { <span class="badge bg-success">@L["Enabled"]</span> } else { <span class="badge bg-secondary">@L["Disabled"]</span> }</td>
                     <td class="text-end text-nowrap">
                         @if (isAdmin)

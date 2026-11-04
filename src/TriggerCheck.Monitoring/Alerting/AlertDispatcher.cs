@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using TriggerCheck.Domain.Entities;
+using TriggerCheck.Domain.Security;
 using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Monitoring.Checks;
 
@@ -73,10 +74,12 @@ public sealed class AlertDispatcher(
             }
         }
 
+        // Webhook URLs carry their secret in the path: never log them in full.
+        var shownTarget = target.Type == AlertChannelType.Webhook ? SecretMasker.MaskWebhookUrl(target.Address) : target.Address;
         if (result.Success)
-            logger.LogInformation("Alert '{Subject}' sent via {Type} to {Target}", message.Subject, target.Type, target.Address);
+            logger.LogInformation("Alert '{Subject}' sent via {Type} to {Target}", message.Subject, target.Type, shownTarget);
         else
-            logger.LogWarning("Alert '{Subject}' via {Type} to {Target} failed: {Error}", message.Subject, target.Type, target.Address, result.Error);
+            logger.LogWarning("Alert '{Subject}' via {Type} to {Target} failed: {Error}", message.Subject, target.Type, shownTarget, result.Error);
 
         return new Notification
         {

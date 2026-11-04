@@ -1,12 +1,17 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.Extensions.Localization;
+using Microsoft.Extensions.Options;
 using TriggerCheck.Domain.Entities;
+using TriggerCheck.Domain.Security;
+using TriggerCheck.Monitoring;
+using TriggerCheck.Monitoring.Security;
+using TriggerCheck.Web.Localization;
 
 namespace TriggerCheck.Web.Areas.App.Support;
 
 /// <summary>Form model for alert channel create/edit (no entity binding).</summary>
-public class AlertChannelInput
+public class AlertChannelInput : IValidatableObject
 {
     [Required(ErrorMessage = "Name is required."), StringLength(200, ErrorMessage = "Name can be at most 200 characters.")]
     [Display(Name = "Name")]
@@ -50,6 +55,24 @@ public class AlertChannelInput
                 break;
         }
     }
+
+    /// <summary>
+    /// Friendly SSRF pre-check for webhook URLs (literal private IPs, "localhost"...). The real guard is the webhook
+    /// client's connect-time check (TargetGuard). Skipped when Monitoring:AllowPrivateTargets is set.
+    /// </summary>
+    public IEnumerable<ValidationResult> Validate(ValidationContext context)
+    {
+        if (Type != AlertChannelType.Webhook) yield break;
+        if (context.GetService(typeof(IOptions<MonitoringOptions>)) is IOptions<MonitoringOptions> { Value.AllowPrivateTargets: true }) yield break;
+        if (!Uri.TryCreate(Target?.Trim(), UriKind.Absolute, out var uri) || !TargetGuard.IsObviouslyInternalHost(uri.Host)) yield break;
+
+        var L = (Text<AppResource>)context.GetService(typeof(Text<AppResource>))!;
+        yield return new ValidationResult(L["The webhook address points to a private or internal network and is not allowed."], [nameof(Target)]);
+    }
+
+    /// <summary>Target as shown in listings: webhook URLs carry a secret, so only scheme + host are displayed.</summary>
+    public static string DisplayTarget(AlertChannel c) =>
+        c.Type == AlertChannelType.Webhook ? SecretMasker.MaskWebhookUrl(c.Target) : c.Target;
 
     public static bool IsValidEmail(string? value)
     {

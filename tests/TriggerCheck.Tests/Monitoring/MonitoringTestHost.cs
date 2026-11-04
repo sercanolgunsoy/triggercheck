@@ -47,6 +47,8 @@ public sealed class MonitoringTestHost : IAsyncDisposable
             ["ConnectionStrings:Default"] = $"Data Source={dbPath}",
             ["Monitoring:Enabled"] = "false",
             ["Monitoring:MaxConcurrency"] = "4",
+            // Tests probe local servers; SSRF blocking itself is covered in Security/ with the flag off.
+            ["Monitoring:AllowPrivateTargets"] = "true",
         };
         foreach (var kv in settings ?? new()) all[kv.Key] = kv.Value;
         var config = new ConfigurationBuilder().AddInMemoryCollection(all).Build();

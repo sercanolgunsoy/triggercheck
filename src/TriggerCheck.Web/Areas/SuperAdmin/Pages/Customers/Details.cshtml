@@ -21,7 +21,7 @@
         <a asp-page="Edit" asp-route-id="@c.Id" class="btn btn-outline-secondary">@L["Edit / change plan"]</a>
         @if (c.IsActive)
         {
-            <form method="post" asp-page-handler="Suspend" asp-route-id="@c.Id" data-confirm="@L["Suspend the customer? All its users are signed out and its monitors are no longer checked."]" onsubmit="return confirm(this.dataset.confirm);">
+            <form method="post" asp-page-handler="Suspend" asp-route-id="@c.Id" data-confirm="@L["Suspend the customer? All its users are signed out and its monitors are no longer checked."]">
                 <button class="btn btn-warning">@L["Suspend"]</button>
             </form>
         }
@@ -105,7 +105,7 @@
                         <input type="hidden" name="userId" value="@u.Id" />
                         <button class="btn btn-sm @(u.IsActive ? "btn-outline-warning" : "btn-outline-success")">@(u.IsActive ? L["Deactivate"] : L["Activate"])</button>
                     </form>
-                    <form method="post" asp-page-handler="DeleteUser" asp-route-id="@c.Id" class="d-inline" data-confirm="@L["Delete {0}?", u.Email]" onsubmit="return confirm(this.dataset.confirm);">
+                    <form method="post" asp-page-handler="DeleteUser" asp-route-id="@c.Id" class="d-inline" data-confirm="@L["Delete {0}?", u.Email]">
                         <input type="hidden" name="userId" value="@u.Id" />
                         <button class="btn btn-sm btn-outline-danger">@L["Delete"]</button>
                     </form>
