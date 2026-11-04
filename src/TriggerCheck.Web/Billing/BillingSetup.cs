@@ -1,4 +1,5 @@
 using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 using TriggerCheck.Web.Infrastructure;
@@ -10,11 +11,14 @@ public static class BillingSetup
 {
     /// <summary>Rate-limit policy of the sign-up page (POSTs per client IP).</summary>
     public const string RegisterPolicy = "register";
+    /// <summary>Rate-limit policy of the forgot-password page (POSTs per client IP, same budget as sign-up).</summary>
+    public const string PasswordResetPolicy = "password-reset";
     /// <summary>Rate-limit policy of the provider callback and webhook endpoints.</summary>
     public const string ProviderPolicy = "payment-provider";
 
     public const string WebhookPath = "/billing/iyzico/webhook";
     public const string CallbackPath = "/billing/iyzico/callback";
+    public const int MaxWebhookBytes = 64 * 1024;
 
     public static IServiceCollection AddBilling(this IServiceCollection services, IConfiguration config)
     {
@@ -34,16 +38,8 @@ public static class BillingSetup
         services.AddRateLimiter(o =>
         {
             o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-            o.AddPolicy(RegisterPolicy, ctx =>
-            {
-                // Only form submissions count; showing the page is free.
-                if (!HttpMethods.IsPost(ctx.Request.Method)) return RateLimitPartition.GetNoLimiter("get");
-                var limit = ctx.RequestServices.GetRequiredService<IOptionsMonitor<BillingOptions>>().CurrentValue.RegistrationsPerHourPerIp;
-                return RateLimitPartition.GetFixedWindowLimiter(ClientIp(ctx), _ => new FixedWindowRateLimiterOptions
-                {
-                    PermitLimit = Math.Max(1, limit), Window = TimeSpan.FromHours(1), QueueLimit = 0
-                });
-            });
+            o.AddPolicy(RegisterPolicy, PostsPerHour);
+            o.AddPolicy(PasswordResetPolicy, PostsPerHour);
             o.AddPolicy(ProviderPolicy, ctx =>
             {
                 var limit = ctx.RequestServices.GetRequiredService<IOptionsMonitor<BillingOptions>>().CurrentValue.WebhooksPerMinutePerIp;
@@ -56,6 +52,30 @@ public static class BillingSetup
         return services;
     }
 
+    /// <summary>Only form submissions count; showing the page is free.</summary>
+    private static RateLimitPartition<string> PostsPerHour(HttpContext ctx)
+    {
+        if (!HttpMethods.IsPost(ctx.Request.Method)) return RateLimitPartition.GetNoLimiter("get");
+        var limit = ctx.RequestServices.GetRequiredService<IOptionsMonitor<BillingOptions>>().CurrentValue.RegistrationsPerHourPerIp;
+        return RateLimitPartition.GetFixedWindowLimiter(ClientIp(ctx), _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = Math.Max(1, limit), Window = TimeSpan.FromHours(1), QueueLimit = 0
+        });
+    }
+
+    /// <summary>
+    /// Startup check: outside Development the public base URL must be configured, so e-mail links and the payment
+    /// callback never depend on the request's Host header.
+    /// </summary>
+    public static void ValidateBillingConfiguration(this WebApplication app)
+    {
+        if (app.Environment.IsDevelopment()) return;
+        var url = app.Services.GetRequiredService<IOptions<BillingOptions>>().Value.PublicBaseUrl;
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || (uri.Scheme != Uri.UriSchemeHttps && uri.Scheme != Uri.UriSchemeHttp))
+            throw new InvalidOperationException("Billing:PublicBaseUrl (environment variable Billing__PublicBaseUrl) must be set to the public " +
+                                                "address of the app, e.g. https://app.example.com. It is used in e-mail links and the payment callback.");
+    }
+
     private static string ClientIp(HttpContext ctx) => TriggerCheck.Web.Api.ApiSetup.ClientPartition(ctx.Connection.RemoteIpAddress);
 
     /// <summary>
@@ -66,10 +86,11 @@ public static class BillingSetup
     {
         app.MapPost(WebhookPath, async (HttpContext ctx, IPaymentProvider provider, BillingService billing, ILogger<BillingService> logger) =>
         {
-            if (ctx.Request.ContentLength > 64 * 1024) return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
-            using var reader = new StreamReader(ctx.Request.Body);
-            var body = await reader.ReadToEndAsync(ctx.RequestAborted);
-            if (body.Length > 64 * 1024) return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
+            // The server enforces the limit while reading (also for chunked bodies without Content-Length).
+            if (ctx.Features.Get<IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } size) size.MaxRequestBodySize = MaxWebhookBytes;
+            if (ctx.Request.ContentLength > MaxWebhookBytes) return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
+            var body = await ReadLimitedAsync(ctx.Request.Body, ctx.RequestAborted);
+            if (body is null) return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
             var e = provider.ParseWebhook(body, ctx.Request.Headers);
             if (e is null)
             {
@@ -87,9 +108,31 @@ public static class BillingSetup
                 token = (await ctx.Request.ReadFormAsync(ctx.RequestAborted))["token"];
             if (string.IsNullOrEmpty(token) || token.Length > 200) return Results.Redirect("/App/Billing?checkout=failed");
             var (result, _) = await billing.CompleteCheckoutAsync(token, ctx.RequestAborted);
-            return Results.Redirect(result is CheckoutCompletion.Activated or CheckoutCompletion.AlreadyProcessed
-                ? "/App/Billing?checkout=success" : "/App/Billing?checkout=failed");
+            return Results.Redirect(result switch
+            {
+                CheckoutCompletion.Activated or CheckoutCompletion.AlreadyProcessed => "/App/Billing?checkout=success",
+                CheckoutCompletion.Pending => "/App/Billing?checkout=pending",
+                _ => "/App/Billing?checkout=failed"
+            });
         }).AllowAnonymous().DisableAntiforgery().RequireRateLimiting(ProviderPolicy);
+    }
+
+    /// <summary>Reads at most <see cref="MaxWebhookBytes"/>; null when the body is larger.</summary>
+    private static async Task<string?> ReadLimitedAsync(Stream body, CancellationToken ct)
+    {
+        using var buffer = new MemoryStream();
+        var chunk = new byte[8192];
+        try
+        {
+            int read;
+            while ((read = await body.ReadAsync(chunk, ct)) > 0)
+            {
+                if (buffer.Length + read > MaxWebhookBytes) return null;
+                buffer.Write(chunk, 0, read);
+            }
+        }
+        catch (BadHttpRequestException) { return null; } // MaxRequestBodySize exceeded
+        return System.Text.Encoding.UTF8.GetString(buffer.GetBuffer(), 0, (int)buffer.Length);
     }
 
     /// <summary>Absolute URL for links in e-mails and provider callbacks (<see cref="BillingOptions.PublicBaseUrl"/> or the request).</summary>

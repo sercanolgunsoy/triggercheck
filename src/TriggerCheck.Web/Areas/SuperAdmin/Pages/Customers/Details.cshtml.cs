@@ -50,11 +50,41 @@ public class DetailsModel(AppDbContext db, UserManager<ApplicationUser> users, T
             .OrderByDescending(i => i.StartedAtUtc).ToListAsync();
         AlertChannelCount = await db.AlertChannels.CountAsync(a => a.CustomerId == id);
         Subscription = await db.Subscriptions.AsNoTracking().Include(s => s.Plan)
-            .Where(s => s.CustomerId == id && s.Status != SubscriptionStatus.Pending && s.Status != SubscriptionStatus.Failed)
+            .Where(s => s.CustomerId == id && s.Status != SubscriptionStatus.Pending && s.Status != SubscriptionStatus.Superseded && s.Status != SubscriptionStatus.Failed)
             .OrderByDescending(s => s.Id).FirstOrDefaultAsync();
         PaymentEvents = await db.PaymentEvents.AsNoTracking().Where(e => e.CustomerId == id)
             .OrderByDescending(e => e.OccurredAtUtc).Take(10).ToListAsync();
         return Page();
+    }
+
+    /// <summary>M3: give a trial customer more time (from the current end, or from now when it already passed).</summary>
+    public async Task<IActionResult> OnPostExtendTrialAsync(int id, int days, [FromServices] TimeProvider time)
+    {
+        var c = await db.Customers.FindAsync(id);
+        if (c is null) return NotFound();
+        if (c.BillingStatus != BillingStatus.Trial || days is < 1 or > 90)
+        {
+            TempData["Error"] = L["The trial can only be extended for a customer in trial, by 1 to 90 days."].Value;
+            return RedirectToPage(new { id });
+        }
+        var now = time.GetUtcNow().UtcDateTime;
+        c.TrialEndsAtUtc = (c.TrialEndsAtUtc is DateTime end && end > now ? end : now).AddDays(days);
+        c.TrialReminderSentAtUtc = null;
+        await db.SaveChangesAsync();
+        TempData["Success"] = L["The trial now ends on {0}.", Fmt.Date(c.TrialEndsAtUtc)].Value;
+        return RedirectToPage(new { id });
+    }
+
+    /// <summary>M3: end the trial now: the customer moves to the fallback plan (intervals clamped) and is e-mailed.</summary>
+    public async Task<IActionResult> OnPostEndTrialAsync(int id, [FromServices] Billing.BillingService billing, [FromServices] Billing.BillingMailer mailer)
+    {
+        var c = await db.Customers.Include(x => x.Plan).FirstOrDefaultAsync(x => x.Id == id);
+        if (c is null) return NotFound();
+        if (c.BillingStatus != BillingStatus.Trial || !await billing.DowngradeToFallbackAsync(c, null, BillingStatus.Trial, mailer.TrialEndedReason, HttpContext.RequestAborted))
+            TempData["Error"] = L["The customer is not in trial."].Value;
+        else
+            TempData["Success"] = L["The trial was ended; the customer is now on the {0} plan.", c.Plan.Name].Value;
+        return RedirectToPage(new { id });
     }
 
     public async Task<IActionResult> OnPostSuspendAsync(int id)

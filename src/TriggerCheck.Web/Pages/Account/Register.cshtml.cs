@@ -22,7 +22,7 @@ namespace TriggerCheck.Web.Pages.Account;
 /// address that already has an account and a filled honeypot - shows the same "check your inbox" page.
 /// </summary>
 [EnableRateLimiting(BillingSetup.RegisterPolicy)]
-public class RegisterModel(AppDbContext db, UserManager<ApplicationUser> users, BillingMailer mailer, TimeProvider time,
+public class RegisterModel(AppDbContext db, UserManager<ApplicationUser> users, BillingMailer mailer, BillingService billing, TimeProvider time,
     IOptionsMonitor<BillingOptions> options, Text<SharedResource> L, ILogger<RegisterModel> logger) : PageModel
 {
     [BindProperty] public InputModel Input { get; set; } = new();
@@ -77,47 +77,44 @@ public class RegisterModel(AppDbContext db, UserManager<ApplicationUser> users, 
         var plan = Plans.FirstOrDefault(p => p.Id == Input.PlanId);
         if (plan is null) ModelState.AddModelError("Input.PlanId", L["Choose a plan."]);
         if (!Input.AcceptTerms) ModelState.AddModelError("Input.AcceptTerms", L["You must accept the terms to continue."]);
-        if (!ModelState.IsValid) return Page();
 
+        // All validation (including the password policy) runs before the address is looked up, so the response never
+        // depends on whether an account exists (no enumeration through validation errors).
         var email = Input.Email.Trim();
-        var existing = await users.FindByEmailAsync(email);
-        if (existing is not null)
-        {
-            // No account enumeration: same result page (and comparable work: one password hash); the owner of the
-            // address gets an e-mail instead.
-            users.PasswordHasher.HashPassword(existing, Input.Password);
-            if (!existing.EmailConfirmed && existing.CustomerId is not null)
-                await SendConfirmationAsync(existing, ct);
-            else
-                await mailer.SendAlreadyRegisteredAsync(email, Link("/Account/Login"), ct);
-            return RedirectToPage("RegisterConfirmation");
-        }
-
-        // Validate the password before anything is created (same Identity policy as everywhere else).
-        var probe = new ApplicationUser { UserName = email, Email = email };
         var passwordErrors = new List<IdentityError>();
         foreach (var v in users.PasswordValidators)
         {
-            var r = await v.ValidateAsync(users, probe, Input.Password);
+            var r = await v.ValidateAsync(users, new ApplicationUser { UserName = email, Email = email }, Input.Password);
             if (!r.Succeeded) passwordErrors.AddRange(r.Errors);
         }
-        if (passwordErrors.Count > 0)
+        foreach (var e in passwordErrors) ModelState.AddModelError("Input.Password", e.Description);
+        if (!ModelState.IsValid) return Page();
+
+        var existing = await users.FindByEmailAsync(email);
+        if (existing is not null)
         {
-            foreach (var e in passwordErrors) ModelState.AddModelError("Input.Password", e.Description);
-            return Page();
+            if (!existing.EmailConfirmed && existing.CustomerId is int cid && !await db.Users.AnyAsync(u => u.CustomerId == cid && u.EmailConfirmed, ct))
+            {
+                // Never confirmed: whoever signed up first did not prove the address. The account takes over this
+                // submission (password, names, plan); earlier confirmation links stop working (new security stamp).
+                await ResetUnconfirmedAsync(existing, cid, plan!, ct);
+                await SendConfirmationAsync(existing, ct);
+            }
+            else
+            {
+                // Same result page (and comparable work: one password hash); the owner of the address gets an e-mail.
+                users.PasswordHasher.HashPassword(existing, Input.Password);
+                await mailer.SendAlreadyRegisteredAsync(email, Link("/Account/Login"), ct);
+            }
+            return RedirectToPage("RegisterConfirmation");
         }
 
         var now = time.GetUtcNow().UtcDateTime;
-        var trial = plan!.MonthlyPrice > 0;
         ApplicationUser user;
         await using (var tx = await db.Database.BeginTransactionAsync(ct))
         {
-            var customer = new Customer
-            {
-                Name = Input.CompanyName.Trim(), ContactEmail = email, PlanId = plan.Id, CreatedAtUtc = now,
-                BillingStatus = trial ? BillingStatus.Trial : BillingStatus.None,
-                TrialEndsAtUtc = trial ? now.AddDays(options.CurrentValue.TrialDays) : null
-            };
+            var customer = new Customer { Name = Input.CompanyName.Trim(), ContactEmail = email, CreatedAtUtc = now };
+            await ApplyPlanAsync(customer, plan!, email, now, ct);
             db.Customers.Add(customer);
             await db.SaveChangesAsync(ct);
 
@@ -134,10 +131,53 @@ public class RegisterModel(AppDbContext db, UserManager<ApplicationUser> users, 
             }
             await users.AddToRoleAsync(user, Roles.CustomerAdmin);
             await tx.CommitAsync(ct);
+            logger.LogInformation("New self-service customer on plan {Plan} ({Status}).", customer.PlanId, customer.BillingStatus);
         }
-        logger.LogInformation("New self-service customer on plan {Plan} (trial: {Trial}).", plan.Name, trial);
         await SendConfirmationAsync(user, ct);
         return RedirectToPage("RegisterConfirmation");
+    }
+
+    /// <summary>
+    /// Plan and trial of a new (or reset) sign-up: a paid plan starts a trial when the address / domain is still eligible
+    /// (otherwise the customer starts on the fallback plan); a free plan has no trial.
+    /// </summary>
+    private async Task ApplyPlanAsync(Customer customer, Plan plan, string email, DateTime now, CancellationToken ct)
+    {
+        var o = options.CurrentValue;
+        var key = TrialEligibility.Normalize(email);
+        customer.TrialReminderSentAtUtc = null;
+        if (plan.MonthlyPrice > 0 && await TrialEligibility.IsEligibleAsync(db, key, o, customer.Id == 0 ? null : customer.Id, ct))
+        {
+            customer.PlanId = plan.Id;
+            customer.BillingStatus = BillingStatus.Trial;
+            customer.TrialEndsAtUtc = now.AddDays(o.TrialDays);
+            customer.TrialKey = key;
+            return;
+        }
+        if (plan.MonthlyPrice > 0) logger.LogInformation("Sign-up without trial: the address or domain already had its free trials.");
+        customer.PlanId = plan.MonthlyPrice > 0 ? ((await billing.FallbackPlanAsync(ct))?.Id ?? plan.Id) : plan.Id;
+        customer.BillingStatus = BillingStatus.None;
+        customer.TrialEndsAtUtc = null;
+        customer.TrialKey = null;
+    }
+
+    private async Task ResetUnconfirmedAsync(ApplicationUser user, int customerId, Plan plan, CancellationToken ct)
+    {
+        var now = time.GetUtcNow().UtcDateTime;
+        var customer = await db.Customers.FirstAsync(c => c.Id == customerId, ct);
+        customer.Name = Input.CompanyName.Trim();
+        customer.CreatedAtUtc = now;
+        await ApplyPlanAsync(customer, plan, user.Email!, now, ct);
+        await db.SaveChangesAsync(ct);
+
+        user.FullName = Input.FullName.Trim();
+        await users.UpdateAsync(user);
+        await users.RemovePasswordAsync(user);
+        await users.AddPasswordAsync(user, Input.Password);
+        await users.SetLockoutEndDateAsync(user, null);
+        await users.ResetAccessFailedCountAsync(user);
+        await users.UpdateSecurityStampAsync(user);
+        logger.LogInformation("Unconfirmed sign-up was submitted again; the account was reset to the new submission.");
     }
 
     private async Task SendConfirmationAsync(ApplicationUser user, CancellationToken ct)

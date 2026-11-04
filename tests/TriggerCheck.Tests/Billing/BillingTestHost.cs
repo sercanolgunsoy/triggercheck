@@ -43,6 +43,7 @@ public class BillingTestFactory : TestWebAppFactory
         builder.UseSetting("Billing:MaintenanceIntervalMinutes", "0");
         builder.UseSetting("Billing:RegistrationsPerHourPerIp", RegistrationLimit.ToString());
         builder.UseSetting("Billing:PublicBaseUrl", "https://app.test");
+        builder.UseSetting("Billing:PaidCheckoutEnabled", "true");
         builder.UseSetting("Iyzico:ApiKey", "test-api-key");
         builder.UseSetting("Iyzico:SecretKey", SecretKey);
         builder.UseSetting("Iyzico:MerchantId", MerchantId);
@@ -53,7 +54,8 @@ public class BillingTestFactory : TestWebAppFactory
             s.RemoveAll<IPaymentProvider>();
             s.AddSingleton<IPaymentProvider>(sp =>
             {
-                Payments.Webhooks = new IyzicoPaymentProvider(new HttpClient(), sp.GetRequiredService<IOptionsMonitor<IyzicoOptions>>(), NullLogger<IyzicoPaymentProvider>.Instance);
+                Payments.Webhooks = new IyzicoPaymentProvider(new HttpClient(), sp.GetRequiredService<IOptionsMonitor<IyzicoOptions>>(), Time,
+                    NullLogger<IyzicoPaymentProvider>.Instance);
                 return Payments;
             });
             s.RemoveAll<TimeProvider>();
@@ -147,7 +149,10 @@ public sealed class CapturingEmailSender : IAppEmailSender
     public string LinkTo(string address) => LinkRx.Match(To(address).Last().Body).Groups[1].Value;
 }
 
-/// <summary>Records calls; checkout results are scripted per token. Webhook parsing uses the real iyzico verification.</summary>
+/// <summary>
+/// Records calls; checkout results are scripted per token (default: not paid yet, i.e. Pending). Webhook parsing uses
+/// the real iyzico verification.
+/// </summary>
 public sealed class FakePaymentProvider : IPaymentProvider
 {
     public string Name => "fake";
@@ -156,7 +161,9 @@ public sealed class FakePaymentProvider : IPaymentProvider
 
     public ConcurrentDictionary<string, CheckoutResult> Results { get; } = new();
     public ConcurrentQueue<CheckoutRequest> Checkouts { get; } = new();
-    public ConcurrentQueue<(string Reference, string PricingPlan)> PlanChanges { get; } = new();
+    public ConcurrentQueue<(string Reference, string PricingPlan, bool Immediately)> PlanChanges { get; } = new();
+    /// <summary>Retrieval answers "no answer" (network error): not definitive.</summary>
+    public bool Unreachable { get; set; }
     public ConcurrentQueue<string> Cancels { get; } = new();
     public bool FailNextCall { get; set; }
 
@@ -169,12 +176,13 @@ public sealed class FakePaymentProvider : IPaymentProvider
     }
 
     public Task<CheckoutResult> GetCheckoutResultAsync(string token, CancellationToken ct) =>
-        Task.FromResult(Results.TryGetValue(token, out var r) ? r : new CheckoutResult(false, null, null, null, ProviderSubscriptionState.Unknown, "unknown token"));
+        Task.FromResult(Unreachable ? new CheckoutResult(ProviderSubscriptionState.Unknown)
+            : Results.TryGetValue(token, out var r) ? r : new CheckoutResult(ProviderSubscriptionState.Pending));
 
-    public Task<ProviderResult> ChangePlanAsync(string subscriptionReference, string newPricingPlanReferenceCode, CancellationToken ct)
+    public Task<ProviderResult> ChangePlanAsync(string subscriptionReference, string newPricingPlanReferenceCode, bool immediately, CancellationToken ct)
     {
         if (Consume()) return Task.FromResult(new ProviderResult(false, "boom"));
-        PlanChanges.Enqueue((subscriptionReference, newPricingPlanReferenceCode));
+        PlanChanges.Enqueue((subscriptionReference, newPricingPlanReferenceCode, immediately));
         return Task.FromResult(ProviderResult.Ok);
     }
 
@@ -189,7 +197,10 @@ public sealed class FakePaymentProvider : IPaymentProvider
 
     /// <summary>Marks the checkout of <paramref name="token"/> as paid at the provider.</summary>
     public void Approve(string token, string pricingPlan, string reference = "sub-ref") =>
-        Results[token] = new CheckoutResult(true, reference, "cust-ref", pricingPlan, ProviderSubscriptionState.Active, null);
+        Results[token] = new CheckoutResult(ProviderSubscriptionState.Active, reference, "cust-" + reference, pricingPlan);
+
+    /// <summary>The provider definitively says the checkout did not complete.</summary>
+    public void Reject(string token) => Results[token] = new CheckoutResult(ProviderSubscriptionState.Rejected);
 
     private bool Consume()
     {

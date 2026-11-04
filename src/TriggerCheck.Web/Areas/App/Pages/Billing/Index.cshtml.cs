@@ -14,21 +14,22 @@ namespace TriggerCheck.Web.Areas.App.Pages.Billing;
 /// BIZ-2/BIZ-3 billing page: plan, billing state, quota usage and payment history for every customer member; plan
 /// changes and cancellation for CustomerAdmins only.
 /// </summary>
-public class IndexModel(AppDbContext db, ICurrentCustomer current, BillingService billing, PlanUsageService usage, IPaymentProvider provider,
-    Text<AppResource> L) : PageModel
+public class IndexModel(AppDbContext db, ICurrentCustomer current, BillingService billing, PlanUsageService usage, Text<AppResource> L) : PageModel
 {
     public Customer Customer { get; private set; } = null!;
     public Subscription? Subscription { get; private set; }
     public PlanUsage Usage { get; private set; } = null!;
     public List<Plan> Plans { get; private set; } = [];
     public List<PaymentEvent> History { get; private set; } = [];
-    public bool PaymentsAvailable => provider.IsConfigured;
-    /// <summary>"success" / "failed" after returning from the hosted checkout.</summary>
+    public bool PaymentsAvailable => billing.PaidCheckoutAvailable;
+    /// <summary>Plan of a booked downgrade (takes effect at the end of the paid period).</summary>
+    public Plan? ScheduledPlan { get; private set; }
+    /// <summary>"success" / "pending" / "failed" after returning from the hosted checkout.</summary>
     public string? Checkout { get; private set; }
 
     public async Task OnGetAsync(string? checkout, CancellationToken ct)
     {
-        Checkout = checkout is "success" or "failed" ? checkout : null;
+        Checkout = checkout is "success" or "pending" or "failed" ? checkout : null;
         await LoadAsync(ct);
     }
 
@@ -39,7 +40,8 @@ public class IndexModel(AppDbContext db, ICurrentCustomer current, BillingServic
         Subscription = await billing.CurrentSubscriptionAsync(cid, ct);
         Usage = await usage.GetAsync(cid, ct);
         Plans = await billing.PurchasablePlansAsync(ct);
-        History = await db.PaymentEvents.AsNoTracking().Where(e => e.CustomerId == cid)
+        if (Subscription?.ScheduledPlanId is int scheduled) ScheduledPlan = await db.Plans.AsNoTracking().FirstOrDefaultAsync(p => p.Id == scheduled, ct);
+        History = await db.PaymentEvents.AsNoTracking().Where(e => e.CustomerId == cid && !e.Ignored)
             .OrderByDescending(e => e.OccurredAtUtc).Take(50).ToListAsync(ct);
     }
 
@@ -47,7 +49,9 @@ public class IndexModel(AppDbContext db, ICurrentCustomer current, BillingServic
     {
         if (!User.IsInRole(Roles.CustomerAdmin)) return Forbid();
         var r = await billing.ChangePlanAsync(current.RequiredCustomerId, planId, ct);
-        if (r.Succeeded)
+        if (r.Succeeded && r.EffectiveAtUtc is DateTime effective)
+            TempData["Success"] = L["The plan change is booked and takes effect on {0}, at the end of the paid period.", Fmt.Date(effective)].Value;
+        else if (r.Succeeded)
         {
             var msg = L["Your plan was changed."].Value;
             if (r.AdjustedMonitors > 0) msg += " " + L["Check interval raised to the new plan minimum for {0} monitor(s).", r.AdjustedMonitors].Value;

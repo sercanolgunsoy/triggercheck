@@ -34,7 +34,7 @@ public class PlanInput
 
     [Display(Name = "SMS and voice call alerts (Twilio)")] public bool AllowsSmsVoice { get; set; }
 
-    [Display(Name = "Self-service sign-up and billing")] public bool AllowsSelfSignup { get; set; } = true;
+    [Display(Name = "Self-service sign-up and billing")] public bool AllowsSelfSignup { get; set; }
 
     [StringLength(100, ErrorMessage = "At most {1} characters."), RegularExpression(@"^[A-Za-z0-9\-_]*$", ErrorMessage = "Only letters, digits, - and _ are allowed.")]
     [Display(Name = "iyzico product reference code")] public string? IyzicoProductReferenceCode { get; set; }

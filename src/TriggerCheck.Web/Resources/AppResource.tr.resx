@@ -985,4 +985,28 @@
   <data name="This plan cannot be chosen." xml:space="preserve">
     <value>Bu plan seçilemez.</value>
   </data>
+  <data name="The plan change is booked and takes effect on {0}, at the end of the paid period." xml:space="preserve">
+    <value>Plan değişikliği kaydedildi; ödenmiş dönemin sonunda, {0} tarihinde geçerli olur.</value>
+  </data>
+  <data name="Booked change" xml:space="preserve">
+    <value>Planlanan değişiklik</value>
+  </data>
+  <data name="Changes to {0} on {1}" xml:space="preserve">
+    <value>{1} tarihinde {0} planına geçer</value>
+  </data>
+  <data name="Downgrade to the {0} plan at the end of the paid period?" xml:space="preserve">
+    <value>Ödenmiş dönemin sonunda {0} planına düşürülsün mü?</value>
+  </data>
+  <data name="Keep this plan" xml:space="preserve">
+    <value>Bu planda kal</value>
+  </data>
+  <data name="Online payment is not available yet. Contact us to upgrade or change your plan." xml:space="preserve">
+    <value>Çevrimiçi ödeme henüz kullanılamıyor. Planınızı yükseltmek veya değiştirmek için bizimle iletişime geçin.</value>
+  </data>
+  <data name="Upgrade to the {0} plan now? iyzico charges the new price according to its terms." xml:space="preserve">
+    <value>Şimdi {0} planına yükseltilsin mi? iyzico yeni fiyatı kendi koşullarına göre tahsil eder.</value>
+  </data>
+  <data name="We are waiting for iyzico to confirm your payment. This page will show the subscription as soon as it is confirmed." xml:space="preserve">
+    <value>Ödemenizin iyzico tarafından onaylanmasını bekliyoruz. Onaylandığında abonelik bu sayfada görünecek.</value>
+  </data>
 </root>

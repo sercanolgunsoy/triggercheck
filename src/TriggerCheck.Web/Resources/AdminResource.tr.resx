@@ -592,4 +592,34 @@
   <data name="iyzico pricing plan reference code (monthly)" xml:space="preserve">
     <value>iyzico ödeme planı referans kodu (aylık)</value>
   </data>
+  <data name="The customer is not in trial." xml:space="preserve">
+    <value>Müşteri deneme sürecinde değil.</value>
+  </data>
+  <data name="The trial can only be extended for a customer in trial, by 1 to 90 days." xml:space="preserve">
+    <value>Deneme süresi yalnızca deneme sürecindeki bir müşteri için 1 ile 90 gün arasında uzatılabilir.</value>
+  </data>
+  <data name="The trial now ends on {0}." xml:space="preserve">
+    <value>Deneme süresi artık {0} tarihinde bitiyor.</value>
+  </data>
+  <data name="The trial was ended; the customer is now on the {0} plan." xml:space="preserve">
+    <value>Deneme sona erdirildi; müşteri artık {0} planında.</value>
+  </data>
+  <data name="Days" xml:space="preserve">
+    <value>Gün</value>
+  </data>
+  <data name="End the trial now? The customer moves to the free plan." xml:space="preserve">
+    <value>Deneme şimdi sona erdirilsin mi? Müşteri ücretsiz plana geçer.</value>
+  </data>
+  <data name="End trial" xml:space="preserve">
+    <value>Denemeyi bitir</value>
+  </data>
+  <data name="Extend trial" xml:space="preserve">
+    <value>Denemeyi uzat</value>
+  </data>
+  <data name="The customer has an active subscription. Its plan follows the subscription: the customer changes or cancels it on the Billing page." xml:space="preserve">
+    <value>Müşterinin etkin bir aboneliği var. Planı aboneliğe bağlıdır: müşteri planı Faturalandırma sayfasından değiştirir veya iptal eder.</value>
+  </data>
+  <data name="The trial or cancelled subscription was ended; the plan is now managed manually." xml:space="preserve">
+    <value>Deneme veya iptal edilmiş abonelik sona erdirildi; plan artık elle yönetiliyor.</value>
+  </data>
 </root>

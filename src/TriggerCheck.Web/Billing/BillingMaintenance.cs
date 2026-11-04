@@ -6,12 +6,21 @@ using TriggerCheck.Infrastructure.Data;
 
 namespace TriggerCheck.Web.Billing;
 
-public sealed record BillingMaintenanceResult(int Reminders, int TrialsExpired, int GraceExpired, int PeriodsEnded);
+public sealed record BillingMaintenanceResult(int Reminders, int TrialsExpired, int GraceExpired, int PeriodsEnded,
+    int CheckoutsResolved = 0, int PlanChangesApplied = 0, int UnconfirmedPurged = 0);
 
 /// <summary>
-/// Periodic billing work (idempotent: every step changes the state it selects on, so a re-run does nothing):
-/// trial reminders, expired trials, past-due subscriptions after the grace period and cancelled subscriptions at
-/// period end. The last three move the customer to the fallback plan.
+/// Periodic billing work. Idempotent: every step changes the state it selects on (conditionally, so a webhook or a
+/// second worker racing it wins cleanly), and one failing item is logged and skipped without stopping the run.
+/// <list type="number">
+/// <item>Re-check open checkouts with the provider (closed browser tab, lost callback); close them after the timeout.</item>
+/// <item>Trial reminder a few days before the end (once).</item>
+/// <item>Trials that ended without a subscription: fallback plan.</item>
+/// <item>Booked downgrades whose period is over.</item>
+/// <item>Past-due subscriptions after the grace period: cancelled at the provider, fallback plan.</item>
+/// <item>Cancelled subscriptions at the end of the paid period: fallback plan.</item>
+/// <item>Sign-ups never confirmed within <see cref="BillingOptions.UnconfirmedAccountDays"/>: deleted.</item>
+/// </list>
 /// </summary>
 public sealed class BillingMaintenance(AppDbContext db, BillingService billing, BillingMailer mailer, TimeProvider time,
     IOptionsMonitor<BillingOptions> options, ILogger<BillingMaintenance> logger)
@@ -20,53 +29,110 @@ public sealed class BillingMaintenance(AppDbContext db, BillingService billing, 
     {
         var o = options.CurrentValue;
         var now = time.GetUtcNow().UtcDateTime;
-        var fallback = await billing.FallbackPlanAsync(ct);
-        if (fallback is null) { logger.LogError("Billing maintenance skipped: fallback plan {Plan} not found.", o.FallbackPlanName); return new(0, 0, 0, 0); }
 
-        // 1. Reminder a few days before the trial ends (once).
+        // 1. Open checkouts.
+        var resolved = 0;
+        var recheckBefore = now.AddMinutes(-o.CheckoutRecheckAfterMinutes);
+        var timeoutBefore = now.AddMinutes(-o.CheckoutTimeoutMinutes);
+        var open = await db.Subscriptions.AsNoTracking()
+            .Where(s => (s.Status == SubscriptionStatus.Pending || s.Status == SubscriptionStatus.Superseded) && s.CheckoutToken != null && s.CreatedAtUtc <= recheckBefore)
+            .Select(s => new { s.CheckoutToken, s.CreatedAtUtc }).ToListAsync(ct);
+        foreach (var c in open)
+            await EachAsync("checkout re-check", async () =>
+            {
+                var (result, _) = await billing.CompleteCheckoutAsync(c.CheckoutToken!, ct, finalCheck: c.CreatedAtUtc <= timeoutBefore);
+                if (result != CheckoutCompletion.Pending) resolved++;
+            }, ct);
+
+        var fallback = await billing.FallbackPlanAsync(ct);
+        if (fallback is null) { logger.LogError("Billing maintenance skipped: fallback plan {Plan} not found.", o.FallbackPlanName); return new(0, 0, 0, 0, resolved); }
+
+        // 2. Reminder a few days before the trial ends (once; claimed with a conditional update).
+        var reminders = 0;
         var remindFrom = now.AddDays(o.TrialReminderDaysBefore);
-        var toRemind = await db.Customers.Include(c => c.Plan)
+        var toRemind = await db.Customers.AsNoTracking().Include(c => c.Plan)
             .Where(c => c.BillingStatus == BillingStatus.Trial && c.TrialReminderSentAtUtc == null && c.TrialEndsAtUtc > now && c.TrialEndsAtUtc <= remindFrom)
             .ToListAsync(ct);
         foreach (var c in toRemind)
-        {
-            c.TrialReminderSentAtUtc = now;
-            await db.SaveChangesAsync(ct);
-            await mailer.TrialReminderAsync(c, fallback, ct);
-        }
+            await EachAsync("trial reminder", async () =>
+            {
+                var claimed = await db.Customers.Where(x => x.Id == c.Id && x.TrialReminderSentAtUtc == null)
+                    .ExecuteUpdateAsync(u => u.SetProperty(x => x.TrialReminderSentAtUtc, now), ct);
+                if (claimed == 0) return;
+                await mailer.TrialReminderAsync(c, fallback, ct);
+                reminders++;
+            }, ct);
 
-        // 2. Trials that ended without a subscription (a successful checkout sets the status to Active).
+        // 3. Trials that ended without a subscription (a successful checkout sets the status to Active).
         var trialsExpired = 0;
-        var expired = await db.Customers.Include(c => c.Plan)
-            .Where(c => c.BillingStatus == BillingStatus.Trial && c.TrialEndsAtUtc <= now).ToListAsync(ct);
-        foreach (var c in expired)
-            if (await billing.DowngradeToFallbackAsync(c, null, mailer.TrialEndedReason, ct)) trialsExpired++;
+        var expiredIds = await db.Customers.Where(c => c.BillingStatus == BillingStatus.Trial && c.TrialEndsAtUtc <= now).Select(c => c.Id).ToListAsync(ct);
+        foreach (var id in expiredIds)
+            await EachAsync("trial expiry", async () =>
+            {
+                var c = await db.Customers.Include(x => x.Plan).FirstAsync(x => x.Id == id, ct);
+                if (await billing.DowngradeToFallbackAsync(c, null, BillingStatus.Trial, mailer.TrialEndedReason, ct)) trialsExpired++;
+            }, ct);
 
-        // 3. Past due beyond the grace period: stop renewals at the provider (best effort) and downgrade.
+        // 4. Booked downgrades whose period is over (normally applied by the renewal webhook already).
+        var planChanges = 0;
+        var scheduledIds = await db.Subscriptions.Where(s => s.Status == SubscriptionStatus.Active && s.ScheduledPlanId != null && s.CurrentPeriodEndUtc <= now)
+            .Select(s => s.Id).ToListAsync(ct);
+        foreach (var id in scheduledIds)
+            await EachAsync("scheduled plan change", async () =>
+            {
+                var s = await db.Subscriptions.Include(x => x.Plan).FirstAsync(x => x.Id == id, ct);
+                await billing.ApplyScheduledPlanAsync(s, ct);
+                planChanges++;
+            }, ct);
+
+        // 5. Past due beyond the grace period: stop renewals at the provider (best effort) and downgrade.
         var graceEnd = now.AddDays(-o.PastDueGraceDays);
         var graceExpired = 0;
-        var pastDue = await db.Subscriptions.Include(s => s.Customer).ThenInclude(c => c.Plan)
-            .Where(s => s.Status == SubscriptionStatus.PastDue && s.PastDueSinceUtc <= graceEnd).ToListAsync(ct);
-        foreach (var s in pastDue)
-        {
-            if (s.ProviderReference is not null)
+        var pastDueIds = await db.Subscriptions.Where(s => s.Status == SubscriptionStatus.PastDue && s.PastDueSinceUtc <= graceEnd).Select(s => s.Id).ToListAsync(ct);
+        foreach (var id in pastDueIds)
+            await EachAsync("grace period", async () =>
             {
-                var r = await billing.CancelAtProviderAsync(s.ProviderReference, ct);
-                if (!r) logger.LogWarning("Cancelling past-due subscription {SubscriptionId} at the provider failed; downgrading anyway.", s.Id);
-            }
-            if (await billing.DowngradeToFallbackAsync(s.Customer, s, mailer.GraceEndedReason, ct)) graceExpired++;
-        }
+                var s = await db.Subscriptions.Include(x => x.Customer).ThenInclude(c => c.Plan).FirstAsync(x => x.Id == id, ct);
+                if (s.ProviderReference is not null && !await billing.CancelAtProviderAsync(s.ProviderReference, ct))
+                    logger.LogWarning("Cancelling past-due subscription {SubscriptionId} at the provider failed; downgrading anyway.", s.Id);
+                if (await billing.DowngradeToFallbackAsync(s.Customer, s, BillingStatus.PastDue, mailer.GraceEndedReason, ct)) graceExpired++;
+            }, ct);
 
-        // 4. Cancelled subscriptions whose paid period is over.
+        // 6. Cancelled subscriptions whose paid period is over.
         var periodsEnded = 0;
-        var ended = await db.Subscriptions.Include(s => s.Customer).ThenInclude(c => c.Plan)
-            .Where(s => s.Status == SubscriptionStatus.Cancelled && s.CurrentPeriodEndUtc <= now).ToListAsync(ct);
-        foreach (var s in ended)
-            if (await billing.DowngradeToFallbackAsync(s.Customer, s, mailer.PeriodEndedReason, ct)) periodsEnded++;
+        var endedIds = await db.Subscriptions.Where(s => s.Status == SubscriptionStatus.Cancelled && s.CurrentPeriodEndUtc <= now).Select(s => s.Id).ToListAsync(ct);
+        foreach (var id in endedIds)
+            await EachAsync("period end", async () =>
+            {
+                var s = await db.Subscriptions.Include(x => x.Customer).ThenInclude(c => c.Plan).FirstAsync(x => x.Id == id, ct);
+                if (await billing.DowngradeToFallbackAsync(s.Customer, s, BillingStatus.Cancelled, mailer.PeriodEndedReason, ct)) periodsEnded++;
+            }, ct);
 
-        var result = new BillingMaintenanceResult(toRemind.Count, trialsExpired, graceExpired, periodsEnded);
+        // 7. Sign-ups whose address was never confirmed (no confirmed user, no subscription): the whole customer goes.
+        var cutoff = now.AddDays(-o.UnconfirmedAccountDays);
+        var purged = 0;
+        await EachAsync("unconfirmed sign-up purge", async () =>
+        {
+            purged = await db.Customers
+                .Where(c => c.CreatedAtUtc < cutoff && db.Users.Any(u => u.CustomerId == c.Id) && !db.Users.Any(u => u.CustomerId == c.Id && u.EmailConfirmed)
+                            && !db.Subscriptions.Any(s => s.CustomerId == c.Id))
+                .ExecuteDeleteAsync(ct);
+        }, ct);
+
+        var result = new BillingMaintenanceResult(reminders, trialsExpired, graceExpired, periodsEnded, resolved, planChanges, purged);
         if (result != new BillingMaintenanceResult(0, 0, 0, 0)) logger.LogInformation("Billing maintenance: {Result}", result);
         return result;
+    }
+
+    /// <summary>Runs one item; a failure is logged and the run continues with the next item.</summary>
+    private async Task EachAsync(string step, Func<Task> item, CancellationToken ct)
+    {
+        try { await item(); }
+        catch (Exception ex) when (!ct.IsCancellationRequested)
+        {
+            logger.LogError(ex, "Billing maintenance step '{Step}' failed for one item; continuing.", step);
+        }
+        finally { db.ChangeTracker.Clear(); }
     }
 }
 

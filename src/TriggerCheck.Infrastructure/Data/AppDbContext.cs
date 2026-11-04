@@ -37,6 +37,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
         {
             e.Property(x => x.Name).HasMaxLength(200).IsRequired();
             e.Property(x => x.ContactEmail).HasMaxLength(256);
+            e.Property(x => x.TrialKey).HasMaxLength(256);
+            e.HasIndex(x => x.TrialKey);
             e.HasOne(x => x.Plan).WithMany(p => p.Customers).HasForeignKey(x => x.PlanId).OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -98,6 +100,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
             e.HasIndex(x => x.ProviderReference);
             e.HasIndex(x => x.CheckoutToken);
             e.HasIndex(x => new { x.CustomerId, x.Status });
+            e.HasIndex(x => x.ProviderCustomerReference);
         });
 
         b.Entity<PaymentEvent>(e =>
@@ -108,6 +111,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
             e.HasIndex(x => x.ProviderEventId).IsUnique();
             e.Property(x => x.EventType).HasMaxLength(64);
             e.Property(x => x.OrderReference).HasMaxLength(100);
+            e.Property(x => x.SubscriptionReference).HasMaxLength(100);
+            e.Property(x => x.CustomerReference).HasMaxLength(100);
+            e.Property(x => x.Currency).HasMaxLength(8);
             e.Property(x => x.PlanName).HasMaxLength(100);
             e.Property(x => x.Amount).HasConversion<double?>();
             e.HasIndex(x => new { x.CustomerId, x.OccurredAtUtc });

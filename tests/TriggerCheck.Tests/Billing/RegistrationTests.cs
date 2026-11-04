@@ -23,7 +23,7 @@ public class RegistrationTests(BillingTestFactory f) : IClassFixture<BillingTest
         return d;
     }
 
-    private static string NewEmail() => $"signup-{Guid.NewGuid():N}@example.test";
+    private static string NewEmail() => $"signup@{Guid.NewGuid():N}.example.test"; // own domain: the per-domain trial cap never interferes
 
     private Task<int> CustomerCountAsync() => f.WithDbAsync(db => db.Customers.CountAsync());
 

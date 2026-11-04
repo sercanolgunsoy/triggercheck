@@ -92,7 +92,7 @@ public class IyzicoProviderTests
     private static IyzicoOptions Options => new() { ApiKey = "api-key", SecretKey = "secret-key", MerchantId = "42", BaseUrl = "https://sandbox-api.iyzipay.test" };
 
     private static IyzicoPaymentProvider Provider(Handler h, IyzicoOptions? o = null) =>
-        new(new HttpClient(h), new StaticOptions(o ?? Options), NullLogger<IyzicoPaymentProvider>.Instance);
+        new(new HttpClient(h), new StaticOptions(o ?? Options), TimeProvider.System, NullLogger<IyzicoPaymentProvider>.Instance);
 
     private sealed class StaticOptions(IyzicoOptions value) : IOptionsMonitor<IyzicoOptions>
     {
@@ -147,13 +147,38 @@ public class IyzicoProviderTests
     }
 
     [Theory]
-    [InlineData("""{"status":"failure","errorCode":"100001","errorMessage":"boom"}""", HttpStatusCode.BadRequest)]
-    [InlineData("""{"status":"success","data":{"referenceCode":"sub-9","subscriptionStatus":"PENDING"}}""", HttpStatusCode.OK)]
-    [InlineData("<html>gateway error</html>", HttpStatusCode.BadGateway)]
-    public async Task Unsuccessful_checkout_results_are_not_activated(string json, HttpStatusCode code)
+    [InlineData("""{"status":"failure","errorCode":"100001","errorMessage":"boom"}""", HttpStatusCode.BadRequest, ProviderSubscriptionState.Rejected)]
+    [InlineData("""{"status":"failure","errorCode":"100001","errorMessage":"boom"}""", HttpStatusCode.OK, ProviderSubscriptionState.Rejected)]
+    [InlineData("""{"status":"success","data":{"referenceCode":"sub-9","subscriptionStatus":"PENDING"}}""", HttpStatusCode.OK, ProviderSubscriptionState.Pending)]
+    [InlineData("""{"status":"success","data":{"referenceCode":"sub-9","subscriptionStatus":"CANCELED"}}""", HttpStatusCode.OK, ProviderSubscriptionState.Cancelled)]
+    [InlineData("<html>gateway error</html>", HttpStatusCode.BadGateway, ProviderSubscriptionState.Unknown)]
+    [InlineData("""{"status":"failure"}""", HttpStatusCode.InternalServerError, ProviderSubscriptionState.Unknown)]
+    public async Task Unsuccessful_checkout_results_are_not_activated(string json, HttpStatusCode code, ProviderSubscriptionState state)
     {
         var r = await Provider(new Handler((_, _) => Json(json, code))).GetCheckoutResultAsync("tok-1", CancellationToken.None);
         Assert.False(r.Succeeded);
+        Assert.Equal(state, r.State);
+        // Only explicit provider answers close a checkout; server errors are retried.
+        Assert.Equal(state is not (ProviderSubscriptionState.Unknown or ProviderSubscriptionState.Pending), r.IsDefinitive);
+    }
+
+    [Fact]
+    public async Task Network_error_is_not_definitive()
+    {
+        var r = await Provider(new Handler((_, _) => throw new HttpRequestException("down"))).GetCheckoutResultAsync("tok-1", CancellationToken.None);
+        Assert.False(r.IsDefinitive);
+    }
+
+    [Theory]
+    [InlineData(true, "NOW", """{"status":"success","data":{"referenceCode":"n","subscriptionStatus":"PENDING"}}""", false)]
+    [InlineData(true, "NOW", """{"status":"success","data":{"referenceCode":"n","subscriptionStatus":"ACTIVE"}}""", true)]
+    [InlineData(false, "NEXT_PERIOD", """{"status":"success","data":{"referenceCode":"n","subscriptionStatus":"PENDING"}}""", true)]
+    public async Task Plan_change_checks_the_reported_subscription_status(bool immediately, string period, string json, bool ok)
+    {
+        var h = new Handler((_, _) => Json(json));
+        var r = await Provider(h).ChangePlanAsync("sub-1", "pp", immediately, CancellationToken.None);
+        Assert.Equal(ok, r.Succeeded);
+        Assert.Equal(period, JsonNode.Parse(h.Requests[0].Body)!["upgradePeriod"]!.GetValue<string>());
     }
 
     [Fact]
@@ -161,7 +186,7 @@ public class IyzicoProviderTests
     {
         var h = new Handler((_, _) => Json("""{"status":"success","data":{"referenceCode":"sub-new"}}"""));
         var p = Provider(h);
-        var up = await p.ChangePlanAsync("sub-1", "pp-std", CancellationToken.None);
+        var up = await p.ChangePlanAsync("sub-1", "pp-std", immediately: true, CancellationToken.None);
         Assert.True(up.Succeeded);
         Assert.Equal("sub-new", up.NewSubscriptionReference);
         Assert.True((await p.CancelAsync("sub-1", CancellationToken.None)).Succeeded);
@@ -189,7 +214,7 @@ public class IyzicoProviderTests
 
         var e = Provider(new Handler((_, _) => throw new InvalidOperationException())).ParseWebhook(body, headers);
         Assert.NotNull(e);
-        Assert.Equal("e1", e.EventId);
+        Assert.Equal("subscription.order.success:s:o", e.EventId); // signed fields only
         Assert.Equal(WebhookEventKind.PaymentSucceeded, e.Kind);
         Assert.Equal(new DateTime(2023, 11, 14, 22, 13, 20, DateTimeKind.Utc), e.OccurredAtUtc);
 

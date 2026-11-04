@@ -23,6 +23,8 @@ public class Customer
     public DateTime? TrialEndsAtUtc { get; set; }
     /// <summary>When the "trial ends soon" e-mail was sent (sent once).</summary>
     public DateTime? TrialReminderSentAtUtc { get; set; }
+    /// <summary>Normalized sign-up address (lower case, no +tag) used to limit free trials per address and domain.</summary>
+    public string? TrialKey { get; set; }
 
     public ICollection<Monitor> Monitors { get; set; } = new List<Monitor>();
     public ICollection<AlertChannel> AlertChannels { get; set; } = new List<AlertChannel>();

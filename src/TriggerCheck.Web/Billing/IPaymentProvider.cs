@@ -9,11 +9,20 @@ public sealed record CheckoutRequest(string ConversationId, string PricingPlanRe
 /// <summary>A started hosted checkout: the provider token and the page the customer completes the payment on.</summary>
 public sealed record CheckoutSession(string Token, string PaymentPageUrl);
 
-public enum ProviderSubscriptionState { Active, Pending, Unpaid, Cancelled, Expired, Upgraded, Unknown }
+/// <summary>
+/// Provider-side state of a checkout / subscription. <see cref="Unknown"/> (no or unusable answer, e.g. a network
+/// error) and <see cref="Pending"/> are not definitive: the checkout is checked again later.
+/// <see cref="Rejected"/> means the provider answered that the checkout does not exist or did not complete.
+/// </summary>
+public enum ProviderSubscriptionState { Active, Pending, Unpaid, Cancelled, Expired, Upgraded, Rejected, Unknown }
 
 /// <summary>Server-side verified outcome of a checkout (retrieved from the provider, never taken from the browser).</summary>
-public sealed record CheckoutResult(bool Succeeded, string? SubscriptionReference, string? CustomerReference,
-    string? PricingPlanReferenceCode, ProviderSubscriptionState State, string? Error);
+public sealed record CheckoutResult(ProviderSubscriptionState State, string? SubscriptionReference = null, string? CustomerReference = null,
+    string? PricingPlanReferenceCode = null)
+{
+    public bool Succeeded => State == ProviderSubscriptionState.Active && !string.IsNullOrEmpty(SubscriptionReference);
+    public bool IsDefinitive => State is not (ProviderSubscriptionState.Unknown or ProviderSubscriptionState.Pending);
+}
 
 public sealed record ProviderResult(bool Succeeded, string? Error, string? NewSubscriptionReference = null)
 {
@@ -22,7 +31,10 @@ public sealed record ProviderResult(bool Succeeded, string? Error, string? NewSu
 
 public enum WebhookEventKind { PaymentSucceeded, PaymentFailed, Other }
 
-/// <summary>A signature-verified webhook notification.</summary>
+/// <summary>
+/// A signature-verified webhook notification. <see cref="EventId"/> is built from signed fields only (event type,
+/// subscription and order reference), so a replay with altered unsigned fields is still recognized as a duplicate.
+/// </summary>
 public sealed record WebhookEvent(string EventId, string EventType, WebhookEventKind Kind, string SubscriptionReference,
     string? OrderReference, string? CustomerReference, DateTime OccurredAtUtc);
 
@@ -39,8 +51,8 @@ public interface IPaymentProvider
 
     Task<CheckoutSession?> StartCheckoutAsync(CheckoutRequest request, CancellationToken ct);
     Task<CheckoutResult> GetCheckoutResultAsync(string token, CancellationToken ct);
-    /// <summary>Moves the subscription to another pricing plan immediately (provider prorates).</summary>
-    Task<ProviderResult> ChangePlanAsync(string subscriptionReference, string newPricingPlanReferenceCode, CancellationToken ct);
+    /// <summary>Moves the subscription to another pricing plan, now (upgrade) or from the next period (downgrade).</summary>
+    Task<ProviderResult> ChangePlanAsync(string subscriptionReference, string newPricingPlanReferenceCode, bool immediately, CancellationToken ct);
     /// <summary>Stops renewals of the subscription.</summary>
     Task<ProviderResult> CancelAsync(string subscriptionReference, CancellationToken ct);
     /// <summary>Verifies the signature and parses a webhook. Returns null when the signature is invalid or the body is malformed.</summary>

@@ -1126,4 +1126,40 @@
   <data name="Trial ends" xml:space="preserve">
     <value>Deneme bitişi</value>
   </data>
+  <data name="If you did not ask for this, you can ignore this e-mail." xml:space="preserve">
+    <value>Bunu siz istemediyseniz bu e-postayı yok sayabilirsiniz.</value>
+  </data>
+  <data name="Open this link to choose a new password (valid for one day):" xml:space="preserve">
+    <value>Yeni bir parola belirlemek için bu bağlantıyı açın (bir gün geçerlidir):</value>
+  </data>
+  <data name="Reset your TriggerCheck password" xml:space="preserve">
+    <value>TriggerCheck parolanızı sıfırlayın</value>
+  </data>
+  <data name="Back to sign in" xml:space="preserve">
+    <value>Girişe dön</value>
+  </data>
+  <data name="Enter your e-mail address and we will send you a link to choose a new password." xml:space="preserve">
+    <value>E-posta adresinizi girin; yeni bir parola belirlemeniz için size bir bağlantı gönderelim.</value>
+  </data>
+  <data name="Forgot password" xml:space="preserve">
+    <value>Parolamı unuttum</value>
+  </data>
+  <data name="If an account exists for this address, we have sent a link to choose a new password. The link is valid for one day." xml:space="preserve">
+    <value>Bu adresle bir hesap varsa yeni parola belirlemeniz için bir bağlantı gönderdik. Bağlantı bir gün geçerlidir.</value>
+  </data>
+  <data name="Send reset link" xml:space="preserve">
+    <value>Sıfırlama bağlantısı gönder</value>
+  </data>
+  <data name="Forgot password?" xml:space="preserve">
+    <value>Parolanızı mı unuttunuz?</value>
+  </data>
+  <data name="This link is invalid or has expired. Request a new one." xml:space="preserve">
+    <value>Bu bağlantı geçersiz veya süresi dolmuş. Yeni bir bağlantı isteyin.</value>
+  </data>
+  <data name="Choose a new password" xml:space="preserve">
+    <value>Yeni parola belirleyin</value>
+  </data>
+  <data name="Your password was changed. You can sign in now." xml:space="preserve">
+    <value>Parolanız değiştirildi. Artık giriş yapabilirsiniz.</value>
+  </data>
 </root>

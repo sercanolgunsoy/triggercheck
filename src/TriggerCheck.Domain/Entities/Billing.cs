@@ -18,7 +18,8 @@ public enum SubscriptionStatus
     PastDue = 2,
     Cancelled = 3,  // renewal stopped at the provider; still valid until CurrentPeriodEndUtc
     Expired = 4,    // ended (period over, grace period over or replaced)
-    Failed = 5      // checkout was not completed
+    Failed = 5,     // checkout definitively not completed (or a duplicate that was cancelled at the provider)
+    Superseded = 6  // pending checkout replaced by a newer one; still verified in case it was paid in another tab
 }
 
 /// <summary>A (monthly) subscription of a customer at the payment provider. The newest non-pending row is the current one.</summary>
@@ -34,6 +35,7 @@ public class Subscription
     public string Provider { get; set; } = "";
     /// <summary>Provider subscription reference (iyzico subscriptionReferenceCode); null until the checkout is confirmed.</summary>
     public string? ProviderReference { get; set; }
+    /// <summary>Provider customer reference; used to match webhooks of subscriptions we do not know yet.</summary>
     public string? ProviderCustomerReference { get; set; }
     /// <summary>Checkout token issued by the provider; the return callback is matched (and verified) with it.</summary>
     public string? CheckoutToken { get; set; }
@@ -42,27 +44,39 @@ public class Subscription
     public DateTime? CurrentPeriodEndUtc { get; set; }
     public bool CancelAtPeriodEnd { get; set; }
     public DateTime? PastDueSinceUtc { get; set; }
-    public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+    /// <summary>Downgrade booked at the provider for the next period; applied when the period rolls over.</summary>
+    public int? ScheduledPlanId { get; set; }
+    /// <summary>Time of the newest webhook event applied; older (out-of-order) events are ignored.</summary>
+    public DateTime? LastEventAtUtc { get; set; }
+    public DateTime CreatedAtUtc { get; set; }
     public DateTime? ActivatedAtUtc { get; set; }
     public DateTime? EndedAtUtc { get; set; }
 }
 
 /// <summary>
 /// Payment / subscription event received from the provider (webhook or verified checkout). The unique
-/// <see cref="ProviderEventId"/> makes processing idempotent; the rows are the customer's payment history.
+/// <see cref="ProviderEventId"/> makes processing idempotent; the rows are the customer's payment history. Events that
+/// could not be matched or were out of order are kept with <see cref="Ignored"/> for reconciliation.
 /// </summary>
 public class PaymentEvent
 {
     public long Id { get; set; }
-    public int CustomerId { get; set; }
+    /// <summary>Null for an ignored event that could not be matched to a customer.</summary>
+    public int? CustomerId { get; set; }
     public int? SubscriptionId { get; set; }
     public string ProviderEventId { get; set; } = "";
     /// <summary>Provider event type, e.g. "subscription.order.success".</summary>
     public string EventType { get; set; } = "";
     public bool Succeeded { get; set; }
+    /// <summary>Not applied (unknown subscription, out of order or outside the accepted time window).</summary>
+    public bool Ignored { get; set; }
+    public string? SubscriptionReference { get; set; }
+    public string? CustomerReference { get; set; }
     public string? OrderReference { get; set; }
     public string? PlanName { get; set; }
+    /// <summary>Amount charged as reported by the provider (null when the provider does not report it).</summary>
     public decimal? Amount { get; set; }
+    public string? Currency { get; set; }
     public DateTime OccurredAtUtc { get; set; }
     public DateTime ReceivedAtUtc { get; set; }
 }

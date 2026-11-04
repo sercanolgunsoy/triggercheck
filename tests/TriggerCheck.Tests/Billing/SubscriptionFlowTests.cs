@@ -1,10 +1,12 @@
 using System.Net;
 using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using TriggerCheck.Domain;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Tests.App;
 using TriggerCheck.Tests.Infrastructure;
+using TriggerCheck.Web.Billing;
 using static TriggerCheck.Tests.App.AppTestData;
 
 namespace TriggerCheck.Tests.Billing;
@@ -61,12 +63,16 @@ public class SubscriptionFlowTests : IClassFixture<BillingTestFactory>, IAsyncLi
         Assert.Equal("https://app.test/billing/iyzico/callback", request.CallbackUrl);
         Assert.Equal("Ada", request.Contact.Name);
 
-        // A forged "success" from the browser is ignored: the provider has not confirmed the payment.
-        AssertRedirect(await CallbackAsync(token, new() { ["status"] = "success" }), "checkout=failed");
+        // A forged "success" from the browser is ignored: the provider has not confirmed the payment (still pending).
+        AssertRedirect(await CallbackAsync(token, new() { ["status"] = "success" }), "checkout=pending");
         var c = await _f.GetCustomerAsync(cid);
         Assert.Equal(BillingStatus.Trial, c.BillingStatus);
         Assert.Equal("Standard", c.Plan.Name);
-        Assert.Equal(SubscriptionStatus.Failed, await _f.WithDbAsync(db => db.Subscriptions.Where(s => s.CheckoutToken == token).Select(s => s.Status).FirstAsync()));
+        Assert.Equal(SubscriptionStatus.Pending, await StatusOfAsync(token));
+        // The provider definitively says no: closed as failed.
+        _f.Payments.Reject(token);
+        AssertRedirect(await CallbackAsync(token), "checkout=failed");
+        Assert.Equal(SubscriptionStatus.Failed, await StatusOfAsync(token));
 
         // A new checkout that the provider confirms.
         token = await StartCheckoutAsync(client, cid, "Pro");
@@ -89,14 +95,98 @@ public class SubscriptionFlowTests : IClassFixture<BillingTestFactory>, IAsyncLi
         Assert.Contains("data-billing=\"active\"", html);
     }
 
-    [Fact]
-    public async Task Verified_result_for_another_pricing_plan_is_not_activated()
+    private Task<SubscriptionStatus> StatusOfAsync(string token) =>
+        _f.WithDbAsync(db => db.Subscriptions.Where(s => s.CheckoutToken == token).Select(s => s.Status).FirstAsync());
+
+    [Theory]
+    [InlineData("pp-standard")]
+    [InlineData(null)]
+    public async Task Paid_checkout_for_another_or_no_pricing_plan_is_cancelled_at_the_provider(string? reportedPlan)
     {
         var (cid, client) = await TrialAdminAsync();
         var token = await StartCheckoutAsync(client, cid, "Pro");
-        _f.Payments.Approve(token, "pp-standard");
+        var reference = "mm-" + cid;
+        _f.Payments.Results[token] = new CheckoutResult(ProviderSubscriptionState.Active, reference, "c-" + cid, reportedPlan);
         AssertRedirect(await CallbackAsync(token), "checkout=failed");
         Assert.Equal(BillingStatus.Trial, (await _f.GetCustomerAsync(cid)).BillingStatus);
+        Assert.Contains(reference, _f.Payments.Cancels); // nobody keeps paying for a plan they did not get
+        Assert.Equal(SubscriptionStatus.Failed, await StatusOfAsync(token));
+        // A later callback or reconciliation never re-activates the refused (cancelled) subscription.
+        AssertRedirect(await CallbackAsync(token), "checkout=failed");
+    }
+
+    [Fact]
+    public async Task Closed_tab_checkout_is_activated_by_the_webhook()
+    {
+        var (cid, client) = await TrialAdminAsync();
+        var token = await StartCheckoutAsync(client, cid, "Pro");
+        var reference = "tab-" + cid;
+        _f.Payments.Approve(token, "pp-pro", reference);
+        // No callback: the customer closed the tab. The first order webhook arrives for a subscription we do not know yet.
+        var r = await WebhookTests.SendSignedAsync(_f, "subscription.order.success", reference, "o-" + cid, "cust-" + reference);
+        Assert.Equal(System.Net.HttpStatusCode.OK, r.StatusCode);
+        var c = await _f.GetCustomerAsync(cid);
+        Assert.Equal(BillingStatus.Active, c.BillingStatus);
+        Assert.Equal("Pro", c.Plan.Name);
+        var sub = await _f.WithDbAsync(db => db.Subscriptions.AsNoTracking().FirstAsync(s => s.CheckoutToken == token));
+        Assert.Equal(reference, sub.ProviderReference);
+        Assert.Equal("cust-" + reference, sub.ProviderCustomerReference);
+    }
+
+    [Fact]
+    public async Task Pending_checkout_is_rechecked_by_the_job_after_a_transient_failure()
+    {
+        var (cid, client) = await TrialAdminAsync();
+        var token = await StartCheckoutAsync(client, cid, "Pro");
+        _f.Payments.Unreachable = true;
+        try
+        {
+            _f.Payments.Approve(token, "pp-pro", "tr-" + cid);
+            AssertRedirect(await CallbackAsync(token), "checkout=pending"); // provider not reachable: not failed
+            Assert.Equal(SubscriptionStatus.Pending, await StatusOfAsync(token));
+        }
+        finally { _f.Payments.Unreachable = false; }
+
+        _f.Time.Advance(TimeSpan.FromMinutes(11));
+        var result = await _f.RunMaintenanceAsync();
+        Assert.True(result.CheckoutsResolved >= 1);
+        Assert.Equal(SubscriptionStatus.Active, await StatusOfAsync(token));
+        Assert.Equal(BillingStatus.Active, (await _f.GetCustomerAsync(cid)).BillingStatus);
+    }
+
+    [Fact]
+    public async Task Unconfirmed_checkout_is_closed_after_the_timeout()
+    {
+        var (cid, client) = await TrialAdminAsync();
+        var token = await StartCheckoutAsync(client, cid, "Pro");
+        _f.Time.Advance(TimeSpan.FromMinutes(20));
+        await _f.RunMaintenanceAsync();
+        Assert.Equal(SubscriptionStatus.Pending, await StatusOfAsync(token)); // still open, provider says pending
+        _f.Time.Advance(TimeSpan.FromMinutes(45));
+        await _f.RunMaintenanceAsync();
+        Assert.Equal(SubscriptionStatus.Failed, await StatusOfAsync(token));
+        Assert.Equal(BillingStatus.Trial, (await _f.GetCustomerAsync(cid)).BillingStatus);
+    }
+
+    [Fact]
+    public async Task Two_tabs_paid_twice_keep_one_subscription_and_cancel_the_other()
+    {
+        var (cid, client) = await TrialAdminAsync();
+        var first = await StartCheckoutAsync(client, cid, "Pro");
+        var second = await StartCheckoutAsync(client, cid, "Pro");
+        Assert.Equal(SubscriptionStatus.Superseded, await StatusOfAsync(first));
+        Assert.Equal(SubscriptionStatus.Pending, await StatusOfAsync(second));
+
+        _f.Payments.Approve(first, "pp-pro", "tab1-" + cid);
+        _f.Payments.Approve(second, "pp-pro", "tab2-" + cid);
+        AssertRedirect(await CallbackAsync(second), "checkout=success");
+        AssertRedirect(await CallbackAsync(first), "checkout=success");
+
+        Assert.Equal(SubscriptionStatus.Active, await StatusOfAsync(second));
+        Assert.Equal(SubscriptionStatus.Failed, await StatusOfAsync(first));
+        Assert.Contains("tab1-" + cid, _f.Payments.Cancels);
+        Assert.DoesNotContain("tab2-" + cid, _f.Payments.Cancels);
+        Assert.Equal(1, await _f.WithDbAsync(db => db.Subscriptions.CountAsync(s => s.CustomerId == cid && s.Status == SubscriptionStatus.Active)));
     }
 
     [Fact]
@@ -148,12 +238,34 @@ public class SubscriptionFlowTests : IClassFixture<BillingTestFactory>, IAsyncLi
             await _f.WithDbAsync(async db => { (await db.Plans.FirstAsync(p => p.Name == "Standard")).MaxMonitors = 50; await db.SaveChangesAsync(); });
         }
 
+        // A valid downgrade is booked for the next period: the paid plan stays until then.
         var ok = await client.PostFormAsync($"/App/Billing/Index?handler=ChangePlan&planId={await PlanIdAsync("Standard")}", new(), "/App/Billing");
         AssertRedirect(ok, "/App/Billing");
+        Assert.Contains(("dg-" + cid, "pp-standard", false), _f.Payments.PlanChanges);
+        Assert.Equal("Pro", (await _f.GetCustomerAsync(cid)).Plan.Name);
+        Assert.Equal(30, (await _f.GetMonitorAsync(fast))!.IntervalSeconds);
+        var html = await client.GetHtmlAsync("/App/Billing");
+        Assert.Contains("takes effect on", html);
+        Assert.Contains("data-testid=\"scheduled\"", html);
+
+        // At the end of the period (renewal webhook or the job) the new plan applies and intervals are clamped.
+        _f.Time.Advance(TimeSpan.FromDays(21));
+        await _f.RunMaintenanceAsync();
         Assert.Equal("Standard", (await _f.GetCustomerAsync(cid)).Plan.Name);
         Assert.Equal(60, (await _f.GetMonitorAsync(fast))!.IntervalSeconds);
-        Assert.Contains(("dg-" + cid, "pp-standard"), _f.Payments.PlanChanges);
-        Assert.Contains("Your plan was changed.", await client.GetHtmlAsync("/App/Billing"));
+        Assert.Null(await _f.WithDbAsync(db => db.Subscriptions.Where(s => s.CustomerId == cid).Select(s => s.ScheduledPlanId).FirstAsync()));
+    }
+
+    [Fact]
+    public async Task Upgrade_applies_immediately()
+    {
+        var (cid, email) = await _f.AddCustomerWithAdminAsync("Standard");
+        await _f.AddActiveSubscriptionAsync(cid, "Standard", "up-" + cid);
+        var client = await _f.LoginAsync(email, BillingTestFactory.Password);
+        AssertRedirect(await client.PostFormAsync($"/App/Billing/Index?handler=ChangePlan&planId={await PlanIdAsync("Pro")}", new(), "/App/Billing"), "/App/Billing");
+        Assert.Equal("Pro", (await _f.GetCustomerAsync(cid)).Plan.Name);
+        Assert.Contains(("up-" + cid, "pp-pro", true), _f.Payments.PlanChanges);
+        Assert.DoesNotContain("prorated", await client.GetHtmlAsync("/App/Billing"));
     }
 
     [Fact]
@@ -294,6 +406,25 @@ public class SubscriptionFlowTests : IClassFixture<BillingTestFactory>, IAsyncLi
             Assert.Contains("Online payment is not available", await client.GetHtmlAsync("/App/Billing"));
         }
         finally { _f.Payments.IsConfigured = true; }
+    }
+
+    [Fact]
+    public async Task Paid_checkout_switched_off_shows_contact_and_blocks_the_handlers()
+    {
+        using var off = _f.WithWebHostBuilder(b => b.UseSetting("Billing:PaidCheckoutEnabled", "false"));
+        var (cid, email) = await _f.AddCustomerWithAdminAsync("Standard", c => { c.BillingStatus = BillingStatus.Trial; c.TrialEndsAtUtc = _f.Now.AddDays(5); });
+        var client = off.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions { AllowAutoRedirect = false, HandleCookies = true });
+        AssertRedirect(await client.PostFormAsync("/Account/Login", new() { ["Input.Email"] = email, ["Input.Password"] = BillingTestFactory.Password }), "/");
+        var html = await client.GetHtmlAsync("/App/Billing");
+        Assert.Contains("data-testid=\"contact-to-upgrade\"", html);
+        Assert.Contains("Pro", html);
+        Assert.DoesNotContain("/App/Billing/Checkout", html);
+
+        var before = _f.Payments.Checkouts.Count;
+        var r = await client.PostFormAsync($"/App/Billing/Checkout?planId={await PlanIdAsync("Pro")}", Contact());
+        AssertRedirect(r, "/App/Billing");
+        Assert.Equal(before, _f.Payments.Checkouts.Count);
+        Assert.False(await _f.WithDbAsync(db => db.Subscriptions.AnyAsync(s => s.CustomerId == cid)));
     }
 
     [Fact]

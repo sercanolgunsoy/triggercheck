@@ -12,7 +12,8 @@ namespace TriggerCheck.Web.Billing;
 /// and is not used). Implemented from docs.iyzico.com (subscription transactions, IYZWSv2 HMAC-SHA256 auth and the
 /// X-IYZ-SIGNATURE-V3 webhook signature). Points marked TODO-verify could not be confirmed without a sandbox account.
 /// </summary>
-public sealed class IyzicoPaymentProvider(HttpClient http, IOptionsMonitor<IyzicoOptions> options, ILogger<IyzicoPaymentProvider> logger) : IPaymentProvider
+public sealed class IyzicoPaymentProvider(HttpClient http, IOptionsMonitor<IyzicoOptions> options, TimeProvider time, ILogger<IyzicoPaymentProvider> logger)
+    : IPaymentProvider
 {
     public const string HttpClientName = "iyzico";
     public const string SignatureHeader = "X-IYZ-SIGNATURE-V3";
@@ -40,7 +41,7 @@ public sealed class IyzicoPaymentProvider(HttpClient http, IOptionsMonitor<Iyzic
                 ["billingAddress"] = address, ["shippingAddress"] = address.DeepClone()
             }
         };
-        var response = await SendAsync(HttpMethod.Post, "/v2/subscription/checkoutform/initialize", body, ct);
+        var (response, _) = await SendAsync(HttpMethod.Post, "/v2/subscription/checkoutform/initialize", body, ct);
         if (response is null) return null;
         var token = response["token"]?.GetValue<string>();
         if (string.IsNullOrEmpty(token)) { logger.LogWarning("iyzico checkout initialize returned no token."); return null; }
@@ -56,30 +57,39 @@ public sealed class IyzicoPaymentProvider(HttpClient http, IOptionsMonitor<Iyzic
 
     public async Task<CheckoutResult> GetCheckoutResultAsync(string token, CancellationToken ct)
     {
-        var response = await SendAsync(HttpMethod.Get, "/v2/subscription/checkoutform/" + Uri.EscapeDataString(token), null, ct);
-        if (response?["data"] is not JsonObject data) return new CheckoutResult(false, null, null, null, ProviderSubscriptionState.Unknown, "verification failed");
-        var state = ParseState(data["subscriptionStatus"]?.GetValue<string>());
-        var reference = data["referenceCode"]?.GetValue<string>();
-        return new CheckoutResult(state == ProviderSubscriptionState.Active && !string.IsNullOrEmpty(reference), reference,
-            data["customerReferenceCode"]?.GetValue<string>(), data["pricingPlanReferenceCode"]?.GetValue<string>(), state, null);
+        var (response, rejected) = await SendAsync(HttpMethod.Get, "/v2/subscription/checkoutform/" + Uri.EscapeDataString(token), null, ct);
+        // Only an explicit answer from iyzico is definitive; network errors, 5xx and unreadable bodies are retried later.
+        if (rejected) return new CheckoutResult(ProviderSubscriptionState.Rejected);
+        if (response?["data"] is not JsonObject data) return new CheckoutResult(ProviderSubscriptionState.Unknown);
+        return new CheckoutResult(ParseState(Str(data, "subscriptionStatus")), Str(data, "referenceCode"),
+            Str(data, "customerReferenceCode"), Str(data, "pricingPlanReferenceCode"));
     }
 
-    public async Task<ProviderResult> ChangePlanAsync(string subscriptionReference, string newPricingPlanReferenceCode, CancellationToken ct)
+    public async Task<ProviderResult> ChangePlanAsync(string subscriptionReference, string newPricingPlanReferenceCode, bool immediately, CancellationToken ct)
     {
         var body = new JsonObject
         {
-            ["newPricingPlanReferenceCode"] = newPricingPlanReferenceCode, ["upgradePeriod"] = "NOW", ["useTrial"] = false, ["resetRecurrenceCount"] = true
+            ["newPricingPlanReferenceCode"] = newPricingPlanReferenceCode, ["upgradePeriod"] = immediately ? "NOW" : "NEXT_PERIOD",
+            ["useTrial"] = false, ["resetRecurrenceCount"] = true
         };
-        var response = await SendAsync(HttpMethod.Post, $"/v2/subscription/subscriptions/{Uri.EscapeDataString(subscriptionReference)}/upgrade", body, ct);
+        var (response, _) = await SendAsync(HttpMethod.Post, $"/v2/subscription/subscriptions/{Uri.EscapeDataString(subscriptionReference)}/upgrade", body, ct);
         if (response is null) return new ProviderResult(false, "plan change failed");
+        var data = response["data"] as JsonObject;
+        // An immediate change must leave an ACTIVE subscription (TODO-verify the state iyzico reports for NEXT_PERIOD).
+        var status = data is null ? null : Str(data, "subscriptionStatus");
+        if (immediately && status is not null && ParseState(status) != ProviderSubscriptionState.Active)
+        {
+            logger.LogWarning("iyzico plan change returned subscription status {Status}.", status);
+            return new ProviderResult(false, "unexpected subscription status");
+        }
         // The upgrade may answer with a new subscription reference (the old one becomes its parent).
-        return new ProviderResult(true, null, response["data"]?["referenceCode"]?.GetValue<string>());
+        return new ProviderResult(true, null, data is null ? null : Str(data, "referenceCode"));
     }
 
     public async Task<ProviderResult> CancelAsync(string subscriptionReference, CancellationToken ct)
     {
         var body = new JsonObject { ["subscriptionReferenceCode"] = subscriptionReference };
-        var response = await SendAsync(HttpMethod.Post, $"/v2/subscription/subscriptions/{Uri.EscapeDataString(subscriptionReference)}/cancel", body, ct);
+        var (response, _) = await SendAsync(HttpMethod.Post, $"/v2/subscription/subscriptions/{Uri.EscapeDataString(subscriptionReference)}/cancel", body, ct);
         return response is null ? new ProviderResult(false, "cancel failed") : ProviderResult.Ok;
     }
 
@@ -108,8 +118,9 @@ public sealed class IyzicoPaymentProvider(HttpClient http, IOptionsMonitor<Iyzic
         if (!CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(expected), Encoding.ASCII.GetBytes(given)))
             return null;
 
-        var eventId = S("iyziReferenceCode") is { Length: > 0 } id ? id : $"{eventType}:{orderRef}";
-        var occurred = DateTime.UtcNow;
+        // iyziReferenceCode and iyziEventTime are not covered by the signature: the event id uses signed fields only.
+        var eventId = $"{eventType}:{subscriptionRef}:{orderRef}";
+        var occurred = time.GetUtcNow().UtcDateTime;
         if (long.TryParse(S("iyziEventTime"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var t) && t > 0)
             occurred = (t > 100_000_000_000 ? DateTimeOffset.FromUnixTimeMilliseconds(t) : DateTimeOffset.FromUnixTimeSeconds(t)).UtcDateTime;
         var kind = eventType switch
@@ -137,6 +148,8 @@ public sealed class IyzicoPaymentProvider(HttpClient http, IOptionsMonitor<Iyzic
         return "IYZWSv2 " + Convert.ToBase64String(Encoding.UTF8.GetBytes(auth));
     }
 
+    private static string? Str(JsonObject o, string name) => o[name] is JsonValue v && v.TryGetValue<string>(out var s) ? s : null;
+
     private static string HmacHex(string key, string data) =>
         Convert.ToHexStringLower(HMACSHA256.HashData(Encoding.UTF8.GetBytes(key), Encoding.UTF8.GetBytes(data)));
 
@@ -151,11 +164,15 @@ public sealed class IyzicoPaymentProvider(HttpClient http, IOptionsMonitor<Iyzic
         _ => ProviderSubscriptionState.Unknown
     };
 
-    /// <summary>Signed request; returns the JSON response when iyzico answers status "success", otherwise logs and returns null.</summary>
-    private async Task<JsonObject?> SendAsync(HttpMethod method, string path, JsonObject? body, CancellationToken ct)
+    /// <summary>
+    /// Signed request. Returns the JSON response when iyzico answers status "success"; otherwise logs and returns null,
+    /// with <c>Rejected</c> = true when iyzico itself answered "failure" with a 4xx or 200 status (a definitive no), as
+    /// opposed to network errors, timeouts, 5xx and unreadable bodies.
+    /// </summary>
+    private async Task<(JsonObject? Response, bool Rejected)> SendAsync(HttpMethod method, string path, JsonObject? body, CancellationToken ct)
     {
         var o = options.CurrentValue;
-        if (!o.IsConfigured) { logger.LogWarning("iyzico is not configured (Iyzico:ApiKey / Iyzico:SecretKey)."); return null; }
+        if (!o.IsConfigured) { logger.LogWarning("iyzico is not configured (Iyzico:ApiKey / Iyzico:SecretKey)."); return (null, false); }
 
         // The signature covers the exact body bytes, so the JSON is serialized once and sent as is.
         var json = body?.ToJsonString();
@@ -173,15 +190,16 @@ public sealed class IyzicoPaymentProvider(HttpClient http, IOptionsMonitor<Iyzic
             using var response = await http.SendAsync(request, cts.Token);
             var text = await response.Content.ReadAsStringAsync(cts.Token);
             var result = JsonNode.Parse(text) as JsonObject;
-            if (response.IsSuccessStatusCode && result?["status"]?.GetValue<string>() == "success") return result;
+            var status = result is null ? null : Str(result, "status");
+            if (response.IsSuccessStatusCode && status == "success") return (result, false);
             logger.LogWarning("iyzico {Method} {Path} failed: HTTP {Status}, error {Code} {Message}", method, path, (int)response.StatusCode,
                 result?["errorCode"]?.ToString(), result?["errorMessage"]?.ToString());
-            return null;
+            return (null, status == "failure" && (int)response.StatusCode < 500);
         }
         catch (Exception ex) when (ex is HttpRequestException or JsonException or OperationCanceledException && !ct.IsCancellationRequested)
         {
             logger.LogWarning(ex, "iyzico {Method} {Path} failed.", method, path);
-            return null;
+            return (null, false);
         }
     }
 }

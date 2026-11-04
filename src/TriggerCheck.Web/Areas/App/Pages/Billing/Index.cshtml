@@ -18,6 +18,7 @@
 </div>
 
 @if (Model.Checkout == "success") { <div class="alert alert-success" data-testid="checkout-success">@L["Thank you! Your subscription is active."]</div> }
+else if (Model.Checkout == "pending") { <div class="alert alert-info" data-testid="checkout-pending">@L["We are waiting for iyzico to confirm your payment. This page will show the subscription as soon as it is confirmed."]</div> }
 else if (Model.Checkout == "failed") { <div class="alert alert-danger" data-testid="checkout-failed">@L["The payment was not completed. No subscription was started."]</div> }
 
 <div class="row g-3">
@@ -38,6 +39,10 @@ else if (Model.Checkout == "failed") { <div class="alert alert-danger" data-test
                     @if (sub is { Status: SubscriptionStatus.Active, CurrentPeriodEndUtc: DateTime renew })
                     {
                         <dt class="col-sm-5">@L["Next renewal"]</dt><dd class="col-sm-7" data-testid="renewal">@Fmt.Date(renew)</dd>
+                    }
+                    @if (Model.ScheduledPlan is { } next && sub?.CurrentPeriodEndUtc is DateTime switchAt)
+                    {
+                        <dt class="col-sm-5">@L["Booked change"]</dt><dd class="col-sm-7" data-testid="scheduled">@L["Changes to {0} on {1}", next.Name, Fmt.Date(switchAt)]</dd>
                     }
                     @if (sub is { Status: SubscriptionStatus.Cancelled, CurrentPeriodEndUtc: DateTime until })
                     {
@@ -69,7 +74,14 @@ else if (Model.Checkout == "failed") { <div class="alert alert-danger" data-test
             <div class="card-header">@L["Plans"]</div>
             @if (!Model.PaymentsAvailable || Model.Plans.Count == 0)
             {
-                <div class="card-body text-muted">@L["Online payment is not available at the moment. Please contact us to change your plan."]</div>
+                <div class="card-body text-muted" data-testid="contact-to-upgrade">@L["Online payment is not available yet. Contact us to upgrade or change your plan."]
+                    @if (Model.Plans.Count > 0)
+                    {
+                        <ul class="mt-2 mb-0">
+                            @foreach (var p in Model.Plans) { <li>@p.Name · @Fmt.Money(p.MonthlyPrice) @L["/ month"] · @L["Up to {0} monitors", Fmt.Number(p.MaxMonitors)]</li> }
+                        </ul>
+                    }
+                </div>
             }
             else
             {
@@ -77,6 +89,7 @@ else if (Model.Checkout == "failed") { <div class="alert alert-danger" data-test
                     @foreach (var p in Model.Plans)
                     {
                         var isCurrent = p.Id == c.PlanId && status is BillingStatus.Active or BillingStatus.PastDue;
+                        var upgrade = p.MonthlyPrice > c.Plan.MonthlyPrice;
                         var over = Model.Usage.Monitors.Used - p.MaxMonitors;
                         <li class="list-group-item d-flex flex-wrap justify-content-between align-items-center gap-2" data-plan="@p.Name">
                             <div>
@@ -87,11 +100,17 @@ else if (Model.Checkout == "failed") { <div class="alert alert-danger" data-test
                                     <div class="small text-danger">@L["You have {0} monitors; delete {1} to switch to this plan.", Model.Usage.Monitors.Used, over]</div>
                                 }
                             </div>
-                            @if (isCurrent) { <span class="badge bg-primary">@L["Current"]</span> }
+                            @if (isCurrent && sub?.ScheduledPlanId is not null && isAdmin && canChange)
+                            {
+                                <form method="post" asp-page-handler="ChangePlan" asp-route-planId="@p.Id">
+                                    <button type="submit" class="btn btn-sm btn-outline-secondary">@L["Keep this plan"]</button>
+                                </form>
+                            }
+                            else if (isCurrent) { <span class="badge bg-primary">@L["Current"]</span> }
                             else if (isAdmin && canChange && over <= 0)
                             {
-                                <form method="post" asp-page-handler="ChangePlan" asp-route-planId="@p.Id" data-confirm="@L["Switch to the {0} plan now? The price difference is prorated by iyzico.", p.Name]">
-                                    <button type="submit" class="btn btn-sm btn-outline-primary">@(p.MonthlyPrice > c.Plan.MonthlyPrice ? L["Upgrade"] : L["Downgrade"])</button>
+                                <form method="post" asp-page-handler="ChangePlan" asp-route-planId="@p.Id" data-confirm="@(upgrade ? L["Upgrade to the {0} plan now? iyzico charges the new price according to its terms.", p.Name] : L["Downgrade to the {0} plan at the end of the paid period?", p.Name])">
+                                    <button type="submit" class="btn btn-sm btn-outline-primary">@(upgrade ? L["Upgrade"] : L["Downgrade"])</button>
                                 </form>
                             }
                             else if (isAdmin && canCheckout && over <= 0)
@@ -119,14 +138,14 @@ else if (Model.Checkout == "failed") { <div class="alert alert-danger" data-test
             {
                 <div class="table-responsive">
                     <table class="table table-sm mb-0 align-middle">
-                        <thead><tr><th>@L["Date"]</th><th>@L["Plan"]</th><th class="text-end">@L["Amount"]</th><th>@L["Result"]</th></tr></thead>
+                        <thead><tr><th>@L["Date"]</th><th>@L["Plan"]</th><th class="text-end">@L["Amount"]</th><th>@L["Status"]</th></tr></thead>
                         <tbody>
                         @foreach (var e in Model.History)
                         {
                             <tr>
                                 <td class="small">@Fmt.Date(e.OccurredAtUtc)</td>
                                 <td>@e.PlanName</td>
-                                <td class="text-end">@(e.Amount is decimal a ? Fmt.Money(a) : "—")</td>
+                                <td class="text-end">@(e.Amount is decimal a ? a.ToString("N2", Fmt.Culture) + " " + e.Currency : "—")</td>
                                 <td>@if (e.Succeeded) { <span class="badge bg-success">@L["Paid"]</span> } else { <span class="badge bg-danger">@L["Failed"]</span> }</td>
                             </tr>
                         }

@@ -13,16 +13,37 @@ public class BillingOptions
     /// <summary>Plan customers fall back to when a trial or subscription ends.</summary>
     public string FallbackPlanName { get; set; } = "Basic";
     /// <summary>How often trial expiry / grace periods are processed. 0 disables the background job.</summary>
-    public int MaintenanceIntervalMinutes { get; set; } = 60;
+    public int MaintenanceIntervalMinutes { get; set; } = 15;
     /// <summary>Sign-up attempts (POSTs) allowed per client IP per hour.</summary>
     public int RegistrationsPerHourPerIp { get; set; } = 5;
     /// <summary>Webhook requests allowed per client IP per minute.</summary>
     public int WebhooksPerMinutePerIp { get; set; } = 120;
     /// <summary>
-    /// Public base URL (e.g. https://app.example.com) used in e-mail links and the payment callback. Empty = taken
-    /// from the request (then AllowedHosts must be restricted so a forged Host header cannot end up in e-mails).
+    /// Public base URL (e.g. https://app.example.com) used in e-mail links and the payment callback. Required outside
+    /// Development (the app refuses to start without it); in Development an empty value means "taken from the request".
     /// </summary>
     public string PublicBaseUrl { get; set; } = "";
+    /// <summary>
+    /// Online paid checkout and plan changes through the payment provider. Off by default until the iyzico integration
+    /// has been verified against a sandbox account (docs/DEPLOYMENT.md); sign-up and trials work either way.
+    /// </summary>
+    public bool PaidCheckoutEnabled { get; set; }
+    /// <summary>A pending checkout that the provider has not confirmed within this time is closed as failed.</summary>
+    public int CheckoutTimeoutMinutes { get; set; } = 60;
+    /// <summary>Pending checkouts are re-checked with the provider once they are this old (covers a closed browser tab).</summary>
+    public int CheckoutRecheckAfterMinutes { get; set; } = 10;
+    /// <summary>Webhook events older than this (by their event time) are recorded but not applied.</summary>
+    public int WebhookMaxAgeHours { get; set; } = 72;
+    /// <summary>Unconfirmed sign-ups are deleted after this many days (the confirmation token lifetime is one day).</summary>
+    public int UnconfirmedAccountDays { get; set; } = 2;
+    /// <summary>Free trials per company e-mail domain (public mail providers excepted). 0 = unlimited.</summary>
+    public int MaxTrialsPerDomain { get; set; } = 3;
+    /// <summary>Mail providers whose domain is shared by unrelated people: only the per-address trial limit applies.</summary>
+    public string[] PublicEmailDomains { get; set; } =
+    [
+        "gmail.com", "googlemail.com", "outlook.com", "hotmail.com", "live.com", "msn.com", "yahoo.com", "icloud.com", "me.com",
+        "yandex.com", "yandex.com.tr", "proton.me", "protonmail.com", "gmx.com", "gmx.net", "mail.com", "aol.com", "hotmail.com.tr"
+    ];
 }
 
 /// <summary>iyzico credentials and endpoints (<c>Iyzico</c> config section). Secrets come from configuration only.</summary>

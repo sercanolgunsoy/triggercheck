@@ -76,6 +76,7 @@ builder.Services.AddRazorPages(o =>
 builder.Services.Configure<MvcOptions>(o => o.Filters.Add(new MustChangePasswordFilter()));
 
 var app = builder.Build();
+app.ValidateBillingConfiguration();
 
 if (!app.Environment.IsDevelopment() && app.Configuration.GetValue<bool>("Monitoring:AllowPrivateTargets"))
     app.Logger.LogWarning("Monitoring:AllowPrivateTargets is enabled in {Environment}: SSRF protection is OFF and monitors/webhooks " +

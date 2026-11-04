@@ -22,6 +22,10 @@ public sealed class BillingMailer(AppDbContext db, IAppEmailSender email, IOptio
             Lines(L["Someone (hopefully you) tried to create a TriggerCheck account with this e-mail address, but an account already exists."],
                 L["Sign in here: {0}", loginLink], L["If this was not you, you can ignore this e-mail."]), ct);
 
+    public Task SendPasswordResetAsync(string to, string link, CancellationToken ct) =>
+        email.SendAsync(to, L["Reset your TriggerCheck password"],
+            Lines(L["Open this link to choose a new password (valid for one day):"] + "\n" + link, L["If you did not ask for this, you can ignore this e-mail."]), ct);
+
     public Task TrialReminderAsync(Customer c, Plan fallback, CancellationToken ct) =>
         ToAdminsAsync(c.Id, L["Your TriggerCheck trial ends soon"],
             L["Your free trial of the {0} plan ends on {1} (UTC). Subscribe on the Billing page to keep your plan; otherwise your workspace moves to the {2} plan.", c.Plan.Name,

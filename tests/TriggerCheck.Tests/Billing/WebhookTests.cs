@@ -11,21 +11,28 @@ namespace TriggerCheck.Tests.Billing;
 public class WebhookTests(BillingTestFactory f) : IClassFixture<BillingTestFactory>
 {
     /// <summary>Signature computed independently from the documented formula (not via the production helper).</summary>
-    private static string Sign(string eventType, string subRef, string orderRef, string customerRef, string secret = BillingTestFactory.SecretKey)
+    public static string Sign(string eventType, string subRef, string orderRef, string customerRef, string secret = BillingTestFactory.SecretKey)
     {
         var data = BillingTestFactory.MerchantId + secret + eventType + subRef + orderRef + customerRef;
         return Convert.ToHexString(HMACSHA256.HashData(Encoding.UTF8.GetBytes(secret), Encoding.UTF8.GetBytes(data))).ToLowerInvariant();
     }
 
-    private async Task<HttpResponseMessage> SendAsync(string eventType, string subRef, string eventId, string? signature = null, string orderRef = "order-1")
+    private Task<HttpResponseMessage> SendAsync(string eventType, string subRef, string eventId, string? signature = null, string orderRef = "order-1",
+        DateTimeOffset? at = null) =>
+        SendSignedAsync(f, eventType, subRef, orderRef, "cust-1", at, eventId, signature);
+
+    /// <summary>Posts a webhook signed like iyzico does (or with <paramref name="signature"/>).</summary>
+    public static async Task<HttpResponseMessage> SendSignedAsync(BillingTestFactory f, string eventType, string subRef, string orderRef, string customerRef,
+        DateTimeOffset? at = null, string? iyziReference = null, string? signature = null)
     {
         var body = JsonSerializer.Serialize(new
         {
-            orderReferenceCode = orderRef, customerReferenceCode = "cust-1", subscriptionReferenceCode = subRef, iyziReferenceCode = eventId,
-            iyziEventType = eventType, iyziEventTime = f.Time.GetUtcNow().ToUnixTimeMilliseconds()
+            orderReferenceCode = orderRef, customerReferenceCode = customerRef, subscriptionReferenceCode = subRef,
+            iyziReferenceCode = iyziReference ?? Guid.NewGuid().ToString("N"), iyziEventType = eventType,
+            iyziEventTime = (at ?? f.Time.GetUtcNow()).ToUnixTimeMilliseconds()
         });
         var request = new HttpRequestMessage(HttpMethod.Post, "/billing/iyzico/webhook") { Content = new StringContent(body, Encoding.UTF8, "application/json") };
-        request.Headers.TryAddWithoutValidation("X-IYZ-SIGNATURE-V3", signature ?? Sign(eventType, subRef, orderRef, "cust-1"));
+        request.Headers.TryAddWithoutValidation("X-IYZ-SIGNATURE-V3", signature ?? Sign(eventType, subRef, orderRef, customerRef));
         return await f.CreateClient().SendAsync(request);
     }
 
@@ -128,5 +135,57 @@ public class WebhookTests(BillingTestFactory f) : IClassFixture<BillingTestFacto
         (await SendAsync("subscription.order.failure", reference, "evt-" + Guid.NewGuid())).AssertStatus(HttpStatusCode.OK);
         Assert.Equal(BillingStatus.Cancelled, (await f.GetCustomerAsync(cid)).BillingStatus);
         Assert.Equal(1, await EventCountAsync(cid)); // recorded in the history
+    }
+
+    [Fact]
+    public async Task Replay_with_a_new_unsigned_reference_is_still_a_duplicate()
+    {
+        var (cid, reference, _) = await SubscribedAsync();
+        (await SendAsync("subscription.order.success", reference, "first-id")).AssertStatus(HttpStatusCode.OK);
+        var replay = await SendAsync("subscription.order.success", reference, "attacker-chosen-id");
+        Assert.Contains("duplicate", await replay.Content.ReadAsStringAsync());
+        Assert.Equal(1, await EventCountAsync(cid));
+    }
+
+    [Fact]
+    public async Task Late_failure_after_a_newer_success_is_ignored()
+    {
+        var (cid, reference, _) = await SubscribedAsync();
+        var now = f.Time.GetUtcNow();
+        (await SendAsync("subscription.order.success", reference, "s", orderRef: "o-2", at: now)).AssertStatus(HttpStatusCode.OK);
+        var late = await SendAsync("subscription.order.failure", reference, "f", orderRef: "o-1", at: now.AddMinutes(-30));
+        Assert.Contains("ignored", await late.Content.ReadAsStringAsync());
+        Assert.Equal(BillingStatus.Active, (await f.GetCustomerAsync(cid)).BillingStatus);
+        Assert.True(await f.WithDbAsync(db => db.PaymentEvents.AnyAsync(e => e.CustomerId == cid && e.Ignored && e.OrderReference == "o-1")));
+    }
+
+    [Fact]
+    public async Task Event_far_outside_the_time_window_is_not_applied()
+    {
+        var (cid, reference, _) = await SubscribedAsync();
+        var old = await SendAsync("subscription.order.failure", reference, "x", at: f.Time.GetUtcNow().AddDays(-10));
+        Assert.Contains("ignored", await old.Content.ReadAsStringAsync());
+        var future = await SendAsync("subscription.order.failure", reference, "y", orderRef: "o-future", at: f.Time.GetUtcNow().AddDays(2));
+        Assert.Contains("ignored", await future.Content.ReadAsStringAsync());
+        Assert.Equal(BillingStatus.Active, (await f.GetCustomerAsync(cid)).BillingStatus);
+    }
+
+    [Fact]
+    public async Task Unknown_subscription_event_is_recorded_for_reconciliation()
+    {
+        var r = await SendSignedAsync(f, "subscription.order.success", "ghost-ref", "o-ghost", "ghost-customer");
+        Assert.Contains("ignored", await r.Content.ReadAsStringAsync());
+        var e = await f.WithDbAsync(db => db.PaymentEvents.AsNoTracking().SingleAsync(x => x.SubscriptionReference == "ghost-ref"));
+        Assert.True(e.Ignored);
+        Assert.Null(e.CustomerId);
+        Assert.Equal("ghost-customer", e.CustomerReference);
+    }
+
+    [Fact]
+    public async Task Oversized_body_is_rejected()
+    {
+        var big = new string('x', TriggerCheck.Web.Billing.BillingSetup.MaxWebhookBytes + 10);
+        var r = await f.CreateClient().PostAsync("/billing/iyzico/webhook", new StringContent(big, Encoding.UTF8, "application/json"));
+        r.AssertStatus(HttpStatusCode.RequestEntityTooLarge);
     }
 }
