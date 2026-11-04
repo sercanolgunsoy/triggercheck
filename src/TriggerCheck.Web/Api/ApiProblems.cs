@@ -23,9 +23,7 @@ public static class ApiProblems
     /// <summary>Reads a JSON body; null (with <paramref name="error"/> set) for a missing / malformed body.</summary>
     public static async Task<(T? Value, IResult? Error)> ReadJsonAsync<T>(HttpContext http, CancellationToken ct) where T : class
     {
-        if (!http.Request.HasJsonContentType())
-            return (null, Results.Problem("Send the body as JSON (Content-Type: application/json).",
-                statusCode: StatusCodes.Status415UnsupportedMediaType, title: "Unsupported Media Type"));
+        if (!http.Request.HasJsonContentType()) return (null, UnsupportedMediaType());
         try
         {
             var value = await http.Request.ReadFromJsonAsync<T>(ct);
@@ -36,7 +34,16 @@ public static class ApiProblems
             // Path and position only: never echo the raw body.
             return (null, Invalid(ex.Path is { Length: > 1 } p ? p.TrimStart('$', '.') : "", "The JSON body is malformed or has a value of the wrong type."));
         }
+        catch (InvalidOperationException)
+        {
+            // Unknown charset in the Content-Type (e.g. "application/json; charset=bogus").
+            return (null, UnsupportedMediaType());
+        }
     }
+
+    private static IResult UnsupportedMediaType() =>
+        Results.Problem("Send the body as JSON (Content-Type: application/json, UTF-8).",
+            statusCode: StatusCodes.Status415UnsupportedMediaType, title: "Unsupported Media Type");
 
     /// <summary>
     /// Same validation as the panel's monitor form: data annotations, the SSRF pre-check (IValidatableObject) and the

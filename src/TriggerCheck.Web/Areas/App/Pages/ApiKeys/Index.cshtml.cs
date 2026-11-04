@@ -1,4 +1,8 @@
 using System.ComponentModel.DataAnnotations;
+using System.Data;
+using System.Security.Claims;
+using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
@@ -6,6 +10,7 @@ using TriggerCheck.Domain;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Web.Api;
+using TriggerCheck.Web.Areas.App.Support;
 using TriggerCheck.Web.Infrastructure;
 using TriggerCheck.Web.Localization;
 
@@ -13,9 +18,11 @@ namespace TriggerCheck.Web.Areas.App.Pages.ApiKeys;
 
 /// <summary>
 /// REST API keys of the customer. Every member sees the list (never a secret); only CustomerAdmins create and revoke.
-/// The full token is rendered once, in the response to the create POST, and only its hash is stored.
+/// Only the token's hash is stored. The full token is shown once: the create POST parks it for 5 minutes in a server-side
+/// one-time store (IMemoryCache, bound to user + customer, never TempData / a cookie) and redirects; the following GET
+/// takes it out and renders it, so refreshing neither shows it again nor creates a second key.
 /// </summary>
-public class IndexModel(AppDbContext db, ICurrentCustomer current, TimeProvider time, Text<AppResource> L) : PageModel
+public class IndexModel(AppDbContext db, ICurrentCustomer current, TimeProvider time, IMemoryCache cache, Text<AppResource> L) : PageModel
 {
     /// <summary>Upper bound of active (not revoked, not expired) keys per customer.</summary>
     public const int MaxActiveKeys = 20;
@@ -42,11 +49,28 @@ public class IndexModel(AppDbContext db, ICurrentCustomer current, TimeProvider 
 
     public List<Row> Keys { get; private set; } = [];
     public bool IsAdmin => User.IsInRole(Roles.CustomerAdmin);
-    /// <summary>The new token: set only in the response to a successful create.</summary>
+    /// <summary>The new token: set only on the first GET after a successful create.</summary>
     public string? NewToken { get; private set; }
     public string? NewTokenName { get; private set; }
 
-    public async Task OnGetAsync(CancellationToken ct) => await LoadAsync(ct);
+    private sealed record Reveal(string Name, string Token);
+    private static readonly TimeSpan RevealLifetime = TimeSpan.FromMinutes(5);
+
+    private string RevealKey(int customerId) =>
+        $"api-key-reveal:{User.FindFirstValue(ClaimTypes.NameIdentifier)}:{customerId}";
+
+    public async Task OnGetAsync(CancellationToken ct)
+    {
+        var key = RevealKey(current.RequiredCustomerId);
+        if (cache.TryGetValue(key, out Reveal? reveal) && reveal is not null)
+        {
+            cache.Remove(key); // one-time
+            NewToken = reveal.Token;
+            NewTokenName = reveal.Name;
+            Response.Headers.CacheControl = "no-store";
+        }
+        await LoadAsync(ct);
+    }
 
     private async Task LoadAsync(CancellationToken ct)
     {
@@ -62,36 +86,61 @@ public class IndexModel(AppDbContext db, ICurrentCustomer current, TimeProvider 
     {
         if (!IsAdmin) return Forbid();
         var cid = current.RequiredCustomerId;
-        var now = time.GetUtcNow().UtcDateTime;
 
         Input.Name = Input.Name?.Trim() ?? "";
         if (!Enum.IsDefined(Input.Scope)) ModelState.AddModelError("Input.Scope", L["Invalid access level."]);
         if (!ExpiryOptions.Contains(Input.ExpiresInDays)) ModelState.AddModelError("Input.ExpiresInDays", L["Invalid expiry."]);
-        if (ModelState.IsValid && await db.ApiKeys.CountAsync(k => k.CustomerId == cid && k.RevokedAtUtc == null && (k.ExpiresAtUtc == null || k.ExpiresAtUtc > now), ct) >= MaxActiveKeys)
-            ModelState.AddModelError("", L["You can have at most {0} active API keys. Revoke one you no longer use first.", MaxActiveKeys]);
-        if (!ModelState.IsValid)
+        if (ModelState.IsValid)
         {
-            await LoadAsync(ct);
-            return Page();
+            var (token, error) = await CreateKeyAsync(cid, ct);
+            if (token is not null)
+            {
+                cache.Set(RevealKey(cid), new Reveal(Input.Name, token), RevealLifetime);
+                return RedirectToPage("Index");
+            }
+            ModelState.AddModelError("", error!);
         }
-
-        var generated = ApiKeyTokens.Generate();
-        db.ApiKeys.Add(new ApiKey
-        {
-            CustomerId = cid, Name = Input.Name, Prefix = generated.Prefix, SecretHash = generated.Hash, Scope = Input.Scope,
-            CreatedBy = User.Identity?.Name, CreatedAtUtc = now,
-            ExpiresAtUtc = Input.ExpiresInDays > 0 ? now.AddDays(Input.ExpiresInDays) : null
-        });
-        await db.SaveChangesAsync(ct);
-
-        // Shown once: rendered directly (not via TempData, which would put the secret in a cookie) and never cached.
-        NewToken = generated.Token;
-        NewTokenName = Input.Name;
-        Response.Headers.CacheControl = "no-store";
-        ModelState.Clear();
-        Input = new();
         await LoadAsync(ct);
         return Page();
+    }
+
+    /// <summary>
+    /// Inserts the key; returns the token or a user-facing error. The active-key cap is re-counted inside a Serializable
+    /// transaction (BEGIN IMMEDIATE on SQLite, like the monitor quota), so parallel posts cannot exceed it. A prefix
+    /// collision on the unique index (practically impossible) is retried with a fresh token.
+    /// </summary>
+    private async Task<(string? Token, string? Error)> CreateKeyAsync(int cid, CancellationToken ct)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            var now = time.GetUtcNow().UtcDateTime;
+            var generated = ApiKeyTokens.Generate();
+            try
+            {
+                await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+                var active = await db.ApiKeys.CountAsync(k => k.CustomerId == cid && k.RevokedAtUtc == null && (k.ExpiresAtUtc == null || k.ExpiresAtUtc > now), ct);
+                if (active >= MaxActiveKeys)
+                    return (null, L["You can have at most {0} active API keys. Revoke one you no longer use first.", MaxActiveKeys]);
+                db.ApiKeys.Add(new ApiKey
+                {
+                    CustomerId = cid, Name = Input.Name, Prefix = generated.Prefix, SecretHash = generated.Hash, Scope = Input.Scope,
+                    CreatedBy = User.Identity?.Name, CreatedAtUtc = now,
+                    ExpiresAtUtc = Input.ExpiresInDays > 0 ? now.AddDays(Input.ExpiresInDays) : null
+                });
+                await db.SaveChangesAsync(ct);
+                await tx.CommitAsync(ct);
+                return (generated.Token, null);
+            }
+            catch (DbUpdateException ex) when (attempt < 3 && ex.InnerException is SqliteException { SqliteErrorCode: 19 })
+            {
+                db.ChangeTracker.Clear(); // unique constraint (prefix): try again with a new token
+            }
+            catch (Exception ex) when (MonitorCommands.IsDatabaseBusy(ex))
+            {
+                db.ChangeTracker.Clear();
+                return (null, L["The system is busy right now. Please try again in a moment."]);
+            }
+        }
     }
 
     public async Task<IActionResult> OnPostRevokeAsync(int id, CancellationToken ct)

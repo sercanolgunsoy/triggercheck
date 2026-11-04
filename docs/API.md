@@ -17,6 +17,11 @@ Create keys in the panel under **Settings > API keys** (`/App/ApiKeys`, Customer
 - Access: **Read-only** (GET endpoints) or **Read & write** (all endpoints).
 - Optional expiry (30 / 90 / 365 days or never). Revoked or expired keys, and keys of suspended customers, get `401`.
 - "Last used" is updated at most once a minute per key.
+- Keys belong to the customer, not to the user who created them: they keep working after that user is deactivated or
+  deleted. Revoke keys you no longer need. At most 20 active keys per customer. A SuperAdmin can list a customer's
+  keys and revoke them all at once (SuperAdmin > Customers > customer > API keys).
+- After creation the panel redirects and shows the key once (kept server-side for at most 5 minutes until that page
+  is opened; never stored in a cookie). Refreshing does not show it again or create another key.
 
 Send the key as a bearer token:
 
@@ -30,8 +35,16 @@ A browser session (cookie) never authenticates the API, and an API key never ope
 
 ## Rate limit
 
-Per API key: 120 requests per minute (fixed window; configurable with `Api:RequestsPerMinute`). Over the limit the
-API answers `429 Too Many Requests` with a `Retry-After` header (seconds).
+Three limits apply to `/api` requests; over any of them the API answers `429 Too Many Requests` (problem+json) with a
+`Retry-After` header (seconds):
+
+| Limit | Default | Setting | Notes |
+|-------|---------|---------|-------|
+| Per API key | 120 / min (fixed window) | `Api:RequestsPerMinute` | |
+| Per customer, all keys together | 300 / min (fixed window) | `Api:RequestsPerMinutePerCustomer` | |
+| Per client IP | 600 / min (sliding window) | `Api:RequestsPerMinutePerIp` | Applied before authentication, so it also throttles invalid-key floods. Behind a reverse proxy configure forwarded headers, otherwise all clients share the proxy's IP. |
+
+Limits are kept in memory per app instance.
 
 ## Errors
 
@@ -44,8 +57,9 @@ Errors use [RFC 7807](https://www.rfc-editor.org/rfc/rfc7807) `application/probl
 | 403 | Write with a read-only key |
 | 404 | Unknown id or an id of another customer |
 | 409 | Plan monitor quota reached, or a concurrent change (retry) |
-| 415 | Body is not JSON |
+| 415 | Body is not JSON, or has an unknown charset |
 | 429 | Rate limit exceeded (see `Retry-After`) |
+| 500 | Unexpected error (generic message; details are only logged) |
 | 503 | Database busy; retry after `Retry-After` |
 
 ```json

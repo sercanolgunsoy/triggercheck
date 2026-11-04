@@ -90,7 +90,8 @@ if (!app.Environment.IsDevelopment())
 // English (default) / Turkish UI; parsing stays culture-invariant (see LocalizationSetup).
 app.UseAppLocalization();
 
-app.UseApiProblemStatusCodes(); // FEAT-8: problem+json for bodiless /api errors
+// FEAT-8, /api only: problem+json for errors and the per-IP limit (before routing and authentication).
+app.UseApiPipeline();
 app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();

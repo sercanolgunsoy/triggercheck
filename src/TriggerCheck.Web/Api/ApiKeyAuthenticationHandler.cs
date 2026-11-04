@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Infrastructure.Data;
+using TriggerCheck.Web.Areas.App.Support;
 using TriggerCheck.Web.Infrastructure;
 
 namespace TriggerCheck.Web.Api;
@@ -58,8 +59,16 @@ public sealed class ApiKeyAuthenticationHandler(
         if (key.LastUsedAtUtc is null || now - key.LastUsedAtUtc.Value >= LastUsedResolution)
         {
             var threshold = now - LastUsedResolution;
-            await db.ApiKeys.Where(k => k.Id == key.Id && (k.LastUsedAtUtc == null || k.LastUsedAtUtc <= threshold))
-                .ExecuteUpdateAsync(s => s.SetProperty(k => k.LastUsedAtUtc, now), Context.RequestAborted);
+            try
+            {
+                await db.ApiKeys.Where(k => k.Id == key.Id && (k.LastUsedAtUtc == null || k.LastUsedAtUtc <= threshold))
+                    .ExecuteUpdateAsync(s => s.SetProperty(k => k.LastUsedAtUtc, now), Context.RequestAborted);
+            }
+            catch (Exception ex) when (MonitorCommands.IsDatabaseBusy(ex))
+            {
+                // Best effort: a busy database must not fail the request; the next request records the use.
+                Logger.LogDebug("LastUsedAtUtc of API key {ApiKeyId} not recorded: database busy", key.Id);
+            }
         }
 
         List<Claim> claims =
@@ -90,6 +99,6 @@ public sealed class ApiKeyAuthenticationHandler(
     protected override Task HandleForbiddenAsync(AuthenticationProperties properties)
     {
         Response.Headers.WWWAuthenticate = "Bearer error=\"insufficient_scope\"";
-        return ApiProblems.Write(Context, StatusCodes.Status403Forbidden, "Forbidden", "This API key is read-only. Writes need a read-write key.");
+        return ApiProblems.Write(Context, StatusCodes.Status403Forbidden, "Forbidden", "This API key does not have the scope required for this request.");
     }
 }

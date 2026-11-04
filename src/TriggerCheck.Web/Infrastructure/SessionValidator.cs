@@ -73,7 +73,8 @@ public static class SessionValidator
 
     /// <summary>
     /// Only endpoints explicitly marked anonymous (static assets and /health, see Program.cs) are skipped;
-    /// every other endpoint - pages, and any future API secured with RequireAuthorization - is validated.
+    /// every other cookie-authenticated endpoint is validated. The REST API under /api never reaches this validator:
+    /// the application cookie forwards /api requests to the API key scheme (Api/ApiSetup.ForwardApiRequests).
     /// </summary>
     private static bool IsExplicitlyAnonymous(HttpContext http) =>
         http.GetEndpoint()?.Metadata.GetMetadata<IAllowAnonymous>() is not null;

@@ -499,4 +499,49 @@
   <data name="Customers on this plan can add SMS and voice call alert channels. They are only offered when Twilio is configured for this installation." xml:space="preserve">
     <value>Bu plandaki müşteriler SMS ve sesli arama bildirim kanalları ekleyebilir. Bu kanallar yalnızca bu kurulumda Twilio yapılandırılmışsa sunulur.</value>
   </data>
+  <data name="Access" xml:space="preserve">
+    <value>Erişim</value>
+  </data>
+  <data name="Active keys: {0}" xml:space="preserve">
+    <value>Etkin anahtarlar: {0}</value>
+  </data>
+  <data name="Created ({0})" xml:space="preserve">
+    <value>Oluşturulma ({0})</value>
+  </data>
+  <data name="Created by" xml:space="preserve">
+    <value>Oluşturan</value>
+  </data>
+  <data name="Expired" xml:space="preserve">
+    <value>Süresi doldu</value>
+  </data>
+  <data name="Key" xml:space="preserve">
+    <value>Anahtar</value>
+  </data>
+  <data name="Keys belong to the customer, not to the user who created them: they keep working after that user is removed." xml:space="preserve">
+    <value>Anahtarlar onları oluşturan kullanıcıya değil müşteriye aittir: o kullanıcı silindikten sonra da çalışmaya devam eder.</value>
+  </data>
+  <data name="Last used" xml:space="preserve">
+    <value>Son kullanım</value>
+  </data>
+  <data name="Never" xml:space="preserve">
+    <value>Hiçbir zaman</value>
+  </data>
+  <data name="Read &amp; write" xml:space="preserve">
+    <value>Okuma ve yazma</value>
+  </data>
+  <data name="Revoke all" xml:space="preserve">
+    <value>Tümünü iptal et</value>
+  </data>
+  <data name="Revoke all API keys of this customer? Requests using them will be rejected. This cannot be undone." xml:space="preserve">
+    <value>Bu müşterinin tüm API anahtarları iptal edilsin mi? Bu anahtarlarla yapılan istekler reddedilecek. Bu işlem geri alınamaz.</value>
+  </data>
+  <data name="Revoked" xml:space="preserve">
+    <value>İptal edildi</value>
+  </data>
+  <data name="This customer has no API keys." xml:space="preserve">
+    <value>Bu müşterinin API anahtarı yok.</value>
+  </data>
+  <data name="{0} API key(s) were revoked." xml:space="preserve">
+    <value>{0} API anahtarı iptal edildi.</value>
+  </data>
 </root>

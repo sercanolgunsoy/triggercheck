@@ -3,6 +3,7 @@ using System.Security.Claims;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.OpenApi.Models;
@@ -11,7 +12,7 @@ using TriggerCheck.Web.Infrastructure;
 namespace TriggerCheck.Web.Api;
 
 /// <summary>
-/// Wiring of the REST API: the API key scheme and policies, the per-key rate limit, JSON options and the OpenAPI
+/// Wiring of the REST API: the API key scheme and policies, rate limits (per IP, key and customer), JSON options and the OpenAPI
 /// document. Separation from the cookie-based panel:
 /// <list type="bullet">
 /// <item>The Identity cookie forwards every /api request to the API key scheme (<see cref="ForwardApiRequests"/>), so a
@@ -26,6 +27,8 @@ public static class ApiSetup
     public const string WritePolicy = "ApiWrite";
     public const string RateLimitPolicy = "ApiPerKey";
     public const int DefaultRequestsPerMinute = 120;
+    public const int DefaultRequestsPerMinutePerCustomer = 300;
+    public const int DefaultRequestsPerMinutePerIp = 600;
 
     public static bool IsApiRequest(HttpContext http) => http.Request.Path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase);
 
@@ -43,27 +46,25 @@ public static class ApiSetup
 
         services.ConfigureHttpJsonOptions(o => o.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
-        var perMinute = config.GetValue("Api:RequestsPerMinute", DefaultRequestsPerMinute);
+        var perKey = config.GetValue("Api:RequestsPerMinute", DefaultRequestsPerMinute);
+        var perCustomer = config.GetValue("Api:RequestsPerMinutePerCustomer", DefaultRequestsPerMinutePerCustomer);
         services.AddRateLimiter(o =>
         {
             o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-            // Fixed one-minute window per API key. Only authenticated API requests reach the limiter (it runs after
-            // authorization), so the partition key is always the key id.
+            o.OnRejected = RejectAsync;
+            // Runs after authorization, so only authenticated API requests get here. Per key: the endpoint policy;
+            // per customer (all keys together): the global limiter, which ignores everything that is not an API call.
             o.AddPolicy(RateLimitPolicy, http =>
                 http.User.FindFirstValue(ApiKeyDefaults.KeyIdClaim) is string keyId
-                    ? RateLimitPartition.GetFixedWindowLimiter("key:" + keyId, _ => new FixedWindowRateLimiterOptions
-                    {
-                        PermitLimit = perMinute, Window = TimeSpan.FromMinutes(1), QueueLimit = 0, AutoReplenishment = true
-                    })
+                    ? RateLimitPartition.GetFixedWindowLimiter("key:" + keyId, _ => PerMinute(perKey))
                     : RateLimitPartition.GetNoLimiter("anonymous"));
-            o.OnRejected = (ctx, ct) =>
-            {
-                var retryAfter = ctx.Lease.TryGetMetadata(MetadataName.RetryAfter, out var ra) ? Math.Max(1, (int)Math.Ceiling(ra.TotalSeconds)) : 60;
-                ctx.HttpContext.Response.Headers.RetryAfter = retryAfter.ToString(CultureInfo.InvariantCulture);
-                return new ValueTask(ApiProblems.Write(ctx.HttpContext, StatusCodes.Status429TooManyRequests, "Too Many Requests",
-                    $"Rate limit of {perMinute} requests per minute exceeded for this API key. Retry after {retryAfter} seconds."));
-            };
+            o.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(http =>
+                IsApiRequest(http) && http.User.Identity?.AuthenticationType == ApiKeyDefaults.Scheme
+                && http.User.FindFirstValue(AppClaims.CustomerId) is string cid
+                    ? RateLimitPartition.GetFixedWindowLimiter("customer:" + cid, _ => PerMinute(perCustomer))
+                    : RateLimitPartition.GetNoLimiter(""));
         });
+        services.AddMemoryCache(); // one-time display of new API keys (App/ApiKeys)
 
         services.AddOpenApi("v1", o =>
         {
@@ -92,23 +93,65 @@ public static class ApiSetup
         return services;
     }
 
+    private static FixedWindowRateLimiterOptions PerMinute(int permits) =>
+        new() { PermitLimit = permits, Window = TimeSpan.FromMinutes(1), QueueLimit = 0, AutoReplenishment = true };
+
+    private static ValueTask RejectAsync(OnRejectedContext ctx, CancellationToken ct)
+    {
+        var retryAfter = ctx.Lease.TryGetMetadata(MetadataName.RetryAfter, out var ra) ? Math.Max(1, (int)Math.Ceiling(ra.TotalSeconds)) : 60;
+        ctx.HttpContext.Response.Headers.RetryAfter = retryAfter.ToString(CultureInfo.InvariantCulture);
+        return new ValueTask(ApiProblems.Write(ctx.HttpContext, StatusCodes.Status429TooManyRequests, "Too Many Requests",
+            $"Rate limit exceeded. Retry after {retryAfter} seconds."));
+    }
+
     /// <summary>
-    /// Bodiless error responses under /api produced by the framework (unknown route 404, 405, 415 from the content
-    /// type check) get a problem+json body too. Pages are not affected.
+    /// /api-only middleware, placed before routing and authentication (pages are not affected):
+    /// <list type="bullet">
+    /// <item>Unhandled exceptions become a generic 500 problem+json (no details; the exception is logged).</item>
+    /// <item>Bodiless error responses produced by the framework (unknown route 404, 405, 415 from the content type
+    /// check) get a problem+json body.</item>
+    /// <item>Per client IP sliding-window limit (Api:RequestsPerMinutePerIp), applied before authentication so that
+    /// floods of unauthenticated / invalid-key / forbidden requests are throttled too. Behind a reverse proxy the IP is
+    /// the proxy's unless forwarded headers are configured.</item>
+    /// </list>
     /// </summary>
-    public static void UseApiProblemStatusCodes(this WebApplication app) =>
-        app.UseWhen(IsApiRequest, b => b.UseStatusCodePages(ctx =>
+    public static void UseApiPipeline(this WebApplication app)
+    {
+        var perIp = app.Configuration.GetValue("Api:RequestsPerMinutePerIp", DefaultRequestsPerMinutePerIp);
+        var ipLimiter = new RateLimiterOptions
         {
-            var http = ctx.HttpContext;
-            var status = http.Response.StatusCode;
-            return ApiProblems.Write(http, status, ReasonPhrases.GetReasonPhrase(status), status switch
+            RejectionStatusCode = StatusCodes.Status429TooManyRequests,
+            OnRejected = RejectAsync,
+            GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(http =>
+                RateLimitPartition.GetSlidingWindowLimiter("ip:" + (http.Connection.RemoteIpAddress?.ToString() ?? "unknown"),
+                    _ => new SlidingWindowRateLimiterOptions
+                    {
+                        PermitLimit = perIp, Window = TimeSpan.FromMinutes(1), SegmentsPerWindow = 6, QueueLimit = 0, AutoReplenishment = true
+                    }))
+        };
+
+        app.UseWhen(IsApiRequest, b =>
+        {
+            b.UseExceptionHandler(new ExceptionHandlerOptions
             {
-                StatusCodes.Status404NotFound => "The resource was not found.",
-                StatusCodes.Status405MethodNotAllowed => "The HTTP method is not allowed for this resource.",
-                StatusCodes.Status415UnsupportedMediaType => "Send the body as JSON (Content-Type: application/json).",
-                _ => ReasonPhrases.GetReasonPhrase(status)
+                ExceptionHandler = http => ApiProblems.Write(http, StatusCodes.Status500InternalServerError, "Internal Server Error",
+                    "An unexpected error occurred.")
             });
-        }));
+            b.UseStatusCodePages(ctx =>
+            {
+                var http = ctx.HttpContext;
+                var status = http.Response.StatusCode;
+                return ApiProblems.Write(http, status, ReasonPhrases.GetReasonPhrase(status), status switch
+                {
+                    StatusCodes.Status404NotFound => "The resource was not found.",
+                    StatusCodes.Status405MethodNotAllowed => "The HTTP method is not allowed for this resource.",
+                    StatusCodes.Status415UnsupportedMediaType => "Send the body as JSON (Content-Type: application/json).",
+                    _ => ReasonPhrases.GetReasonPhrase(status)
+                });
+            });
+            b.UseRateLimiter(ipLimiter);
+        });
+    }
 
     /// <summary>Maps the API endpoints and the anonymous OpenAPI document at /api/v1/openapi.json.</summary>
     public static void MapTriggerCheckApi(this WebApplication app)
