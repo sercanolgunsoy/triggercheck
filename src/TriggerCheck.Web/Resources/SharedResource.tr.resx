@@ -949,6 +949,15 @@
   <data name="Too many failed attempts. Try again in a few minutes." xml:space="preserve">
     <value>Çok fazla başarısız deneme. Birkaç dakika sonra tekrar deneyin.</value>
   </data>
+  <data name="DNS record" xml:space="preserve">
+    <value>DNS kaydı</value>
+  </data>
+  <data name="Heartbeat (cron)" xml:space="preserve">
+    <value>Heartbeat (cron)</value>
+  </data>
+  <data name="JSON API" xml:space="preserve">
+    <value>JSON API</value>
+  </data>
   <data name="Maintenance" xml:space="preserve">
     <value>Bakım</value>
   </data>
@@ -1254,6 +1263,9 @@
   </data>
   <data name="reversible" xml:space="preserve">
     <value>geri alınabilir</value>
+  </data>
+  <data name="Refunds" xml:space="preserve">
+    <value>İadeler</value>
   </data>
   <data name="The AI summary is being prepared. Reload the page in a moment." xml:space="preserve">
     <value>Yapay zekâ özeti hazırlanıyor. Birazdan sayfayı yenileyin.</value>

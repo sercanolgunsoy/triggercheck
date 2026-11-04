@@ -75,6 +75,9 @@ public class ManualCheckLimiterTests
 public class CheckNowRateLimitTests : IAsyncLifetime
 {
     private readonly CountingRunner _runner = new();
+    // The limiter runs on a frozen clock: wall-clock gaps (a loaded or sleeping machine) cannot expire a cooldown mid-test.
+    private readonly FakeTimeProvider _time = new(DateTimeOffset.UtcNow);
+    private DateTime Now => _time.GetUtcNow().UtcDateTime;
     private TestWebAppFactory _base = null!;
     private Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<Program> _f = null!;
 
@@ -85,6 +88,8 @@ public class CheckNowRateLimitTests : IAsyncLifetime
         {
             s.RemoveAll<IMonitorCheckRunner>();
             s.AddSingleton<IMonitorCheckRunner>(_runner);
+            s.RemoveAll<ManualCheckLimiter>();
+            s.AddSingleton(new ManualCheckLimiter(_time));
         }));
         return Task.CompletedTask;
     }
@@ -118,23 +123,27 @@ public class CheckNowRateLimitTests : IAsyncLifetime
         return m.Id;
     }
 
+    private static readonly System.Text.RegularExpressions.Regex FlashRx = new("<div class=\"alert alert-(?:success|danger)[^\"]*\">([^<]*)");
+
+    /// <summary>Clicks "Check now" and returns the flash message(s) shown after the redirect (short, so a failure shows it whole).</summary>
     private static async Task<string> CheckNowAsync(HttpClient c, int id)
     {
         var url = $"/App/Monitors/Details/{id}";
         var r = await c.PostFormAsync(url + "?handler=CheckNow", new(), url);
         AppTestData.AssertRedirect(r, url);
-        return await c.GetHtmlAsync(url);
+        var html = await c.GetHtmlAsync(url);
+        return string.Join(" | ", FlashRx.Matches(html).Select(m => m.Groups[1].Value.Trim()));
     }
 
     [Fact]
     public async Task Check_within_cooldown_is_refused_without_probing()
     {
         var c = await AdminAsync();
-        var id = await AddMonitorAsync(DateTime.UtcNow.AddSeconds(-5));
+        var id = await AddMonitorAsync(Now.AddSeconds(-5));
 
-        var html = await CheckNowAsync(c, id);
+        var flash = await CheckNowAsync(c, id);
 
-        Assert.Contains("This monitor was checked moments ago. Try again in", html);
+        Assert.Contains("This monitor was checked moments ago. Try again in", flash);
         Assert.Equal(0, _runner.Calls(id));
     }
 
@@ -143,7 +152,7 @@ public class CheckNowRateLimitTests : IAsyncLifetime
     {
         // Demo plan "Standard" has a 60s minimum; the monitor runs at it and the scheduler checked it 15s ago.
         var c = await AdminAsync();
-        var id = await AddMonitorAsync(DateTime.UtcNow.AddSeconds(-15), intervalSeconds: 60);
+        var id = await AddMonitorAsync(Now.AddSeconds(-15), intervalSeconds: 60);
 
         Assert.Contains("Check succeeded", await CheckNowAsync(c, id));
         Assert.Contains("This monitor was checked moments ago.", await CheckNowAsync(c, id));
@@ -155,7 +164,7 @@ public class CheckNowRateLimitTests : IAsyncLifetime
     {
         var c = await AdminAsync();
         await c.SetLanguageAsync("tr");
-        var id = await AddMonitorAsync(DateTime.UtcNow);
+        var id = await AddMonitorAsync(Now);
         Assert.Contains("Bu monitör az önce kontrol edildi.", await CheckNowAsync(c, id));
     }
 

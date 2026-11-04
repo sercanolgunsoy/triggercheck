@@ -18,6 +18,37 @@
         }
     });
 
+    // Monitor form: show the fields of the selected type. Hidden fieldsets/options are also disabled, so the browser
+    // does not post them (e.g. the two interval selects share one name). The server renders the initial state.
+    var typeSelect = document.querySelector('[data-monitor-type]');
+    if (typeSelect && typeSelect.form) {
+        var form = typeSelect.form;
+        var help = document.getElementById('target-help');
+        var target = document.getElementById('monitor-target');
+        var updateType = function () {
+            var t = typeSelect.value;
+            form.querySelectorAll('[data-types]').forEach(function (el) {
+                var on = el.getAttribute('data-types').split(' ').indexOf(t) >= 0;
+                el.hidden = !on;
+                if (el.tagName === 'FIELDSET' || el.tagName === 'OPTION') el.disabled = !on;
+            });
+            // A select whose chosen option was just disabled falls back to its first enabled option.
+            form.querySelectorAll('select').forEach(function (s) {
+                var chosen = s.options[s.selectedIndex];
+                if (chosen && chosen.disabled) {
+                    for (var i = 0; i < s.options.length; i++) {
+                        if (!s.options[i].disabled) { s.selectedIndex = i; break; }
+                    }
+                }
+            });
+            var key = t.toLowerCase();
+            if (help) help.textContent = help.getAttribute('data-help-' + key) || help.getAttribute('data-help-default');
+            if (target) target.placeholder = target.getAttribute('data-placeholder-' + key) || 'example.com';
+        };
+        typeSelect.addEventListener('change', updateType);
+        updateType();
+    }
+
     // Marketing nav gets a border once the page is scrolled.
     var nav = document.querySelector('.site-nav');
     if (nav) {

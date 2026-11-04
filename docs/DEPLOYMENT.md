@@ -80,6 +80,8 @@ secret store, never in the image or in `appsettings.json`.
 | `Site__ContactEmail` | no | Sales / support address shown on the marketing pages. It also receives operator alerts, such as "refund needed" for a refused payment. |
 | `Site__PublicBaseUrl` | **yes outside Development** | Public address of the app, e.g. `https://app.example.com`. Used in e-mail links (sign-up confirmation, password reset), for the iyzico callback, for the "Acknowledge" link in DOWN and escalation alerts, and for heartbeat ping URLs. **The app refuses to start without it** in any environment other than Development. The former `Billing__PublicBaseUrl` is still read as a fallback. |
 | `Escalation__CheckIntervalSeconds` (30), `Escalation__AckLinkValidHours` (72) | no | How often the escalation job runs; lifetime of acknowledge links. |
+| `Monitoring__DnsResolvers__0`, `__1`, ... | no (1.1.1.1, 8.8.8.8) | Resolvers for DNS monitors, tried in order: `ip`, `ip:port` or `[ipv6]:port`. Operator configuration (not subject to the SSRF guard). |
+| `Heartbeat__PingsPerMinutePerToken` (10), `Heartbeat__PingsPerMinutePerClient` (6000), `Heartbeat__PingsPerSecondGlobal` (1000) | no | Limits of the `/hb/{token}` ping endpoint. The per-client limit is per IPv4 address / IPv6 /64 and deliberately high (many hosts behind one NAT). **Behind a reverse proxy enable ForwardedHeaders**, otherwise all pings share the proxy's address. |
 | `Seed__DemoData` | no | Ignored outside Development. |
 
 Acknowledge links are protected with ASP.NET Core Data Protection (purpose `IncidentAck.v1`), the same key ring as
@@ -234,8 +236,11 @@ environments only a warning is logged, because the links carry account tokens.
    `subscription.order.failure` marks it `PastDue`, which moves the customer to the fallback plan after the grace
    period. The webhook request makes no calls to iyzico. An event for an unknown subscription is stored as an ignored
    payment event (`unknown-subscription`), and the billing job reconciles it: for 30 days, at most hourly per event and
-   20 events per run, the job re-checks the open and recently failed checkouts. When one of them turns out to be the
-   subscription, the job applies the event.
+   20 events per run, the job re-checks the checkouts that were started before the event and are still open or failed
+   unpaid. When one of them turns out to be the subscription, the job applies the event. When no such checkout is left,
+   the event is marked `unmatched` and is no longer re-checked; reconcile it by hand. Each provider re-check step of the
+   job has a time budget (`Billing__ReconcileBudgetSeconds`, 60), and at most `Billing__MaxCheckoutRechecksPerRun` (50)
+   open checkouts are re-checked per run.
 
 **Flow.** Billing page > Subscribe > billing details form > "Continue to secure payment" link to iyzico > iyzico posts
 to the callback > TriggerCheck retrieves the checkout result from iyzico (server to server) and only then activates the
@@ -249,10 +254,20 @@ plan.
   already has an active subscription (for example, two tabs). The "already subscribed" check runs inside the
   activation transaction. In that case the subscription is cancelled at iyzico and an Error is logged. A "Refund
   needed" e-mail goes to `Site__ContactEmail`, and the customer is told that the amount will be refunded. The return
-  page shows "refused", never "success". **Refunds are done by hand in the iyzico panel** until the subscription
-  refund API is verified (see the checklist).
-- All e-mails (confirmation, password reset, "already registered", billing notices) are queued and sent by a
-  background sender. Requests never wait for SMTP, so response times do not reveal whether an account exists.
+  page shows "refused", never "success". The refund also appears on **SuperAdmin > Refunds**, and the overview shows a
+  badge until an operator marks it as refunded. The page records who marked it and when, and the action is logged.
+  **Refunds are done by hand in the iyzico panel** until the subscription refund API is verified (see the checklist).
+- Checkout POSTs are limited to `Billing__CheckoutsPerHourPerCustomer` (10) per customer. The limit is counted before
+  form validation, so it is generous on purpose. A customer can have at most
+  `Billing__MaxOpenCheckouts` (3) unfinished checkouts.
+- All e-mails (confirmation, password reset, "already registered", billing notices, operator "Refund needed" notices)
+  go to a durable outbox table (`EmailOutbox`). The body is cleared as soon as an e-mail is sent or abandoned, and an
+  e-mail still unsent after one day is abandoned, so stored account tokens do not outlive their purpose. A background sender delivers them, so requests never wait for SMTP, and
+  response times do not reveal whether an account exists. Queued e-mails survive restarts. Failures are retried after
+  1, 5, 15 and 60 minutes, and the sender gives up after 5 attempts (logged as an Error). Rows are claimed before
+  sending, so several instances never send the same e-mail twice. Sent and abandoned rows are deleted after 7 days.
+  Logs contain the recipient and subject only, never the body, which can contain account tokens. Without SMTP, e-mails
+  are logged as described above and counted as sent.
 - **Upgrades** use iyzico's upgrade endpoint with `NOW`. **Downgrades** use `NEXT_PERIOD` and take effect when the
   period rolls over, which the Billing page shows. A downgrade first checks that the monitors fit the new plan. When it
   applies, the check intervals are clamped and the monitor count is checked again. If monitors were added in the

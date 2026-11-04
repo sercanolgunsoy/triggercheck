@@ -54,7 +54,13 @@ namespace TriggerCheck.Monitoring.Engine;
 /// Worst-case DOWN detection: interval + delay + scheduler tick + probe timeout.
 /// </para>
 /// <para>
-/// TLS certificates (https Http/Keyword): the certificate captured by the probe is stored on the monitor, and a
+/// Heartbeat monitors are not probed; their "check" evaluates the pings received (<see cref="HeartbeatMonitorChecker"/>),
+/// skips confirmation and is scheduled by <see cref="HeartbeatSchedule"/> (ping received or deadline passed). A ping that
+/// lands between the snapshot and the save is evaluated on the fresh row, and an unchanged UP is stored as a
+/// CheckResult at most once per interval.
+/// </para>
+/// <para>
+/// TLS certificates (https Http/Keyword/JsonApi): the certificate captured by the probe is stored on the monitor, and a
 /// "certificate expiring" alert is sent once when it enters <see cref="MonitorEntity.CertWarnDays"/> and once more at 7 days
 /// (<see cref="MonitorStateMachine.TryMarkCertificateWarning"/>), for actively monitored monitors only.
 /// </para>
@@ -145,6 +151,9 @@ public sealed class MonitorCheckRunner(
         TtfbMs = outcome.Timings?.TtfbMs
     };
 
+    private static Task<bool> HasResultSinceAsync(AppDbContext db, int monitorId, DateTime sinceUtc, CancellationToken ct) =>
+        db.CheckResults.AnyAsync(c => c.MonitorId == monitorId && c.CheckedAtUtc > sinceUtc, ct);
+
     private async Task<bool> MonitorExistsAsync(int monitorId)
     {
         await using var db = await dbFactory.CreateDbContextAsync(CancellationToken.None);
@@ -173,7 +182,24 @@ public sealed class MonitorCheckRunner(
         // FEAT-3: probes in a maintenance window are recorded but never open incidents or send alerts.
         var inMaintenance = await MaintenanceQueries.IsInMaintenanceAsync(db, monitor.CustomerId, monitor.Id, checkedAt, ct);
         result.InMaintenance = inMaintenance;
-        db.CheckResults.Add(result);
+        if (monitor.Type == MonitorType.Heartbeat)
+        {
+            if (monitor.LastHeartbeatAtUtc != snapshot.LastHeartbeatAtUtc || monitor.LastHeartbeatFailed != snapshot.LastHeartbeatFailed)
+            {
+                // A ping arrived during the evaluation: decide on the fresh row (pure, no I/O), not the stale snapshot.
+                outcome = HeartbeatMonitorChecker.Evaluate(monitor, checkedAt);
+                result.IsUp = outcome.IsUp;
+                result.Error = outcome.Error;
+                result.ResponseTimeMs = outcome.ResponseTimeMs;
+            }
+            // Frequent pings: an unchanged UP is stored at most once per interval (bounded row volume).
+            if (!(outcome.IsUp && monitor.Status == MonitorStatus.Up && await HasResultSinceAsync(db, monitor.Id, checkedAt.AddSeconds(-Math.Max(1, monitor.IntervalSeconds)), ct)))
+                db.CheckResults.Add(result);
+        }
+        else
+        {
+            db.CheckResults.Add(result);
+        }
         AlertMessage? alert = null;
         AlertMessage? certAlert = null;
         MonitorStateMachine.RecordCertificate(monitor, outcome.Certificate, checkedAt);
@@ -212,11 +238,14 @@ public sealed class MonitorCheckRunner(
             else
             {
                 MonitorStateMachine.ClearPendingConfirmation(monitor); // monitor changed since, too old and up now, or none
-                if (o.ConfirmBeforeDown && MonitorStateMachine.NeedsConfirmation(monitor, outcome))
+                // Heartbeats are not confirmed: the grace period already is the tolerance (see HeartbeatMonitorChecker).
+                if (o.ConfirmBeforeDown && monitor.Type != MonitorType.Heartbeat && MonitorStateMachine.NeedsConfirmation(monitor, outcome))
                     MonitorStateMachine.BeginConfirmation(monitor, outcome, checkedAt, probeEndedAt + delay);
                 else
                     transition = MonitorStateMachine.Apply(monitor, outcome, checkedAt);
             }
+            // Heartbeats are scheduled by their deadlines, also inside a maintenance window (after the branches above).
+            if (monitor.Type == MonitorType.Heartbeat) monitor.NextCheckAtUtc = HeartbeatSchedule.NextEvaluation(monitor, checkedAt);
             if (inMaintenance)
                 alert = await RecoverInMaintenanceAsync(db, monitor, transition, checkedAt, ct);
             else

@@ -739,4 +739,34 @@
   <data name="Skipped: AI off" xml:space="preserve">
     <value>Atlandı: yapay zekâ kapalı</value>
   </data>
+  <data name="{0} refused payment(s) must be refunded in the iyzico panel." xml:space="preserve">
+    <value>Reddedilen {0} ödemenin iyzico panelinden iade edilmesi gerekiyor.</value>
+  </data>
+  <data name="The refund was marked as done." xml:space="preserve">
+    <value>İade yapıldı olarak işaretlendi.</value>
+  </data>
+  <data name="By" xml:space="preserve">
+    <value>İşlemi yapan</value>
+  </data>
+  <data name="Mark as refunded" xml:space="preserve">
+    <value>İade edildi olarak işaretle</value>
+  </data>
+  <data name="Mark this payment as refunded in iyzico?" xml:space="preserve">
+    <value>Bu ödeme iyzico'da iade edildi olarak işaretlensin mi?</value>
+  </data>
+  <data name="Payments for subscriptions that were not activated (second subscription or unexpected plan). They were cancelled at iyzico; refund them in the iyzico merchant panel, then mark them here." xml:space="preserve">
+    <value>Etkinleştirilmeyen aboneliklerin ödemeleri (ikinci abonelik veya beklenmeyen plan). iyzico'da iptal edildiler; iyzico üye işyeri panelinden iade edip burada işaretleyin.</value>
+  </data>
+  <data name="Refunded" xml:space="preserve">
+    <value>İade edildi</value>
+  </data>
+  <data name="Since" xml:space="preserve">
+    <value>Başlangıç</value>
+  </data>
+  <data name="To refund" xml:space="preserve">
+    <value>İade edilecek</value>
+  </data>
+  <data name="iyzico reference" xml:space="preserve">
+    <value>iyzico referansı</value>
+  </data>
 </root>

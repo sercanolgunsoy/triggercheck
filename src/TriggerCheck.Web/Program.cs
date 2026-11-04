@@ -8,6 +8,7 @@ using TriggerCheck.Infrastructure.Identity;
 using TriggerCheck.Monitoring;
 using TriggerCheck.Web.Api;
 using TriggerCheck.Web.Billing;
+using TriggerCheck.Web.Heartbeat;
 using TriggerCheck.Web.Infrastructure;
 using TriggerCheck.Web.Localization;
 
@@ -66,6 +67,7 @@ builder.Services.AddScoped<ICurrentCustomer, CurrentCustomer>();
 builder.Services.AddScoped<AiPanels>(); // AI-2 / AI-3 blocks on incident and monitor pages
 builder.Services.AddScoped<TriggerCheck.Web.Areas.App.Support.MonitorCommands>();
 builder.Services.AddSingleton<ManualCheckLimiter>();
+builder.Services.AddHeartbeatEndpoint(builder.Configuration); // FEAT-9: /hb/{token} ping endpoint of heartbeat monitors
 // BIZ-1/2/3: self-service sign-up, trial, iyzico subscriptions, usage meters (+ their rate limits and background job).
 builder.Services.AddBilling(builder.Configuration);
 builder.Services.AddSingleton<TriggerCheck.Web.Areas.App.Pages.Alerts.TestNotificationLimiter>();
@@ -115,6 +117,7 @@ app.UseRateLimiter(); // after authorization: the API limit is partitioned by th
 app.MapStaticAssets().AllowAnonymous();
 app.MapRazorPages().WithStaticAssets();
 app.MapAppHealthChecks(includeDetails: app.Environment.IsDevelopment());
+app.MapHeartbeatEndpoint();
 app.MapSetLanguage();
 app.MapBillingEndpoints();
 app.MapTriggerCheckApi();

@@ -22,6 +22,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
     public DbSet<AnomalySignal> AnomalySignals => Set<AnomalySignal>();
     public DbSet<Subscription> Subscriptions => Set<Subscription>();
     public DbSet<PaymentEvent> PaymentEvents => Set<PaymentEvent>();
+    public DbSet<EmailOutbox> EmailOutbox => Set<EmailOutbox>();
     public DbSet<MaintenanceWindow> MaintenanceWindows => Set<MaintenanceWindow>();
     public DbSet<EscalationPolicy> EscalationPolicies => Set<EscalationPolicy>();
     public DbSet<EscalationStep> EscalationSteps => Set<EscalationStep>();
@@ -65,6 +66,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
             e.Property(x => x.CertSubject).HasMaxLength(500);
             e.Property(x => x.CertIssuer).HasMaxLength(500);
             e.Property(x => x.CertError).HasMaxLength(500);
+            e.Property(x => x.JsonPath).HasMaxLength(500);
+            e.Property(x => x.ExpectedValue).HasMaxLength(500);
+            e.Property(x => x.HeartbeatTokenHash).HasMaxLength(64);
+            e.Property(x => x.HeartbeatTokenPrefix).HasMaxLength(16);
+            e.Property(x => x.LastHeartbeatMessage).HasMaxLength(200);
+            e.HasIndex(x => x.HeartbeatTokenHash).IsUnique(); // ping lookup; NULLs (non-heartbeat monitors) do not collide
             e.HasOne(x => x.Customer).WithMany(c => c.Monitors).HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(x => new { x.IsEnabled, x.NextCheckAtUtc });
             e.Property(x => x.Version).IsConcurrencyToken();
@@ -135,6 +142,16 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
             e.HasIndex(x => x.CheckoutToken);
             e.HasIndex(x => new { x.CustomerId, x.Status });
             e.HasIndex(x => x.ProviderCustomerReference);
+            e.Property(x => x.RefundHandledBy).HasMaxLength(256);
+            e.HasIndex(x => new { x.RefundNeededAtUtc, x.RefundHandledAtUtc });
+        });
+
+        b.Entity<EmailOutbox>(e =>
+        {
+            e.Property(x => x.To).HasMaxLength(256).IsRequired();
+            e.Property(x => x.Subject).HasMaxLength(300).IsRequired();
+            e.Property(x => x.LastError).HasMaxLength(500);
+            e.HasIndex(x => new { x.SentAtUtc, x.FailedAtUtc, x.NextAttemptAtUtc });
         });
 
         b.Entity<PaymentEvent>(e =>

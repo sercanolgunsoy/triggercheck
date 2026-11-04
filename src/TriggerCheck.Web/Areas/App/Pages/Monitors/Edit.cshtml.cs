@@ -3,13 +3,14 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Web.Areas.App.Support;
+using TriggerCheck.Web.Heartbeat;
 using TriggerCheck.Web.Infrastructure;
 using TriggerCheck.Web.Localization;
 
 namespace TriggerCheck.Web.Areas.App.Pages.Monitors;
 
 [Authorize(Policy = Policies.CustomerAdmin)]
-public class EditModel(AppDbContext db, MonitorCommands commands, ICurrentCustomer current, Text<AppResource> L) : MonitorFormPageModel
+public class EditModel(AppDbContext db, MonitorCommands commands, ICurrentCustomer current, Text<AppResource> L, HeartbeatUrlReveal reveal) : MonitorFormPageModel
 {
     public int Id { get; private set; }
 
@@ -45,6 +46,8 @@ public class EditModel(AppDbContext db, MonitorCommands commands, ICurrentCustom
                 return Page();
         }
         TempData["Success"] = L["Monitor \"{0}\" was updated.", m.Name].Value;
+        if (r.IssuedHeartbeatToken is { } token)
+            return RedirectToPage("Details", new { id, reveal = reveal.Park(User, current.RequiredCustomerId, id, HeartbeatEndpoint.PingUrl(Request, token)) });
         return RedirectToPage("Details", new { id });
     }
 }

@@ -35,10 +35,13 @@ public sealed class BillingMaintenance(AppDbContext db, BillingService billing, 
         var resolved = 0;
         var recheckBefore = now.AddMinutes(-o.CheckoutRecheckAfterMinutes);
         var timeoutBefore = now.AddMinutes(-o.CheckoutTimeoutMinutes);
+        // Capped per run, least recently checked first, within a time budget.
         var open = await db.Subscriptions.AsNoTracking()
             .Where(s => (s.Status == SubscriptionStatus.Pending || s.Status == SubscriptionStatus.Superseded) && s.CheckoutToken != null && s.CreatedAtUtc <= recheckBefore)
-            .Select(s => new { s.CheckoutToken, s.CreatedAtUtc }).ToListAsync(ct);
-        foreach (var c in open)
+            .OrderBy(s => s.LastCheckedAtUtc ?? DateTime.MinValue).ThenBy(s => s.Id)
+            .Select(s => new { s.CheckoutToken, s.CreatedAtUtc }).Take(Math.Max(1, o.MaxCheckoutRechecksPerRun)).ToListAsync(ct);
+        var budget = System.Diagnostics.Stopwatch.StartNew();
+        foreach (var c in open.TakeWhile(_ => !billing.OverBudget(budget)))
             await EachAsync("checkout re-check", async () =>
             {
                 var (result, _) = await billing.CompleteCheckoutAsync(c.CheckoutToken!, ct, finalCheck: c.CreatedAtUtc <= timeoutBefore);
@@ -66,7 +69,14 @@ public sealed class BillingMaintenance(AppDbContext db, BillingService billing, 
                 var claimed = await db.Customers.Where(x => x.Id == c.Id && x.TrialReminderSentAtUtc == null)
                     .ExecuteUpdateAsync(u => u.SetProperty(x => x.TrialReminderSentAtUtc, now), ct);
                 if (claimed == 0) return;
-                await mailer.TrialReminderAsync(c, fallback, ct);
+                try { await mailer.TrialReminderAsync(c, fallback, ct); }
+                catch
+                {
+                    // Never "sent" without an outbox row: release the claim so the next run tries again.
+                    await db.Customers.Where(x => x.Id == c.Id)
+                        .ExecuteUpdateAsync(u => u.SetProperty(x => x.TrialReminderSentAtUtc, (DateTime?)null), CancellationToken.None);
+                    throw;
+                }
                 reminders++;
             }, ct);
 

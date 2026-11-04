@@ -64,7 +64,7 @@ public class TestWebAppFactory : WebApplicationFactory<Program>
     protected override void Dispose(bool disposing)
     {
         base.Dispose(disposing);
-        try { File.Delete(_dbPath); } catch { /* ignore */ }
+        SqliteTestFiles.Delete(_dbPath);
     }
 }
 

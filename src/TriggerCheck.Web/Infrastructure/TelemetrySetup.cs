@@ -14,7 +14,7 @@ namespace TriggerCheck.Web.Infrastructure;
 /// http/protobuf). A signal without an endpoint is not registered at all; in-process listeners of the monitoring
 /// Meter / ActivitySource keep working regardless.
 /// <list type="bullet">
-/// <item>Traces: ASP.NET Core requests (without /health) and the monitoring engine's "monitor.check" spans.
+/// <item>Traces: ASP.NET Core requests (without /health; /hb/{token} ping paths are redacted) and the monitoring engine's "monitor.check" spans.
 /// Outgoing HttpClient calls are deliberately NOT traced: their URLs carry secrets (webhook paths, tokens in probe
 /// targets), and the probe span already covers them.</item>
 /// <item>Metrics: ASP.NET Core, .NET runtime and <see cref="MonitoringMetrics.Name"/>. System.Net.Http metrics are not
@@ -43,7 +43,12 @@ public static class TelemetrySetup
         if (traces is not null)
             otel.WithTracing(t => t
                 // Orchestrator health probes would drown the interesting traces.
-                .AddAspNetCoreInstrumentation(o => o.Filter = ctx => !ctx.Request.Path.StartsWithSegments("/health"))
+                .AddAspNetCoreInstrumentation(o =>
+                {
+                    o.Filter = ctx => !ctx.Request.Path.StartsWithSegments("/health");
+                    // Heartbeat ping URLs carry their secret token in the path (and a message in the query).
+                    o.EnrichWithHttpRequest = Heartbeat.HeartbeatEndpoint.RedactTrace;
+                })
                 .AddSource(MonitoringMetrics.Name)
                 .AddOtlpExporter(traces));
 
