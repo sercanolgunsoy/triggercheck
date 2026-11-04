@@ -27,6 +27,14 @@ public class BillingOptions
     public bool PaidCheckoutEnabled { get; set; }
     /// <summary>A pending checkout that the provider has not confirmed within this time is closed as failed.</summary>
     public int CheckoutTimeoutMinutes { get; set; } = 60;
+    /// <summary>Open (pending or superseded) checkouts a customer may have at once.</summary>
+    public int MaxOpenCheckouts { get; set; } = 3;
+    /// <summary>Checkout starts (POSTs) per customer per hour.</summary>
+    public int CheckoutsPerHourPerCustomer { get; set; } = 5;
+    /// <summary>Open checkouts re-checked per job run.</summary>
+    public int MaxCheckoutRechecksPerRun { get; set; } = 50;
+    /// <summary>Time budget of each provider re-check step of the job (checkouts, unmatched events, failed checkouts).</summary>
+    public int ReconcileBudgetSeconds { get; set; } = 60;
     /// <summary>Pending checkouts are re-checked with the provider once they are this old (covers a closed browser tab).</summary>
     public int CheckoutRecheckAfterMinutes { get; set; } = 10;
     /// <summary>Webhook events older than this (by their event time) are recorded but not applied.</summary>

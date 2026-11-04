@@ -13,6 +13,8 @@ public static class BillingSetup
     public const string RegisterPolicy = "register";
     /// <summary>Rate-limit policy of the forgot-password page (POSTs per client IP, same budget as sign-up).</summary>
     public const string PasswordResetPolicy = "password-reset";
+    /// <summary>Rate-limit policy of checkout starts (POSTs per customer).</summary>
+    public const string CheckoutPolicy = "checkout";
     /// <summary>Rate-limit policy of the provider callback and webhook endpoints.</summary>
     public const string ProviderPolicy = "payment-provider";
 
@@ -25,9 +27,10 @@ public static class BillingSetup
         services.Configure<BillingOptions>(config.GetSection(BillingOptions.Section));
         services.Configure<IyzicoOptions>(config.GetSection(IyzicoOptions.Section));
         services.AddSingleton<PublicUrls>();
-        // E-mails are queued and sent in the background: requests never wait for SMTP (no timing side channel).
-        services.AddSingleton<AppEmailQueue>();
-        services.AddSingleton<IAppEmailSender, QueuedAppEmailSender>();
+        // E-mails go to a durable outbox and are sent in the background: requests never wait for SMTP (no timing side
+        // channel) and nothing is lost on a restart.
+        services.AddSingleton<AppEmailSignal>();
+        services.AddSingleton<IAppEmailSender, OutboxAppEmailSender>();
         services.AddSingleton<IAppEmailTransport, SmtpAppEmailTransport>();
         services.AddHostedService<AppEmailSenderService>();
         services.AddHttpClient<IPaymentProvider, IyzicoPaymentProvider>(IyzicoPaymentProvider.HttpClientName)
@@ -45,6 +48,16 @@ public static class BillingSetup
             o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
             o.AddPolicy(RegisterPolicy, PostsPerHour);
             o.AddPolicy(PasswordResetPolicy, PostsPerHour);
+            o.AddPolicy(CheckoutPolicy, ctx =>
+            {
+                if (!HttpMethods.IsPost(ctx.Request.Method)) return RateLimitPartition.GetNoLimiter("get");
+                var limit = ctx.RequestServices.GetRequiredService<IOptionsMonitor<BillingOptions>>().CurrentValue.CheckoutsPerHourPerCustomer;
+                var customer = ctx.User.FindFirst(AppClaims.CustomerId)?.Value ?? "ip:" + ClientIp(ctx);
+                return RateLimitPartition.GetFixedWindowLimiter("customer:" + customer, _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = Math.Max(1, limit), Window = TimeSpan.FromHours(1), QueueLimit = 0
+                });
+            });
             o.AddPolicy(ProviderPolicy, ctx =>
             {
                 var limit = ctx.RequestServices.GetRequiredService<IOptionsMonitor<BillingOptions>>().CurrentValue.WebhooksPerMinutePerIp;

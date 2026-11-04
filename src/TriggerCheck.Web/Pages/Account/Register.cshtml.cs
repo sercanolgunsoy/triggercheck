@@ -93,7 +93,10 @@ public class RegisterModel(AppDbContext db, UserManager<ApplicationUser> users, 
         var existing = await users.FindByEmailAsync(email);
         if (existing is not null)
         {
-            if (!existing.EmailConfirmed && existing.CustomerId is int cid && !await db.Users.AnyAsync(u => u.CustomerId == cid && u.EmailConfirmed, ct))
+            // Only a self-service sign-up still in its initial state is taken over; anything an operator touched gets the
+            // "already registered" e-mail instead.
+            if (!existing.EmailConfirmed && existing.CustomerId is int cid && !await db.Users.AnyAsync(u => u.CustomerId == cid && u.EmailConfirmed, ct)
+                && await db.Customers.AnyAsync(c => c.Id == cid && c.SignupPending, ct))
             {
                 // Never confirmed: whoever signed up first did not prove the address. The account takes over this
                 // submission (password, names, plan); earlier confirmation links stop working (new security stamp).

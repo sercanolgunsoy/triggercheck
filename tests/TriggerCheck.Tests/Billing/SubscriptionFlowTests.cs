@@ -235,6 +235,53 @@ public class SubscriptionFlowTests : IClassFixture<BillingTestFactory>, IAsyncLi
     }
 
     [Fact]
+    public async Task Checkout_starts_are_limited_per_customer()
+    {
+        var (cid, client) = await TrialAdminAsync();
+        for (var i = 0; i < 3; i++) await StartCheckoutAsync(client, cid, "Pro");
+        // A fourth open checkout is refused (each one is re-checked with the provider until it times out).
+        var fourth = await client.PostFormAsync($"/App/Billing/Checkout?planId={await PlanIdAsync("Pro")}", Contact());
+        AssertRedirect(fourth, "/App/Billing");
+        Assert.Contains("several unfinished checkouts", await client.GetHtmlAsync("/App/Billing"));
+        Assert.Equal(3, await _f.WithDbAsync(db => db.Subscriptions.CountAsync(s => s.CustomerId == cid)));
+        await client.PostFormAsync($"/App/Billing/Checkout?planId={await PlanIdAsync("Pro")}", Contact());
+        // Sixth POST within the hour: rate limited per customer.
+        var limited = await client.PostFormAsync($"/App/Billing/Checkout?planId={await PlanIdAsync("Pro")}", Contact());
+        Assert.Equal(HttpStatusCode.TooManyRequests, limited.StatusCode);
+        // Another customer is not affected.
+        var (otherId, other) = await TrialAdminAsync();
+        await StartCheckoutAsync(other, otherId, "Pro");
+    }
+
+    [Fact]
+    public async Task Refused_payment_stays_on_the_superadmin_refund_list_until_marked()
+    {
+        var (cid, client) = await TrialAdminAsync();
+        var first = await StartCheckoutAsync(client, cid, "Pro");
+        var second = await StartCheckoutAsync(client, cid, "Pro");
+        _f.Payments.Approve(first, "pp-pro", "rf1-" + cid);
+        _f.Payments.Approve(second, "pp-pro", "rf2-" + cid);
+        AssertRedirect(await CallbackAsync(second), "checkout=success");
+        AssertRedirect(await CallbackAsync(first), "checkout=refused");
+        var refusedId = await _f.WithDbAsync(db => db.Subscriptions.Where(s => s.CheckoutToken == first).Select(s => s.Id).SingleAsync());
+        Assert.NotNull(await _f.WithDbAsync(db => db.Subscriptions.Where(s => s.Id == refusedId).Select(s => s.RefundNeededAtUtc).SingleAsync()));
+
+        var sa = await _f.LoginAsync(TestWebAppFactory.SuperAdminEmail, TestWebAppFactory.SuperAdminPassword);
+        Assert.Contains("data-testid=\"refunds-needed\"", await sa.GetHtmlAsync("/SuperAdmin"));
+        var list = await sa.GetHtmlAsync("/SuperAdmin/Refunds");
+        Assert.Contains("rf1-" + cid, list);
+
+        AssertRedirect(await sa.PostFormAsync($"/SuperAdmin/Refunds/Index?handler=MarkRefunded&id={refusedId}", new(), "/SuperAdmin/Refunds"), "/SuperAdmin/Refunds");
+        var row = await _f.WithDbAsync(db => db.Subscriptions.AsNoTracking().SingleAsync(s => s.Id == refusedId));
+        Assert.NotNull(row.RefundHandledAtUtc);
+        Assert.Equal(TestWebAppFactory.SuperAdminEmail, row.RefundHandledBy);
+        Assert.Equal(0, await _f.WithDbAsync(db => db.Subscriptions.CountAsync(s => s.RefundNeededAtUtc != null && s.RefundHandledAtUtc == null)));
+        Assert.DoesNotContain("data-testid=\"refunds-needed\"", await sa.GetHtmlAsync("/SuperAdmin"));
+        // Customers cannot reach the list.
+        AssertAccessDenied(await client.GetAsync("/SuperAdmin/Refunds"));
+    }
+
+    [Fact]
     public async Task Two_tabs_paid_twice_keep_one_subscription_and_cancel_the_other()
     {
         var (cid, client) = await TrialAdminAsync();
