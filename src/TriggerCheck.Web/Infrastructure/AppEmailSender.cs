@@ -102,24 +102,29 @@ public sealed class AppEmailSenderService(IServiceScopeFactory scopes, IAppEmail
         var claimed = 0;
         foreach (var id in ids)
         {
+            // Times per row: a slow send must not shorten the next row's lock or back-off.
+            now = time.GetUtcNow().UtcDateTime;
             var lockUntil = now.AddMinutes(2);
-            if (await db.EmailOutbox.Where(m => m.Id == id && m.SentAtUtc == null && (m.LockedUntilUtc == null || m.LockedUntilUtc <= now))
+            if (await db.EmailOutbox.Where(m => m.Id == id && m.SentAtUtc == null && m.FailedAtUtc == null && (m.LockedUntilUtc == null || m.LockedUntilUtc <= now))
                     .ExecuteUpdateAsync(u => u.SetProperty(m => m.LockedUntilUtc, lockUntil), ct) == 0) continue;
             claimed++;
             var mail = await db.EmailOutbox.FirstAsync(m => m.Id == id, ct);
             mail.Attempts++;
             try
             {
-                await transport.SendAsync(mail.To, mail.Subject, mail.Body, ct);
+                await transport.SendAsync(mail.To, mail.Subject, mail.Body ?? "", ct);
                 mail.SentAtUtc = time.GetUtcNow().UtcDateTime;
                 mail.LastError = null;
+                mail.Body = null; // tokens are not kept once delivered
             }
             catch (Exception ex) when (!ct.IsCancellationRequested)
             {
+                now = time.GetUtcNow().UtcDateTime;
                 mail.LastError = ex.GetType().Name + ": " + (ex.Message.Length > 400 ? ex.Message[..400] : ex.Message);
                 if (mail.Attempts >= MaxAttempts)
                 {
                     mail.FailedAtUtc = now;
+                    mail.Body = null;
                     logger.LogError(ex, "E-mail \"{Subject}\" to {To} failed {Attempts} times; giving up.", mail.Subject, mail.To, mail.Attempts);
                 }
                 else
@@ -142,9 +147,15 @@ public sealed class AppEmailSenderService(IServiceScopeFactory scopes, IAppEmail
         _lastPurge = now;
         using var scope = scopes.CreateScope();
         var cutoff = now.AddDays(-KeepSentDays);
-        await scope.ServiceProvider.GetRequiredService<AppDbContext>().EmailOutbox
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await db.EmailOutbox
             .Where(m => (m.SentAtUtc != null && m.SentAtUtc < cutoff) || (m.FailedAtUtc != null && m.FailedAtUtc < cutoff))
             .ExecuteDeleteAsync(ct);
+        // Rows still unsent after a day (e.g. SMTP down for long): give up and drop the body (its links have expired).
+        var stale = now.AddDays(-1);
+        await db.EmailOutbox.Where(m => m.SentAtUtc == null && m.FailedAtUtc == null && m.CreatedAtUtc < stale)
+            .ExecuteUpdateAsync(u => u.SetProperty(m => m.FailedAtUtc, now).SetProperty(m => m.Body, (string?)null)
+                .SetProperty(m => m.LastError, "Not sent within one day"), ct);
     }
 }
 

@@ -43,6 +43,8 @@ public class AppEmailSenderServiceTests(AppEmailSenderServiceTests.Factory f) : 
         await NewSender().SendBatchAsync(CancellationToken.None);
         var row = await RowAsync(id);
         Assert.NotNull(row.SentAtUtc);
+        Assert.Null(row.Body); // tokens are not kept once delivered
+        Assert.Equal("a@outbox.test", row.To);
         Assert.Equal(1, row.Attempts);
         Assert.Contains(f.Emails.Sent, m => m.To == "a@outbox.test");
 
@@ -83,8 +85,24 @@ public class AppEmailSenderServiceTests(AppEmailSenderServiceTests.Factory f) : 
             row = await RowAsync(id);
             Assert.Equal(AppEmailSenderService.MaxAttempts, row.Attempts);
             Assert.NotNull(row.FailedAtUtc);
+            Assert.Null(row.Body);
         }
         finally { f.Emails.FailWith = null; }
+    }
+
+    [Fact]
+    public async Task Mail_unsent_after_a_day_is_abandoned_and_its_body_dropped()
+    {
+        var id = await EnqueueAsync("d@outbox.test");
+        f.Emails.FailWith = new InvalidOperationException("smtp down");
+        try { await NewSender().SendBatchAsync(CancellationToken.None); }
+        finally { f.Emails.FailWith = null; }
+        f.Time.Advance(TimeSpan.FromHours(25));
+        await NewSender().PurgeAsync(CancellationToken.None);
+        var row = await RowAsync(id);
+        Assert.NotNull(row.FailedAtUtc);
+        Assert.Null(row.Body);
+        Assert.Equal("Not sent within one day", row.LastError);
     }
 
     [Fact]

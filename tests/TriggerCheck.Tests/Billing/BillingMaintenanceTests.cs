@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Tests.App;
+using TriggerCheck.Web.Billing;
 
 namespace TriggerCheck.Tests.Billing;
 
@@ -107,5 +109,27 @@ public class BillingMaintenanceTests(BillingTestFactory f) : IClassFixture<Billi
         var c = await f.GetCustomerAsync(cid);
         Assert.Equal("Basic", c.Plan.Name);
         Assert.Equal(BillingStatus.None, c.BillingStatus);
+    }
+
+    private sealed class BrokenOutbox : TriggerCheck.Web.Infrastructure.IAppEmailSender
+    {
+        public Task SendAsync(string to, string subject, string body, CancellationToken ct = default) => throw new InvalidOperationException("outbox down");
+    }
+
+    [Fact]
+    public async Task Reminder_is_not_marked_sent_when_the_mail_could_not_be_queued()
+    {
+        var (cid, _) = await TrialCustomerAsync(TimeSpan.FromDays(2));
+        using var broken = f.WithWebHostBuilder(b => Microsoft.AspNetCore.TestHost.WebHostBuilderExtensions.ConfigureTestServices(b, s =>
+        {
+            Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions.RemoveAll<TriggerCheck.Web.Infrastructure.IAppEmailSender>(s);
+            Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton<TriggerCheck.Web.Infrastructure.IAppEmailSender>(s, new BrokenOutbox());
+        }));
+        using (var scope = broken.Services.CreateScope())
+            await scope.ServiceProvider.GetRequiredService<BillingMaintenance>().RunAsync(CancellationToken.None);
+        Assert.Null((await f.GetCustomerAsync(cid)).TrialReminderSentAtUtc); // released: the next run retries
+
+        await f.RunMaintenanceAsync();
+        Assert.NotNull((await f.GetCustomerAsync(cid)).TrialReminderSentAtUtc);
     }
 }
