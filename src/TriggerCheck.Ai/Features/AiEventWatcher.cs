@@ -69,6 +69,8 @@ public sealed class AiEventScanner(AppDbContext db, IAiJobQueue queue, IOptions<
         public Dictionary<int, DateTime> MonitorQueuedAt { get; } = new();
         /// <summary>Normalised cause of the incident last queued per monitor (a different cause bypasses the cool-down).</summary>
         public Dictionary<int, string> MonitorQueuedCause { get; } = new();
+        /// <summary>When a changed cause last bypassed the cool-down per monitor (at most once per cool-down).</summary>
+        public Dictionary<int, DateTime> CauseBypassAt { get; } = new();
         /// <summary>Same-host incidents waiting behind the incident chosen for their host (winner id → siblings).</summary>
         public Dictionary<long, List<Event>> HostSiblings { get; } = new();
         public Dictionary<(int, string), DateTime> HostQueuedAt { get; } = new();
@@ -88,6 +90,7 @@ public sealed class AiEventScanner(AppDbContext db, IAiJobQueue queue, IOptions<
         var hostWindow = TimeSpan.FromMinutes(Math.Max(0, o.HostWindowMinutes));
         Prune(state.HandledResolves, v => v < since);
         Prune(state.MonitorQueuedAt, v => v < now - cooldown);
+        Prune(state.CauseBypassAt, v => v < now - cooldown);
         foreach (var k in state.MonitorQueuedCause.Keys.Where(k => !state.MonitorQueuedAt.ContainsKey(k)).ToList()) state.MonitorQueuedCause.Remove(k);
         Prune(state.HostQueuedAt, v => v < now - hostWindow);
         // A host's chosen incident that expires unqueued hands over to the next waiting sibling.
@@ -203,6 +206,7 @@ public sealed class AiEventScanner(AppDbContext db, IAiJobQueue queue, IOptions<
         var aiTwo = events.Values.Where(e => e.Kind != EventKind.Slowdown).ToList();
         var hosts = new Dictionary<int, string?>();
         var causes = new Dictionary<long, string>();
+        var bypassIds = new HashSet<long>();
         if (aiTwo.Count > 0)
         {
             var monitorIds = aiTwo.Select(e => e.MonitorId).Distinct().ToList();
@@ -237,6 +241,7 @@ public sealed class AiEventScanner(AppDbContext db, IAiJobQueue queue, IOptions<
             causes = (await db.Incidents.AsNoTracking().Where(i => eventIds.Contains(i.Id)).Select(i => new { i.Id, i.Cause }).ToListAsync(ct))
                 .ToDictionary(i => (long)i.Id, i => CauseKey(i.Cause));
             var scanWinner = new Dictionary<(int, string), Event>();
+            var bypassedThisScan = new HashSet<int>();
 
             foreach (var e in aiTwo.OrderBy(e => e.SubjectId))
             {
@@ -246,7 +251,14 @@ public sealed class AiEventScanner(AppDbContext db, IAiJobQueue queue, IOptions<
                 var cause = causes.GetValueOrDefault(e.SubjectId, "");
                 // Same monitor, same (normalised) cause within the cool-down: flapping. A different cause is news.
                 var monitorWithinCooldown = monitorLast.TryGetValue(e.MonitorId, out var ml) && ml >= now - cooldown;
-                var causeChanged = monitorWithinCooldown && monitorCause.GetValueOrDefault(e.MonitorId, "") != cause;
+                // A changed cause is news, but only once per cool-down (a monitor alternating causes is still flapping).
+                var causeChanged = monitorWithinCooldown && monitorCause.GetValueOrDefault(e.MonitorId, "") != cause
+                                   && !state.CauseBypassAt.ContainsKey(e.MonitorId) && !bypassedThisScan.Contains(e.MonitorId);
+                if (causeChanged)
+                {
+                    bypassedThisScan.Add(e.MonitorId);
+                    bypassIds.Add(e.SubjectId);
+                }
                 var monitorRecent = monitorWithinCooldown && !causeChanged;
                 if (host is not null && !monitorRecent && scanWinner.TryGetValue((e.CustomerId, host), out var winner))
                 {
@@ -274,14 +286,14 @@ public sealed class AiEventScanner(AppDbContext db, IAiJobQueue queue, IOptions<
         // ---- fair scheduling: round-robin across customers, capped per customer ----
         var perCustomer = events.Values.GroupBy(e => e.CustomerId).OrderBy(g => g.Key)
             .Select(g => new Queue<Event>(g.OrderBy(e => e.AtUtc).ThenBy(e => e.SubjectId))).ToList();
-        return EnqueueFairly(state, perCustomer, customers, hosts, causes, Math.Max(1, o.MaxJobsPerCustomerPerScan), now);
+        return EnqueueFairly(state, perCustomer, customers, hosts, causes, bypassIds, Math.Max(1, o.MaxJobsPerCustomerPerScan), now);
     }
 
     /// <summary>Normalised incident cause (numbers, ids and masked values unified) for the cool-down comparison.</summary>
     public static string CauseKey(string? cause) => string.IsNullOrWhiteSpace(cause) ? "" : IncidentInterpretationProvider.NormalizeError(cause);
 
     private int EnqueueFairly(State state, List<Queue<Event>> perCustomer, Dictionary<int, Eligible> customers,
-        Dictionary<int, string?> hosts, Dictionary<long, string> causes, int cap, DateTime now)
+        Dictionary<int, string?> hosts, Dictionary<long, string> causes, HashSet<long> bypassIds, int cap, DateTime now)
     {
         var queued = 0;
         var queueFull = false;
@@ -305,6 +317,7 @@ public sealed class AiEventScanner(AppDbContext db, IAiJobQueue queue, IOptions<
                     state.QueuedIncidents[e.SubjectId] = now;
                     state.MonitorQueuedAt[e.MonitorId] = now;
                     state.MonitorQueuedCause[e.MonitorId] = causes.GetValueOrDefault(e.SubjectId, "");
+                    if (bypassIds.Contains(e.SubjectId)) state.CauseBypassAt[e.MonitorId] = now;
                     state.HostSiblings.Remove(e.SubjectId); // the host's outage is interpreted
                     if (hosts.GetValueOrDefault(e.MonitorId) is { } h) state.HostQueuedAt[(e.CustomerId, h)] = now;
                 }

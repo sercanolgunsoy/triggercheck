@@ -88,7 +88,7 @@ public sealed class IncidentInterpretationProvider(AiTenantData data, TimeProvid
             .Fact("configuration_change_history", "not available (only the current configuration is known)");
 
         return new AiPrompt(AiFeaturePrompts.IncidentInstructions, b.Build(), AiFeaturePrompts.IncidentActions,
-            AiFeaturePrompts.IncidentCategories, AiFeaturePrompts.EvidenceKeys(b));
+            AiFeaturePrompts.IncidentCategories, AiFeaturePrompts.EvidenceKeys(b), AiEvidenceRules.IsAllowed);
     }
 
     /// <summary>

@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using TriggerCheck.Ai.Client;
+using TriggerCheck.Ai.Execution;
 using TriggerCheck.Ai.Features;
 using TriggerCheck.Ai.Interpretation;
 using TriggerCheck.Domain.Entities;
@@ -9,11 +10,12 @@ namespace TriggerCheck.Evals;
 /// <summary>
 /// Code-graded checks per case (no LLM judge, no keyword matching in pass / fail):
 /// <list type="bullet">
-/// <item><b>primary cause</b>: the <c>category</c> of the highest-confidence hypothesis that survived validation (tie: the
-/// first) must be one of the categories accepted for the case's label;</item>
-/// <item><b>evidence</b>: every raw hypothesis cites at least one <c>evidence_refs</c> entry that resolves to an item
-/// actually present in the request ("check #1234" sent, a fact key such as "ttfb" or "validation_error", an error
-/// block such as "error E1"), and at least one hypothesis survives validation;</item>
+/// <item><b>primary cause</b>: the <c>category</c> of the highest-confidence hypothesis that survived validation must be
+/// one of the categories accepted for the case's label; a top-confidence tie between different categories is a hedge
+/// and fails;</item>
+/// <item><b>evidence</b>: every raw hypothesis cites at least one <c>evidence_refs</c> entry that resolves to a key the
+/// context provider actually sent and that fits its category (<see cref="AiEvidenceRules"/>: a generic key such as
+/// "started_at" grounds nothing), and at least one hypothesis survives validation;</item>
 /// <item><b>masking</b>: none of the case's planted secrets, monitor names, URL paths or e-mail addresses appear anywhere
 /// in the request actually sent (system prompt + user content);</item>
 /// <item><b>language</b>: the request asks for the case's language and the summary is written in it;</item>
@@ -98,36 +100,36 @@ public static partial class EvalGrader
     }
 
     /// <summary>The primary hypothesis: highest confidence, the first one on a tie.</summary>
-    public static AiHypothesis? Primary(AiInterpretation? output)
+    /// <summary>
+    /// The primary hypothesis: the one with the highest confidence. Null when there is none, or when several share the
+    /// top confidence with different categories (a hedge: <paramref name="hedged"/> is then true).
+    /// </summary>
+    public static AiHypothesis? Primary(AiInterpretation? output, out bool hedged)
     {
+        hedged = false;
         var list = (output?.Hypotheses ?? []).Where(h => h is not null).ToList();
         if (list.Count == 0) return null;
         var max = list.Max(h => h.Confidence);
-        return list.First(h => h.Confidence == max);
+        var top = list.Where(h => h.Confidence == max).ToList();
+        if (top.Select(h => h.Category).Distinct().Count() > 1)
+        {
+            hedged = true;
+            return null;
+        }
+        return top[0];
     }
 
-    /// <summary>True when the label accepts the category of the primary hypothesis.</summary>
+    /// <summary>True when the label accepts the category of the (unhedged) primary hypothesis.</summary>
     public static bool PrimaryMatches(AiInterpretation? output, string label) =>
-        Primary(output)?.Category is { } c && Labels.TryGetValue(label, out var accepted) && accepted.Contains(c);
+        Primary(output, out _)?.Category is { } c && Labels.TryGetValue(label, out var accepted) && accepted.Contains(c);
 
-    [GeneratedRegex(@"^(?!#|<)([^:\r\n]+): ", RegexOptions.Multiline)]
-    private static partial Regex FactKey();
-
-    [GeneratedRegex(@"<untrusted_data source=""([^""]+)"">")]
-    private static partial Regex UntrustedSource();
-
-    /// <summary>Evidence keys present in a user turn (the same keys the context builder recorded).</summary>
-    public static IReadOnlySet<string> EvidenceKeys(string userContent)
-    {
-        var keys = FactKey().Matches(userContent).Select(m => m.Groups[1].Value.Trim())
-            .Concat(UntrustedSource().Matches(userContent).Select(m => m.Groups[1].Value))
-            .Where(k => !AiFeaturePrompts.NonEvidenceKeys.Contains(k));
-        return keys.ToHashSet(StringComparer.OrdinalIgnoreCase);
-    }
-
-    /// <summary>At least one evidence_ref of the hypothesis points to an item that was sent.</summary>
-    public static bool Grounded(AiHypothesis h, IReadOnlySet<string> keys) =>
-        (h.EvidenceRefs ?? []).Any(r => AiInterpretationValidator.ResolveRef(r, keys) is not null);
+    /// <summary>
+    /// At least one evidence_ref resolves to a key the production context provider sent (<see cref="AiPrompt.EvidenceKeys"/>,
+    /// never parsed from the text, so untrusted text cannot create keys) and is allowed for the hypothesis' category
+    /// (<see cref="AiPrompt.RefAllowed"/>, the same rule the interpreter applies).
+    /// </summary>
+    public static bool Grounded(AiHypothesis h, AiPrompt prompt) =>
+        AiInterpretationValidator.GroundedRefs(h, prompt.EvidenceKeys ?? new HashSet<string>(), prompt.RefAllowed).Any();
 
     private static readonly string[] NoOutagePhrases =
     [
@@ -138,7 +140,8 @@ public static partial class EvalGrader
     [GeneratedRegex(@"(?i)[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}")]
     private static partial Regex Email();
 
-    public static EvalCaseResult Grade(EvalScenario s, AiCallRequest? request, AiCallResult? result, AiDecision? decision)
+    /// <param name="prompt">The AiPrompt the production context provider built for the case (recorded by the harness).</param>
+    public static EvalCaseResult Grade(EvalScenario s, AiCallRequest? request, AiCallResult? result, AiDecision? decision, AiPrompt? prompt)
     {
         var r = new EvalCaseResult
         {
@@ -180,21 +183,23 @@ public static partial class EvalGrader
         // ---- primary cause: category of the validated output (what the customer sees) ----
         var slowdown = s.Feature == Domain.AiFeatures.SlowdownExplanation;
         var validated = decision?.Status == AiDecisionStatus.Succeeded ? AiInterpretation.TryParse(decision.OutputJson) : null;
-        var top = Primary(validated);
+        var top = Primary(validated, out var hedged);
+        r.Hedged = hedged;
         r.TopCause = top?.Cause;
         r.PrimaryCategory = top?.Category;
         r.Categories = Classify(top?.Cause, slowdown); // diagnostic only
         r.PrimaryCauseOk = PrimaryMatches(validated, s.Expect.PrimaryCause);
         var accepted = Labels.TryGetValue(s.Expect.PrimaryCause, out var a) ? a : [];
         if (!r.PrimaryCauseOk)
-            r.Notes.Add($"primary category {top?.Category ?? "none"}, expected one of [{string.Join(", ", accepted)}]");
+            r.Notes.Add(hedged
+                ? "hedged: top-confidence hypotheses with different categories"
+                : $"primary category {top?.Category ?? "none"}, expected one of [{string.Join(", ", accepted)}]");
 
         // ---- evidence: every raw hypothesis has a resolvable evidence_ref; something survives validation ----
-        var keys = EvidenceKeys(request.UserContent);
         var hypotheses = (raw.Hypotheses ?? []).Where(h => h is not null).ToList();
-        var ungrounded = hypotheses.Count(h => !Grounded(h, keys));
+        var ungrounded = prompt is null ? hypotheses.Count : hypotheses.Count(h => !Grounded(h, prompt));
         r.EvidenceOk = hypotheses.Count > 0 && ungrounded == 0 && (validated?.Hypotheses.Count ?? 0) > 0;
-        if (!r.EvidenceOk) r.Notes.Add($"{ungrounded} of {hypotheses.Count} hypotheses without a resolvable evidence_ref");
+        if (!r.EvidenceOk) r.Notes.Add($"{ungrounded} of {hypotheses.Count} hypotheses without an evidence_ref that was sent and fits their category");
 
         // ---- language ----
         r.LanguageOk = requestLanguageOk && LooksTurkish(raw.Summary) == (expectedLanguage == "Turkish");
@@ -231,6 +236,8 @@ public sealed class EvalCaseResult
     public string? TopCause { get; set; }
     /// <summary>Category of the primary hypothesis (graded).</summary>
     public string? PrimaryCategory { get; set; }
+    /// <summary>Top-confidence hypotheses with different categories (graded as a failed primary cause).</summary>
+    public bool Hedged { get; set; }
     /// <summary>Diagnostic: keyword categories the primary cause text mentions (not graded).</summary>
     public List<string> Categories { get; set; } = [];
     public bool PrimaryCauseOk { get; set; }

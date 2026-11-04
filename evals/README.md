@@ -100,11 +100,16 @@ Code-graded, no LLM judge and no keyword matching in pass / fail (`EvalGrader`).
 every hypothesis whose category is not in the enum or whose refs resolve to nothing that was sent
 (`AiInterpretationValidator.ApplyContract`).
 
-- **Primary cause**: the `category` of the highest-confidence hypothesis that survived validation (tie: the first)
-  must be one of the categories accepted for the case's label (`EvalGrader.Labels`). The cause text does not matter:
-  "not a DNS problem; HTTP 503" with category `http_5xx` passes an `http_5xx` case and fails a DNS case.
-- **Evidence**: every raw hypothesis has at least one `evidence_ref` that resolves to an item of the request, and at
-  least one hypothesis survives validation.
+- **Primary cause**: the `category` of the highest-confidence hypothesis that survived validation must be one of the
+  categories accepted for the case's label (`EvalGrader.Labels`). A top-confidence tie between different categories is
+  a hedge and fails (marked **hedged** in the report). The cause text does not matter: "not a DNS problem; HTTP 503"
+  with category `http_5xx` passes an `http_5xx` case and fails a DNS case.
+- **Evidence**: every raw hypothesis has at least one `evidence_ref` that resolves to a key the production context
+  provider sent (`AiPrompt.EvidenceKeys`, recorded by the harness; never parsed from the text, so untrusted text cannot
+  create keys) and that fits its category (`AiEvidenceRules`: DNS / HTTP / connection causes need a check or its error
+  block, TLS the certificate facts, a host-wide outage another monitor on the host, a slowdown the matching phase;
+  generic keys such as `started_at` or `interval_seconds` ground nothing). At least one hypothesis must survive
+  validation. Production applies the same rule and drops the rest.
 - **Masking**: none of the case's `secrets`, the monitor names, the monitor's URL path / query and no e-mail address
   appear in the request actually sent (system prompt + user content).
 - **Language**: the request asks for the case's language and the summary is written in it.

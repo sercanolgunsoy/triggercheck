@@ -145,7 +145,7 @@ public sealed class AiInterpreter(
                 case AiCallOutcome.Succeeded:
                     var parsed = AiInterpretation.TryParse(result.Json);
                     // Category / evidence_refs contract first (drops ungrounded hypotheses), then the general L3 policy.
-                    if (parsed is not null) parsed = AiInterpretationValidator.ApplyContract(parsed, prompt.Categories, prompt.EvidenceKeys);
+                    if (parsed is not null) parsed = AiInterpretationValidator.ApplyContract(parsed, prompt.Categories, prompt.EvidenceKeys, prompt.RefAllowed);
                     var valid = parsed is null ? null : validator.Validate(parsed, prompt.AllowedActions, feature.MaxAutonomy);
                     if (valid is null)
                     {

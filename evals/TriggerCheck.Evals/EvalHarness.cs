@@ -76,6 +76,10 @@ public static class EvalHarness
             ? ActivatorUtilities.CreateInstance<AnthropicAiClient>(sp)
             : fake));
         services.AddSingleton<IAiClient>(sp => sp.GetRequiredService<RecordingAiClient>());
+        // The production providers, wrapped so the grader sees their AiPrompt (evidence keys, ref rule). Registered last: they win.
+        var prompts = new PromptRecorder();
+        services.AddScoped<IAiContextProvider>(sp => new RecordingContextProvider(ActivatorUtilities.CreateInstance<IncidentInterpretationProvider>(sp), prompts));
+        services.AddScoped<IAiContextProvider>(sp => new RecordingContextProvider(ActivatorUtilities.CreateInstance<SlowdownExplanationProvider>(sp), prompts));
 
         var report = new EvalReport
         {
@@ -94,6 +98,7 @@ public static class EvalHarness
             {
                 current = scenario;
                 recorder.Reset();
+                prompts.Last = null;
                 AiDecision? decision;
                 using (var scope = sp.CreateScope())
                 {
@@ -101,7 +106,7 @@ public static class EvalHarness
                     var job = await SeedAsync(db, scenario, ct);
                     decision = await scope.ServiceProvider.GetRequiredService<IAiInterpreter>().RunAsync(job, ct);
                 }
-                var result = EvalGrader.Grade(scenario, recorder.LastRequest, recorder.LastResult, decision);
+                var result = EvalGrader.Grade(scenario, recorder.LastRequest, recorder.LastResult, decision, prompts.Last);
                 result.Model = o.ModelFor(scenario.Feature);
                 result.Effort = o.EffortFor(scenario.Feature);
                 result.CostUsd = decision?.CostEstimate ?? 0;
@@ -217,6 +222,24 @@ public sealed class RecordingAiClient(IAiClient inner) : IAiClient
         LastRequest = request;
         LastResult = await inner.CompleteAsync(request, ct);
         return LastResult;
+    }
+}
+
+public sealed class PromptRecorder
+{
+    public AiPrompt? Last { get; set; }
+}
+
+/// <summary>Delegates to a production context provider and keeps the prompt it built.</summary>
+public sealed class RecordingContextProvider(IAiContextProvider inner, PromptRecorder recorder) : IAiContextProvider
+{
+    public string Feature => inner.Feature;
+
+    public async Task<AiPrompt?> BuildAsync(AiJob job, CancellationToken ct)
+    {
+        var prompt = await inner.BuildAsync(job, ct);
+        recorder.Last = prompt;
+        return prompt;
     }
 }
 

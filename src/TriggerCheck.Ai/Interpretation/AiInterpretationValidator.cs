@@ -21,31 +21,48 @@ public static class AiInterpretationValidator
     /// <summary>
     /// Contract of features with cause categories (AI-2 / AI-3), applied before <see cref="Validate"/>: a hypothesis is
     /// kept only when its category is one of <paramref name="categories"/> and at least one of its evidence_refs resolves
-    /// to an item actually present in the input (<paramref name="evidenceKeys"/>). Refs are normalised ("#1234" or "1234"
-    /// → "check #1234"), unresolvable ones removed. Without categories the output is returned unchanged.
+    /// to an item actually present in the input (<paramref name="evidenceKeys"/>) that may support that category
+    /// (<paramref name="refAllowed"/>). Refs are normalised ("#1234", "1234", "check #0012", "check #12: status 503",
+    /// "E1"); unresolvable or not allowed ones are removed. Without categories the output is returned unchanged.
     /// </summary>
-    public static AiInterpretation ApplyContract(AiInterpretation raw, IReadOnlyList<string>? categories, IReadOnlySet<string>? evidenceKeys)
+    public static AiInterpretation ApplyContract(AiInterpretation raw, IReadOnlyList<string>? categories, IReadOnlySet<string>? evidenceKeys,
+        Func<string, string, bool>? refAllowed = null)
     {
         if (categories is not { Count: > 0 }) return raw;
         var keys = evidenceKeys ?? new HashSet<string>();
         var kept = (raw.Hypotheses ?? [])
             .Where(h => h is not null && h.Category is not null && categories.Contains(h.Category))
-            .Select(h => h with { EvidenceRefs = (h.EvidenceRefs ?? []).Select(r => ResolveRef(r, keys)).OfType<string>().Distinct().Take(MaxItems).ToList() })
+            .Select(h => h with { EvidenceRefs = GroundedRefs(h, keys, refAllowed).Take(MaxItems).ToList() })
             .Where(h => h.EvidenceRefs!.Count > 0)
             .ToList();
         return raw with { Hypotheses = kept };
     }
 
+    /// <summary>The hypothesis' refs that resolve to a sent key allowed for its category (normalised, distinct).</summary>
+    public static IEnumerable<string> GroundedRefs(AiHypothesis h, IReadOnlySet<string> keys, Func<string, string, bool>? refAllowed) =>
+        (h.EvidenceRefs ?? []).Select(r => ResolveRef(r, keys)).OfType<string>()
+            .Where(k => refAllowed is null || (h.Category is not null && refAllowed(h.Category, k)))
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+
     /// <summary>The input key an evidence ref points to, or null when it points to nothing that was sent.</summary>
     public static string? ResolveRef(string? reference, IReadOnlySet<string> keys)
     {
         var r = (reference ?? "").Trim();
+        var colon = r.IndexOf(':');
+        if (colon >= 0) r = r[..colon].Trim(); // "check #12: status 503" → "check #12"
         if (r.Length == 0) return null;
         var exact = keys.FirstOrDefault(k => string.Equals(k, r, StringComparison.OrdinalIgnoreCase));
         if (exact is not null) return exact;
-        var digits = r.TrimStart('#');
-        if (r.StartsWith("check", StringComparison.OrdinalIgnoreCase)) digits = r[5..].Trim().TrimStart('#').Trim();
-        return digits.Length > 0 && digits.All(char.IsAsciiDigit) && keys.Contains("check #" + digits) ? "check #" + digits : null;
+        string? Key(string candidate) => keys.FirstOrDefault(k => string.Equals(k, candidate, StringComparison.OrdinalIgnoreCase));
+        // Bare error block id: "E1" → "error E1".
+        if (r.Length > 1 && (r[0] is 'E' or 'e') && int.TryParse(r.AsSpan(1), System.Globalization.NumberStyles.None, null, out var e))
+            return Key("error E" + e.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        // Check id: "#12", "12", "check 12", "check #0012" → "check #12".
+        var digits = r.StartsWith("check", StringComparison.OrdinalIgnoreCase) ? r[5..] : r;
+        digits = digits.Trim().TrimStart('#').Trim();
+        return long.TryParse(digits, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var id)
+            ? Key("check #" + id.ToString(System.Globalization.CultureInfo.InvariantCulture))
+            : null;
     }
 
     /// <returns>Null when the output is unusable (no summary).</returns>
