@@ -20,7 +20,13 @@ public sealed partial class SlackNotifier(IHttpClientFactory httpClientFactory) 
 
     public static JsonObject BuildPayload(AlertMessage m)
     {
-        var emoji = m.Kind switch { AlertKind.Down => ":red_circle:", AlertKind.Up => ":large_green_circle:", _ => ":white_check_mark:" };
+        var emoji = m.Kind switch
+        {
+            AlertKind.Down => ":red_circle:",
+            AlertKind.Up => ":large_green_circle:",
+            AlertKind.CertificateExpiring => ":warning:",
+            _ => ":white_check_mark:"
+        };
         var blocks = new JsonArray
         {
             Section(Cut($"{emoji} *{Escape(m.Headline)}*", MaxSectionText))
@@ -30,6 +36,8 @@ public sealed partial class SlackNotifier(IHttpClientFactory httpClientFactory) 
         if (m.Kind != AlertKind.Test) fields.Add(Mrkdwn(Cut($"*Target*\n{Escape(m.MaskedTarget)}", MaxFieldText)));
         fields.Add(Mrkdwn($"*Time (UTC)*\n{m.OccurredAtUtc:yyyy-MM-dd HH:mm:ss}"));
         if (m.DowntimeText is { } downtime) fields.Add(Mrkdwn($"*Downtime*\n{downtime}"));
+        if (m.Kind == AlertKind.CertificateExpiring && m.CertificateExpiresAtUtc is { } expires)
+            fields.Add(Mrkdwn($"*Certificate expires (UTC)*\n{expires:yyyy-MM-dd HH:mm:ss}"));
         blocks.Add(new JsonObject { ["type"] = "section", ["fields"] = fields });
 
         if (m.Kind == AlertKind.Down && !string.IsNullOrEmpty(m.Error))
@@ -81,6 +89,8 @@ public sealed class TeamsNotifier(IHttpClientFactory httpClientFactory) : INotif
         facts.Add(Fact("Time (UTC)", m.OccurredAtUtc.ToString("yyyy-MM-dd HH:mm:ss")));
         if (m.Kind == AlertKind.Down && !string.IsNullOrEmpty(m.Error)) facts.Add(Fact("Error", m.Error));
         if (m.DowntimeText is { } downtime) facts.Add(Fact("Downtime", downtime));
+        if (m.Kind == AlertKind.CertificateExpiring && m.CertificateExpiresAtUtc is { } expires)
+            facts.Add(Fact("Certificate expires (UTC)", expires.ToString("yyyy-MM-dd HH:mm:ss")));
 
         var card = new JsonObject
         {
@@ -95,7 +105,13 @@ public sealed class TeamsNotifier(IHttpClientFactory httpClientFactory) : INotif
                     ["text"] = $"{m.StatusLabel}: {AlertMessage.OneLine(m.MonitorName)}",
                     ["weight"] = "Bolder",
                     ["size"] = "Medium",
-                    ["color"] = m.Kind switch { AlertKind.Down => "Attention", AlertKind.Up => "Good", _ => "Accent" },
+                    ["color"] = m.Kind switch
+                    {
+                        AlertKind.Down => "Attention",
+                        AlertKind.Up => "Good",
+                        AlertKind.CertificateExpiring => "Warning",
+                        _ => "Accent"
+                    },
                     ["wrap"] = true
                 },
                 new JsonObject { ["type"] = "TextBlock", ["text"] = m.Headline, ["wrap"] = true },

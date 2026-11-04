@@ -131,6 +131,15 @@ public static class TargetGuard
     public static async Task<Socket> ConnectAsync(string host, int port, bool allowPrivate, CancellationToken ct, ILogger? logger = null)
     {
         var addresses = await ResolveAsync(host, allowPrivate, ct, logger);
+        return await ConnectResolvedAsync(addresses, port, ct);
+    }
+
+    /// <summary>
+    /// Connects to addresses previously returned by <see cref="ResolveAsync"/> (never pass addresses from anywhere
+    /// else). Split from <see cref="ConnectAsync"/> only so the HTTP probe can time DNS and TCP connect separately.
+    /// </summary>
+    internal static async Task<Socket> ConnectResolvedAsync(IPAddress[] addresses, int port, CancellationToken ct)
+    {
         // Dual-mode socket: works for IPv4 and IPv6 addresses.
         var socket = new Socket(SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
         try

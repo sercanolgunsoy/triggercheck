@@ -9,8 +9,9 @@ namespace TriggerCheck.Monitoring.Alerting;
 /// <summary>
 /// Drains the <see cref="AlertQueue"/> and delivers each alert through <see cref="IAlertDispatcher"/> (own DI scope).
 /// <list type="bullet">
-/// <item>Ordering: every monitor has a lane; its alerts are delivered one at a time, in order (DOWN is finished before
-/// the following UP starts). Different monitors run in parallel.</item>
+/// <item>Ordering: every monitor has a lane for its status alerts (DOWN/UP) and a separate one for certificate-expiry
+/// warnings, so the two never coalesce or supersede each other. A lane's alerts are delivered one at a time, in order
+/// (DOWN is finished before the following UP starts). Different lanes run in parallel.</item>
 /// <item>Coalescing: a lane keeps at most one waiting alert, the newest. Older waiting alerts that never started are
 /// recorded as superseded (0 attempts) without being sent.</item>
 /// <item>Supersede: when a newer alert for the same monitor arrives while an older one is waiting to retry, the retry
@@ -30,9 +31,13 @@ public sealed class AlertSenderService(
     IOptions<AlertingOptions> options,
     ILogger<AlertSenderService> logger) : BackgroundService
 {
+    // Never disposed: StopAsync may run again after Dispose (StopApplication, then disposing the host) and must not
+    // throw ObjectDisposedException. It holds no unmanaged resources beyond the CancelAfter timer.
     private readonly CancellationTokenSource _abort = new();
     private readonly object _lock = new();
-    private readonly Dictionary<int, Lane> _lanes = new();
+    private readonly Dictionary<(int MonitorId, bool Certificate), Lane> _lanes = new();
+
+    private static (int MonitorId, bool Certificate) LaneKey(AlertMessage m) => (m.MonitorId, m.Kind == AlertKind.CertificateExpiring);
     private readonly ConcurrentDictionary<Task, byte> _running = new();
 
     private sealed class Lane
@@ -58,7 +63,7 @@ public sealed class AlertSenderService(
                 CancellationTokenSource? toCancel = null;
                 lock (_lock)
                 {
-                    if (_lanes.TryGetValue(message.MonitorId, out var lane))
+                    if (_lanes.TryGetValue(LaneKey(message), out var lane))
                     {
                         skipped = lane.Waiting;
                         lane.Waiting = message;
@@ -68,7 +73,7 @@ public sealed class AlertSenderService(
                     {
                         // The token exists before the lane task runs, so an alert arriving right behind this one
                         // (e.g. UP queued back-to-back with DOWN) always cancels the DOWN's retries.
-                        _lanes[message.MonitorId] = started = new Lane { Superseded = new CancellationTokenSource() };
+                        _lanes[LaneKey(message)] = started = new Lane { Superseded = new CancellationTokenSource() };
                     }
                 }
                 toCancel?.Cancel();
@@ -120,7 +125,7 @@ public sealed class AlertSenderService(
                 if (lane.Waiting is null)
                 {
                     lane.Superseded = null;
-                    _lanes.Remove(message.MonitorId);
+                    _lanes.Remove(LaneKey(message));
                     return;
                 }
                 message = lane.Waiting;
@@ -179,9 +184,4 @@ public sealed class AlertSenderService(
         await base.StopAsync(cancellationToken); // signals stoppingToken = stop retrying, then waits for the drain
     }
 
-    public override void Dispose()
-    {
-        _abort.Dispose();
-        base.Dispose();
-    }
 }

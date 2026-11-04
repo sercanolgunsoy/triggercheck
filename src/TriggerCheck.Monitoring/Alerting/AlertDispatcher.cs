@@ -5,6 +5,7 @@ using TriggerCheck.Domain.Entities;
 using TriggerCheck.Domain.Security;
 using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Monitoring.Checks;
+using TriggerCheck.Monitoring.Diagnostics;
 
 namespace TriggerCheck.Monitoring.Alerting;
 
@@ -45,6 +46,11 @@ public interface IAlertDispatcher
 /// SMS / voice deliveries are capped per customer and UTC day (<see cref="AlertingOptions.SmsVoiceDailyLimitPerCustomer"/>):
 /// a slot is reserved atomically in <see cref="SmsVoiceUsage"/> before sending and given back only when the request
 /// certainly did not reach the provider.
+/// Certificate-expiry warnings (<see cref="AlertKind.CertificateExpiring"/>) never go to voice-call channels: they are
+/// not urgent enough to phone someone (SMS is fine). A customer whose only channel is a voice call gets them by the
+/// contact e-mail fallback.
+/// Every final per-channel delivery outcome is counted in <see cref="MonitoringMetrics.RecordAlert"/> (not channel
+/// tests and not alerts superseded before they were sent).
 /// </summary>
 public sealed class AlertDispatcher(
     IDbContextFactory<AppDbContext> dbFactory,
@@ -53,6 +59,7 @@ public sealed class AlertDispatcher(
     IOptions<AlertingOptions> options,
     IOptionsMonitor<TwilioOptions> twilio,
     TimeProvider time,
+    MonitoringMetrics metrics,
     ILogger<AlertDispatcher> logger) : IAlertDispatcher
 {
     public const string NotInPlanError = "SMS and voice call alerts are not included in the plan";
@@ -107,6 +114,7 @@ public sealed class AlertDispatcher(
 
         var channels = await db.AlertChannels.AsNoTracking()
             .Where(c => c.CustomerId == message.CustomerId && c.IsEnabled)
+            .Where(c => message.Kind != AlertKind.CertificateExpiring || c.Type != AlertChannelType.VoiceCall)
             .OrderBy(c => c.Id)
             .Select(c => new Target((int?)c.Id, c.Type, c.Target, c.Secret))
             .ToListAsync(ct);
@@ -274,6 +282,7 @@ public sealed class AlertDispatcher(
         }
 
         Log(target, message, result, attempts);
+        metrics.RecordAlert(target.Type, result.Success, attempted: attempts > 0);
         return new Notification
         {
             MonitorId = message.MonitorId,

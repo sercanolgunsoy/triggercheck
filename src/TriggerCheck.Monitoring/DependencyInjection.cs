@@ -35,6 +35,8 @@ public static class DependencyInjection
         services.TryAddSingleton<MonitoringMetrics>();
 
         services.AddScoped<IUptimeStatsService, UptimeStatsService>();
+        services.AddMemoryCache();
+        services.AddScoped<IResponseTimeSeriesService, ResponseTimeSeriesService>();
 
         // ---- HTTP clients ----
         // Every connection (incl. redirect hops) goes through TargetGuard, which resolves DNS itself and refuses
@@ -114,7 +116,8 @@ public static class DependencyInjection
 
     private static SocketsHttpHandler CreateProbeHandler(IServiceProvider sp, bool followRedirects) => new()
     {
-        ConnectCallback = TargetGuard.ConnectCallback(AllowPrivateTargets(sp), GuardLogger(sp)),
+        // Same SSRF guard as TargetGuard.ConnectCallback, plus phase timings and TLS certificate capture (ENG-8, FEAT-1).
+        ConnectCallback = ProbeConnection.ConnectCallback(AllowPrivateTargets(sp), GuardLogger(sp)),
         // No proxy: the connect-time guard must see the real destination, not the proxy's address.
         UseProxy = false,
         AllowAutoRedirect = followRedirects,

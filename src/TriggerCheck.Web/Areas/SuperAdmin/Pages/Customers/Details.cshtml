@@ -19,6 +19,7 @@
     </h2>
     <div class="d-flex gap-2">
         <a asp-page="Edit" asp-route-id="@c.Id" class="btn btn-outline-secondary">@L["Edit / change plan"]</a>
+        <a asp-page="ApiKeys" asp-route-id="@c.Id" class="btn btn-outline-secondary">@L["API keys"]</a>
         @if (c.IsActive)
         {
             <form method="post" asp-page-handler="Suspend" asp-route-id="@c.Id" data-confirm="@L["Suspend the customer? All its users are signed out and its monitors are no longer checked."]">

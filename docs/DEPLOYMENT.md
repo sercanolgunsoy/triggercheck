@@ -47,9 +47,11 @@ To build locally, run `docker build -t triggercheck .` from the repository root.
 > `-v /srv/triggercheck:/data`. Do the same after restoring files into it. On SELinux hosts, also add `:Z` to the
 > mount.
 
-> **Reverse proxy:** the app does not process `X-Forwarded-*` headers yet. Behind a TLS-terminating proxy it sees
-> plain HTTP, so `UseHttpsRedirection` logs "Failed to determine the https port" and the auth cookie is not marked
-> `Secure`. Follow-up: enable `ForwardedHeaders` for the proxy's network.
+> **Reverse proxy:** behind a TLS-terminating proxy set `ForwardedHeaders__Enabled=true` and list the proxy in
+> `ForwardedHeaders__KnownProxies` (or its network in `ForwardedHeaders__KnownNetworks`). The app then takes the client
+> IP and the https scheme from `X-Forwarded-For` / `X-Forwarded-Proto`: the auth cookie is marked `Secure`, HTTPS
+> redirection works, and the per-IP API rate limit sees real clients (without it every client shares the proxy's IP,
+> so one client could exhaust the limit for everybody). Headers from any other address are ignored.
 
 ## Configuration (environment variables)
 
@@ -71,6 +73,10 @@ secret store, never in the image or in `appsettings.json`.
 | `Monitoring__Enabled` | no (true) | Runs the scheduler in this process. |
 | `Monitoring__SchedulerTickMilliseconds` (1000), `Monitoring__MaxConcurrency` (50), `Monitoring__RetentionCleanupMinutes` (60) | no | Engine tuning. |
 | `Monitoring__AllowPrivateTargets` | **never in production** | Turns SSRF protection off. |
+| `ForwardedHeaders__Enabled` | behind a reverse proxy (false) | Processes `X-Forwarded-For` and `X-Forwarded-Proto`. |
+| `ForwardedHeaders__KnownProxies`, `ForwardedHeaders__KnownNetworks` | with the above | Trusted proxy IPs (comma separated) / networks in CIDR form, e.g. `10.0.0.0/8`. With neither set only loopback is trusted. |
+| `ForwardedHeaders__ForwardLimit` | no (1) | Number of proxy hops to unwind. |
+| `Api__RequestsPerMinute` (120), `Api__RequestsPerMinutePerCustomer` (300), `Api__RequestsPerMinutePerIp` (600) | no | REST API rate limits, see [API.md](API.md). |
 | `Site__ContactEmail` | no | Sales / support address shown on the marketing pages. |
 | `Seed__DemoData` | no | Ignored outside Development. |
 
