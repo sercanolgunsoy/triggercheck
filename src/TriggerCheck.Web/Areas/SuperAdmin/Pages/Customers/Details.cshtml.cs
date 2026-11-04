@@ -57,7 +57,7 @@ public class DetailsModel(AppDbContext db, UserManager<ApplicationUser> users, T
 
         c.IsActive = false;
         await db.SaveChangesAsync();
-        // Invalidate existing sessions (security stamp) in addition to ActiveAccountFilter's per-request check.
+        // Invalidate existing sessions (security stamp) in addition to SessionValidator's per-request active check.
         await SuperAdminOps.InvalidateCustomerSessionsAsync(users, id);
         TempData["Success"] = L["\"{0}\" was suspended. Its users cannot sign in and its monitors are not checked.", c.Name].Value;
         return RedirectToPage(new { id });

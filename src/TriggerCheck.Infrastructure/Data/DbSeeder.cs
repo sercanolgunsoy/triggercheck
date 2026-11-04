@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using TriggerCheck.Domain;
 using TriggerCheck.Domain.Entities;
@@ -38,17 +39,14 @@ public static class DbSeeder
         }
 
         var userManager = sp.GetRequiredService<UserManager<ApplicationUser>>();
-        var saEmail = config["Seed:SuperAdminEmail"] ?? "superadmin@triggercheck.local";
-        var saPassword = config["Seed:SuperAdminPassword"] ?? "SuperAdmin123!";
-        if (await userManager.FindByEmailAsync(saEmail) is null)
-        {
-            var sa = new ApplicationUser { UserName = saEmail, Email = saEmail, EmailConfirmed = true, FullName = "Super Admin" };
-            var r = await userManager.CreateAsync(sa, saPassword);
-            if (r.Succeeded) await userManager.AddToRoleAsync(sa, Roles.SuperAdmin);
-            else logger.LogError("SuperAdmin seed failed: {Errors}", string.Join("; ", r.Errors.Select(e => e.Description)));
-        }
+        var env = sp.GetRequiredService<IHostEnvironment>();
+        await SeedSuperAdminAsync(userManager, config, env, logger);
 
-        if (config.GetValue("Seed:DemoData", true) && !await db.Customers.AnyAsync())
+        // Demo data (with its well-known password) is opt-in and only ever created in Development.
+        var demoData = config.GetValue("Seed:DemoData", false);
+        if (demoData && !env.IsDevelopment())
+            logger.LogWarning("Seed:DemoData is ignored outside the Development environment ({Environment}).", env.EnvironmentName);
+        else if (demoData && !await db.Customers.AnyAsync())
         {
             var standard = await db.Plans.FirstAsync(p => p.Name == "Standard");
             var demo = new Customer { Name = "Demo Company", ContactEmail = "admin@demo.local", PlanId = standard.Id };
@@ -66,5 +64,69 @@ public static class DbSeeder
             });
             await db.SaveChangesAsync();
         }
+    }
+
+    /// <summary>
+    /// Creates the SuperAdmin from configuration (Seed:SuperAdminEmail / Seed:SuperAdminPassword, e.g. the
+    /// Seed__SuperAdminPassword environment variable). There is no built-in password: outside Development a missing
+    /// password while no SuperAdmin exists stops the startup. The seeded account must change its password on first login
+    /// unless Seed:SuperAdminMustChangePassword is false. A SuperAdmin user left without its role by a half-failed
+    /// seed gets the role back.
+    /// </summary>
+    private static async Task SeedSuperAdminAsync(UserManager<ApplicationUser> userManager, IConfiguration config, IHostEnvironment env, ILogger logger)
+    {
+        var strict = !env.IsDevelopment(); // Production, Staging and custom environments fail fast
+        var saEmail = config["Seed:SuperAdminEmail"] is { Length: > 0 } e ? e : "superadmin@triggercheck.local";
+        var saPassword = config["Seed:SuperAdminPassword"];
+
+        var existing = await userManager.FindByEmailAsync(saEmail);
+        if (existing is not null && !await userManager.IsInRoleAsync(existing, Roles.SuperAdmin))
+        {
+            if (existing.CustomerId is not null)
+            {
+                // Never promote a customer user that happens to use the configured address.
+                var conflict = $"Seed:SuperAdminEmail ({saEmail}) belongs to a customer user; choose another address.";
+                if (strict) throw new InvalidOperationException(conflict);
+                logger.LogError("{Message}", conflict);
+                return;
+            }
+            var fix = await userManager.AddToRoleAsync(existing, Roles.SuperAdmin);
+            if (!fix.Succeeded)
+                Fail(strict, logger, "SuperAdmin role repair failed: " + string.Join("; ", fix.Errors.Select(x => x.Description)));
+            else
+                logger.LogWarning("The SuperAdmin user {Email} had no SuperAdmin role (incomplete seed); the role was added.", saEmail);
+        }
+
+        if (existing is not null || (await userManager.GetUsersInRoleAsync(Roles.SuperAdmin)).Count > 0)
+        {
+            if (!string.IsNullOrWhiteSpace(saPassword))
+                logger.Log(strict ? LogLevel.Warning : LogLevel.Information,
+                    "Seed:SuperAdminPassword is set but a SuperAdmin already exists; the setting is ignored. Remove it from the configuration.");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(saPassword))
+        {
+            Fail(strict, logger, "No SuperAdmin user exists and no password is configured. " +
+                                 "Set Seed:SuperAdminPassword (environment variable Seed__SuperAdminPassword) to create one.");
+            return;
+        }
+
+        var sa = new ApplicationUser
+        {
+            UserName = saEmail, Email = saEmail, EmailConfirmed = true, FullName = "Super Admin",
+            // Anything but an explicit "false" (including an empty value) keeps the forced change.
+            MustChangePassword = !bool.TryParse(config["Seed:SuperAdminMustChangePassword"], out var mustChange) || mustChange
+        };
+        var r = await userManager.CreateAsync(sa, saPassword);
+        if (r.Succeeded) r = await userManager.AddToRoleAsync(sa, Roles.SuperAdmin);
+        if (!r.Succeeded) Fail(strict, logger, "SuperAdmin seed failed: " + string.Join("; ", r.Errors.Select(x => x.Description)));
+    }
+
+    /// <summary>Throws outside Development (startup stops), logs an error in Development.</summary>
+    private static void Fail(bool strict, ILogger logger, string message)
+    {
+        if (strict) throw new InvalidOperationException(message);
+        logger.LogError("{Message}", message);
     }
 }

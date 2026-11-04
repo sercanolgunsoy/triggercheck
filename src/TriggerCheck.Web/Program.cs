@@ -36,6 +36,9 @@ builder.Services.ConfigureApplicationCookie(o =>
     o.AccessDeniedPath = "/Account/AccessDenied";
     o.Cookie.Name = "TriggerCheck.Auth";
     o.SlidingExpiration = true;
+    // Role / active-state changes take effect on the next request (security stamp, active state and customer
+    // checked per request; replaces the former ActiveAccountFilter).
+    SessionValidator.Attach(o);
 });
 
 builder.Services.AddAuthorization(o =>
@@ -47,17 +50,17 @@ builder.Services.AddAuthorization(o =>
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentCustomer, CurrentCustomer>();
-builder.Services.AddScoped<ActiveAccountFilter>();
 builder.Services.AddSingleton<ManualCheckLimiter>();
 
 builder.Services.AddRazorPages(o =>
 {
     // Customer panel: /App/...
     o.Conventions.AuthorizeAreaFolder("App", "/", Policies.Customer);
-    o.Conventions.AddAreaFolderApplicationModelConvention("App", "/", m => m.Filters.Add(new ServiceFilterAttribute(typeof(ActiveAccountFilter))));
     // Platform administration: /SuperAdmin/...
     o.Conventions.AuthorizeAreaFolder("SuperAdmin", "/", Policies.SuperAdmin);
 }).AddAppDataAnnotationsLocalization();
+// Users flagged MustChangePassword (e.g. the seeded SuperAdmin) are sent to /Account/ChangePassword first (all pages, all areas).
+builder.Services.Configure<MvcOptions>(o => o.Filters.Add(new MustChangePasswordFilter()));
 
 var app = builder.Build();
 
@@ -81,9 +84,10 @@ app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapStaticAssets();
+// AllowAnonymous on static assets and /health also tells SessionValidator to skip its per-request DB check there.
+app.MapStaticAssets().AllowAnonymous();
 app.MapRazorPages().WithStaticAssets();
-app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+app.MapGet("/health", () => Results.Ok(new { status = "ok" })).AllowAnonymous();
 app.MapSetLanguage();
 
 await DbSeeder.SeedAsync(app.Services);

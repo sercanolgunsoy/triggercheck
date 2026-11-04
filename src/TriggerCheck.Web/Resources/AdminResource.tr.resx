@@ -394,9 +394,6 @@
   <data name="Suspended" xml:space="preserve">
     <value>Askıda</value>
   </data>
-  <data name="The customer could not be created: {0}" xml:space="preserve">
-    <value>Müşteri oluşturulamadı: {0}</value>
-  </data>
   <data name="The customer is already active." xml:space="preserve">
     <value>Müşteri zaten aktif.</value>
   </data>
@@ -489,5 +486,8 @@
   </data>
   <data name="{0}–{1} / {2} monitors" xml:space="preserve">
     <value>{0}–{1} / {2} monitör</value>
+  </data>
+  <data name="The customer could not be created because of an unexpected error. Reference: {0}" xml:space="preserve">
+    <value>Beklenmeyen bir hata nedeniyle müşteri oluşturulamadı. Referans: {0}</value>
   </data>
 </root>

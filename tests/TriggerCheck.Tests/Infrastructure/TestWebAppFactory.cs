@@ -29,6 +29,9 @@ public class TestWebAppFactory : WebApplicationFactory<Program>
         builder.UseSetting("Seed:DemoData", "true");
         // Tests probe local servers; SSRF blocking itself is covered in Security/ with the flag off.
         builder.UseSetting("Monitoring:AllowPrivateTargets", "true");
+        builder.UseSetting("Seed:SuperAdminPassword", SuperAdminPassword);
+        // Tests sign in as the seeded SuperAdmin directly; the forced change is covered in Accounts/PasswordChangeTests.
+        builder.UseSetting("Seed:SuperAdminMustChangePassword", "false");
     }
 
     public HttpClient CreateBrowser() => CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, HandleCookies = true });

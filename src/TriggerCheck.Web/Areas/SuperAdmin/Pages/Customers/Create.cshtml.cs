@@ -76,7 +76,8 @@ public class CreateModel(AppDbContext db, UserManager<ApplicationUser> users, IL
             var user = new ApplicationUser
             {
                 UserName = email, Email = email, EmailConfirmed = true,
-                FullName = Input.AdminFullName.Trim(), CustomerId = customer.Id, IsActive = true
+                FullName = Input.AdminFullName.Trim(), CustomerId = customer.Id, IsActive = true,
+                MustChangePassword = true // the password was chosen by the SuperAdmin
             };
             var result = await users.CreateAsync(user, Input.AdminPassword);
             if (result.Succeeded) result = await users.AddToRoleAsync(user, Roles.CustomerAdmin);
@@ -94,10 +95,13 @@ public class CreateModel(AppDbContext db, UserManager<ApplicationUser> users, IL
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Customer creation failed");
+            // Never show exception text in the UI; log it under a short reference the user can quote
+            // (the request id, which ASP.NET Core also attaches to every log entry of this request).
+            var correlationId = HttpContext.TraceIdentifier;
+            logger.LogError(ex, "Customer creation failed (correlation id {CorrelationId})", correlationId);
             await tx.RollbackAsync();
             db.ChangeTracker.Clear();
-            ModelState.AddModelError("", L["The customer could not be created: {0}", ex.Message]);
+            ModelState.AddModelError("", L["The customer could not be created because of an unexpected error. Reference: {0}", correlationId]);
             return Page();
         }
     }
