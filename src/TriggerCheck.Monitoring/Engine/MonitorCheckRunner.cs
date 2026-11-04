@@ -6,6 +6,7 @@ using TriggerCheck.Domain.Entities;
 using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Monitoring.Alerting;
 using TriggerCheck.Monitoring.Checks;
+using TriggerCheck.Monitoring.Maintenance;
 using TriggerCheck.Monitoring.Stats;
 using MonitorEntity = TriggerCheck.Domain.Entities.Monitor;
 
@@ -56,6 +57,14 @@ namespace TriggerCheck.Monitoring.Engine;
 /// TLS certificates (https Http/Keyword): the certificate captured by the probe is stored on the monitor, and a
 /// "certificate expiring" alert is sent once when it enters <see cref="MonitorEntity.CertWarnDays"/> and once more at 7 days
 /// (<see cref="MonitorStateMachine.TryMarkCertificateWarning"/>), for actively monitored monitors only.
+/// </para>
+/// <para>
+/// Maintenance windows (FEAT-3, <see cref="MaintenanceQueries.IsInMaintenanceAsync"/>, evaluated at the probe start):
+/// the probe is recorded with <see cref="CheckResult.InMaintenance"/> and applied by
+/// <see cref="MonitorStateMachine.ApplyInMaintenance"/>: no incident is opened and no DOWN / UP / certificate alert is
+/// sent. A monitor already DOWN keeps its incident open; if it recovers during the window the incident is closed
+/// silently (<see cref="Incident.ResolvedDuringMaintenance"/>). A pending confirmation is dropped, so a monitor still
+/// failing after the window goes through the normal flow from its first probe after the window.
 /// </para>
 /// </summary>
 public sealed class MonitorCheckRunner(
@@ -160,6 +169,9 @@ public sealed class MonitorCheckRunner(
 
         // Retries start from a fresh row: reset what an earlier attempt may have set on the (new) result object.
         result.IsConfirmation = false;
+        // FEAT-3: probes in a maintenance window are recorded but never open incidents or send alerts.
+        var inMaintenance = await MaintenanceQueries.IsInMaintenanceAsync(db, monitor.CustomerId, monitor.Id, checkedAt, ct);
+        result.InMaintenance = inMaintenance;
         db.CheckResults.Add(result);
         AlertMessage? alert = null;
         AlertMessage? certAlert = null;
@@ -171,7 +183,13 @@ public sealed class MonitorCheckRunner(
             var transition = StatusTransition.None;
             var transitionAt = checkedAt;
             var delay = TimeSpan.FromSeconds(Math.Clamp(o.ConfirmationDelaySeconds, 0, 300));
-            if (MonitorStateMachine.HasValidPendingConfirmation(monitor, checkedAt, delay))
+            if (inMaintenance)
+            {
+                // A confirmation pending from before the window is void: after the window everything starts over.
+                MonitorStateMachine.ClearPendingConfirmation(monitor);
+                transition = MonitorStateMachine.ApplyInMaintenance(monitor, outcome, checkedAt);
+            }
+            else if (MonitorStateMachine.HasValidPendingConfirmation(monitor, checkedAt, delay))
             {
                 // This run is the confirmation probe of an earlier failure.
                 var failedAt = monitor.PendingConfirmationSinceUtc!.Value;
@@ -198,10 +216,14 @@ public sealed class MonitorCheckRunner(
                 else
                     transition = MonitorStateMachine.Apply(monitor, outcome, checkedAt);
             }
-            alert = await ApplyTransitionAsync(db, monitor, transition, transitionAt, ct);
+            if (inMaintenance)
+                await RecoverInMaintenanceAsync(db, monitor, transition, checkedAt, ct);
+            else
+                alert = await ApplyTransitionAsync(db, monitor, transition, transitionAt, ct);
             // Status changed (and possibly an incident opened/closed): make concurrent user writers retry.
             if (transition != StatusTransition.None) monitor.Version++;
-            if (MonitorStateMachine.TryMarkCertificateWarning(monitor, checkedAt))
+            // In maintenance the warning stays due and is sent by the first check after the window.
+            if (!inMaintenance && MonitorStateMachine.TryMarkCertificateWarning(monitor, checkedAt))
                 certAlert = AlertMessage.CertificateExpiring(monitor, checkedAt);
         }
         else
@@ -211,7 +233,27 @@ public sealed class MonitorCheckRunner(
         }
 
         await db.SaveChangesAsync(ct);
+        // FEAT-5: the DOWN alert carries its incident (acknowledge link, escalation).
+        if (alert is { Kind: AlertKind.Down })
+            alert = alert with
+            {
+                IncidentId = await db.Incidents.Where(i => i.MonitorId == monitor.Id && i.ResolvedAtUtc == null)
+                    .OrderByDescending(i => i.StartedAtUtc).Select(i => (int?)i.Id).FirstOrDefaultAsync(ct)
+            };
         return (alert, certAlert);
+    }
+
+    /// <summary>FEAT-3: a monitor that was DOWN recovered during maintenance: close its incident silently (no UP alert).</summary>
+    private async Task RecoverInMaintenanceAsync(AppDbContext db, MonitorEntity monitor, StatusTransition transition, DateTime now, CancellationToken ct)
+    {
+        if (transition != StatusTransition.Recovered) return;
+        var open = await db.Incidents.Where(i => i.MonitorId == monitor.Id && i.ResolvedAtUtc == null).ToListAsync(ct);
+        foreach (var incident in open)
+        {
+            incident.ResolvedAtUtc = now;
+            incident.ResolvedDuringMaintenance = true;
+        }
+        logger.LogInformation("Monitor {MonitorId} '{Name}' recovered during maintenance; incident closed without an UP alert", monitor.Id, monitor.Name);
     }
 
     private async Task<CheckOutcome> ProbeAsync(MonitorEntity monitor, CancellationToken ct)

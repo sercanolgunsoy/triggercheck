@@ -2,6 +2,7 @@
 @model TriggerCheck.Web.Areas.App.Pages.Incidents.IndexModel
 @{
     ViewData["Title"] = L["Incidents"].Value;
+    var isAdmin = User.IsInRole(Roles.CustomerAdmin);
     var filters = new (string? Value, string Label)[] { (null, L["All"]), ("open", L["Open ({0})", Model.OpenCount]), ("resolved", L["Resolved"]) };
 }
 
@@ -23,17 +24,29 @@ else
 {
     <div class="table-responsive">
         <table class="table table-hover align-middle">
-            <thead><tr><th>@L["Status"]</th><th>@L["Monitor"]</th><th>@L["Started"]</th><th>@L["Ended"]</th><th>@L["Duration"]</th><th>@L["Cause"]</th></tr></thead>
+            <thead><tr><th>@L["Status"]</th><th>@L["Monitor"]</th><th>@L["Started"]</th><th>@L["Ended"]</th><th>@L["Duration"]</th><th>@L["Cause"]</th><th></th></tr></thead>
             <tbody>
             @foreach (var i in Model.Items)
             {
                 <tr class="@(i.ResolvedAtUtc is null ? "table-danger" : "")">
-                    <td>@if (i.ResolvedAtUtc is null) { <span class="badge bg-danger">@L["Open"]</span> } else { <span class="badge bg-success">@L["Resolved"]</span> }</td>
+                    <td>@if (i.ResolvedAtUtc is null) { <span class="badge bg-danger">@L["Open"]</span> } else { <span class="badge bg-success">@L["Resolved"]</span> }
+                        @if (i.AcknowledgedAtUtc is not null) { <span class="badge bg-info text-dark">@L["Acknowledged"]</span> }</td>
                     <td><a asp-page="/Monitors/Details" asp-route-id="@i.MonitorId">@i.MonitorName</a></td>
                     <td class="text-nowrap">@Fmt.Time(i.StartedAtUtc)</td>
                     <td class="text-nowrap">@Fmt.Time(i.ResolvedAtUtc)</td>
                     <td class="text-nowrap">@Fmt.Duration((i.ResolvedAtUtc ?? DateTime.UtcNow) - i.StartedAtUtc)@(i.ResolvedAtUtc is null ? " " + L["(ongoing)"].Value : "")</td>
-                    <td class="small">@i.Cause</td>
+                    <td class="small">@i.Cause
+                        @if (i.ResolvedDuringMaintenance) { <div class="text-muted">@L["Recovered during maintenance; no UP alert was sent."]</div> }</td>
+                    <td class="text-end text-nowrap">
+                        @if (isAdmin && i.ResolvedAtUtc is null && i.AcknowledgedAtUtc is null)
+                        {
+                            <form method="post" asp-page="Details" asp-page-handler="Acknowledge" asp-route-id="@i.Id" class="d-inline">
+                                <input type="hidden" name="returnTo" value="list" />
+                                <button type="submit" class="btn btn-sm btn-outline-primary">@L["Acknowledge"]</button>
+                            </form>
+                        }
+                        <a class="btn btn-sm btn-outline-secondary" asp-page="Details" asp-route-id="@i.Id">@L["Details"]</a>
+                    </td>
                 </tr>
             }
             </tbody>

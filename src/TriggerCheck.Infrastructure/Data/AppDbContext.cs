@@ -16,6 +16,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
     public DbSet<AlertChannel> AlertChannels => Set<AlertChannel>();
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<SmsVoiceUsage> SmsVoiceUsage => Set<SmsVoiceUsage>();
+    public DbSet<MaintenanceWindow> MaintenanceWindows => Set<MaintenanceWindow>();
+    public DbSet<EscalationPolicy> EscalationPolicies => Set<EscalationPolicy>();
+    public DbSet<EscalationStep> EscalationSteps => Set<EscalationStep>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -66,6 +69,31 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
             e.HasOne(x => x.Monitor).WithMany(m => m.Incidents).HasForeignKey(x => x.MonitorId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(x => new { x.MonitorId, x.StartedAtUtc });
             e.Ignore(x => x.IsOpen);
+            e.Property(x => x.AcknowledgedByUserId).HasMaxLength(450);
+            e.Property(x => x.AcknowledgeNote).HasMaxLength(500);
+        });
+
+        // FEAT-3: maintenance windows; the monitor list is a join table that disappears with either side.
+        b.Entity<MaintenanceWindow>(e =>
+        {
+            e.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            e.Property(x => x.TimeZoneId).HasMaxLength(100).IsRequired();
+            e.HasOne(x => x.Customer).WithMany().HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Cascade);
+            e.HasMany(x => x.Monitors).WithMany().UsingEntity("MaintenanceWindowMonitors");
+            e.HasIndex(x => x.CustomerId);
+        });
+
+        // FEAT-5: one optional escalation policy per customer; step channels are a join table.
+        b.Entity<EscalationPolicy>(e =>
+        {
+            e.HasOne(x => x.Customer).WithMany().HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => x.CustomerId).IsUnique();
+            e.HasMany(x => x.Steps).WithOne(s => s.Policy).HasForeignKey(s => s.EscalationPolicyId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<EscalationStep>(e =>
+        {
+            e.HasMany(x => x.Channels).WithMany().UsingEntity("EscalationStepChannels");
         });
 
         b.Entity<AlertChannel>(e =>

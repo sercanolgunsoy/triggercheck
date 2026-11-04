@@ -150,7 +150,8 @@ public sealed class MonitoringTestHost : IAsyncDisposable
         using (var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5)))
             await Services.GetRequiredService<AlertSenderService>().StopAsync(stop.Token);
         await Services.DisposeAsync();
-        SqliteConnection.ClearAllPools();
+        // Only this database's pool: ClearAllPools would dispose connections of tests running in parallel.
+        SqliteConnection.ClearPool(new SqliteConnection($"Data Source={_dbPath}"));
         try { File.Delete(_dbPath); } catch { /* ignore */ }
     }
 }

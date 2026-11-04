@@ -748,4 +748,220 @@
   <data name="TLS certificate expiry warnings are never sent as voice calls; if voice calls are your only channel, they follow this setting as well." xml:space="preserve">
     <value>TLS sertifikası süre uyarıları hiçbir zaman sesli arama olarak gönderilmez; tek kanalınız sesli arama ise bu uyarılar da bu ayara göre gönderilir.</value>
   </data>
+  <data name="A one-off window can last at most 31 days." xml:space="preserve">
+    <value>Tek seferlik bir bakım penceresi en fazla 31 gün sürebilir.</value>
+  </data>
+  <data name="A window for all monitors also covers monitors added later." xml:space="preserve">
+    <value>Tüm monitörler için tanımlanan pencere sonradan eklenen monitörleri de kapsar.</value>
+  </data>
+  <data name="Acknowledge" xml:space="preserve">
+    <value>Onayla</value>
+  </data>
+  <data name="Acknowledge an incident from the incidents page or with the link in the DOWN alert. Acknowledged or resolved incidents are not escalated; escalation also pauses while a monitor is in maintenance." xml:space="preserve">
+    <value>Bir olayı olaylar sayfasından veya DOWN bildirimindeki bağlantıyla onaylayın. Onaylanmış veya çözülmüş olaylar eskale edilmez; monitör bakımdayken eskalasyon da durur.</value>
+  </data>
+  <data name="Acknowledge incident" xml:space="preserve">
+    <value>Olayı onayla</value>
+  </data>
+  <data name="Acknowledged" xml:space="preserve">
+    <value>Onaylandı</value>
+  </data>
+  <data name="Acknowledging tells your team someone is working on it and stops further escalation steps. The monitor's status is not changed." xml:space="preserve">
+    <value>Onaylamak, ekibinize birinin sorunla ilgilendiğini bildirir ve sonraki eskalasyon adımlarını durdurur. Monitörün durumu değişmez.</value>
+  </data>
+  <data name="Add alert channels first; escalation steps notify channels you choose." xml:space="preserve">
+    <value>Önce bildirim kanalı ekleyin; eskalasyon adımları seçtiğiniz kanallara bildirim gönderir.</value>
+  </data>
+  <data name="Are you sure you want to delete the maintenance window &quot;{0}&quot;? Monitors it covers are alerted normally again." xml:space="preserve">
+    <value>"{0}" bakım penceresini silmek istediğinize emin misiniz? Kapsadığı monitörler için yeniden normal şekilde bildirim gönderilir.</value>
+  </data>
+  <data name="Choose a valid time zone." xml:space="preserve">
+    <value>Geçerli bir saat dilimi seçin.</value>
+  </data>
+  <data name="Choose at least one day." xml:space="preserve">
+    <value>En az bir gün seçin.</value>
+  </data>
+  <data name="Choose at least one monitor, or apply the window to all monitors." xml:space="preserve">
+    <value>En az bir monitör seçin veya pencereyi tüm monitörlere uygulayın.</value>
+  </data>
+  <data name="Current / next ({0})" xml:space="preserve">
+    <value>Şu anki / sonraki ({0})</value>
+  </data>
+  <data name="Days" xml:space="preserve">
+    <value>Günler</value>
+  </data>
+  <data name="Delete maintenance window" xml:space="preserve">
+    <value>Bakım penceresini sil</value>
+  </data>
+  <data name="Duration (minutes)" xml:space="preserve">
+    <value>Süre (dakika)</value>
+  </data>
+  <data name="During planned maintenance, checks keep running but no incidents are opened and no alerts are sent. Maintenance time is left out of uptime." xml:space="preserve">
+    <value>Planlı bakım sırasında kontroller devam eder ancak olay açılmaz ve bildirim gönderilmez. Bakım süresi çalışma süresi hesabına katılmaz.</value>
+  </data>
+  <data name="Edit maintenance window" xml:space="preserve">
+    <value>Bakım penceresini düzenle</value>
+  </data>
+  <data name="Ends" xml:space="preserve">
+    <value>Bitiş</value>
+  </data>
+  <data name="Enter the start and the end." xml:space="preserve">
+    <value>Başlangıç ve bitişi girin.</value>
+  </data>
+  <data name="Enter the start time as HH:mm." xml:space="preserve">
+    <value>Başlangıç saatini SS:dd biçiminde girin.</value>
+  </data>
+  <data name="Escalated to step {0}" xml:space="preserve">
+    <value>{0}. adıma eskale edildi</value>
+  </data>
+  <data name="Escalation enabled" xml:space="preserve">
+    <value>Eskalasyon etkin</value>
+  </data>
+  <data name="Escalation policy" xml:space="preserve">
+    <value>Eskalasyon politikası</value>
+  </data>
+  <data name="Go to incidents" xml:space="preserve">
+    <value>Olaylara git</value>
+  </data>
+  <data name="Grey bands are maintenance windows; checks in them are not counted." xml:space="preserve">
+    <value>Gri bantlar bakım pencereleridir; bu aralıktaki kontroller hesaba katılmaz.</value>
+  </data>
+  <data name="In maintenance" xml:space="preserve">
+    <value>Bakımda</value>
+  </data>
+  <data name="In progress" xml:space="preserve">
+    <value>Devam ediyor</value>
+  </data>
+  <data name="Incident #{0}" xml:space="preserve">
+    <value>Olay #{0}</value>
+  </data>
+  <data name="Leave a row empty to skip it. Each step must come later than the previous one (at most 24 hours)." xml:space="preserve">
+    <value>Bir satırı atlamak için boş bırakın. Her adım bir öncekinden sonra gelmelidir (en fazla 24 saat).</value>
+  </data>
+  <data name="Maintenance window &quot;{0}&quot; was added." xml:space="preserve">
+    <value>"{0}" bakım penceresi eklendi.</value>
+  </data>
+  <data name="Maintenance window &quot;{0}&quot; was deleted." xml:space="preserve">
+    <value>"{0}" bakım penceresi silindi.</value>
+  </data>
+  <data name="Maintenance window &quot;{0}&quot; was updated." xml:space="preserve">
+    <value>"{0}" bakım penceresi güncellendi.</value>
+  </data>
+  <data name="Maintenance windows" xml:space="preserve">
+    <value>Bakım pencereleri</value>
+  </data>
+  <data name="Minutes after the incident started" xml:space="preserve">
+    <value>Olay başladıktan sonraki dakika</value>
+  </data>
+  <data name="Monitor {0} has been down since {1}." xml:space="preserve">
+    <value>{0} monitörü {1} tarihinden beri kapalı.</value>
+  </data>
+  <data name="New maintenance window" xml:space="preserve">
+    <value>Yeni bakım penceresi</value>
+  </data>
+  <data name="No maintenance windows yet." xml:space="preserve">
+    <value>Henüz bakım penceresi yok.</value>
+  </data>
+  <data name="Not escalated" xml:space="preserve">
+    <value>Eskale edilmedi</value>
+  </data>
+  <data name="Note (optional)" xml:space="preserve">
+    <value>Not (isteğe bağlı)</value>
+  </data>
+  <data name="Notify channels" xml:space="preserve">
+    <value>Bildirilecek kanallar</value>
+  </data>
+  <data name="One-off" xml:space="preserve">
+    <value>Tek seferlik</value>
+  </data>
+  <data name="Only account admins can acknowledge incidents." xml:space="preserve">
+    <value>Olayları yalnızca hesap yöneticileri onaylayabilir.</value>
+  </data>
+  <data name="Recovered during maintenance; no UP alert was sent." xml:space="preserve">
+    <value>Bakım sırasında düzeldi; UP bildirimi gönderilmedi.</value>
+  </data>
+  <data name="Repeats weekly" xml:space="preserve">
+    <value>Her hafta tekrarlanır</value>
+  </data>
+  <data name="Schedule" xml:space="preserve">
+    <value>Zamanlama</value>
+  </data>
+  <data name="Start and end times are entered in this time zone; weekly windows follow its daylight saving time changes." xml:space="preserve">
+    <value>Başlangıç ve bitiş saatleri bu saat diliminde girilir; haftalık pencereler bu dilimin yaz saati değişikliklerini izler.</value>
+  </data>
+  <data name="Start time" xml:space="preserve">
+    <value>Başlangıç saati</value>
+  </data>
+  <data name="Starts" xml:space="preserve">
+    <value>Başlangıç</value>
+  </data>
+  <data name="Step" xml:space="preserve">
+    <value>Adım</value>
+  </data>
+  <data name="Step {0}: choose at least one alert channel." xml:space="preserve">
+    <value>Adım {0}: en az bir bildirim kanalı seçin.</value>
+  </data>
+  <data name="Step {0}: each step must come later than the previous one." xml:space="preserve">
+    <value>Adım {0}: her adım bir öncekinden sonra gelmelidir.</value>
+  </data>
+  <data name="Step {0}: the delay must be between 1 and {1} minutes." xml:space="preserve">
+    <value>Adım {0}: gecikme 1 ile {1} dakika arasında olmalıdır.</value>
+  </data>
+  <data name="The duration must be between 1 and {0} minutes." xml:space="preserve">
+    <value>Süre 1 ile {0} dakika arasında olmalıdır.</value>
+  </data>
+  <data name="The end must be after the start." xml:space="preserve">
+    <value>Bitiş, başlangıçtan sonra olmalıdır.</value>
+  </data>
+  <data name="The end must be in the future." xml:space="preserve">
+    <value>Bitiş gelecekte olmalıdır.</value>
+  </data>
+  <data name="The escalation policy was saved." xml:space="preserve">
+    <value>Eskalasyon politikası kaydedildi.</value>
+  </data>
+  <data name="The incident is already resolved; resolved incidents cannot be acknowledged." xml:space="preserve">
+    <value>Olay zaten çözüldü; çözülmüş olaylar onaylanamaz.</value>
+  </data>
+  <data name="The incident was acknowledged. No further escalation steps are sent for it." xml:space="preserve">
+    <value>Olay onaylandı. Bu olay için başka eskalasyon adımı gönderilmeyecek.</value>
+  </data>
+  <data name="The incident was already acknowledged." xml:space="preserve">
+    <value>Olay zaten onaylanmış.</value>
+  </data>
+  <data name="This acknowledge link has expired. Open the incident from the incidents page instead." xml:space="preserve">
+    <value>Bu onay bağlantısının süresi dolmuş. Olayı bunun yerine olaylar sayfasından açın.</value>
+  </data>
+  <data name="This acknowledge link is not valid for your account." xml:space="preserve">
+    <value>Bu onay bağlantısı hesabınız için geçerli değil.</value>
+  </data>
+  <data name="Time zone" xml:space="preserve">
+    <value>Saat dilimi</value>
+  </data>
+  <data name="Upcoming" xml:space="preserve">
+    <value>Yaklaşan</value>
+  </data>
+  <data name="View incident" xml:space="preserve">
+    <value>Olayı görüntüle</value>
+  </data>
+  <data name="Weekly on {0} at {1} for {2} ({3})" xml:space="preserve">
+    <value>Her hafta {0}, saat {1}, {2} süreyle ({3})</value>
+  </data>
+  <data name="When a monitor goes DOWN, every enabled channel is notified (step 0). If nobody acknowledges the incident, the steps below notify further channels while the monitor is still down." xml:space="preserve">
+    <value>Bir monitör DOWN olduğunda tüm etkin kanallara bildirim gönderilir (adım 0). Olayı kimse onaylamazsa, monitör hâlâ kapalıyken aşağıdaki adımlar başka kanallara da bildirim gönderir.</value>
+  </data>
+  <data name="a deleted user" xml:space="preserve">
+    <value>silinmiş bir kullanıcı</value>
+  </data>
+  <data name="e.g. Weekly database upgrade" xml:space="preserve">
+    <value>örn. Haftalık veritabanı güncellemesi</value>
+  </data>
+  <data name="{0} by {1}" xml:space="preserve">
+    <value>{0}, {1} tarafından</value>
+  </data>
+  <data name="{0} monitor(s)" xml:space="preserve">
+    <value>{0} monitör</value>
+  </data>
+  <data name="{0} to {1} ({2})" xml:space="preserve">
+    <value>{0} - {1} ({2})</value>
+  </data>
 </root>
