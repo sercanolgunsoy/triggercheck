@@ -13,6 +13,9 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddMonitoringEngine(builder.Configuration);
 builder.Services.AddAppLocalization();
+// OPS-4: OpenTelemetry (OTLP export only when configured) and /health/live + /health/ready.
+builder.AddAppTelemetry();
+builder.Services.AddAppHealthChecks();
 
 builder.Services
     .AddIdentity<ApplicationUser, IdentityRole>(o =>
@@ -84,10 +87,10 @@ app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
 
-// AllowAnonymous on static assets and /health also tells SessionValidator to skip its per-request DB check there.
+// AllowAnonymous on static assets and the health endpoints also tells SessionValidator to skip its per-request DB check there.
 app.MapStaticAssets().AllowAnonymous();
 app.MapRazorPages().WithStaticAssets();
-app.MapGet("/health", () => Results.Ok(new { status = "ok" })).AllowAnonymous();
+app.MapAppHealthChecks(includeDetails: app.Environment.IsDevelopment());
 app.MapSetLanguage();
 
 await DbSeeder.SeedAsync(app.Services);
