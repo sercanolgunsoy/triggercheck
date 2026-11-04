@@ -84,6 +84,13 @@ public static class Fmt
     /// <summary>en "$15.00", tr "15,00 $".</summary>
     public static string Money(decimal v) => IsTurkish ? v.ToString("N2", Culture) + " $" : "$" + v.ToString("N2", Culture);
 
+    /// <summary>Headline price without cents when whole: en "$15" / "$9.90", tr "15 $" / "9,90 $".</summary>
+    public static string Price(decimal v)
+    {
+        var n = v.ToString(v == decimal.Truncate(v) ? "N0" : "N2", Culture);
+        return IsTurkish ? n + " $" : "$" + n;
+    }
+
     public static string Ms(int? ms) => ms is int v ? $"{v} ms" : "—";
 
     public static string TypeName(MonitorType t) => t switch

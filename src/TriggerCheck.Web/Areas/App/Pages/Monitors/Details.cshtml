@@ -148,27 +148,55 @@
         (function () {
             var data = @Json.Serialize(Model.Chart);
             if (typeof Chart === 'undefined') return;
-            new Chart(document.getElementById('rtChart'), {
+            var css = getComputedStyle(document.documentElement);
+            var brand = css.getPropertyValue('--tc-brand').trim() || '#4f46e5';
+            var down = css.getPropertyValue('--tc-down').trim() || '#e11d48';
+            var muted = css.getPropertyValue('--tc-muted').trim() || '#64748b';
+            var grid = css.getPropertyValue('--tc-border').trim() || '#e5e7eb';
+            Chart.defaults.font.family = css.getPropertyValue('--tc-font');
+            Chart.defaults.color = muted;
+            var chart = new Chart(document.getElementById('rtChart'), {
                 type: 'line',
                 data: {
                     labels: data.map(function (p) { return p.label; }),
                     datasets: [{
                         label: @Json.Serialize(L["Response time (ms)"].Value),
                         data: data.map(function (p) { return p.ms; }),
-                        borderColor: '#0d6efd',
-                        backgroundColor: 'rgba(13,110,253,0.1)',
+                        borderColor: brand,
+                        borderWidth: 2,
+                        backgroundColor: function (ctx) {
+                            var a = ctx.chart.chartArea;
+                            if (!a) return 'transparent';
+                            var g = ctx.chart.ctx.createLinearGradient(0, a.top, 0, a.bottom);
+                            g.addColorStop(0, 'rgba(99,102,241,0.28)');
+                            g.addColorStop(1, 'rgba(99,102,241,0)');
+                            return g;
+                        },
                         fill: true,
-                        tension: 0.2,
-                        pointRadius: data.map(function (p) { return p.isUp ? 0 : 3; }),
-                        pointBackgroundColor: data.map(function (p) { return p.isUp ? '#0d6efd' : '#dc3545'; })
+                        tension: 0.35,
+                        pointRadius: data.map(function (p) { return p.isUp ? 0 : 3.5; }),
+                        pointHoverRadius: 4,
+                        pointBackgroundColor: data.map(function (p) { return p.isUp ? brand : down; }),
+                        pointBorderWidth: 0
                     }]
                 },
                 options: {
                     maintainAspectRatio: false,
                     animation: false,
-                    plugins: { legend: { display: false } },
-                    scales: { y: { beginAtZero: true, title: { display: true, text: 'ms' } }, x: { ticks: { maxTicksLimit: 12 } } }
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: { legend: { display: false }, tooltip: { backgroundColor: '#0f172a', padding: 10, cornerRadius: 8, displayColors: false } },
+                    scales: {
+                        y: { beginAtZero: true, title: { display: true, text: 'ms' }, grid: { color: grid }, border: { display: false } },
+                        x: { ticks: { maxTicksLimit: 12 }, grid: { display: false }, border: { color: grid } }
+                    }
                 }
+            });
+            document.addEventListener('tc:theme', function () {
+                var c = getComputedStyle(document.documentElement), g = c.getPropertyValue('--tc-border').trim();
+                Chart.defaults.color = c.getPropertyValue('--tc-muted').trim();
+                chart.options.scales.y.grid.color = g;
+                chart.options.scales.x.border.color = g;
+                chart.update('none');
             });
         })();
         </script>

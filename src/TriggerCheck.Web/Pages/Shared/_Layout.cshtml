@@ -1,11 +1,17 @@
 @using System.Security.Claims
+@using Microsoft.AspNetCore.Html
 @{
     var isSuper = User.IsInRole(Roles.SuperAdmin);
     var isCustomer = User.IsInRole(Roles.CustomerAdmin) || User.IsInRole(Roles.CustomerViewer);
     var isCustomerAdmin = User.IsInRole(Roles.CustomerAdmin);
-    var displayName = User.FindFirstValue(AppClaims.FullName) ?? User.Identity?.Name;
-    var here = Context.Request.Path + Context.Request.QueryString;
-    var lang = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
+    var signedIn = User.Identity?.IsAuthenticated == true;
+    var displayName = User.FindFirstValue(AppClaims.FullName) ?? User.Identity?.Name ?? "";
+    var initials = string.Concat(displayName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(w => char.ToUpperInvariant(w[0])));
+    var role = isSuper ? Roles.SuperAdmin : isCustomerAdmin ? Roles.CustomerAdmin : isCustomer ? Roles.CustomerViewer : null;
+    var path = Context.Request.Path.Value?.TrimEnd('/') ?? "";
+    var hasShell = isSuper || isCustomer;
+
+    IHtmlContent NavItem(string href, string icon, string text, bool root = false) => SidebarLink.Render(path, href, icon, text, root);
 }
 <!DOCTYPE html>
 <html lang="@System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName">
@@ -13,69 +19,112 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"] - TriggerCheck</title>
+    <partial name="_ThemeScript" />
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
-    <link rel="stylesheet" href="~/TriggerCheck.Web.styles.css" asp-append-version="true" />
     @await RenderSectionAsync("Head", required: false)
 </head>
 <body>
-<header>
-    <nav class="navbar navbar-expand-md navbar-dark @(isSuper ? "bg-danger" : "bg-dark") mb-4">
-        <div class="container">
-            <a class="navbar-brand fw-bold" asp-area="" asp-page="/Index">TriggerCheck @(isSuper ? "· SuperAdmin" : "")</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav"><span class="navbar-toggler-icon"></span></button>
-            <div class="collapse navbar-collapse" id="mainNav">
-                <ul class="navbar-nav me-auto">
-                    @if (isCustomer)
-                    {
-                        <li class="nav-item"><a class="nav-link" asp-area="App" asp-page="/Index">@L["Dashboard"]</a></li>
-                        <li class="nav-item"><a class="nav-link" asp-area="App" asp-page="/Monitors/Index">@L["Monitors"]</a></li>
-                        <li class="nav-item"><a class="nav-link" asp-area="App" asp-page="/Incidents/Index">@L["Incidents"]</a></li>
-                        <li class="nav-item"><a class="nav-link" asp-area="App" asp-page="/Alerts/Index">@L["Alert channels"]</a></li>
-                        @if (isCustomerAdmin)
-                        {
-                            <li class="nav-item"><a class="nav-link" asp-area="App" asp-page="/Users/Index">@L["Users"]</a></li>
-                        }
-                        <li class="nav-item"><a class="nav-link" asp-area="App" asp-page="/Account/Index">@L["Account & plan"]</a></li>
-                    }
-                    @if (isSuper)
-                    {
-                        <li class="nav-item"><a class="nav-link" asp-area="SuperAdmin" asp-page="/Index">@L["Overview"]</a></li>
-                        <li class="nav-item"><a class="nav-link" asp-area="SuperAdmin" asp-page="/Customers/Index">@L["Customers"]</a></li>
-                        <li class="nav-item"><a class="nav-link" asp-area="SuperAdmin" asp-page="/Plans/Index">@L["Plans"]</a></li>
-                        <li class="nav-item"><a class="nav-link" asp-area="SuperAdmin" asp-page="/Monitors/Index">@L["All monitors"]</a></li>
-                    }
-                </ul>
-                <div class="dropdown me-3">
-                    <button class="btn btn-outline-light btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="@L["Language"]">@lang.ToUpperInvariant()</button>
-                    <ul class="dropdown-menu dropdown-menu-end">
-                        <li><a class="dropdown-item @(lang == "en" ? "active" : "")" href="/set-language?culture=en&returnUrl=@Uri.EscapeDataString(here)" lang="en">English</a></li>
-                        <li><a class="dropdown-item @(lang == "tr" ? "active" : "")" href="/set-language?culture=tr&returnUrl=@Uri.EscapeDataString(here)" lang="tr">Türkçe</a></li>
+@if (hasShell)
+{
+<div class="app-shell">
+    <aside class="app-sidebar offcanvas-lg offcanvas-start" tabindex="-1" id="sidebar" aria-label="@L["Main navigation"]">
+        <div class="sidebar-inner">
+            <div class="d-flex align-items-center justify-content-between">
+                <a class="sidebar-brand" href="@(isSuper ? "/SuperAdmin" : "/App")">@Icons.Logo(28) TriggerCheck
+                    @if (isSuper) { <span class="tag">Admin</span> }
+                </a>
+                <button type="button" class="btn btn-sm text-white d-lg-none" data-bs-dismiss="offcanvas" data-bs-target="#sidebar" aria-label="@L["Close"]">@Icons.Get("x")</button>
+            </div>
+
+            @if (isCustomer)
+            {
+                <div>
+                    <div class="sidebar-section">@L["Monitoring"]</div>
+                    <ul class="sidebar-nav">
+                        @NavItem("/App", "dashboard", L["Dashboard"], root: true)
+                        @NavItem("/App/Monitors", "activity", L["Monitors"])
+                        @NavItem("/App/Incidents", "alert", L["Incidents"])
+                        @NavItem("/App/Alerts", "bell", L["Alert channels"])
                     </ul>
                 </div>
-                @if (User.Identity?.IsAuthenticated == true)
-                {
-                    <span class="navbar-text text-light me-3">@displayName</span>
-                    <form method="post" asp-area="" asp-page="/Account/Logout" class="d-inline">
-                        <button type="submit" class="btn btn-outline-light btn-sm">@L["Sign out"]</button>
+                <div>
+                    <div class="sidebar-section">@L["Settings"]</div>
+                    <ul class="sidebar-nav">
+                        @if (isCustomerAdmin) { @NavItem("/App/Users", "users", L["Users"]) }
+                        @NavItem("/App/Account", "card", L["Account & plan"])
+                    </ul>
+                </div>
+            }
+            @if (isSuper)
+            {
+                <div>
+                    <div class="sidebar-section">@L["Platform"]</div>
+                    <ul class="sidebar-nav">
+                        @NavItem("/SuperAdmin", "dashboard", L["Overview"], root: true)
+                        @NavItem("/SuperAdmin/Customers", "building", L["Customers"])
+                        @NavItem("/SuperAdmin/Plans", "layers", L["Plans"])
+                        @NavItem("/SuperAdmin/Monitors", "list", L["All monitors"])
+                    </ul>
+                </div>
+            }
+
+            <div class="sidebar-foot">
+                <div class="sidebar-user">
+                    <span class="avatar">@(initials.Length > 0 ? initials : "?")</span>
+                    <div class="min-w-0 flex-grow-1" style="min-width:0">
+                        <div class="name" title="@displayName">@displayName</div>
+                        <div class="role">@Fmt.RoleName(role)</div>
+                    </div>
+                    <form method="post" asp-area="" asp-page="/Account/Logout" class="m-0">
+                        <button type="submit" class="btn btn-sm btn-icon text-secondary" title="@L["Sign out"]" aria-label="@L["Sign out"]">@Icons.Get("logout")</button>
                     </form>
-                }
-                else
-                {
-                    <a class="btn btn-outline-light btn-sm" asp-area="" asp-page="/Account/Login">@L["Sign in"]</a>
-                }
+                </div>
             </div>
         </div>
-    </nav>
-</header>
-<div class="container">
-    @if (TempData["Success"] is string ok) { <div class="alert alert-success alert-dismissible fade show">@ok<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div> }
-    @if (TempData["Error"] is string err) { <div class="alert alert-danger alert-dismissible fade show">@err<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div> }
-    <main role="main" class="pb-5">
-        @RenderBody()
-    </main>
+    </aside>
+
+    <div class="app-main">
+        <header class="app-topbar">
+            <button class="tool-btn d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebar" aria-controls="sidebar" aria-label="@L["Menu"]">@Icons.Get("menu", 16)</button>
+            <div class="crumb">@ViewData["Title"]</div>
+            <div class="ms-auto d-flex align-items-center gap-2">
+                <partial name="_Toolbar" />
+            </div>
+        </header>
+        <div class="app-content">
+            @if (TempData["Success"] is string ok) { <div class="alert alert-success alert-dismissible fade show">@ok<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="@L["Close"]"></button></div> }
+            @if (TempData["Error"] is string err) { <div class="alert alert-danger alert-dismissible fade show">@err<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="@L["Close"]"></button></div> }
+            <main role="main">
+                @RenderBody()
+            </main>
+        </div>
+    </div>
 </div>
-<footer class="border-top footer text-muted"><div class="container">&copy; 2026 TriggerCheck</div></footer>
+}
+else
+{
+    @* Pages outside the panels (errors, access denied) for visitors without a panel role. *@
+    <header class="app-topbar">
+        <a class="sidebar-brand text-body p-0" asp-area="" asp-page="/Index">@Icons.Logo(28) TriggerCheck</a>
+        <div class="ms-auto d-flex align-items-center gap-2">
+            <partial name="_Toolbar" />
+            @if (signedIn)
+            {
+                <form method="post" asp-area="" asp-page="/Account/Logout" class="m-0"><button type="submit" class="btn btn-outline-secondary btn-sm">@L["Sign out"]</button></form>
+            }
+            else
+            {
+                <a class="btn btn-primary btn-sm" asp-area="" asp-page="/Account/Login">@L["Sign in"]</a>
+            }
+        </div>
+    </header>
+    <div class="app-content">
+        @if (TempData["Success"] is string ok) { <div class="alert alert-success">@ok</div> }
+        @if (TempData["Error"] is string err) { <div class="alert alert-danger">@err</div> }
+        <main role="main">@RenderBody()</main>
+    </div>
+}
 <script src="~/lib/jquery/dist/jquery.min.js"></script>
 <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
 <script src="~/js/site.js" asp-append-version="true"></script>

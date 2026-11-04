@@ -6,43 +6,32 @@
 }
 @section Head { <meta http-equiv="refresh" content="30" /> }
 
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="page-head">
     <div>
-        <h2 class="mb-0">@L["Dashboard"]</h2>
-        <div class="text-muted small">@Model.CustomerName · @L["refreshes every 30 sec"] · @L["times in {0}", Fmt.TimeZoneLabel]</div>
+        <h2>@L["Dashboard"]</h2>
+        <div class="sub">@Model.CustomerName · @L["refreshes every 30 sec"] · @L["times in {0}", Fmt.TimeZoneLabel]</div>
     </div>
     @if (isAdmin)
     {
-        <a class="btn btn-primary" asp-page="/Monitors/Create">+ @L["New monitor"]</a>
+        <a class="btn btn-primary" asp-page="/Monitors/Create">@Icons.Get("plus", 16) @L["New monitor"]</a>
     }
 </div>
 
 <div class="row g-3 mb-4">
-    <div class="col-6 col-md">
-        <div class="card text-center border-success"><div class="card-body">
-            <div class="display-6 text-success" data-testid="count-up">@Model.UpCount</div><div class="text-muted">@L["Up"]</div>
-        </div></div>
-    </div>
-    <div class="col-6 col-md">
-        <div class="card text-center border-danger"><div class="card-body">
-            <div class="display-6 text-danger" data-testid="count-down">@Model.DownCount</div><div class="text-muted">@L["Down"]</div>
-        </div></div>
-    </div>
-    <div class="col-6 col-md">
-        <div class="card text-center border-secondary"><div class="card-body">
-            <div class="display-6 text-secondary">@Model.PausedCount</div><div class="text-muted">@L["Paused"]</div>
-        </div></div>
-    </div>
-    <div class="col-6 col-md">
-        <div class="card text-center border-warning"><div class="card-body">
-            <div class="display-6 text-warning">@Model.UnknownCount</div><div class="text-muted">@L["Pending"]</div>
-        </div></div>
-    </div>
-    <div class="col-12 col-md">
-        <div class="card text-center border-primary"><div class="card-body">
-            <div class="display-6 text-primary">@Fmt.Percent(Model.OverallUptime24h)</div><div class="text-muted">@L["24 h uptime"]</div>
-        </div></div>
-    </div>
+    @foreach (var (tone, icon, value, label, testId) in new[] {
+        ("up", "check", Model.UpCount.ToString(), L["Up"].Value, "count-up"),
+        ("down", "alert", Model.DownCount.ToString(), L["Down"].Value, "count-down"),
+        ("paused", "clock", Model.PausedCount.ToString(), L["Paused"].Value, ""),
+        ("pending", "activity", Model.UnknownCount.ToString(), L["Pending"].Value, ""),
+        ("brand", "chart", Fmt.Percent(Model.OverallUptime24h), L["24 h uptime"].Value, "") })
+    {
+        <div class="@(tone == "brand" ? "col-12" : "col-6") col-md">
+            <div class="card stat stat-@tone h-100 @(tone == "down" && Model.DownCount > 0 ? "is-alert" : "")"><div class="card-body">
+                <div class="stat-label"><span class="stat-icon">@Icons.Get(icon, 16)</span> @label</div>
+                <div class="stat-value" @(testId.Length > 0 ? Html.Raw($"data-testid=\"{testId}\"") : null)>@value</div>
+            </div></div>
+        </div>
+    }
 </div>
 
 @if (Model.OpenIncidents.Count > 0)
@@ -65,9 +54,10 @@
     <div class="card-header">@L["Monitors"]</div>
     @if (Model.Monitors.Count == 0)
     {
-        <div class="card-body text-muted">
-            @L["No monitors yet."]
-            @if (isAdmin) { <a asp-page="/Monitors/Create">@L["Add your first monitor."]</a> }
+        <div class="card-body empty-state">
+            <span class="icon-wrap">@Icons.Get("activity", 22)</span>
+            <div class="mb-2">@L["No monitors yet."]</div>
+            @if (isAdmin) { <a class="btn btn-primary btn-sm" asp-page="/Monitors/Create">@Icons.Get("plus", 15) @L["Add your first monitor."]</a> }
         </div>
     }
     else

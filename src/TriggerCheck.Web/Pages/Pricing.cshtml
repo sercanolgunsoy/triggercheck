@@ -1,0 +1,116 @@
+@page
+@model PricingModel
+@{
+    ViewData["Title"] = L["Pricing"].Value;
+    Layout = "_MarketingLayout";
+    var plans = Model.Plans;
+    var featured = Marketing.FeaturedIndex(plans.Count);
+    var mailto = $"mailto:{Model.ContactEmail}?subject={Uri.EscapeDataString("TriggerCheck")}";
+    string Col(int i) => i == featured ? "col-featured" : "";
+
+    // Capabilities every plan includes (the limits are the only difference between plans).
+    var groups = new (string Group, string[] Rows)[]
+    {
+        (L["Checks"].Value, [L["HTTP(S) status checks"].Value, L["Keyword checks"].Value, L["TCP port checks"].Value, L["Ping checks"].Value, L["Custom timeout and failure threshold"].Value, L["Pause and resume"].Value]),
+        (L["Alerts and incidents"].Value, [L["E-mail alerts"].Value, L["Webhook alerts"].Value, L["Recovery notifications"].Value, L["Automatic incident log"].Value]),
+        (L["Reports"].Value, [L["24 h, 7 day and 30 day uptime"].Value, L["Response-time chart"].Value]),
+        (L["Team"].Value, [L["Team members"].Value, L["Admin and viewer roles"].Value, L["English and Turkish interface"].Value]),
+    };
+}
+
+<section class="hero pb-5">
+    <div class="container text-center">
+        <span class="eyebrow"><span class="pill">@L["Pricing"]</span> @L["Every check type and alert channel on every plan"]</span>
+        <h1 class="display-title mt-4 mb-3">@L["Pricing that is"] <span class="gradient-text">@L["simple and transparent."]</span></h1>
+        <p class="lead-lg mx-auto mb-5">@L["Every plan includes every check type and alert channel. Pick the one that matches how fast and how much you need to monitor."]</p>
+        <div class="text-start">
+            <partial name="_PlanCards" model="new PlanCardsModel(plans, Model.ContactEmail)" />
+        </div>
+        <p class="billing-note mt-4 mb-0">@L["Prices in US dollars, excluding taxes."]</p>
+    </div>
+</section>
+
+@if (plans.Count > 0)
+{
+<section class="section pt-4" id="compare">
+    <div class="container">
+        <div class="section-head">
+            <div class="kicker">@L["Compare plans"]</div>
+            <h2>@L["Find the right fit"]</h2>
+        </div>
+        <div class="compare">
+            <div class="table-responsive">
+                <table class="table align-middle">
+                    <thead>
+                        <tr>
+                            <th scope="col" style="min-width: 220px"></th>
+                            @for (var i = 0; i < plans.Count; i++)
+                            {
+                                <th scope="col" class="@Col(i)" style="min-width: 130px">@plans[i].Name
+                                    <small>@(plans[i].MonthlyPrice == 0 ? L["Free"].Value : Fmt.Price(plans[i].MonthlyPrice) + " " + L["/ month"].Value)</small></th>
+                            }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="group"><td colspan="@(plans.Count + 1)">@L["Limits"]</td></tr>
+                        <tr><td>@L["Monitors"]</td>@for (var i = 0; i < plans.Count; i++) { <td class="@Col(i)">@Fmt.Number(plans[i].MaxMonitors)</td> }</tr>
+                        <tr><td>@L["Fastest check interval"]</td>@for (var i = 0; i < plans.Count; i++) { <td class="@Col(i) fw-semibold">@Fmt.Interval(plans[i].MinIntervalSeconds)</td> }</tr>
+                        <tr><td>@L["Check history"]</td>@for (var i = 0; i < plans.Count; i++) { <td class="@Col(i)">@L["{0} days", plans[i].RetentionDays]</td> }</tr>
+                        @foreach (var (group, rows) in groups)
+                        {
+                            <tr class="group"><td colspan="@(plans.Count + 1)">@group</td></tr>
+                            @foreach (var row in rows)
+                            {
+                                <tr>
+                                    <td>@row</td>
+                                    @for (var i = 0; i < plans.Count; i++)
+                                    {
+                                        <td class="@Col(i)">@if (row == L["Team members"].Value) { <span>@L["Unlimited"]</span> } else { <span class="yes" title="@L["Included"]">@Icons.Get("check", 18)<span class="visually-hidden">@L["Included"]</span></span> }</td>
+                                    }
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</section>
+}
+
+<section class="section section-alt" id="faq">
+    <div class="container" style="max-width: 820px">
+        <div class="section-head">
+            <div class="kicker">@L["FAQ"]</div>
+            <h2>@L["Frequently asked questions"]</h2>
+        </div>
+        <div class="faq">
+            @foreach (var (q, a) in new[] {
+                (L["How does the check interval work?"].Value, L["Your plan sets the fastest interval you can use. Each monitor can be checked at that interval or any slower one, for example every 1 or 5 minutes."].Value),
+                (L["Will I get an alert for every failed check?"].Value, L["No. A monitor is marked down only after the number of consecutive failures you choose. You get one alert when it goes down and one when it recovers."].Value),
+                (L["What happens when I reach my monitor limit?"].Value, L["Existing monitors keep running. To add more, remove one you no longer need or move to a larger plan."].Value),
+                (L["How long do you keep check results?"].Value, L["Check results are kept for the number of days in your plan and deleted automatically after that. Incidents stay in your history."].Value),
+                (L["Can I change plans later?"].Value, L["Yes. Contact us and we'll move your workspace to the new plan; your monitors and history stay as they are."].Value),
+                (L["Do I need to install anything?"].Value, L["No. All checks run from our servers against your public addresses. There is no agent or code to install."].Value) })
+            {
+                <details>
+                    <summary>@q @Icons.Get("chevron-down")</summary>
+                    <p>@a</p>
+                </details>
+            }
+        </div>
+    </div>
+</section>
+
+<section class="section">
+    <div class="container">
+        <div class="cta-band">
+            <h2>@L["Not sure which plan fits?"]</h2>
+            <p>@L["Tell us what you need to monitor and we'll recommend a plan."]</p>
+            <div class="d-flex flex-wrap justify-content-center gap-2">
+                <a class="btn btn-light btn-lg" href="@mailto">@L["Contact us"]</a>
+                <a class="btn btn-outline-light btn-lg" href="/Features">@L["Explore features"]</a>
+            </div>
+        </div>
+    </div>
+</section>

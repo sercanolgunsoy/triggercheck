@@ -74,7 +74,7 @@
 <div class="card mb-4">
     <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
         <span>@L["Users"] (@Model.Users.Count)</span>
-        <a asp-page="AddUser" asp-route-customerId="@c.Id" class="btn btn-sm btn-primary">+ @L["Add user"]</a>
+        <a asp-page="AddUser" asp-route-customerId="@c.Id" class="btn btn-sm btn-primary">@Icons.Get("plus", 16) @L["Add user"]</a>
     </div>
     <div class="table-responsive">
     <table class="table table-sm align-middle mb-0">

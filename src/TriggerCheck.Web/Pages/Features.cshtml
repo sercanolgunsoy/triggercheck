@@ -1,0 +1,150 @@
+@page
+@model FeaturesModel
+@{
+    ViewData["Title"] = L["Features"].Value;
+    Layout = "_MarketingLayout";
+    var mailto = $"mailto:{Model.ContactEmail}?subject={Uri.EscapeDataString("TriggerCheck")}";
+}
+
+<section class="hero pb-4">
+    <div class="container text-center">
+        <span class="eyebrow"><span class="pill">@L["Features"]</span> @L["Monitoring, alerting and reporting in one place"]</span>
+        <h1 class="display-title mt-4 mb-3">@L["Everything you need"]<br /><span class="gradient-text">@L["to keep the lights on."]</span></h1>
+        <p class="lead-lg mx-auto mb-4">@L["From a single landing page to hundreds of endpoints: check them often, hear about failures fast and keep a clean history of what happened."]</p>
+        <div class="d-flex flex-wrap justify-content-center gap-2">
+            <a class="btn btn-primary btn-lg" href="@mailto">@L["Request access"]</a>
+            <a class="btn btn-outline-secondary btn-lg" href="/Pricing">@L["See pricing"]</a>
+        </div>
+    </div>
+</section>
+
+<section class="section pt-5">
+    <div class="container">
+        <div class="split" id="checks">
+            <div>
+                <div class="section-head text-start mx-0 mb-0">
+                    <div class="kicker">@L["Checks"]</div>
+                    <h2>@L["Watch anything with an address"]</h2>
+                </div>
+                <p class="lead-sm">@L["Pick the check that fits the service. Each monitor has its own interval, timeout and failure threshold, so a flaky network never wakes you up for nothing."]</p>
+                <ul class="checklist">
+                    <li>@Icons.Get("check") <span>@L["Intervals from 5 minutes down to {0}", Fmt.Interval(Model.FastestInterval)]</span></li>
+                    <li>@Icons.Get("check") <span>@L["Custom HTTP method and expected status codes, such as 200-299 or 301"]</span></li>
+                    <li>@Icons.Get("check") <span>@L["Alert only after N consecutive failures"]</span></li>
+                    <li>@Icons.Get("check") <span>@L["Pause and resume monitors during maintenance"]</span></li>
+                </ul>
+            </div>
+            <div class="type-grid">
+                <div class="type-tile"><b><span class="feature-icon" style="width:32px;height:32px">@Icons.Get("globe", 17)</span> HTTP(S)</b><small>@L["Expect a status code from a web page or API endpoint."]</small></div>
+                <div class="type-tile"><b><span class="feature-icon cyan" style="width:32px;height:32px">@Icons.Get("search", 17)</span> @L["Keyword"]</b><small>@L["Make sure the response body contains the text you expect."]</small></div>
+                <div class="type-tile"><b><span class="feature-icon green" style="width:32px;height:32px">@Icons.Get("server", 17)</span> @L["TCP port"]</b><small>@L["Confirm databases, mail servers and other services accept connections."]</small></div>
+                <div class="type-tile"><b><span class="feature-icon amber" style="width:32px;height:32px">@Icons.Get("radio", 17)</span> Ping</b><small>@L["Check that a host answers ICMP ping."]</small></div>
+            </div>
+        </div>
+
+        <div class="split reverse" id="alerts">
+            <div>
+                <div class="section-head text-start mx-0 mb-0">
+                    <div class="kicker">@L["Alerts"]</div>
+                    <h2>@L["The right alert, once"]</h2>
+                </div>
+                <p class="lead-sm">@L["When a monitor goes down you get one notification with the cause. When it recovers you get another. No alert storms, no silence."]</p>
+                <ul class="checklist">
+                    <li>@Icons.Get("mail") <span>@L["E-mail alerts to any address"]</span></li>
+                    <li>@Icons.Get("link") <span>@L["Webhooks with a simple JSON body for your own automation"]</span></li>
+                    <li>@Icons.Get("check") <span>@L["Down and recovery notifications for every channel"]</span></li>
+                    <li>@Icons.Get("check") <span>@L["Turn channels on and off without deleting them"]</span></li>
+                </ul>
+            </div>
+            <div>
+<pre class="code-block" aria-label="@L["Example webhook body"]"><span class="c">// POST https://hooks.your-company.com/triggercheck</span>
+{
+  <span class="k">"monitorId"</span>: <span class="n">42</span>,
+  <span class="k">"monitorName"</span>: <span class="s">"Checkout API"</span>,
+  <span class="k">"target"</span>: <span class="s">"https://api.example.com/health"</span>,
+  <span class="k">"status"</span>: <span class="s">"down"</span>,
+  <span class="k">"error"</span>: <span class="s">"HTTP 503"</span>,
+  <span class="k">"occurredAtUtc"</span>: <span class="s">"2026-11-03T11:04:15Z"</span>
+}</pre>
+            </div>
+        </div>
+
+        <div class="split" id="reports">
+            <div>
+                <div class="section-head text-start mx-0 mb-0">
+                    <div class="kicker">@L["Incidents and reports"]</div>
+                    <h2>@L["Know what happened, and for how long"]</h2>
+                </div>
+                <p class="lead-sm">@L["Every outage is recorded as an incident automatically. Uptime and response times are always one click away."]</p>
+                <ul class="checklist">
+                    <li>@Icons.Get("check") <span>@L["Uptime for the last 24 hours, 7 days and 30 days"]</span></li>
+                    <li>@Icons.Get("check") <span>@L["Response-time chart for the last 24 hours"]</span></li>
+                    <li>@Icons.Get("check") <span>@L["Incident history with start, end, duration and cause"]</span></li>
+                    <li>@Icons.Get("check") <span>@L["Up to {0} days of check history", Fmt.Number(Model.LongestRetention)]</span></li>
+                </ul>
+            </div>
+            <div class="panel" aria-hidden="true">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div class="fw-semibold">Checkout API <partial name="_StatusBadge" model="MonitorStatus.Up" /></div>
+                    <small class="text-muted">HTTP(S)</small>
+                </div>
+                <div class="row g-2 mb-3 text-center">
+                    @foreach (var (label, v) in new[] { (L["24 hours"].Value, 100.0), (L["7 days"].Value, 99.95), (L["30 days"].Value, 99.87) })
+                    {
+                        <div class="col-4"><div class="mock-stat"><b class="text-success">@Fmt.Percent(v)</b><small>@label</small></div></div>
+                    }
+                </div>
+                <svg viewBox="0 0 300 80" width="100%" height="90" preserveAspectRatio="none" role="presentation">
+                    <defs><linearGradient id="rt" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6366f1" stop-opacity=".3" /><stop offset="1" stop-color="#6366f1" stop-opacity="0" /></linearGradient></defs>
+                    <path d="M0 55 L20 50 L40 52 L60 46 L80 49 L100 44 L120 47 L140 40 L160 15 L180 42 L200 45 L220 43 L240 47 L260 44 L280 46 L300 42 L300 80 L0 80 Z" fill="url(#rt)" />
+                    <path d="M0 55 L20 50 L40 52 L60 46 L80 49 L100 44 L120 47 L140 40 L160 15 L180 42 L200 45 L220 43 L240 47 L260 44 L280 46 L300 42" fill="none" stroke="#6366f1" stroke-width="2" vector-effect="non-scaling-stroke" />
+                </svg>
+                <div class="mock-row mt-3">
+                    <div class="nm"><span class="badge bg-success">@L["Resolved"]</span> <span>HTTP 503</span></div>
+                    <div class="meta">@Fmt.Duration(TimeSpan.FromMinutes(4))</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="section section-alt" id="teams">
+    <div class="container">
+        <div class="section-head">
+            <div class="kicker">@L["Teams and security"]</div>
+            <h2>@L["Made for the whole team"]</h2>
+            <p>@L["Give everyone the access they need, nothing more."]</p>
+        </div>
+        <div class="row g-4">
+            @foreach (var (icon, tone, title, text) in new[] {
+                ("users", "", L["Admins and viewers"].Value, L["Admins manage monitors, alerts and users. Viewers can see everything but change nothing."].Value),
+                ("shield", "green", L["Isolated workspaces"].Value, L["Each company has its own workspace. Monitors, incidents and users are never visible to anyone else."].Value),
+                ("lock", "amber", L["Secure sign-in"].Value, L["Strong password rules and automatic lock-out after repeated failed sign-in attempts."].Value),
+                ("languages", "cyan", L["English and Turkish"].Value, L["The whole interface is available in English and Turkish. Each user picks their own language."].Value),
+                ("moon", "", L["Light and dark mode"].Value, L["Easy on the eyes during a late-night incident. Follows your system setting by default."].Value),
+                ("gauge", "rose", L["Plan limits you can see"].Value, L["Your plan, monitor usage and allowed intervals are always visible on the account page."].Value) })
+            {
+                <div class="col-md-6 col-lg-4">
+                    <div class="feature">
+                        <span class="feature-icon @tone">@Icons.Get(icon, 22)</span>
+                        <h3>@title</h3>
+                        <p>@text</p>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</section>
+
+<section class="section">
+    <div class="container">
+        <div class="cta-band">
+            <h2>@L["Ready to see it in action?"]</h2>
+            <p>@L["Tell us about your services and we'll set up your workspace."]</p>
+            <div class="d-flex flex-wrap justify-content-center gap-2">
+                <a class="btn btn-light btn-lg" href="@mailto">@L["Request access"]</a>
+                <a class="btn btn-outline-light btn-lg" href="/Pricing">@L["Compare plans"]</a>
+            </div>
+        </div>
+    </div>
+</section>

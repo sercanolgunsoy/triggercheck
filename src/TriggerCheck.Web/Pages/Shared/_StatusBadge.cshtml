@@ -2,11 +2,10 @@
 @{
     var cls = Model switch
     {
-        MonitorStatus.Up => "bg-success",
-        MonitorStatus.Down => "bg-danger",
-        MonitorStatus.Paused => "bg-secondary",
-        _ => "bg-warning text-dark"
+        MonitorStatus.Up => "status-up",
+        MonitorStatus.Down => "status-down",
+        MonitorStatus.Paused => "status-paused",
+        _ => "status-pending"
     };
-    var text = Fmt.StatusName(Model);
 }
-<span class="badge @cls">@text</span>
+<span class="status @cls">@Fmt.StatusName(Model)</span>

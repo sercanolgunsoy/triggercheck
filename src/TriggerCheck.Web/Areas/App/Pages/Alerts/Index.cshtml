@@ -5,14 +5,14 @@
     var isAdmin = User.IsInRole(Roles.CustomerAdmin);
 }
 
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="page-head">
     <div>
         <h2 class="mb-0">@L["Alert channels"]</h2>
         <div class="text-muted small">@L["When your monitors go DOWN / UP, the enabled channels are notified."]</div>
     </div>
     @if (isAdmin)
     {
-        <a class="btn btn-primary" asp-page="Create">+ @L["New channel"]</a>
+        <a class="btn btn-primary" asp-page="Create">@Icons.Get("plus", 16) @L["New channel"]</a>
     }
 </div>
 

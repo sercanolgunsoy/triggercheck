@@ -2,9 +2,9 @@
 @model TriggerCheck.Web.Areas.SuperAdmin.Pages.Customers.IndexModel
 @{ ViewData["Title"] = L["Customers"]; }
 
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="page-head">
     <h2 class="mb-0">@L["Customers"]</h2>
-    <a asp-page="Create" class="btn btn-primary">+ @L["New customer"]</a>
+    <a asp-page="Create" class="btn btn-primary">@Icons.Get("plus", 16) @L["New customer"]</a>
 </div>
 
 <form method="get" class="row g-2 mb-3">

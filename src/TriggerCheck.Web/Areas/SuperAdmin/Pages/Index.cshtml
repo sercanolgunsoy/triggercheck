@@ -2,24 +2,26 @@
 @model IndexModel
 @{ ViewData["Title"] = L["Overview"]; }
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h2 class="mb-0">@L["Platform overview"]</h2>
-    <small class="text-muted">@L["Times: {0} (Europe/Istanbul)", Fmt.TimeZoneLabel]</small>
+<div class="page-head">
+    <div>
+        <h2>@L["Platform overview"]</h2>
+        <div class="sub">@L["Times: {0} (Europe/Istanbul)", Fmt.TimeZoneLabel]</div>
+    </div>
 </div>
 
 <div class="row g-3 mb-4">
     <div class="col-sm-6 col-lg-3">
-        <div class="card h-100"><div class="card-body">
-            <div class="text-muted small">@L["Customers"]</div>
-            <div class="fs-2 fw-bold">@Fmt.Number(Model.CustomersTotal)</div>
+        <div class="card stat stat-brand h-100"><div class="card-body">
+            <div class="stat-label"><span class="stat-icon">@Icons.Get("building", 16)</span> @L["Customers"]</div>
+            <div class="stat-value">@Fmt.Number(Model.CustomersTotal)</div>
             <div class="small"><span class="text-success">@L["{0} active", Fmt.Number(Model.CustomersActive)]</span> · <span class="text-danger">@L["{0} suspended", Fmt.Number(Model.CustomersSuspended)]</span></div>
         </div></div>
     </div>
     <div class="col-sm-6 col-lg-3">
-        <div class="card h-100"><div class="card-body">
-            <div class="text-muted small">@L["Monitors"]</div>
-            <div class="fs-2 fw-bold">@Fmt.Number(Model.MonitorsTotal)</div>
-            <div class="small">
+        <div class="card stat stat-up h-100"><div class="card-body">
+            <div class="stat-label"><span class="stat-icon">@Icons.Get("activity", 16)</span> @L["Monitors"]</div>
+            <div class="stat-value">@Fmt.Number(Model.MonitorsTotal)</div>
+            <div class="small d-flex flex-wrap gap-1 mt-1">
                 <span class="badge bg-success">@Fmt.StatusName(MonitorStatus.Up) @Model.MonitorsByStatus[MonitorStatus.Up]</span>
                 <span class="badge bg-danger">@Fmt.StatusName(MonitorStatus.Down) @Model.MonitorsByStatus[MonitorStatus.Down]</span>
                 <span class="badge bg-secondary">@Fmt.StatusName(MonitorStatus.Paused) @Model.MonitorsByStatus[MonitorStatus.Paused]</span>
@@ -28,16 +30,16 @@
         </div></div>
     </div>
     <div class="col-sm-6 col-lg-3">
-        <div class="card h-100"><div class="card-body">
-            <div class="text-muted small">@L["Checks performed"]</div>
-            <div class="fs-2 fw-bold">@Fmt.Number(Model.ChecksLastHour)</div>
+        <div class="card stat stat-pending h-100"><div class="card-body">
+            <div class="stat-label"><span class="stat-icon">@Icons.Get("zap", 16)</span> @L["Checks performed"]</div>
+            <div class="stat-value">@Fmt.Number(Model.ChecksLastHour)</div>
             <div class="small text-muted">@L["last hour"] · @L["last 24 hours:"] <strong>@Fmt.Number(Model.ChecksLast24h)</strong></div>
         </div></div>
     </div>
     <div class="col-sm-6 col-lg-3">
-        <div class="card h-100"><div class="card-body">
-            <div class="text-muted small">@L["Estimated monthly revenue (MRR)"]</div>
-            <div class="fs-2 fw-bold">@Fmt.Money(Model.EstimatedMrr)</div>
+        <div class="card stat stat-brand h-100"><div class="card-body">
+            <div class="stat-label"><span class="stat-icon">@Icons.Get("card", 16)</span> @L["Estimated monthly revenue (MRR)"]</div>
+            <div class="stat-value">@Fmt.Money(Model.EstimatedMrr)</div>
             <div class="small text-muted">@L["sum of the plan prices of active customers"]</div>
         </div></div>
     </div>
