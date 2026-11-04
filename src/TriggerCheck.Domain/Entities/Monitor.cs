@@ -27,6 +27,9 @@ public class Monitor
 
     public bool IsEnabled { get; set; } = true;
 
+    /// <summary>Https Http/Keyword monitors: send a one-time alert this many days before the certificate expires. 0 = off.</summary>
+    public int CertWarnDays { get; set; } = 14;
+
     // ---- runtime state, maintained by the monitoring engine ----
     public MonitorStatus Status { get; set; } = MonitorStatus.Unknown;
     public int ConsecutiveFailures { get; set; }
@@ -40,6 +43,28 @@ public class Monitor
     /// check after resuming then sends an UP alert, so subscribers are not left with a DOWN as the last word.
     /// </summary>
     public bool DownWhenPaused { get; set; }
+
+    // ---- TLS certificate of https targets, captured on each new connection by the probe ----
+    /// <summary>NotAfter of the server certificate last seen (UTC).</summary>
+    public DateTime? CertExpiresAtUtc { get; set; }
+    public string? CertSubject { get; set; }
+    public string? CertIssuer { get; set; }
+    /// <summary>Validation problem of the last seen certificate (expired, name mismatch, untrusted chain...); null when valid.</summary>
+    public string? CertError { get; set; }
+    public DateTime? CertCheckedAtUtc { get; set; }
+    /// <summary>
+    /// <see cref="CertExpiresAtUtc"/> of the certificate an "expiring" alert was already sent for. A renewed certificate
+    /// has a different NotAfter, so the next threshold crossing alerts again.
+    /// </summary>
+    public DateTime? CertWarningSentForUtc { get; set; }
+    /// <summary>Warning level (days before expiry) of the last "expiring" alert for that certificate.</summary>
+    public int? CertWarningSentDays { get; set; }
+
+    // ---- confirm before alert (see MonitorCheckRunner) ----
+    /// <summary>Time of a failed probe that is waiting for its confirmation probe; null when none is pending.</summary>
+    public DateTime? PendingConfirmationSinceUtc { get; set; }
+    /// <summary><see cref="Version"/> when the confirmation was scheduled; a different Version means the monitor was changed and the confirmation is void.</summary>
+    public int? PendingConfirmationVersion { get; set; }
 
     /// <summary>
     /// Application-managed optimistic concurrency token (SQLite has no rowversion). Bumped by user changes (edit,

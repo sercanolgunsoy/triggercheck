@@ -79,6 +79,8 @@ public sealed class TwilioSmsNotifier(IHttpClientFactory f, IOptionsMonitor<Twil
         var text = m.Kind switch
         {
             AlertKind.Test => "TriggerCheck: test notification. This alert channel works.",
+            AlertKind.CertificateExpiring => $"TriggerCheck CERTIFICATE: {AlertMessage.OneLine(m.MonitorName)} ({m.MaskedTarget}) TLS certificate expires "
+                                             + (m.CertificateExpiresAtUtc is { } e ? $"{e:yyyy-MM-dd} UTC ({m.CertificateDaysLeft} days)" : "soon"),
             AlertKind.Down => $"TriggerCheck DOWN: {AlertMessage.OneLine(m.MonitorName)} ({m.MaskedTarget}) {m.OccurredAtUtc:HH:mm} UTC"
                               + (string.IsNullOrEmpty(m.Error) ? "" : $" - {AlertMessage.OneLine(m.Error)}"),
             _ => $"TriggerCheck UP: {AlertMessage.OneLine(m.MonitorName)} ({m.MaskedTarget}) {m.OccurredAtUtc:HH:mm} UTC"
@@ -103,6 +105,8 @@ public sealed class TwilioVoiceNotifier(IHttpClientFactory f, IOptionsMonitor<Tw
         {
             AlertKind.Down => $"TriggerCheck alert. Monitor {name} is down.",
             AlertKind.Up => $"TriggerCheck notice. Monitor {name} is up again.",
+            // Not routed to voice calls by AlertDispatcher (a certificate warning is not worth a phone call); kept for completeness.
+            AlertKind.CertificateExpiring => $"TriggerCheck notice. The certificate of monitor {name} expires in {m.CertificateDaysLeft ?? 0} days.",
             _ => "This is a test call from TriggerCheck. Your alert channel works."
         };
         // Control characters are not allowed in XML at all (escaping does not help): drop them.

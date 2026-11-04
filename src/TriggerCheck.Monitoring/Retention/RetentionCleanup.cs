@@ -10,10 +10,13 @@ namespace TriggerCheck.Monitoring.Retention;
 /// <summary>
 /// Deletes data older than the owning customer's plan RetentionDays (RetentionDays &lt;= 0 = keep forever):
 /// CheckResults, resolved Incidents (by resolution time; open incidents are never deleted) and Notifications.
-/// Notifications of deleted monitors are removed regardless of age.
+/// Notifications of deleted monitors are removed regardless of age. SMS / voice usage counters (one row per customer
+/// and UTC day, only needed for today's limit) are kept for <see cref="SmsVoiceUsageDays"/> days.
 /// </summary>
 public sealed class RetentionCleaner(IDbContextFactory<AppDbContext> dbFactory, TimeProvider time, ILogger<RetentionCleaner> logger)
 {
+    public const int SmsVoiceUsageDays = 35;
+
     public async Task<int> CleanupAsync(CancellationToken ct = default)
     {
         var now = time.GetUtcNow().UtcDateTime;
@@ -47,10 +50,13 @@ public sealed class RetentionCleaner(IDbContextFactory<AppDbContext> dbFactory, 
             .Where(n => !db.Monitors.Any(m => m.Id == n.MonitorId))
             .ExecuteDeleteAsync(ct);
 
-        var total = results + incidents + notifications;
+        var usageCutoff = now.Date.AddDays(-SmsVoiceUsageDays);
+        var usage = await db.SmsVoiceUsage.Where(u => u.DayUtc < usageCutoff).ExecuteDeleteAsync(ct);
+
+        var total = results + incidents + notifications + usage;
         if (total > 0)
-            logger.LogInformation("Retention cleanup deleted {Results} check result(s), {Incidents} incident(s), {Notifications} notification(s)",
-                results, incidents, notifications);
+            logger.LogInformation("Retention cleanup deleted {Results} check result(s), {Incidents} incident(s), {Notifications} notification(s), {Usage} SMS/voice usage row(s)",
+                results, incidents, notifications, usage);
         return total;
     }
 }

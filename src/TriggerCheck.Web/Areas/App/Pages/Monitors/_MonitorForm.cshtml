@@ -58,6 +58,19 @@
         <span asp-validation-for="Input.ExpectedStatusCodes" class="text-danger small"></span>
     </div>
 
+    <div class="col-md-4" data-types="Http Keyword">
+        <label asp-for="Input.CertWarnDays" class="form-label"></label>
+        <select asp-for="Input.CertWarnDays" class="form-select">
+            @foreach (var d in TriggerCheck.Monitoring.Engine.MonitorStateMachine.CertWarnDayChoices)
+            {
+                <option value="@d" selected="@(Model.Input.CertWarnDays == d)">@(d == 0 ? L["Off"].Value : L["{0} days before expiry", d].Value)</option>
+            }
+        </select>
+        <div class="form-text">@L["https only: one alert when the TLS certificate is about to expire."]</div>
+        <span asp-validation-for="Input.CertWarnDays" class="text-danger small"></span>
+    </div>
+    <div class="col-md-8" data-types="Http Keyword"></div>
+
     <div class="col-md-4">
         <label asp-for="Input.IntervalSeconds" class="form-label"></label>
         <select asp-for="Input.IntervalSeconds" class="form-select">

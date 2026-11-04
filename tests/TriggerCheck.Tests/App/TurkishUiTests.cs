@@ -60,8 +60,8 @@ public class TurkishUiTests : IClassFixture<TestWebAppFactory>
         Assert.Contains("%90", html);               // Turkish percent format
         Assert.Contains("1 sa 5 dk", html);         // incident duration
         Assert.Contains("Çözüldü", html);
-        var chartLabel = System.Text.RegularExpressions.Regex.Match(html, @"label: (""[^""]*""),").Groups[1].Value;
-        Assert.Equal("Yanıt süresi (ms)", System.Text.Json.JsonSerializer.Deserialize<string>(chartLabel)); // chart label is a JS string literal
+        var chartLabel = System.Text.RegularExpressions.Regex.Match(html, @"""avg"":(""[^""]*"")").Groups[1].Value;
+        Assert.Equal("Ortalama (ms)", System.Text.Json.JsonSerializer.Deserialize<string>(chartLabel)); // chart label is a JS string literal
         Assert.DoesNotContain("Check now", html);
         Assert.DoesNotContain("Last 50 checks", html);
     }
