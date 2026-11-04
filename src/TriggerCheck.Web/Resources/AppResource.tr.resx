@@ -532,4 +532,16 @@
   <data name="{0} was deleted." xml:space="preserve">
     <value>{0} silindi.</value>
   </data>
+  <data name="This address points to a private or internal network and cannot be monitored." xml:space="preserve">
+    <value>Bu adres özel veya dahili bir ağı gösteriyor ve izlenemez.</value>
+  </data>
+  <data name="The webhook address points to a private or internal network and is not allowed." xml:space="preserve">
+    <value>Webhook adresi özel veya dahili bir ağı gösteriyor ve kullanılamaz.</value>
+  </data>
+  <data name="This monitor was checked moments ago. Try again in {0} seconds." xml:space="preserve">
+    <value>Bu monitör az önce kontrol edildi. {0} saniye sonra tekrar deneyin.</value>
+  </data>
+  <data name="Too many manual checks for your account. Try again in {0} seconds." xml:space="preserve">
+    <value>Hesabınız için çok fazla manuel kontrol yapıldı. {0} saniye sonra tekrar deneyin.</value>
+  </data>
 </root>

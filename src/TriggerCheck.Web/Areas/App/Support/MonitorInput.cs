@@ -3,15 +3,18 @@ using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.Extensions.Localization;
+using Microsoft.Extensions.Options;
 using TriggerCheck.Domain;
 using TriggerCheck.Domain.Entities;
+using TriggerCheck.Monitoring;
+using TriggerCheck.Monitoring.Security;
 using TriggerCheck.Web.Localization;
 using MonitorEntity = TriggerCheck.Domain.Entities.Monitor;
 
 namespace TriggerCheck.Web.Areas.App.Support;
 
 /// <summary>Form model for monitor create/edit. Never bind the entity directly (over-posting).</summary>
-public class MonitorInput
+public class MonitorInput : IValidatableObject
 {
     public static readonly string[] HttpMethods = ["GET", "HEAD", "POST"];
 
@@ -113,6 +116,25 @@ public class MonitorInput
 
         if (TimeoutSeconds >= IntervalSeconds)
             ms.AddModelError(prefix + nameof(TimeoutSeconds), L["The timeout must be shorter than the check interval."]);
+    }
+
+    /// <summary>
+    /// Friendly SSRF pre-check: rejects literal private/internal IPs and names like "localhost" so the user gets a form
+    /// error. The real guard is at connect time (TargetGuard), which also covers DNS names and redirects.
+    /// Skipped when Monitoring:AllowPrivateTargets is set.
+    /// </summary>
+    public IEnumerable<ValidationResult> Validate(ValidationContext context)
+    {
+        if (context.GetService(typeof(IOptions<MonitoringOptions>)) is IOptions<MonitoringOptions> { Value.AllowPrivateTargets: true }) yield break;
+
+        var target = Target?.Trim();
+        var host = Type is MonitorType.Http or MonitorType.Keyword
+            ? (Uri.TryCreate(target, UriKind.Absolute, out var uri) ? uri.Host : null)
+            : target;
+        if (!TargetGuard.IsObviouslyInternalHost(host)) yield break;
+
+        var L = (Text<AppResource>)context.GetService(typeof(Text<AppResource>))!;
+        yield return new ValidationResult(L["This address points to a private or internal network and cannot be monitored."], [nameof(Target)]);
     }
 
     public static bool IsHostOrIp(string? value)

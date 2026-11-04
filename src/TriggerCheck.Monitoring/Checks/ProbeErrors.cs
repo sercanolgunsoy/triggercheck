@@ -2,6 +2,7 @@ using System.Net.Http;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Security.Authentication;
+using TriggerCheck.Monitoring.Security;
 
 namespace TriggerCheck.Monitoring.Checks;
 
@@ -12,6 +13,7 @@ public static class ProbeErrors
 
     public static string Describe(Exception ex, TimeSpan timeout)
     {
+        if (Find<BlockedTargetException>(ex) is { } blocked) return Truncate(blocked.Message)!;
         var text = ex switch
         {
             OperationCanceledException or TimeoutException => $"Timeout after {timeout.TotalSeconds:0.#}s",

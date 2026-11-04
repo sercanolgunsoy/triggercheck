@@ -27,6 +27,8 @@ public class TestWebAppFactory : WebApplicationFactory<Program>
         builder.UseSetting("ConnectionStrings:Default", $"Data Source={_dbPath}");
         builder.UseSetting("Monitoring:Enabled", "false");
         builder.UseSetting("Seed:DemoData", "true");
+        // Tests probe local servers; SSRF blocking itself is covered in Security/ with the flag off.
+        builder.UseSetting("Monitoring:AllowPrivateTargets", "true");
     }
 
     public HttpClient CreateBrowser() => CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, HandleCookies = true });

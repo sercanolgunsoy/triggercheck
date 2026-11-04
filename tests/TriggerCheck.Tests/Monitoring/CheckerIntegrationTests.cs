@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Sockets;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Monitoring;
@@ -36,7 +37,8 @@ public class CheckerIntegrationTests : IAsyncLifetime
 
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddMonitoringEngine(new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build());
+        services.AddMonitoringEngine(new Microsoft.Extensions.Configuration.ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["Monitoring:AllowPrivateTargets"] = "true" }).Build());
         _services = services.BuildServiceProvider();
     }
 

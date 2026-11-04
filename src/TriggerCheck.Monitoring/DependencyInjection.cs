@@ -2,11 +2,13 @@ using System.Net;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 using TriggerCheck.Monitoring.Alerting;
 using TriggerCheck.Monitoring.Checks;
 using TriggerCheck.Monitoring.Engine;
 using TriggerCheck.Monitoring.Retention;
 using TriggerCheck.Monitoring.Scheduling;
+using TriggerCheck.Monitoring.Security;
 using TriggerCheck.Monitoring.Stats;
 
 namespace TriggerCheck.Monitoring;
@@ -28,16 +30,24 @@ public static class DependencyInjection
         services.AddScoped<IUptimeStatsService, UptimeStatsService>();
 
         // ---- HTTP clients ----
+        // Every connection (incl. redirect hops) goes through TargetGuard, which resolves DNS itself and refuses
+        // private/internal addresses unless Monitoring:AllowPrivateTargets is set (SSRF protection).
         services.AddHttpClient(MonitoringHttpClients.Probe, ConfigureProbeClient)
-            .ConfigurePrimaryHttpMessageHandler(() => CreateProbeHandler(followRedirects: true));
+            .ConfigurePrimaryHttpMessageHandler(sp => CreateProbeHandler(sp, followRedirects: true));
         services.AddHttpClient(MonitoringHttpClients.ProbeNoRedirect, ConfigureProbeClient)
-            .ConfigurePrimaryHttpMessageHandler(() => CreateProbeHandler(followRedirects: false));
+            .ConfigurePrimaryHttpMessageHandler(sp => CreateProbeHandler(sp, followRedirects: false));
         services.AddHttpClient(MonitoringHttpClients.Webhook, c =>
             {
                 c.Timeout = TimeSpan.FromSeconds(10);
                 c.DefaultRequestHeaders.UserAgent.ParseAdd(MonitoringHttpClients.UserAgent);
             })
-            .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false, UseCookies = false });
+            .ConfigurePrimaryHttpMessageHandler(sp => new SocketsHttpHandler
+            {
+                AllowAutoRedirect = false,
+                UseCookies = false,
+                UseProxy = false,
+                ConnectCallback = TargetGuard.ConnectCallback(AllowPrivateTargets(sp))
+            });
 
         // ---- checkers ----
         services.AddSingleton<IMonitorChecker, HttpMonitorChecker>();
@@ -69,8 +79,17 @@ public static class DependencyInjection
         c.DefaultRequestHeaders.UserAgent.ParseAdd(MonitoringHttpClients.UserAgent);
     }
 
-    private static SocketsHttpHandler CreateProbeHandler(bool followRedirects) => new()
+    private static Func<bool> AllowPrivateTargets(IServiceProvider sp)
     {
+        var options = sp.GetRequiredService<IOptionsMonitor<MonitoringOptions>>();
+        return () => options.CurrentValue.AllowPrivateTargets;
+    }
+
+    private static SocketsHttpHandler CreateProbeHandler(IServiceProvider sp, bool followRedirects) => new()
+    {
+        ConnectCallback = TargetGuard.ConnectCallback(AllowPrivateTargets(sp)),
+        // No proxy: the connect-time guard must see the real destination, not the proxy's address.
+        UseProxy = false,
         AllowAutoRedirect = followRedirects,
         MaxAutomaticRedirections = MonitoringHttpClients.MaxRedirects,
         AutomaticDecompression = DecompressionMethods.All,
