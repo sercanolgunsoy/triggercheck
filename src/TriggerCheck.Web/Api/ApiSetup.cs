@@ -181,5 +181,6 @@ public static class ApiSetup
         // AllowAnonymous: the document contains no customer data.
         app.MapOpenApi("/api/{documentName}/openapi.json").AllowAnonymous();
         app.MapApiEndpoints();
+        app.MapStatusPageApi(); // FEAT-4
     }
 }

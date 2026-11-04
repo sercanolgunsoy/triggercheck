@@ -1,0 +1,54 @@
+@page
+@model TriggerCheck.Web.Areas.App.Pages.StatusPages.IndexModel
+@using TriggerCheck.Web.StatusPages
+@{
+    ViewData["Title"] = L["Status pages"].Value;
+    var isAdmin = User.IsInRole(Roles.CustomerAdmin);
+}
+
+<div class="page-head">
+    <div>
+        <h2 class="mb-0">@L["Status pages"]</h2>
+        <div class="text-muted small">@L["Public pages that show the current status, uptime and incident history of selected monitors under public names. Targets and error details are never shown."]</div>
+    </div>
+    @if (isAdmin && Model.CanAdd)
+    {
+        <a class="btn btn-primary" asp-page="Create">@Icons.Get("plus", 16) @L["New status page"]</a>
+    }
+</div>
+<p class="small text-muted" id="status-page-quota">@L["Your plan ({0}) allows {1} status page(s); {2} in use.", Model.Plan.Name, StatusPageRules.LimitText(Model.Plan), Model.Pages.Count]</p>
+
+@if (Model.Pages.Count == 0)
+{
+    <div class="alert alert-light border">@L["No status pages yet."]</div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-hover align-middle" id="status-pages">
+            <thead><tr><th>@L["Title"]</th><th>@L["Address"]</th><th>@L["Visibility"]</th><th class="text-end">@L["Monitors"]</th><th class="text-end">@L["Subscribers"]</th><th>@L["Custom domain"]</th><th></th></tr></thead>
+            <tbody>
+            @foreach (var p in Model.Pages)
+            {
+                <tr data-page-id="@p.Id">
+                    <td>@p.Title</td>
+                    <td><a href="/status/@p.Slug" target="_blank" rel="noopener">/status/@p.Slug</a></td>
+                    <td>@(p.Visibility == StatusPageVisibility.Public ? L["Public"] : L["Unlisted"])</td>
+                    <td class="text-end">@p.Monitors</td>
+                    <td class="text-end">@p.Subscribers</td>
+                    <td class="small">@if (p.Domain is not null) { @p.Domain <span class="badge @(p.DomainVerified ? "bg-success" : "bg-secondary")">@(p.DomainVerified ? L["Verified"] : L["Not verified"])</span> } else { <span class="text-muted">—</span> }</td>
+                    <td class="text-end text-nowrap">
+                        @if (isAdmin)
+                        {
+                            <a class="btn btn-sm btn-outline-primary" asp-page="Edit" asp-route-id="@p.Id">@L["Edit"]</a>
+                            <a class="btn btn-sm btn-outline-secondary" asp-page="Notes" asp-route-id="@p.Id">@L["Incident notes"]</a>
+                            <a class="btn btn-sm btn-outline-secondary" asp-page="Domain" asp-route-id="@p.Id">@L["Custom domain"]</a>
+                            <a class="btn btn-sm btn-outline-danger" asp-page="Delete" asp-route-id="@p.Id">@L["Delete"]</a>
+                        }
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+}

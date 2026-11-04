@@ -82,6 +82,8 @@ secret store, never in the image or in `appsettings.json`.
 | `Escalation__CheckIntervalSeconds` (30), `Escalation__AckLinkValidHours` (72) | no | How often the escalation job runs; lifetime of acknowledge links. |
 | `Monitoring__DnsResolvers__0`, `__1`, ... | no (1.1.1.1, 8.8.8.8) | Resolvers for DNS monitors, tried in order: `ip`, `ip:port` or `[ipv6]:port`. Operator configuration (not subject to the SSRF guard). |
 | `Heartbeat__PingsPerMinutePerToken` (10), `Heartbeat__PingsPerMinutePerClient` (6000), `Heartbeat__PingsPerSecondGlobal` (1000) | no | Limits of the `/hb/{token}` ping endpoint. The per-client limit is per IPv4 address / IPv6 /64 and deliberately high (many hosts behind one NAT). **Behind a reverse proxy enable ForwardedHeaders**, otherwise all pings share the proxy's address. |
+| `StatusPages__CacheSeconds` (30), `StatusPages__RequestsPerMinutePerClient` (120), `StatusPages__SubscriptionsPerHourPerClient` (10), `StatusPages__NotifyIntervalSeconds` (60, 0 = off) | no | Public status pages (FEAT-4): output cache lifetime, per-client limits (IPv4 / IPv6 /64; enable ForwardedHeaders behind a proxy), subscriber notification job. See [Status pages](#public-status-pages-and-custom-domains). |
+| `Reports__JobIntervalMinutes` (60, 0 = off), `Reports__CatchUpDays` (7), `Reports__DownloadLinkDays` (30) | no | Monthly SLA report e-mail (FEAT-10): how often the job looks for due reports, how many days into a month the previous month is still sent, lifetime of the signed PDF link. |
 | `Seed__DemoData` | no | Ignored outside Development. |
 
 Acknowledge links are protected with ASP.NET Core Data Protection (purpose `IncidentAck.v1`), the same key ring as
@@ -305,6 +307,57 @@ No sandbox account was available during development. Verify these points against
   reports them.
 - [ ] End to end in the sandbox: trial > subscribe > callback, closed tab (webhook / job), renewal success, renewal
   failure > grace > downgrade, upgrade, downgrade at period end, cancel.
+
+## Public status pages and custom domains
+
+Status pages are served by the app itself at `https://<Site__PublicBaseUrl host>/status/<slug>` (plus `.json`,
+`/feed` and the subscription pages). They are anonymous, set no cookies (only the subscribe / confirm / unsubscribe
+forms carry an antiforgery cookie), are output-cached in memory for `StatusPages__CacheSeconds` per instance and are
+rate-limited per client. Subscriber e-mails (double opt-in) go through the e-mail outbox, so SMTP must be configured.
+Confirmation and unsubscribe links are signed with the Data Protection key ring in `/data` (keep it persistent).
+
+**Custom domains (Pro / Enterprise).** A customer enters a host such as `status.example.com` in the panel and
+publishes two DNS records:
+
+1. `status.example.com CNAME <your app host>` (or A/AAAA records to the reverse proxy), and
+2. `_triggercheck.status.example.com TXT "triggercheck-verification=<token>"` (shown in the panel).
+
+After *Verify* succeeds (the TXT lookup uses `Monitoring__DnsResolvers`), requests whose `Host` is that domain are
+served the page at `/` (`/index.json`, `/feed`, `/subscribe`, ... likewise); every other path, including sign-in,
+the panel and `/api`, answers 404 there. Unverified domains, domains of suspended customers and of plans without
+custom domains never serve anything. The domain list is cached for one minute per instance.
+
+**TLS is a deployment concern.** The app only sees the `Host` header; the reverse proxy in front of it must accept
+arbitrary customer hosts and obtain certificates on demand. With Caddy, for example:
+
+```
+{
+    on_demand_tls {
+        # Only issue certificates for verified custom domains: the app answers 200 for them, 404 otherwise.
+        ask http://triggercheck:8080/status/domain-check
+    }
+}
+app.example.com {
+    reverse_proxy triggercheck:8080
+}
+:443 {
+    tls { on_demand }
+    reverse_proxy triggercheck:8080
+}
+```
+
+`GET /status/domain-check?domain=<host>` is that `ask` endpoint (anonymous, rate-limited). Never run `on_demand`
+without it, or anyone could point a domain at the proxy and exhaust the ACME rate limits. With Traefik or nginx +
+cert-manager, issue per-host certificates (HTTP-01) for the verified domains in the same way.
+Keep `ForwardedHeaders__Enabled=true` with the proxy's address so per-client limits see real client IPs, and forward
+the original `Host` header unchanged.
+
+## SLA reports
+
+The *Reports* page computes monthly SLA figures on the fly (no stored aggregates). PDFs are rendered with PDFsharp
+(MIT, pure managed code) and the embedded Roboto font (Apache 2.0), so the runtime image needs no fonts or native
+libraries. Opted-in customers get the previous month's report on the 1st (in their report time zone) with a signed,
+expiring PDF download link (`/reports/download`, Data Protection purpose `SlaReportDownload.v1`).
 
 ## AI features
 

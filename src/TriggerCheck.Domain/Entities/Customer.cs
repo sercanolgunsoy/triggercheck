@@ -38,6 +38,12 @@ public class Customer
     /// </summary>
     public bool AiEnabled { get; set; }
 
+    // ---- SLA reports (FEAT-10) ----
+    /// <summary>Opt-in: e-mail the monthly SLA report to the customer admins on the 1st of the month.</summary>
+    public bool MonthlyReportEmail { get; set; }
+    /// <summary>IANA time zone the report months are cut in (null = UTC).</summary>
+    public string? ReportTimeZoneId { get; set; }
+
     public ICollection<Monitor> Monitors { get; set; } = new List<Monitor>();
     public ICollection<AlertChannel> AlertChannels { get; set; } = new List<AlertChannel>();
     public ICollection<Subscription> Subscriptions { get; set; } = new List<Subscription>();

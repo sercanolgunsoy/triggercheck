@@ -13,6 +13,13 @@
     <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.20.1" />
     <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.20.1" />
     <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" Version="1.20.1" />
+    <!-- FEAT-10 PDF reports: MIT licensed, fully managed (no native dependency in the container). -->
+    <PackageReference Include="PDFsharp" Version="6.2.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Roboto (Apache License 2.0, see Reporting/Fonts/Roboto-LICENSE.txt): embedded so PDFs render the same on hosts without fonts. -->
+    <EmbeddedResource Include="Reporting\Fonts\*.ttf" LogicalName="TriggerCheck.Fonts.%(Filename)%(Extension)" />
   </ItemGroup>
 
   <PropertyGroup>

@@ -66,6 +66,23 @@
     </div>
 </fieldset>
 
+<fieldset class="border rounded p-3 mb-3" id="plan-status-pages">
+    <legend class="fs-6 fw-semibold w-auto px-1 mb-1">@L["Status pages"]</legend>
+    <div class="row">
+        <div class="col-md-6 mb-2">
+            <label asp-for="MaxStatusPages" class="form-label"></label>
+            <input asp-for="MaxStatusPages" class="form-control" type="number" min="0" />
+            <span asp-validation-for="MaxStatusPages" class="text-danger small"></span>
+        </div>
+        <div class="col-md-6 mb-2 d-flex align-items-end">
+            <div class="form-check">
+                <input asp-for="AllowsStatusPageCustomDomain" class="form-check-input" />
+                <label asp-for="AllowsStatusPageCustomDomain" class="form-check-label"></label>
+            </div>
+        </div>
+    </div>
+</fieldset>
+
 <fieldset class="border rounded p-3 mb-3" id="plan-ai">
     <legend class="fs-6 fw-semibold w-auto px-1 mb-1">@L["AI features"]</legend>
     <div class="row">

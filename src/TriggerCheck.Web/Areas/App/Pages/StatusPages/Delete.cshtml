@@ -1,0 +1,19 @@
+@page "{id:int}"
+@model TriggerCheck.Web.Areas.App.Pages.StatusPages.DeleteModel
+@{ ViewData["Title"] = L["Delete status page"].Value; }
+
+<nav aria-label="breadcrumb"><ol class="breadcrumb">
+    <li class="breadcrumb-item"><a asp-page="Index">@L["Status pages"]</a></li>
+    <li class="breadcrumb-item active">@L["Delete"]</li>
+</ol></nav>
+
+<div class="card border-danger">
+    <div class="card-header bg-danger text-white">@L["Delete status page"]</div>
+    <div class="card-body">
+        <p>@L["Are you sure you want to delete the status page \"{0}\"? Its address stops working and all its subscribers and notes are removed.", Model.StatusPage.Title]</p>
+        <form method="post" asp-route-id="@Model.StatusPage.Id">
+            <button type="submit" class="btn btn-danger">@L["Yes, delete"]</button>
+            <a asp-page="Index" class="btn btn-link">@L["Cancel"]</a>
+        </form>
+    </div>
+</div>
