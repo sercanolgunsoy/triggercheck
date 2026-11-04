@@ -1,14 +1,21 @@
+using System.Diagnostics;
 using System.Net;
 using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
+using OpenTelemetry.Trace;
 using TriggerCheck.Domain;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Monitoring.Checks;
+using TriggerCheck.Tests.App;
 using TriggerCheck.Tests.Infrastructure;
+using TriggerCheck.Tests.Ops;
+using TriggerCheck.Web.Api;
 using TriggerCheck.Web.Heartbeat;
 using static TriggerCheck.Tests.App.AppTestData;
-using TriggerCheck.Tests.App;
 
 namespace TriggerCheck.Tests.MonitorTypes;
 
@@ -188,6 +195,67 @@ public class HeartbeatWebTests(TestWebAppFactory f) : IClassFixture<TestWebAppFa
     }
 
     [Fact]
+    public async Task The_ping_url_is_revealed_once_without_caching_and_never_via_tempdata()
+    {
+        var c = await AdminAsync();
+        var r = await c.PostFormAsync("/App/Monitors/Create", HeartbeatForm("Reveal once"));
+        var location = r.Headers.Location!.ToString();
+        Assert.Contains("reveal=", location);
+        Assert.DoesNotContain(r.Headers.TryGetValues("Set-Cookie", out var cookies) ? string.Join(";", cookies) : "", "HeartbeatUrl");
+
+        var first = await c.GetAsync(location);
+        Assert.True(first.Headers.CacheControl?.NoStore);
+        var token = PingUrlRx.Match(await first.ReadHtmlAsync()).Groups[1].Value;
+        Assert.Equal(43, token.Length);
+
+        var second = await c.GetHtmlAsync(location); // same reveal id again: gone
+        Assert.DoesNotContain(token, second);
+
+        // Another admin of the same customer cannot redeem someone else's reveal id.
+        var cid = await f.DemoCustomerIdAsync();
+        var r2 = await c.PostFormAsync("/App/Monitors/Create", HeartbeatForm("Reveal other user"));
+        await f.AddUserAsync(cid, "hbadmin2@demo.local", "Admin123!", Roles.CustomerAdmin);
+        var other = await f.LoginAsync("hbadmin2@demo.local", "Admin123!");
+        Assert.DoesNotMatch(PingUrlRx, await other.GetHtmlAsync(r2.Headers.Location!.ToString()));
+    }
+
+    [Fact]
+    public async Task Pings_to_paused_monitors_and_suspended_customers_are_ignored()
+    {
+        var (id, token, c) = await CreateAsync("Paused ping");
+        await c.PostFormAsync($"/App/Monitors/Details/{id}?handler=Pause", new(), $"/App/Monitors/Details/{id}");
+        Assert.Equal(HttpStatusCode.OK, (await f.CreateClient().GetAsync("/hb/" + token)).StatusCode);
+        Assert.Null((await MonitorAsync(id)).LastHeartbeatAtUtc);
+
+        var otherCid = await f.AddCustomerAsync("HB Suspended");
+        var hbId = await f.AddMonitorAsync(otherCid, "Suspended hb", m =>
+        {
+            m.Type = MonitorType.Heartbeat;
+            m.IntervalSeconds = 300;
+            m.GracePeriodSeconds = 60;
+        });
+        var suspendedToken = await f.WithDbAsync(async db =>
+        {
+            var m = await db.Monitors.SingleAsync(x => x.Id == hbId);
+            var t = HeartbeatTokens.Issue(m);
+            (await db.Customers.SingleAsync(x => x.Id == otherCid)).IsActive = false;
+            await db.SaveChangesAsync();
+            return t;
+        });
+        Assert.Equal(HttpStatusCode.OK, (await f.CreateClient().GetAsync("/hb/" + suspendedToken)).StatusCode);
+        Assert.Null((await MonitorAsync(hbId)).LastHeartbeatAtUtc);
+
+        // Reactivation gives the heartbeat a full window instead of an immediate (DOWN) evaluation.
+        var sa = await f.LoginAsync(TestWebAppFactory.SuperAdminEmail, TestWebAppFactory.SuperAdminPassword);
+        var before = DateTime.UtcNow;
+        var detailsUrl = $"/SuperAdmin/Customers/Details/{otherCid}";
+        AssertRedirect(await sa.PostFormAsync($"{detailsUrl}?handler=Activate", new(), detailsUrl), detailsUrl);
+        Assert.True((await MonitorAsync(hbId)).NextCheckAtUtc >= before.AddSeconds(360 - 1));
+        await f.CreateClient().GetAsync("/hb/" + suspendedToken);
+        Assert.NotNull((await MonitorAsync(hbId)).LastHeartbeatAtUtc);
+    }
+
+    [Fact]
     public async Task Check_now_is_refused_for_heartbeats()
     {
         var (id, _, c) = await CreateAsync("No check now");
@@ -199,7 +267,8 @@ public class HeartbeatWebTests(TestWebAppFactory f) : IClassFixture<TestWebAppFa
     [Theory]
     [InlineData("30", "120", false)]     // below the 60 s heartbeat minimum
     [InlineData("60", "120", true)]
-    [InlineData("86400", "0", true)]
+    [InlineData("86400", "10", true)]
+    [InlineData("3600", "9", false)]      // below the 10 s minimum grace
     [InlineData("7200", "120", false)]   // not an offered interval
     [InlineData("3600", "-1", false)]
     [InlineData("3600", "86401", false)]
@@ -252,7 +321,7 @@ public class HeartbeatRateLimitTests(TestWebAppFactory f) : IClassFixture<TestWe
     {
         var anon = f.CreateClient();
         var unknown = HeartbeatTokens.NewToken();
-        for (var i = 0; i < HeartbeatRateLimiter.PerTokenPerMinute; i++)
+        for (var i = 0; i < new HeartbeatOptions().PingsPerMinutePerToken; i++)
             Assert.Equal(HttpStatusCode.OK, (await anon.GetAsync("/hb/" + unknown)).StatusCode);
         var limited = await anon.GetAsync("/hb/" + unknown);
         Assert.Equal(HttpStatusCode.TooManyRequests, limited.StatusCode);
@@ -262,23 +331,66 @@ public class HeartbeatRateLimitTests(TestWebAppFactory f) : IClassFixture<TestWe
         Assert.Equal(HttpStatusCode.OK, (await anon.GetAsync("/hb/" + HeartbeatTokens.NewToken())).StatusCode);
     }
 
+    private static HeartbeatRateLimiter Limiter(FakeTimeProvider time, int perToken = 10, int perClient = 6000, int global = 1000, int maxEntries = HeartbeatRateLimiter.DefaultMaxEntries) =>
+        new(time, Options.Create(new HeartbeatOptions { PingsPerMinutePerToken = perToken, PingsPerMinutePerClient = perClient, PingsPerSecondGlobal = global }))
+        { MaxEntries = maxEntries };
+
     [Fact]
-    public void Limiter_windows_per_token_and_per_ip()
+    public void Limiter_windows_per_token_and_per_client()
     {
         var time = new FakeTimeProvider(DateTimeOffset.Parse("2026-01-01T00:00:00Z"));
-        var limiter = new HeartbeatRateLimiter(time);
-        for (var i = 0; i < HeartbeatRateLimiter.PerTokenPerMinute; i++) Assert.True(limiter.TryAcquire("t1", "1.1.1.1").Allowed);
-        var denied = limiter.TryAcquire("t1", "1.1.1.1");
+        var limiter = Limiter(time);
+        for (var i = 0; i < 10; i++) Assert.True(limiter.TryAcquire("t1", "ip:1.1.1.1").Allowed);
+        var denied = limiter.TryAcquire("t1", "ip:1.1.1.1");
         Assert.False(denied.Allowed);
         Assert.Equal(60, denied.RetryAfterSeconds);
         time.Advance(TimeSpan.FromSeconds(60));
-        Assert.True(limiter.TryAcquire("t1", "1.1.1.1").Allowed);
+        Assert.True(limiter.TryAcquire("t1", "ip:1.1.1.1").Allowed);
 
-        // Per IP: many distinct tokens from one address.
-        var ipLimiter = new HeartbeatRateLimiter(time);
-        for (var i = 0; i < HeartbeatRateLimiter.PerIpPerMinute; i++) Assert.True(ipLimiter.TryAcquire("tok" + i, "2.2.2.2").Allowed);
-        Assert.False(ipLimiter.TryAcquire("fresh", "2.2.2.2").Allowed);
-        Assert.True(ipLimiter.TryAcquire("fresh", "3.3.3.3").Allowed);
+        // Per client: the default is high enough for a fleet behind one NAT (500 hosts pinging every minute).
+        var nat = Limiter(time);
+        for (var i = 0; i < 500; i++) Assert.True(nat.TryAcquire("host" + i, "ip:2.2.2.2").Allowed);
+
+        var small = Limiter(time, perClient: 5);
+        for (var i = 0; i < 5; i++) Assert.True(small.TryAcquire("tok" + i, "ip6:2001:db8::/64").Allowed);
+        Assert.False(small.TryAcquire("fresh", "ip6:2001:db8::/64").Allowed);
+        Assert.True(small.TryAcquire("fresh", "ip:3.3.3.3").Allowed);
+    }
+
+    [Fact]
+    public void Client_partition_groups_ipv6_by_64()
+    {
+        Assert.Equal(ApiSetup.ClientPartition(IPAddress.Parse("2001:db8:1:2::1")), ApiSetup.ClientPartition(IPAddress.Parse("2001:db8:1:2:ffff::9")));
+        Assert.NotEqual(ApiSetup.ClientPartition(IPAddress.Parse("2001:db8:1:2::1")), ApiSetup.ClientPartition(IPAddress.Parse("2001:db8:1:3::1")));
+    }
+
+    [Fact]
+    public void Global_flood_guard()
+    {
+        var time = new FakeTimeProvider(DateTimeOffset.Parse("2026-01-01T00:00:00Z"));
+        var limiter = Limiter(time, global: 3);
+        for (var i = 0; i < 3; i++) Assert.True(limiter.TryAcquire("t" + i, "ip:" + i).Allowed);
+        Assert.False(limiter.TryAcquire("t9", "ip:9").Allowed);
+        time.Advance(TimeSpan.FromSeconds(1));
+        Assert.True(limiter.TryAcquire("t9", "ip:9").Allowed);
+    }
+
+    [Fact]
+    public void Under_memory_pressure_new_keys_are_denied_and_existing_counters_are_kept()
+    {
+        var time = new FakeTimeProvider(DateTimeOffset.Parse("2026-01-01T00:00:00Z"));
+        var limiter = Limiter(time, perToken: 2, maxEntries: 10);
+        for (var i = 0; i < 5; i++) Assert.True(limiter.TryAcquire("t" + i, "ip:" + i).Allowed); // 10 entries
+        Assert.Equal(10, limiter.TrackedEntries);
+
+        Assert.False(limiter.TryAcquire("new", "ip:new").Allowed); // full: deny, do not forget
+        Assert.True(limiter.TryAcquire("t0", "ip:0").Allowed);      // existing key still works...
+        Assert.False(limiter.TryAcquire("t0", "ip:0").Allowed);     // ...and its limit still applies (no fail-open reset)
+        Assert.Equal(10, limiter.TrackedEntries);
+
+        time.Advance(TimeSpan.FromMinutes(1));                       // entries expire by age only
+        Assert.True(limiter.TryAcquire("new", "ip:new").Allowed);
+        Assert.True(limiter.TrackedEntries <= 10);
     }
 
     [Theory]
@@ -287,4 +399,52 @@ public class HeartbeatRateLimitTests(TestWebAppFactory f) : IClassFixture<TestWe
     [InlineData("ok\r\ndone\t!", "ok done !")]
     [InlineData("see https://h.example/p?secret=1", "see https://h.example/p?…")]
     public void Messages_are_cleaned(string? raw, string? expected) => Assert.Equal(expected, HeartbeatEndpoint.CleanMessage(raw));
+}
+
+/// <summary>Ping URL base from Site:PublicBaseUrl.</summary>
+public sealed class PublicBaseUrlFactory : TestWebAppFactory
+{
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        base.ConfigureWebHost(builder);
+        builder.UseSetting("Site:PublicBaseUrl", "https://status.example.com/");
+    }
+}
+
+public class HeartbeatPublicUrlTests(PublicBaseUrlFactory f) : IClassFixture<PublicBaseUrlFactory>
+{
+    [Fact]
+    public async Task Ping_url_uses_the_configured_public_base_url()
+    {
+        var c = await f.LoginAsync(TestWebAppFactory.DemoAdminEmail, TestWebAppFactory.DemoAdminPassword);
+        var r = await c.PostFormAsync("/App/Monitors/Create", new()
+        {
+            ["Input.Name"] = "Public url", ["Input.Type"] = "Heartbeat", ["Input.IntervalSeconds"] = "300", ["Input.GracePeriodSeconds"] = "60"
+        });
+        var html = await c.GetHtmlAsync(r.Headers.Location!.ToString());
+        Assert.Matches(new Regex(@"https://status\.example\.com/hb/[A-Za-z0-9_-]{43}"), html);
+    }
+}
+
+public class HeartbeatTraceTests
+{
+    [Fact]
+    public async Task Ping_tokens_and_messages_never_reach_trace_spans()
+    {
+        await using var f = new TracingAppFactory();
+        var token = HeartbeatTokens.NewToken();
+        Assert.Equal(HttpStatusCode.OK, (await f.CreateClient().GetAsync($"/hb/{token}?status=fail&msg=secret-msg-77")).StatusCode);
+
+        Assert.True(f.Services.GetRequiredService<TracerProvider>().ForceFlush(5000));
+        List<Activity> spans;
+        lock (f.Spans) spans = f.Spans.Where(s => s.Source.Name == "Microsoft.AspNetCore").ToList();
+        Assert.NotEmpty(spans);
+        foreach (var span in spans)
+        {
+            var text = span.DisplayName + " " + string.Join(" ", span.TagObjects.Select(t => $"{t.Key}={t.Value}"));
+            Assert.DoesNotContain(token, text);
+            Assert.DoesNotContain("secret-msg-77", text);
+        }
+        Assert.Contains(spans, s => Equals(s.GetTagItem("url.path"), HeartbeatEndpoint.Pattern));
+    }
 }

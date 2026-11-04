@@ -31,6 +31,7 @@ public class JsonApiMonitorTests : IAsyncLifetime
             app.MapGet("/error", () => Results.Json(new { status = "ok" }, statusCode: 503));
             app.MapGet("/html", () => Results.Content("<html>maintenance</html>", "text/html"));
             app.MapGet("/huge", () => Results.Text("{\"pad\":\"" + new string('x', HttpCheckerBase.MaxBodyBytes) + "\",\"status\":\"ok\"}", "application/json"));
+            app.MapGet("/bom", () => Results.Bytes([0xEF, 0xBB, 0xBF, .. "{\"status\":\"ok\"}"u8.ToArray()], "application/json"));
             app.MapPost("/post", () => Results.Json(new { method = "POST" }));
             app.MapGet("/moved", () => Results.Redirect("/health"));
         });
@@ -109,6 +110,22 @@ public class JsonApiMonitorTests : IAsyncLifetime
         Assert.False(o.IsUp);
         Assert.StartsWith("Invalid JSON path", o.Error);
         Assert.Null(_lastAccept);
+    }
+
+    [Fact]
+    public async Task Head_is_rejected_for_body_checks()
+    {
+        await using var sp = Build(allowPrivate: true);
+        var o = await CheckAsync(sp, Monitor("/health", "$.status", AssertionOperator.Exists, null, method: "HEAD"));
+        Assert.Equal("HEAD requests have no body to check; use GET or POST", o.Error);
+        Assert.Null(_lastAccept);
+    }
+
+    [Fact]
+    public async Task Bom_prefixed_json_is_accepted()
+    {
+        await using var sp = Build(allowPrivate: true);
+        Assert.True((await CheckAsync(sp, Monitor("/bom", "$.status", AssertionOperator.Equal, "ok"))).IsUp);
     }
 
     [Fact]

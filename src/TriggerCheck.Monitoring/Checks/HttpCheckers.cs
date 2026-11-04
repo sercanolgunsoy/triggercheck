@@ -106,6 +106,8 @@ public abstract class HttpCheckerBase(IHttpClientFactory httpClientFactory) : IM
     private static CheckOutcome WithProbe(CheckOutcome outcome, ProbeContext probe, int? ttfb) =>
         outcome with { Timings = probe.Timings(ttfb), Certificate = probe.Certificate };
 
+    protected static bool IsHead(MonitorEntity monitor) => string.Equals(monitor.HttpMethod?.Trim(), "HEAD", StringComparison.OrdinalIgnoreCase);
+
     private static int Elapsed(Stopwatch sw) => (int)Math.Min(int.MaxValue, sw.ElapsedMilliseconds);
 
     private static async Task<(string Body, bool Truncated)> ReadCappedBodyAsync(HttpResponseMessage response, CancellationToken ct)
@@ -154,7 +156,8 @@ public sealed class KeywordMonitorChecker(IHttpClientFactory httpClientFactory) 
     protected override bool ReadsBody => true;
 
     protected override string? ValidateConfig(MonitorEntity monitor) =>
-        string.IsNullOrEmpty(monitor.Keyword) ? "Keyword is not configured" : null;
+        string.IsNullOrEmpty(monitor.Keyword) ? "Keyword is not configured"
+        : IsHead(monitor) ? "HEAD requests have no body to search; use GET or POST" : null;
 
     protected override string? CheckBody(MonitorEntity monitor, string body, bool truncated) =>
         body.Contains(monitor.Keyword!, StringComparison.OrdinalIgnoreCase) ? null : $"Keyword '{monitor.Keyword}' not found in response";
@@ -169,7 +172,9 @@ public sealed class JsonApiMonitorChecker(IHttpClientFactory httpClientFactory) 
     public override MonitorType Type => MonitorType.JsonApi;
     protected override bool ReadsBody => true;
 
-    protected override string? ValidateConfig(MonitorEntity monitor) => JsonAssertion.ValidateConfig(monitor.JsonPath, monitor.AssertionOperator, monitor.ExpectedValue);
+    protected override string? ValidateConfig(MonitorEntity monitor) =>
+        IsHead(monitor) ? "HEAD requests have no body to check; use GET or POST"
+        : JsonAssertion.ValidateConfig(monitor.JsonPath, monitor.AssertionOperator, monitor.ExpectedValue);
 
     protected override void Prepare(HttpRequestMessage request) =>
         request.Headers.Accept.ParseAdd("application/json");

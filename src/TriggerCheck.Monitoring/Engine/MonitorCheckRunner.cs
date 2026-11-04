@@ -54,7 +54,9 @@ namespace TriggerCheck.Monitoring.Engine;
 /// </para>
 /// <para>
 /// Heartbeat monitors are not probed; their "check" evaluates the pings received (<see cref="HeartbeatMonitorChecker"/>),
-/// skips confirmation and is scheduled by <see cref="HeartbeatSchedule"/> (ping received or deadline passed).
+/// skips confirmation and is scheduled by <see cref="HeartbeatSchedule"/> (ping received or deadline passed). A ping that
+/// lands between the snapshot and the save is evaluated on the fresh row, and an unchanged UP is stored as a
+/// CheckResult at most once per interval.
 /// </para>
 /// <para>
 /// TLS certificates (https Http/Keyword/JsonApi): the certificate captured by the probe is stored on the monitor, and a
@@ -139,6 +141,9 @@ public sealed class MonitorCheckRunner(
         TtfbMs = outcome.Timings?.TtfbMs
     };
 
+    private static Task<bool> HasResultSinceAsync(AppDbContext db, int monitorId, DateTime sinceUtc, CancellationToken ct) =>
+        db.CheckResults.AnyAsync(c => c.MonitorId == monitorId && c.CheckedAtUtc > sinceUtc, ct);
+
     private async Task<bool> MonitorExistsAsync(int monitorId)
     {
         await using var db = await dbFactory.CreateDbContextAsync(CancellationToken.None);
@@ -164,7 +169,24 @@ public sealed class MonitorCheckRunner(
 
         // Retries start from a fresh row: reset what an earlier attempt may have set on the (new) result object.
         result.IsConfirmation = false;
-        db.CheckResults.Add(result);
+        if (monitor.Type == MonitorType.Heartbeat)
+        {
+            if (monitor.LastHeartbeatAtUtc != snapshot.LastHeartbeatAtUtc || monitor.LastHeartbeatFailed != snapshot.LastHeartbeatFailed)
+            {
+                // A ping arrived during the evaluation: decide on the fresh row (pure, no I/O), not the stale snapshot.
+                outcome = HeartbeatMonitorChecker.Evaluate(monitor, checkedAt);
+                result.IsUp = outcome.IsUp;
+                result.Error = outcome.Error;
+                result.ResponseTimeMs = outcome.ResponseTimeMs;
+            }
+            // Frequent pings: an unchanged UP is stored at most once per interval (bounded row volume).
+            if (!(outcome.IsUp && monitor.Status == MonitorStatus.Up && await HasResultSinceAsync(db, monitor.Id, checkedAt.AddSeconds(-Math.Max(1, monitor.IntervalSeconds)), ct)))
+                db.CheckResults.Add(result);
+        }
+        else
+        {
+            db.CheckResults.Add(result);
+        }
         AlertMessage? alert = null;
         AlertMessage? certAlert = null;
         MonitorStateMachine.RecordCertificate(monitor, outcome.Certificate, checkedAt);
@@ -203,13 +225,7 @@ public sealed class MonitorCheckRunner(
                 else
                     transition = MonitorStateMachine.Apply(monitor, outcome, checkedAt);
             }
-            if (monitor.Type == MonitorType.Heartbeat)
-            {
-                // Evaluated against the snapshot: a ping that arrived meanwhile is evaluated right away (next tick).
-                monitor.NextCheckAtUtc = monitor.LastHeartbeatAtUtc != snapshot.LastHeartbeatAtUtc
-                    ? checkedAt
-                    : HeartbeatSchedule.NextEvaluation(monitor, checkedAt);
-            }
+            if (monitor.Type == MonitorType.Heartbeat) monitor.NextCheckAtUtc = HeartbeatSchedule.NextEvaluation(monitor, checkedAt);
             alert = await ApplyTransitionAsync(db, monitor, transition, transitionAt, ct);
             // Status changed (and possibly an incident opened/closed): make concurrent user writers retry.
             if (transition != StatusTransition.None) monitor.Version++;

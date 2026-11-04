@@ -163,6 +163,7 @@ public static class JsonAssertion
         if (ValidateConfig(path, op, expected) is { } configError) return configError;
         JsonPath.TryParse(path, out var segments, out _);
         path = path.Trim();
+        body = body.TrimStart('\uFEFF'); // a UTF-8 BOM decoded as text is not JSON whitespace
 
         JsonDocument doc;
         try { doc = JsonDocument.Parse(body, DocumentOptions); }
@@ -187,10 +188,16 @@ public static class JsonAssertion
 
     private static string? Compare(JsonElement value, string path, AssertionOperator op, string expected)
     {
-        if (value.ValueKind != JsonValueKind.Number || !value.TryGetDouble(out var actual))
-            return $"JSON value at {path} is {Show(value)}, not a number";
-        TryParseNumber(expected, out var limit);
-        var ok = op == AssertionOperator.LessThan ? actual < limit : actual > limit;
+        if (value.ValueKind != JsonValueKind.Number) return $"JSON value at {path} is {Show(value)}, not a number";
+        int cmp;
+        // Exact decimal comparison when both sides fit a decimal (0.1 vs 0.10000000000000001); doubles otherwise.
+        if (value.TryGetDecimal(out var actualDec) && decimal.TryParse(expected.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var limitDec))
+            cmp = actualDec.CompareTo(limitDec);
+        else if (value.TryGetDouble(out var actual) && double.IsFinite(actual) && TryParseNumber(expected, out var limit))
+            cmp = actual.CompareTo(limit);
+        else
+            return $"JSON value at {path} is {Show(value)}, not a comparable number";
+        var ok = op == AssertionOperator.LessThan ? cmp < 0 : cmp > 0;
         return ok ? null : $"JSON value at {path} is {Show(value)} (expected {(op == AssertionOperator.LessThan ? "<" : ">")} {expected.Trim()})";
     }
 
@@ -220,7 +227,7 @@ public static class JsonAssertion
     {
         // Prefer exact decimal comparison (0.1 + representation issues); fall back to double for huge/tiny values.
         if (value.TryGetDecimal(out var d) && decimal.TryParse(expectedText.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var e)) return d == e;
-        return value.TryGetDouble(out var actual) && actual == expected;
+        return value.TryGetDouble(out var actual) && double.IsFinite(actual) && actual == expected;
     }
 
     private static bool StructurallyEqual(JsonElement value, string expected)
@@ -245,5 +252,18 @@ public static class JsonAssertion
 
     private static string Quote(string s) => "\"" + Cut(s) + "\"";
 
-    private static string Cut(string s) => s.Length <= MaxShownValue ? s : s[..MaxShownValue] + "…";
+    /// <summary>
+    /// Response values end up in alerts (chat channels, SMS): control characters become spaces, characters chat services
+    /// treat as markup (`, &lt;, &gt;) are dropped, and the text is cut without splitting a surrogate pair.
+    /// </summary>
+    private static string Cut(string s)
+    {
+        var sb = new StringBuilder(Math.Min(s.Length, MaxShownValue * 2));
+        foreach (var c in s.Length > MaxShownValue * 4 ? s[..(MaxShownValue * 4)] : s)
+        {
+            if (c is '`' or '<' or '>') continue;
+            sb.Append(char.IsControl(c) ? ' ' : c);
+        }
+        return Alerting.AlertText.Cut(sb.ToString(), MaxShownValue + 1);
+    }
 }

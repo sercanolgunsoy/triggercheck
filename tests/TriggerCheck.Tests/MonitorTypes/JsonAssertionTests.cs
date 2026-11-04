@@ -196,4 +196,37 @@ public class JsonAssertionTests
     [InlineData("$.a", AssertionOperator.GreaterThan, "x", false)]
     public void Validates_configuration(string path, AssertionOperator op, string? expected, bool valid) =>
         Assert.Equal(valid, JsonAssertion.ValidateConfig(path, op, expected) is null);
+
+    [Fact]
+    public void Utf8_bom_is_ignored() =>
+        Assert.Null(JsonAssertion.Evaluate("﻿{\"a\":1}", "$.a", AssertionOperator.Equal, "1"));
+
+    [Fact]
+    public void Comparisons_are_decimal_exact_and_reject_infinities()
+    {
+        // As doubles both sides are 0.1; as decimals 0.1 < 0.10000000000000001.
+        Assert.Null(JsonAssertion.Evaluate("{\"v\":0.1}", "$.v", AssertionOperator.LessThan, "0.10000000000000001"));
+        Assert.Null(JsonAssertion.Evaluate("{\"v\":1e30}", "$.v", AssertionOperator.GreaterThan, "1e29")); // beyond decimal: doubles
+        Assert.Equal("JSON value at $.v is 1e400, not a comparable number", JsonAssertion.Evaluate("{\"v\":1e400}", "$.v", AssertionOperator.GreaterThan, "1"));
+        Assert.NotNull(JsonAssertion.Evaluate("{\"v\":1e400}", "$.v", AssertionOperator.Equal, "1e400"));
+        Assert.Equal("Expected value must be a number for < and >", JsonAssertion.Evaluate("{\"v\":1}", "$.v", AssertionOperator.LessThan, "1e400"));
+    }
+
+    [Fact]
+    public void Values_in_errors_lose_control_characters_and_chat_markup_and_are_cut_safely()
+    {
+        var error = JsonAssertion.Evaluate("{\"s\":\"a\\u0007b\\n<!channel> `x`\"}", "$.s", AssertionOperator.Equal, "y")!;
+        Assert.False(error.Contains('\u0007'));
+        Assert.False(error.Contains('\n'));
+        Assert.DoesNotContain("<", error);
+        Assert.DoesNotContain("`", error);
+
+        var emoji = string.Concat(Enumerable.Repeat("\U0001F600", 80)); // surrogate pairs
+        error = JsonAssertion.Evaluate("{\"s\":\"" + emoji + "\"}", "$.s", AssertionOperator.Equal, "y")!;
+        for (var i = 0; i < error.Length; i++)
+        {
+            if (char.IsHighSurrogate(error[i])) Assert.True(i + 1 < error.Length && char.IsLowSurrogate(error[i + 1]));
+            if (char.IsLowSurrogate(error[i])) Assert.True(i > 0 && char.IsHighSurrogate(error[i - 1]));
+        }
+    }
 }

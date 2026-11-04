@@ -143,7 +143,7 @@
     </fieldset>
     <fieldset class="col-md-4" data-types="Heartbeat" hidden="@Off("Heartbeat")" disabled="@Off("Heartbeat")">
         <label asp-for="Input.GracePeriodSeconds" class="form-label"></label>
-        <input asp-for="Input.GracePeriodSeconds" class="form-control" type="number" min="0" max="@MonitorInput.MaxGracePeriodSeconds" />
+        <input asp-for="Input.GracePeriodSeconds" class="form-control" type="number" min="@MonitorInput.MinGracePeriodSeconds" max="@MonitorInput.MaxGracePeriodSeconds" />
         <div class="form-text">@L["Extra time allowed for a late ping."]</div>
         <span asp-validation-for="Input.GracePeriodSeconds" class="text-danger small"></span>
     </fieldset>

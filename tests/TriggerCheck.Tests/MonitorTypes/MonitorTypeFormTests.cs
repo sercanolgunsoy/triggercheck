@@ -47,6 +47,8 @@ public class MonitorTypeFormTests(TestWebAppFactory f) : IClassFixture<TestWebAp
     [InlineData("example.com", "", null, null, "Choose a DNS record type.")]
     [InlineData("example.com", "TXT", "Exists", "x", "A DNS monitor can only check that a record equals or contains")]
     [InlineData("", "A", null, null, "Target is required.")]
+    [InlineData("bad name.example", "A", null, null, "The target must be a host name without a scheme")]
+    [InlineData("_dmarc..example.com", "TXT", null, null, "The target must be a host name without a scheme")]
     public async Task Dns_validation(string target, string recordType, string? op, string? expected, string error)
     {
         var name = "Dns bad " + Guid.NewGuid().ToString("N")[..6];

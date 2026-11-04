@@ -7,6 +7,7 @@ using TriggerCheck.Monitoring.Checks;
 using TriggerCheck.Monitoring.Engine;
 using TriggerCheck.Monitoring.Scheduling;
 using TriggerCheck.Tests.Monitoring;
+using TriggerCheck.Web.Heartbeat;
 using MonitorEntity = TriggerCheck.Domain.Entities.Monitor;
 
 namespace TriggerCheck.Tests.MonitorTypes;
@@ -162,27 +163,65 @@ public class HeartbeatEngineTests
     }
 
     [Fact]
-    public async Task A_ping_arriving_while_the_result_is_saved_is_evaluated_again_right_away()
+    public async Task A_ping_arriving_while_the_result_is_saved_is_evaluated_on_the_fresh_row()
     {
         var hook = new SaveHook(db => db.ChangeTracker.Entries<CheckResult>().Any(e => e.State == EntityState.Added));
         await using var host = await CreateHostAsync(s => s.ConfigureDbContext<AppDbContext>(o => o.AddInterceptors(hook)));
         var hb = await AddHeartbeatAsync(host);
-        host.Time.Advance(TimeSpan.FromSeconds(Interval + Grace)); // overdue, never pinged
-        hook.Action = () => PingAsync(host, hb.Id);
+        await PingAsync(host, hb.Id);
+        await host.RunCheckAsync(hb.Id); // Up
+        host.Time.Advance(TimeSpan.FromSeconds(Interval + Grace)); // overdue: the snapshot says DOWN
+        hook.Action = () => PingAsync(host, hb.Id);                 // ... but the job pings while the result is saved
 
         var r = await host.RunCheckAsync(hb.Id);
 
         Assert.True(hook.Fired);
+        Assert.True(r.IsUp);                                        // decided on the fresh row
         var m = await host.GetMonitorAsync(hb.Id);
-        Assert.NotNull(m.LastHeartbeatAtUtc);                 // the ping survived the runner's save
-        Assert.True(m.NextCheckAtUtc <= host.Now);             // and is evaluated on the next tick
-        Assert.Contains(hb.Id, await DueAsync(host));
-        if (!r.IsUp)
+        Assert.Equal(MonitorStatus.Up, m.Status);
+        Assert.Equal(host.Now.AddSeconds(Interval + Grace), m.NextCheckAtUtc);
+        Assert.Equal(0, await host.WithDbAsync(db => db.Incidents.CountAsync()));
+        Assert.Empty(_email.Sent);                                  // no DOWN alert for a ping that did arrive
+    }
+
+    [Fact]
+    public async Task Frequent_pings_store_an_unchanged_up_at_most_once_per_interval()
+    {
+        await using var host = await CreateHostAsync();
+        var hb = await AddHeartbeatAsync(host);
+        for (var i = 0; i < 20; i++)
         {
-            // The stale "overdue" verdict may have been saved; the next run corrects it.
+            await PingAsync(host, hb.Id);
             Assert.True((await host.RunCheckAsync(hb.Id)).IsUp);
+            host.Time.Advance(TimeSpan.FromSeconds(Interval / 10));
         }
-        Assert.Equal(MonitorStatus.Up, (await host.GetMonitorAsync(hb.Id)).Status);
+        // 20 evaluations over two intervals: Unknown->Up, then one per interval.
+        var rows = await host.WithDbAsync(db => db.CheckResults.CountAsync(c => c.MonitorId == hb.Id));
+        Assert.InRange(rows, 2, 3);
+
+        // A failure is always stored.
+        await PingAsync(host, hb.Id, failed: true);
+        await host.RunCheckAsync(hb.Id);
+        Assert.Equal(rows + 1, await host.WithDbAsync(db => db.CheckResults.CountAsync(c => c.MonitorId == hb.Id)));
+    }
+
+    [Fact]
+    public void A_ping_makes_the_monitor_due_only_when_there_is_something_to_decide()
+    {
+        var now = new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+        HeartbeatEndpoint.PingTarget Target(MonitorStatus status, DateTime? lastChecked, bool lastFailed = false, DateTime? next = null) =>
+            new(1, status, true, Interval, Grace, lastChecked, lastFailed, next);
+
+        Assert.Equal(now, HeartbeatEndpoint.NextCheckAfterPing(Target(MonitorStatus.Unknown, null), false, now));          // first ping
+        Assert.Equal(now, HeartbeatEndpoint.NextCheckAfterPing(Target(MonitorStatus.Down, now.AddSeconds(-1)), false, now)); // recovery
+        Assert.Equal(now, HeartbeatEndpoint.NextCheckAfterPing(Target(MonitorStatus.Up, now.AddSeconds(-1)), true, now));    // failure
+        Assert.Equal(now, HeartbeatEndpoint.NextCheckAfterPing(Target(MonitorStatus.Up, now.AddSeconds(-1), lastFailed: true), false, now));
+        Assert.Equal(now, HeartbeatEndpoint.NextCheckAfterPing(Target(MonitorStatus.Up, now.AddSeconds(-Interval / 10)), false, now)); // N per interval
+
+        // Up and evaluated moments ago: only the deadline moves.
+        Assert.Equal(now.AddSeconds(Interval + Grace), HeartbeatEndpoint.NextCheckAfterPing(Target(MonitorStatus.Up, now.AddSeconds(-5), next: now.AddMinutes(3)), false, now));
+        // ... unless an evaluation is already due.
+        Assert.Equal(now.AddSeconds(-2), HeartbeatEndpoint.NextCheckAfterPing(Target(MonitorStatus.Up, now.AddSeconds(-5), next: now.AddSeconds(-2)), false, now));
     }
 
     [Fact]

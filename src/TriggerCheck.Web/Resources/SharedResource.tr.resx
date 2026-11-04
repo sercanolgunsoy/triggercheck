@@ -958,4 +958,10 @@
   <data name="JSON API" xml:space="preserve">
     <value>JSON API</value>
   </data>
+  <data name="API keys" xml:space="preserve">
+    <value>API anahtarları</value>
+  </data>
+  <data name="Read-only" xml:space="preserve">
+    <value>Salt okunur</value>
+  </data>
 </root>

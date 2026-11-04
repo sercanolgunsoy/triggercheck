@@ -34,15 +34,26 @@ public static class DnsMessage
 
     private static readonly IdnMapping Idn = new();
 
-    /// <summary>Lower-case ASCII (punycode) form of a host name without the trailing dot; throws <see cref="ArgumentException"/> when invalid.</summary>
+    /// <summary>
+    /// Lower-case ASCII (punycode) form of a DNS name without the trailing dot; throws <see cref="ArgumentException"/>
+    /// when invalid. Labels may contain letters, digits, '-' and '_' (service / policy names such as _dmarc.example.com),
+    /// must not start or end with '-', and IDN names are converted with <see cref="IdnMapping"/>. IP literals are rejected.
+    /// </summary>
     public static string NormalizeName(string name)
     {
         var n = name.Trim().TrimEnd('.');
         if (n.Length == 0) throw new ArgumentException("Host name is empty");
+        if (System.Net.IPAddress.TryParse(n.Trim('[', ']'), out _)) throw new ArgumentException("An IP address is not a DNS name");
         string ascii;
         try { ascii = Idn.GetAscii(n); }
         catch (ArgumentException) { throw new ArgumentException("Invalid host name"); }
-        if (ascii.Length > 253 || ascii.Split('.').Any(l => l.Length is 0 or > 63)) throw new ArgumentException("Invalid host name");
+        if (ascii.Length > 253) throw new ArgumentException("Invalid host name");
+        foreach (var label in ascii.Split('.'))
+        {
+            if (label.Length is 0 or > 63 || label[0] == '-' || label[^1] == '-'
+                || !label.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_'))
+                throw new ArgumentException("Invalid host name");
+        }
         return ascii.ToLowerInvariant();
     }
 
@@ -261,6 +272,8 @@ public static class DnsWireClient
         var message = new byte[length];
         await stream.ReadExactlyAsync(message, ct);
         var answer = DnsMessage.Decode(message, id, name, type);
-        return answer with { Truncated = false };
+        // TCP has no size limit, so TC set here means a broken or hostile server: never loop or trust a partial answer.
+        if (answer.Truncated) throw new DnsFormatException("truncated response over TCP");
+        return answer;
     }
 }

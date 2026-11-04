@@ -90,6 +90,8 @@ public class MonitorInput : IValidatableObject
 
     public const int DefaultGracePeriodSeconds = 60;
     public const int MaxGracePeriodSeconds = 86400;
+    /// <summary>Below this, normal network jitter of a ping would already count as a missed heartbeat.</summary>
+    public const int MinGracePeriodSeconds = 10;
 
     /// <summary>
     /// Set by <see cref="ApplyTo"/> when it issued a new heartbeat ping token (monitor created as / changed to
@@ -184,6 +186,8 @@ public class MonitorInput : IValidatableObject
                     ms.AddModelError(prefix + nameof(Target), L["The target must be a valid URL starting with http:// or https://."]);
                 if (!HttpMethods.Contains(HttpMethod))
                     ms.AddModelError(prefix + nameof(HttpMethod), L["The HTTP method must be GET, HEAD or POST."]);
+                else if (HttpMethod == "HEAD" && Type != MonitorType.Http)
+                    ms.AddModelError(prefix + nameof(HttpMethod), L["A HEAD request has no response body; use GET or POST for keyword and JSON monitors."]);
                 if (string.IsNullOrWhiteSpace(ExpectedStatusCodes))
                     ExpectedStatusCodes = "200-299";
                 else if (!StatusCodesRx.IsMatch(ExpectedStatusCodes))
@@ -195,7 +199,7 @@ public class MonitorInput : IValidatableObject
                 if (Type == MonitorType.JsonApi) ValidateJsonAssertion(ms, L, prefix);
                 break;
             case MonitorType.Dns:
-                if (!IsHostOrIp(Target) || IPAddress.TryParse(Target, out _))
+                if (!IsDnsName(Target))
                     ms.AddModelError(prefix + nameof(Target), L["The target must be a host name without a scheme (e.g. example.com)."]);
                 if (DnsRecordType is not { } rt || !DnsRecordTypes.Contains(rt))
                     ms.AddModelError(prefix + nameof(DnsRecordType), L["Choose a DNS record type."]);
@@ -203,8 +207,8 @@ public class MonitorInput : IValidatableObject
                     ms.AddModelError(prefix + nameof(AssertionOperator), L["A DNS monitor can only check that a record equals or contains the expected value."]);
                 break;
             case MonitorType.Heartbeat:
-                if (GracePeriodSeconds < 0 || GracePeriodSeconds > MaxGracePeriodSeconds)
-                    ms.AddModelError(prefix + nameof(GracePeriodSeconds), L["The grace period must be between 0 and {0} seconds.", MaxGracePeriodSeconds]);
+                if (GracePeriodSeconds < MinGracePeriodSeconds || GracePeriodSeconds > MaxGracePeriodSeconds)
+                    ms.AddModelError(prefix + nameof(GracePeriodSeconds), L["The grace period must be between {0} and {1} seconds.", MinGracePeriodSeconds, MaxGracePeriodSeconds]);
                 break;
             case MonitorType.Tcp:
             case MonitorType.Ping:
@@ -250,6 +254,14 @@ public class MonitorInput : IValidatableObject
 
         var L = (Text<AppResource>)context.GetService(typeof(Text<AppResource>))!;
         yield return new ValidationResult(L["This address points to a private or internal network and cannot be monitored."], [nameof(Target)]);
+    }
+
+    /// <summary>A DNS name the Dns checker can query (also _service labels and IDN names; no IP literals, URLs or paths).</summary>
+    public static bool IsDnsName(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Contains("://") || value.Contains('/')) return false;
+        try { Monitoring.Checks.Dns.DnsMessage.NormalizeName(value); return true; }
+        catch (ArgumentException) { return false; }
     }
 
     public static bool IsHostOrIp(string? value)

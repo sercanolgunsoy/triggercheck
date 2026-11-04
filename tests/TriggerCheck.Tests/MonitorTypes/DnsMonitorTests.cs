@@ -242,4 +242,42 @@ public class DnsMonitorTests : IAsyncLifetime
         Assert.Throws<ArgumentException>(() => DnsMessage.EncodeQuery(1, new string('a', 64) + ".com", DnsRecordType.A));
         Assert.Throws<ArgumentException>(() => DnsMessage.EncodeQuery(1, string.Join(".", Enumerable.Repeat("abcdefghij", 26)), DnsRecordType.A));
     }
+
+    [Fact]
+    public async Task Truncation_flag_over_tcp_is_a_malformed_answer()
+    {
+        _dns.Handler = (q, _) => Response(q, truncated: true, answers: [Rr(DnsRecordType.A, A("1.2.3.4"))]);
+        var o = await CheckAsync(Monitor(DnsRecordType.A));
+        Assert.False(o.IsUp);
+        Assert.Equal("Malformed DNS response: truncated response over TCP", o.Error);
+        Assert.Equal(1, _dns.TcpQueries);
+    }
+
+    [Theory]
+    [InlineData("_dmarc.example.com", "_dmarc.example.com")]
+    [InlineData("_sip._tcp.Example.COM.", "_sip._tcp.example.com")]
+    [InlineData("bücher.de", "xn--bcher-kva.de")]
+    [InlineData("xn--bcher-kva.de", "xn--bcher-kva.de")]
+    public void Valid_dns_names(string input, string normalized) => Assert.Equal(normalized, DnsMessage.NormalizeName(input));
+
+    [Theory]
+    [InlineData("1.2.3.4")]
+    [InlineData("::1")]
+    [InlineData("[2001:db8::1]")]
+    [InlineData("bad name.com")]
+    [InlineData("a..b")]
+    [InlineData("-lead.example")]
+    [InlineData("trail-.example")]
+    [InlineData("semi;colon.example")]
+    [InlineData("")]
+    public void Invalid_dns_names(string input) => Assert.Throws<ArgumentException>(() => DnsMessage.NormalizeName(input));
+
+    [Fact]
+    public async Task Underscore_names_are_queried()
+    {
+        string? asked = null;
+        _dns.Handler = (q, _) => { var p = 12; asked = DnsMessage.ReadName(q, ref p); return Response(q, answers: [Rr(DnsRecordType.TXT, Txt("v=DMARC1; p=reject"))]); };
+        Assert.True((await CheckAsync(Monitor(DnsRecordType.TXT, target: "_dmarc.example.com", expected: "p=reject", op: AssertionOperator.Contains))).IsUp);
+        Assert.Equal("_dmarc.example.com", asked);
+    }
 }

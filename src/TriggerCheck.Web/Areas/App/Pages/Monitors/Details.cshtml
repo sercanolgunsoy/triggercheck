@@ -7,7 +7,7 @@
     var isPaused = m.Status == MonitorStatus.Paused;
     var isHeartbeat = m.Type == MonitorType.Heartbeat;
     // Full ping URL: only right after it was issued, only to the admin who issued it (only its hash is stored).
-    var newPingUrl = isAdmin ? TempData[DetailsModel.HeartbeatUrlKey] as string : null;
+    var newPingUrl = Model.NewPingUrl;
 }
 
 <nav aria-label="breadcrumb"><ol class="breadcrumb">
