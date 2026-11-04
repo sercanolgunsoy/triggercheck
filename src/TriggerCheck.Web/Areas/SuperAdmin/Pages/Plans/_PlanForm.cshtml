@@ -44,6 +44,27 @@
     <label asp-for="AllowsSmsVoice" class="form-check-label"></label>
     <div class="form-text">@L["Customers on this plan can add SMS and voice call alert channels. They are only offered when Twilio is configured for this installation."]</div>
 </div>
+<div class="form-check mb-3">
+    <input asp-for="AllowsSelfSignup" class="form-check-input" />
+    <label asp-for="AllowsSelfSignup" class="form-check-label"></label>
+    <div class="form-text">@L["Offered on the sign-up page (with a free trial for paid plans) and on the customers' Billing page. Turn off for sales-led plans such as Enterprise."]</div>
+</div>
+<fieldset class="border rounded p-3 mb-3">
+    <legend class="fs-6 fw-semibold float-none w-auto px-1 mb-0">@L["iyzico subscription"]</legend>
+    <div class="form-text mb-2">@L["Create the product and a monthly pricing plan in the iyzico merchant panel and paste their reference codes here. Paid plans without a pricing plan code cannot be bought online."]</div>
+    <div class="row">
+        <div class="col-md-6 mb-2">
+            <label asp-for="IyzicoProductReferenceCode" class="form-label"></label>
+            <input asp-for="IyzicoProductReferenceCode" class="form-control font-monospace" />
+            <span asp-validation-for="IyzicoProductReferenceCode" class="text-danger small"></span>
+        </div>
+        <div class="col-md-6 mb-2">
+            <label asp-for="IyzicoPricingPlanReferenceCode" class="form-label"></label>
+            <input asp-for="IyzicoPricingPlanReferenceCode" class="form-control font-monospace" />
+            <span asp-validation-for="IyzicoPricingPlanReferenceCode" class="text-danger small"></span>
+        </div>
+    </div>
+</fieldset>
 
 <fieldset class="border rounded p-3 mb-3" id="plan-ai">
     <legend class="fs-6 fw-semibold w-auto px-1 mb-1">@L["AI features"]</legend>

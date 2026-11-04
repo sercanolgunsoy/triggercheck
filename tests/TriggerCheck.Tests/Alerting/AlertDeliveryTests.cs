@@ -63,7 +63,8 @@ public class AlertDeliveryTests
         var calls = 0;
         var flaky = new ScriptedNotifier(AlertChannelType.Webhook, (_, _, _) =>
             Task.FromResult(Interlocked.Increment(ref calls) <= 2 ? NotifyResult.Transient("Webhook returned HTTP 503") : NotifyResult.Ok));
-        await using var host = await MonitoringTestHost.CreateAsync(s => s.ReplaceNotifiers(flaky));
+        // Attempt timeout 7s so its timers cannot be mistaken for the 5s / 30s retry waits below.
+        await using var host = await MonitoringTestHost.CreateAsync(s => s.ReplaceNotifiers(flaky), new() { ["Alerting:SendTimeoutSeconds"] = "7" });
         var customer = await host.AddCustomerAsync();
         var monitor = await host.AddMonitorAsync(customer.Id);
         await AddChannelAsync(host, customer.Id, AlertChannelType.Webhook, "https://hooks.example.test/x");
@@ -72,10 +73,15 @@ public class AlertDeliveryTests
         Assert.True(host.Alerts.TryEnqueue(Down(monitor.Id, customer.Id)));
         await host.AdvanceUntilAlertsIdleAsync();
 
+        // The waits the dispatcher requested: exact, whatever the interleaving with the clock-advancing loop.
+        var waits = host.TimerDueTimes.Where(t => t != TimeSpan.FromSeconds(7)).ToList();
+        Assert.Equal([TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(30)], waits);
+        // Call times are only lower-bounded: the test advances the clock concurrently, so a call can be observed a
+        // few fake seconds late (that was the old flake: an upper bound of +1s).
         var times = flaky.Calls.Select(c => c.At).ToList();
         Assert.Equal(3, times.Count);
-        Assert.InRange(times[1] - times[0], TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(6));
-        Assert.InRange(times[2] - times[1], TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(31));
+        Assert.True(times[1] - times[0] >= TimeSpan.FromSeconds(5), $"first retry after {times[1] - times[0]}");
+        Assert.True(times[2] - times[1] >= TimeSpan.FromSeconds(30), $"second retry after {times[2] - times[1]}");
         var n = await host.WithDbAsync(db => db.Notifications.SingleAsync());
         Assert.True(n.Success);
         Assert.Null(n.Error);

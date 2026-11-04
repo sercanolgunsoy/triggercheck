@@ -34,6 +34,14 @@ public class PlanInput
 
     [Display(Name = "SMS and voice call alerts (Twilio)")] public bool AllowsSmsVoice { get; set; }
 
+    [Display(Name = "Self-service sign-up and billing")] public bool AllowsSelfSignup { get; set; }
+
+    [StringLength(100, ErrorMessage = "At most {1} characters."), RegularExpression(@"^[A-Za-z0-9\-_]*$", ErrorMessage = "Only letters, digits, - and _ are allowed.")]
+    [Display(Name = "iyzico product reference code")] public string? IyzicoProductReferenceCode { get; set; }
+
+    [StringLength(100, ErrorMessage = "At most {1} characters."), RegularExpression(@"^[A-Za-z0-9\-_]*$", ErrorMessage = "Only letters, digits, - and _ are allowed.")]
+    [Display(Name = "iyzico pricing plan reference code (monthly)")] public string? IyzicoPricingPlanReferenceCode { get; set; }
+
     // ---- AI (AI-10) ----
     [Required(ErrorMessage = "AI call limit is required."), Range(0, 10_000_000, ErrorMessage = "The AI call limit must be 0 or greater.")]
     [Display(Name = "AI calls per month")] public int? AiMonthlyCallLimit { get; set; } = 0;
@@ -48,7 +56,8 @@ public class PlanInput
     {
         Name = p.Name, MinIntervalSeconds = p.MinIntervalSeconds, MaxMonitors = p.MaxMonitors,
         RetentionDays = p.RetentionDays, MonthlyPrice = p.MonthlyPrice, IsActive = p.IsActive,
-        AllowsSmsVoice = p.AllowsSmsVoice,
+        AllowsSmsVoice = p.AllowsSmsVoice, AllowsSelfSignup = p.AllowsSelfSignup,
+        IyzicoProductReferenceCode = p.IyzicoProductReferenceCode, IyzicoPricingPlanReferenceCode = p.IyzicoPricingPlanReferenceCode,
         AiMonthlyCallLimit = p.AiMonthlyCallLimit, AiMonthlyTokenLimit = p.AiMonthlyTokenLimit,
         AiFeatures = Domain.AiFeatures.Parse(p.AiFeatures).ToList()
     };
@@ -62,6 +71,9 @@ public class PlanInput
         p.MonthlyPrice = MonthlyPrice!.Value;
         p.IsActive = IsActive;
         p.AllowsSmsVoice = AllowsSmsVoice;
+        p.AllowsSelfSignup = AllowsSelfSignup;
+        p.IyzicoProductReferenceCode = string.IsNullOrWhiteSpace(IyzicoProductReferenceCode) ? null : IyzicoProductReferenceCode.Trim();
+        p.IyzicoPricingPlanReferenceCode = string.IsNullOrWhiteSpace(IyzicoPricingPlanReferenceCode) ? null : IyzicoPricingPlanReferenceCode.Trim();
         p.AiMonthlyCallLimit = AiMonthlyCallLimit!.Value;
         p.AiMonthlyTokenLimit = AiMonthlyTokenLimit!.Value;
         p.AiFeatures = Domain.AiFeatures.Format(AiFeatures);

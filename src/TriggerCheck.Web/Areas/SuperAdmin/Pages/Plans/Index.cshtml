@@ -23,7 +23,9 @@
             <td class="text-end">@L["{0} days", Fmt.Number(p.RetentionDays)]</td>
             <td class="text-end">@Fmt.Money(p.MonthlyPrice)</td>
             <td class="text-end">@(p.AiCalls > 0 ? Fmt.Number(p.AiCalls) : "—") @if (p.AiCalls > 0) { <span class="text-muted small">(@L["{0} features", p.AiFeatureCount])</span> }</td>
-            <td>@if (p.IsActive) { <span class="badge bg-success">@L["Active"]</span> } else { <span class="badge bg-secondary">@L["Inactive"]</span> }</td>
+            <td>@if (p.IsActive) { <span class="badge bg-success">@L["Active"]</span> } else { <span class="badge bg-secondary">@L["Inactive"]</span> }
+                @if (p.AllowsSelfSignup) { <span class="badge bg-light text-dark border">@L["Self-service"]</span> }
+                @if (p.HasIyzicoPlan) { <span class="badge bg-light text-dark border">iyzico</span> }</td>
             <td class="text-end"><a asp-page="/Customers/Index" asp-route-planId="@p.Id">@p.Customers</a> (@p.ActiveCustomers)</td>
             <td class="text-end">@Fmt.Number(p.Monitors)</td>
             <td class="text-end text-nowrap">
