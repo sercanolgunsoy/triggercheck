@@ -1234,4 +1234,79 @@
   <data name="This payment could not be used: your workspace already has a subscription or the plan did not match. It was cancelled and the amount will be refunded to your card." xml:space="preserve">
     <value>Bu ödeme kullanılamadı: çalışma alanınızın zaten bir aboneliği var veya plan eşleşmedi. Ödeme iptal edildi ve tutar kartınıza iade edilecek.</value>
   </data>
+  <data name="Thank you for your feedback." xml:space="preserve">
+    <value>Geri bildiriminiz için teşekkürler.</value>
+  </data>
+  <data name="AI features were disabled." xml:space="preserve">
+    <value>Yapay zekâ özellikleri kapatıldı.</value>
+  </data>
+  <data name="AI features were enabled." xml:space="preserve">
+    <value>Yapay zekâ özellikleri açıldı.</value>
+  </data>
+  <data name="Grouping of related incidents" xml:space="preserve">
+    <value>İlişkili kesintilerin gruplanması</value>
+  </data>
+  <data name="Incident summaries and likely causes" xml:space="preserve">
+    <value>Kesinti özetleri ve olası nedenler</value>
+  </data>
+  <data name="Monitor setting suggestions" xml:space="preserve">
+    <value>Monitör ayarı önerileri</value>
+  </data>
+  <data name="Postmortem and status page drafts" xml:space="preserve">
+    <value>Postmortem ve durum sayfası taslakları</value>
+  </data>
+  <data name="Questions in natural language" xml:space="preserve">
+    <value>Doğal dilde sorular</value>
+  </data>
+  <data name="Slowdown explanations" xml:space="preserve">
+    <value>Yavaşlama açıklamaları</value>
+  </data>
+  <data name="Weekly and monthly reports" xml:space="preserve">
+    <value>Haftalık ve aylık raporlar</value>
+  </data>
+  <data name="AI explains incidents and slowdowns, suggests likely causes and proposes settings. It never decides whether a monitor is up or down and never sends or suppresses alerts on its own." xml:space="preserve">
+    <value>Yapay zekâ kesintileri ve yavaşlamaları açıklar, olası nedenleri ve ayar önerilerini sunar. Bir monitörün çalışıp çalışmadığına asla karar vermez ve bildirimleri kendi başına göndermez ya da engellemez.</value>
+  </data>
+  <data name="AI features are currently switched off for this service. Monitoring and alerts work as usual." xml:space="preserve">
+    <value>Yapay zekâ özellikleri bu hizmette şu anda kapalı. İzleme ve bildirimler her zamanki gibi çalışır.</value>
+  </data>
+  <data name="AI interpretation" xml:space="preserve">
+    <value>Yapay zekâ yorumu</value>
+  </data>
+  <data name="AI quota this month" xml:space="preserve">
+    <value>Bu ayki yapay zekâ kotası</value>
+  </data>
+  <data name="Disable AI features" xml:space="preserve">
+    <value>Yapay zekâ özelliklerini kapat</value>
+  </data>
+  <data name="Enable AI features" xml:space="preserve">
+    <value>Yapay zekâ özelliklerini aç</value>
+  </data>
+  <data name="Included in your plan" xml:space="preserve">
+    <value>Planınıza dahil olanlar</value>
+  </data>
+  <data name="Latest AI results" xml:space="preserve">
+    <value>Son yapay zekâ sonuçları</value>
+  </data>
+  <data name="No AI results yet." xml:space="preserve">
+    <value>Henüz yapay zekâ sonucu yok.</value>
+  </data>
+  <data name="Only customer admins can change this." xml:space="preserve">
+    <value>Bunu yalnızca müşteri yöneticileri değiştirebilir.</value>
+  </data>
+  <data name="Privacy" xml:space="preserve">
+    <value>Gizlilik</value>
+  </data>
+  <data name="The AI quota of your plan is used up. AI summaries are unavailable until next month; everything else works as usual." xml:space="preserve">
+    <value>Planınızın yapay zekâ kotası doldu. Yapay zekâ özetleri gelecek aya kadar kullanılamaz; diğer her şey her zamanki gibi çalışır.</value>
+  </data>
+  <data name="You have used {0}% of this month's AI quota." xml:space="preserve">
+    <value>Bu ayki yapay zekâ kotasının %{0} kadarını kullandınız.</value>
+  </data>
+  <data name="Your plan does not include AI features." xml:space="preserve">
+    <value>Planınız yapay zekâ özelliklerini içermiyor.</value>
+  </data>
+  <data name="Only masked technical data is sent to the AI provider (Anthropic, Claude): monitor type, host name, status codes, error types and timings. URL paths and query strings, credentials and tokens, webhook URLs, e-mail addresses and phone numbers are removed first. Your data is not shared with other customers." xml:space="preserve">
+    <value>Yapay zekâ sağlayıcısına (Anthropic, Claude) yalnızca maskelenmiş teknik veri gönderilir: monitör türü, sunucu adı, durum kodları, hata türleri ve süreler. URL yolları ve sorgu parametreleri, kimlik bilgileri ve token'lar, webhook adresleri, e-posta adresleri ve telefon numaraları önceden çıkarılır. Verileriniz başka müşterilerle paylaşılmaz.</value>
+  </data>
 </root>

@@ -113,7 +113,8 @@ public class RegisterModel(AppDbContext db, UserManager<ApplicationUser> users, 
         ApplicationUser user;
         await using (var tx = await db.Database.BeginTransactionAsync(ct))
         {
-            var customer = new Customer { Name = Input.CompanyName.Trim(), ContactEmail = email, CreatedAtUtc = now, SignupPending = true };
+            // AiEnabled: new customers are opted in to AI (decision K2); existing customers opt in themselves.
+            var customer = new Customer { Name = Input.CompanyName.Trim(), ContactEmail = email, CreatedAtUtc = now, SignupPending = true, AiEnabled = true };
             await ApplyPlanAsync(customer, plan!, email, now, ct);
             db.Customers.Add(customer);
             await db.SaveChangesAsync(ct);

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using TriggerCheck.Ai;
 using TriggerCheck.Domain;
 using TriggerCheck.Infrastructure;
 using TriggerCheck.Infrastructure.Data;
@@ -13,6 +14,9 @@ using TriggerCheck.Web.Localization;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddInfrastructure(builder.Configuration);
+// AI layer (opt-in, Ai:Enabled kill switch); the monitoring engine does not depend on it. Registered before the
+// engine so its hosted services stop after the engine's (hosted services stop in reverse registration order).
+builder.Services.AddAi(builder.Configuration);
 builder.Services.AddMonitoringEngine(builder.Configuration);
 builder.Services.AddAppLocalization();
 // OPS-4: OpenTelemetry (OTLP export only when configured) and /health/live + /health/ready.

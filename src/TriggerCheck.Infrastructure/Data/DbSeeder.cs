@@ -36,6 +36,7 @@ public static class DbSeeder
                 new Plan { Name = "Standard",   MinIntervalSeconds = 60,  MaxMonitors = 50,  RetentionDays = 90,  MonthlyPrice = 15m, AllowsSelfSignup = true },
                 new Plan { Name = "Pro",        MinIntervalSeconds = 30,  MaxMonitors = 200, RetentionDays = 180, MonthlyPrice = 49m, AllowsSelfSignup = true },
                 new Plan { Name = "Enterprise", MinIntervalSeconds = 15,  MaxMonitors = 1000, RetentionDays = 365, MonthlyPrice = 199m, AllowsSmsVoice = true });
+            foreach (var p in db.Plans.Local) ApplyDefaultAiQuota(p);
             await db.SaveChangesAsync();
         }
 
@@ -50,7 +51,7 @@ public static class DbSeeder
         else if (demoData && !await db.Customers.AnyAsync())
         {
             var standard = await db.Plans.FirstAsync(p => p.Name == "Standard");
-            var demo = new Customer { Name = "Demo Company", ContactEmail = "admin@demo.local", PlanId = standard.Id };
+            var demo = new Customer { Name = "Demo Company", ContactEmail = "admin@demo.local", PlanId = standard.Id, AiEnabled = true };
             db.Customers.Add(demo);
             await db.SaveChangesAsync();
 
@@ -65,6 +66,29 @@ public static class DbSeeder
             });
             await db.SaveChangesAsync();
         }
+    }
+
+    /// <summary>
+    /// AI features and monthly budget of the default plans (AI-10, docs/BACKLOG.md): Basic only AI-2 (limited);
+    /// Standard + AI-3, AI-5; Pro + AI-4, AI-6; Enterprise + AI-7, AI-8. SuperAdmins edit these on the Plans page.
+    /// </summary>
+    public static void ApplyDefaultAiQuota(Plan plan)
+    {
+        string[] basic = [AiFeatures.IncidentInterpretation];
+        string[] standard = [.. basic, AiFeatures.SlowdownExplanation, AiFeatures.SettingsSuggestions];
+        string[] pro = [.. standard, AiFeatures.CorrelationGrouping, AiFeatures.NarrativeReport];
+        string[] enterprise = [.. pro, AiFeatures.QuestionAnswer, AiFeatures.PostmortemDraft];
+        (string[] features, int calls, long tokens) = plan.Name switch
+        {
+            "Basic" => (basic, 50, 500_000L),
+            "Standard" => (standard, 500, 5_000_000L),
+            "Pro" => (pro, 2_000, 20_000_000L),
+            "Enterprise" => (enterprise, 10_000, 100_000_000L),
+            _ => ([], 0, 0L)
+        };
+        plan.AiFeatures = AiFeatures.Format(features);
+        plan.AiMonthlyCallLimit = calls;
+        plan.AiMonthlyTokenLimit = tokens;
     }
 
     /// <summary>

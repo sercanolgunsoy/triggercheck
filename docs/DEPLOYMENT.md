@@ -65,7 +65,8 @@ secret store, never in the image or in `appsettings.json`.
 | `Seed__SuperAdminEmail` | no | SuperAdmin login. |
 | `Smtp__Host`, `Smtp__Port` (587), `Smtp__UseSsl` (true), `Smtp__User`, `Smtp__Password`, `Smtp__From`, `Smtp__TimeoutSeconds` | for email alerts | If `Smtp__Host` is empty, alert emails are only written to the log. |
 | `Twilio__*` | coming (SMS/voice, FEAT-7) | Twilio account SID / auth token / sender. Names are fixed when the feature lands. |
-| `ANTHROPIC_API_KEY` | coming (AI features) | API key for the AI features. CI uses a fake client and needs no key. |
+| `ANTHROPIC_API_KEY` (or `Ai__ApiKey`) | for AI features | Claude API key. Used only when `Ai__Enabled=true`. CI uses a fake client and needs no key. See [AI features](#ai-features). |
+| `Ai__Enabled` | no (false) | Global AI kill switch. See [AI features](#ai-features). |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` (or a per-signal `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` / `_METRICS_ENDPOINT` / `_LOGS_ENDPOINT`) | no | Turns on OTLP export, e.g. `http://otel-collector:4317`. Each signal is configured separately: the generic variable enables traces and metrics, while a per-signal variable enables only that signal (logs additionally need `Telemetry__ExportLogs=true`). Per OTel convention, a per-signal endpoint is used as-is: for http/protobuf, include the path, e.g. `http://collector:4318/v1/traces`. Its protocol comes from `OTEL_EXPORTER_OTLP_<SIGNAL>_PROTOCOL`, or else `OTEL_EXPORTER_OTLP_PROTOCOL` (default grpc). With the generic endpoint, the standard `OTEL_*` variables apply (`OTEL_EXPORTER_OTLP_PROTOCOL`, `OTEL_EXPORTER_OTLP_HEADERS`, `OTEL_SERVICE_NAME`, `OTEL_RESOURCE_ATTRIBUTES`). |
 | `Telemetry__OtlpEndpoint`, `Telemetry__OtlpProtocol` (`grpc` \| `http/protobuf`) | no | Base collector address set through configuration. For http/protobuf, the `/v1/traces`, `/v1/metrics` and `/v1/logs` paths are appended. It is a per-signal fallback: it applies to each signal that has neither its own `OTEL_EXPORTER_OTLP_<SIGNAL>_ENDPOINT` nor the generic `OTEL_EXPORTER_OTLP_ENDPOINT`. |
 | `Telemetry__ExportLogs` | no (false) | Also exports logs through OTLP. **Off by default because logs contain personal data**: alert recipient addresses, monitor names and targets (masked where they hold secrets), error texts. Turn it on only if the collector and its storage are approved for that data. |
@@ -291,3 +292,70 @@ No sandbox account was available during development. Verify these points against
   reports them.
 - [ ] End to end in the sandbox: trial > subscribe > callback, closed tab (webhook / job), renewal success, renewal
   failure > grace > downgrade, upgrade, downgrade at period end, cancel.
+
+## AI features
+
+The AI layer (`src/TriggerCheck.Ai`) interprets monitoring data with Claude and runs an L1 statistical baseline. The
+product works fully without it: status, incidents and alerts are always decided by the deterministic engine.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `Ai__Enabled` | `false` | **Global kill switch.** `false` (or no API key) registers a no-op client: nothing leaves the system and no AI rows are written. Restart to apply. The SuperAdmin *AI usage* page shows the state read-only. |
+| `ANTHROPIC_API_KEY` / `Ai__ApiKey` | none | Claude API key (`Ai__ApiKey` wins when both are set). Keep it in the secret store. |
+| `Ai__Model` | `claude-opus-5-5` | Default model (decision K1). |
+| `Ai__Effort` | `low` | Default effort: `low`, `medium`, `high`, `xhigh` or `max`. Any other value (also per feature) stops the startup. |
+| `Ai__Features__<Feature>__Model`, `__Effort`, `__MaxTokens` | inherit | Per-feature overrides, e.g. `Ai__Features__IncidentInterpretation__Model=claude-haiku-5-5`. Change a model or effort only after the eval run passes (`evals/README.md`). |
+| `Ai__MaxTokens` | 16000 | Output cap per call (thinking + JSON). Calls that hit it are recorded as `Truncated` (visible on the SuperAdmin page); raise the feature's `MaxTokens` if that happens. |
+| `Ai__TimeoutSeconds` (60), `Ai__MaxRetries` (2) | | `TimeoutSeconds` is the overall cap per call. The SDK retries 429/5xx/network errors, and each attempt gets `TimeoutSeconds / (MaxRetries + 1)` (at least 5 s). |
+| `Ai__RetryCooldownMinutes` | 60 | An identical input that was refused or failed is not sent again within this time. |
+| `Ai__QueueCapacity` (200), `Ai__MaxConcurrency` (2) | | Background AI queue. AI calls never run on a request or check path; a full queue drops the job (logged). |
+| `Ai__Pricing__<model>__InputPerMTok`, `__OutputPerMTok`, `__CacheReadPerMTok`, `__CacheWritePerMTok` | list prices | USD prices for cost estimates (SuperAdmin *AI usage*). |
+| `Ai__Baseline__Enabled` (true), `__IntervalSeconds` (60), `__RefreshMinutes` (60), `__WindowDays` (7), `__ZThreshold` (4), `__K` / `__N` (3 of 5), `__CloseAtMost` (1) | | L1 baseline / anomaly job (no LLM, no key needed). Runs only when `Monitoring__Enabled` is true. |
+
+**Slowdown detection latency (AI-1):** a slowdown is flagged when 3 of the last 5 successful checks are anomalous.
+The first job run after the third slow check flags it, so the latency is 3 check intervals plus up to
+`Ai__Baseline__IntervalSeconds` (default 60 s). Each run reads only the newest checks (one query per batch of monitors
+and check interval). Baselines are rebuilt about once per `RefreshMinutes`, spread over that period. A signal closes when
+at most `CloseAtMost` of the last 5 checks are anomalous, or when the monitor is disabled, deleted or its customer is
+suspended.
+
+**Who gets AI:** a call is made only when all of these hold:
+
+- `Ai__Enabled=true` and a key is set;
+- the customer has opted in on the *AI features* page (CustomerAdmin). Customers created after this release start opted in; existing customers start opted out (decision K2);
+- the customer's plan includes the feature;
+- the plan's monthly AI budget is not used up. The budget (calls and tokens) is edited on the SuperAdmin *Plans* page.
+
+Opt-out, not-in-plan and over-budget jobs are recorded in `AiDecisions` with a `Skipped*` status. The UI then silently
+shows no AI content, or "AI summary unavailable this month" when the budget is used up.
+
+The budget is reserved before each call: a `Pending` row is written in the same database transaction as the check, so
+parallel calls cannot overshoot the call limit. A reservation is always completed, also on shutdown or an unexpected error (`shutdown` / `error`); rows left `Pending` by a crash become `abandoned` after twice `Ai__TimeoutSeconds` (swept at startup and by the baseline job). The token limit can be exceeded by the calls in flight, at most
+`MaxConcurrency × MaxTokens`. These count towards the budget:
+
+- **Calls:** calls that returned token usage, plus pending calls. Calls that failed before the model answered (network, rate limit) are free.
+- **Tokens:** input + cache writes + output, with cache reads counted at 1/10.
+
+**Privacy (decision K5):** only masked technical data is sent: monitor type, **host name** (URLs are reduced to scheme
++ host; paths, query strings and fragments are dropped), status codes, error types and timings. These are masked first:
+
+- URL credentials and webhook URLs;
+- e-mail addresses and phone numbers;
+- key/value secrets (`Authorization`, `api_key`, `*_password`, `client_secret`, quoted JSON values, ...);
+- bare credential shapes: JWTs and other dot-separated opaque tokens, `sk-…` keys, AWS keys, Telegram / GitHub / GitLab / Slack tokens, grouped license-style keys, and any long letter+digit token (base64 included). System-generated identifiers such as monitor names skip only this last rule.
+
+Probe error texts and response snippets are normalized (NFKC), stripped of control characters, truncated and sent in
+delimited `<untrusted_data>` blocks that the prompt declares to be data, never instructions. Model output is validated
+(hypotheses need evidence, actions only from a fixed list, autonomy capped per feature) and never triggers an action by
+itself. Context is loaded per tenant only. Requests go to the Claude API (Anthropic); update the privacy notice before
+enabling AI in production.
+
+**Audit and retention:** `AiDecisions` has one row per call or skip. Each row holds the feature, subject, input hash,
+model, effort, validated output, confidence, autonomy level, status, tokens, estimated cost and latency. Each user's
+helpful / not helpful vote is in `AiFeedback`. Failures store a short code, never exception text: `timeout`,
+`rate_limited`, `refusal:<category>`, `max_tokens`, `invalid_output`, and so on. The retention cleanup deletes these
+after the plan's `RetentionDays`:
+
+- AI decisions, except the current month's, which the budget needs;
+- their feedback;
+- closed anomaly signals.

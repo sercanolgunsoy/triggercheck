@@ -14,7 +14,7 @@ public class IndexModel(AppDbContext db, Text<AdminResource> L) : PageModel
     public List<Row> Rows { get; private set; } = [];
 
     public record Row(int Id, string Name, int MinIntervalSeconds, int MaxMonitors, int RetentionDays, decimal MonthlyPrice, bool IsActive, int Customers, int ActiveCustomers, int Monitors,
-        bool AllowsSelfSignup = false, bool HasIyzicoPlan = false);
+        int AiCalls = 0, int AiFeatureCount = 0, bool AllowsSelfSignup = false, bool HasIyzicoPlan = false);
 
     public async Task OnGetAsync()
     {
@@ -29,6 +29,7 @@ public class IndexModel(AppDbContext db, Text<AdminResource> L) : PageModel
                 cust.FirstOrDefault(x => x.PlanId == p.Id)?.Total ?? 0,
                 cust.FirstOrDefault(x => x.PlanId == p.Id)?.Active ?? 0,
                 mons.FirstOrDefault(x => x.PlanId == p.Id)?.Count ?? 0,
+                p.AiMonthlyCallLimit, Domain.AiFeatures.Parse(p.AiFeatures).Count,
                 p.AllowsSelfSignup, !string.IsNullOrEmpty(p.IyzicoPricingPlanReferenceCode)))
             .ToList();
     }
