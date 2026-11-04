@@ -5,6 +5,7 @@ using TriggerCheck.Infrastructure;
 using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Infrastructure.Identity;
 using TriggerCheck.Monitoring;
+using TriggerCheck.Web.Api;
 using TriggerCheck.Web.Billing;
 using TriggerCheck.Web.Infrastructure;
 using TriggerCheck.Web.Localization;
@@ -43,7 +44,11 @@ builder.Services.ConfigureApplicationCookie(o =>
     // Role / active-state changes take effect on the next request (security stamp, active state and customer
     // checked per request; replaces the former ActiveAccountFilter).
     SessionValidator.Attach(o);
+    // FEAT-8: /api requests are authenticated by the API key scheme only (no cookie, no SessionValidator there).
+    o.ForwardDefaultSelector = ApiSetup.ForwardApiRequests;
 });
+// FEAT-8: REST API (API key scheme + policies, per-key rate limit, OpenAPI document).
+builder.Services.AddTriggerCheckApi(builder.Configuration);
 
 builder.Services.AddAuthorization(o =>
 {
@@ -54,6 +59,7 @@ builder.Services.AddAuthorization(o =>
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentCustomer, CurrentCustomer>();
+builder.Services.AddScoped<TriggerCheck.Web.Areas.App.Support.MonitorCommands>();
 builder.Services.AddSingleton<ManualCheckLimiter>();
 // BIZ-1/2/3: self-service sign-up, trial, iyzico subscriptions, usage meters (+ their rate limits and background job).
 builder.Services.AddBilling(builder.Configuration);
@@ -75,6 +81,8 @@ if (!app.Environment.IsDevelopment() && app.Configuration.GetValue<bool>("Monito
     app.Logger.LogWarning("Monitoring:AllowPrivateTargets is enabled in {Environment}: SSRF protection is OFF and monitors/webhooks " +
                           "can reach internal addresses. Use this only for development or testing.", app.Environment.EnvironmentName);
 
+// Behind a reverse proxy (ForwardedHeaders:Enabled): real client IP and scheme, before anything that uses them.
+app.UseAppForwardedHeaders();
 app.UseSecurityHeaders();
 
 if (!app.Environment.IsDevelopment())
@@ -87,10 +95,12 @@ if (!app.Environment.IsDevelopment())
 // English (default) / Turkish UI; parsing stays culture-invariant (see LocalizationSetup).
 app.UseAppLocalization();
 
+// FEAT-8, /api only: problem+json for errors and the per-IP limit (before routing and authentication).
+app.UseApiPipeline();
 app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
-app.UseRateLimiter();
+app.UseRateLimiter(); // after authorization: the API limit is partitioned by the authenticated key
 
 // AllowAnonymous on static assets and the health endpoints also tells SessionValidator to skip its per-request DB check there.
 app.MapStaticAssets().AllowAnonymous();
@@ -98,6 +108,7 @@ app.MapRazorPages().WithStaticAssets();
 app.MapAppHealthChecks(includeDetails: app.Environment.IsDevelopment());
 app.MapSetLanguage();
 app.MapBillingEndpoints();
+app.MapTriggerCheckApi();
 
 await DbSeeder.SeedAsync(app.Services);
 

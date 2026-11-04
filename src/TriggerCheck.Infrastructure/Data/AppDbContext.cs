@@ -18,6 +18,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
     public DbSet<SmsVoiceUsage> SmsVoiceUsage => Set<SmsVoiceUsage>();
     public DbSet<Subscription> Subscriptions => Set<Subscription>();
     public DbSet<PaymentEvent> PaymentEvents => Set<PaymentEvent>();
+    public DbSet<ApiKey> ApiKeys => Set<ApiKey>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -50,6 +51,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
             e.Property(x => x.Target).HasMaxLength(2048).IsRequired();
             e.Property(x => x.HttpMethod).HasMaxLength(10);
             e.Property(x => x.ExpectedStatusCodes).HasMaxLength(100);
+            e.Property(x => x.CertSubject).HasMaxLength(500);
+            e.Property(x => x.CertIssuer).HasMaxLength(500);
+            e.Property(x => x.CertError).HasMaxLength(500);
             e.HasOne(x => x.Customer).WithMany(c => c.Monitors).HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(x => new { x.IsEnabled, x.NextCheckAtUtc });
             e.Property(x => x.Version).IsConcurrencyToken();
@@ -112,6 +116,18 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
         b.Entity<Notification>(e =>
         {
             e.HasIndex(x => new { x.MonitorId, x.SentAtUtc });
+        });
+
+        b.Entity<ApiKey>(e =>
+        {
+            e.HasOne(x => x.Customer).WithMany().HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Cascade);
+            e.Property(x => x.Name).HasMaxLength(100).IsRequired();
+            e.Property(x => x.Prefix).HasMaxLength(32).IsRequired();
+            e.HasIndex(x => x.Prefix).IsUnique();
+            e.Property(x => x.SecretHash).HasMaxLength(64).IsRequired();
+            e.Property(x => x.CreatedBy).HasMaxLength(256);
+            e.HasIndex(x => x.CustomerId);
+            e.Ignore(x => x.IsRevoked);
         });
     }
 }

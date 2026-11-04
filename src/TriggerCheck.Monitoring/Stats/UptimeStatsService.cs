@@ -17,7 +17,7 @@ public class UptimeStatsService(AppDbContext db) : IUptimeStatsService
     {
         var ids = monitorIds.Distinct().ToList();
         var rows = await db.CheckResults.AsNoTracking()
-            .Where(c => ids.Contains(c.MonitorId) && c.CheckedAtUtc >= fromUtc && c.CheckedAtUtc <= toUtc)
+            .Where(c => ids.Contains(c.MonitorId) && c.CheckedAtUtc >= fromUtc && c.CheckedAtUtc <= toUtc && !c.IsConfirmation)
             .GroupBy(c => c.MonitorId)
             .Select(g => new { MonitorId = g.Key, Total = g.Count(), Up = g.Count(x => x.IsUp), Avg = g.Average(x => (double)x.ResponseTimeMs) })
             .ToListAsync(ct);

@@ -76,7 +76,8 @@ public sealed class EmailNotifier(IOptionsMonitor<SmtpOptions> options, ILogger<
 }
 
 /// <summary>
-/// Webhook: POST application/json <c>{ monitorId, monitorName, target, status: "down"|"up"|"test", error, occurredAtUtc }</c>.
+/// Webhook: POST application/json <c>{ monitorId, monitorName, target, status: "down"|"up"|"test"|"certificate_expiring", error,
+/// occurredAtUtc, certificateExpiresAtUtc }</c> (certificateExpiresAtUtc is only set for "certificate_expiring").
 /// Any 2xx response is success. Redirects are not followed; timeout 10s (configured on the named client).
 /// </summary>
 public sealed class WebhookNotifier(IHttpClientFactory httpClientFactory) : INotifier
@@ -86,13 +87,14 @@ public sealed class WebhookNotifier(IHttpClientFactory httpClientFactory) : INot
     public Task<NotifyResult> SendAsync(NotifyTarget target, AlertMessage message, CancellationToken ct)
     {
         var payload = new WebhookPayload(message.MonitorId, message.MonitorName, message.Target, message.StatusText,
-            message.Error, message.OccurredAtUtc);
+            message.Error, message.OccurredAtUtc, message.CertificateExpiresAtUtc);
         return WebhookPost.JsonAsync(httpClientFactory, target.Address, payload, "Webhook", ct);
     }
 }
 
 /// <summary>Webhook body; serialized with web (camelCase) defaults.</summary>
-public sealed record WebhookPayload(int MonitorId, string MonitorName, string Target, string Status, string? Error, DateTime OccurredAtUtc);
+public sealed record WebhookPayload(int MonitorId, string MonitorName, string Target, string Status, string? Error, DateTime OccurredAtUtc,
+    DateTime? CertificateExpiresAtUtc = null);
 
 /// <summary>
 /// Shared POST logic for every HTTP-based channel. Always uses the guarded <see cref="MonitoringHttpClients.Webhook"/>

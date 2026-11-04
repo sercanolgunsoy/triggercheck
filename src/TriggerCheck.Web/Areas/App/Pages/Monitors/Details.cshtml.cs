@@ -15,11 +15,29 @@ namespace TriggerCheck.Web.Areas.App.Pages.Monitors;
 
 /// <summary>Readable by all customer members; the POST handlers (pause/resume/check now) are CustomerAdmin only.</summary>
 public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStatsService stats, MonitorLifecycle lifecycle, ILogger<DetailsModel> logger, Text<AppResource> L,
-    ManualCheckLimiter limiter) : PageModel
+    ManualCheckLimiter limiter, IResponseTimeSeriesService series) : PageModel
 {
-    public const int MaxChartPoints = 300;
+    public const int MaxChartPoints = ResponseTimeSeriesService.MaxPoints;
 
-    public record ChartPoint(string Label, int Ms, bool IsUp);
+    /// <summary>Chart ranges offered on the page (query string <c>?range=</c>).</summary>
+    public static readonly IReadOnlyDictionary<string, TimeSpan> Ranges = new Dictionary<string, TimeSpan>
+    {
+        ["24h"] = TimeSpan.FromHours(24),
+        ["7d"] = TimeSpan.FromDays(7),
+        ["30d"] = TimeSpan.FromDays(30)
+    };
+
+    /// <summary>One chart bucket as serialized for Chart.js (null = no data).</summary>
+    public record ChartPoint(string Label, double? Avg, int? P95, int Checks, int Failures,
+        double? Dns, double? Connect, double? Tls, double? Wait, double? Transfer);
+
+    /// <summary>Incident marker: bucket index where it started (and ended, when resolved within the range).</summary>
+    public record ChartIncident(int Start, int? End, string Label);
+
+    public string Range { get; private set; } = "24h";
+    public List<ChartIncident> ChartIncidents { get; private set; } = [];
+    public bool HasPhaseData => Chart.Any(p => p.Wait is not null);
+    public bool IsHttps => MonitorStateMachine.IsHttpsMonitor(Monitor);
 
     public MonitorEntity Monitor { get; private set; } = null!;
     public UptimeSummary? Stats24h { get; private set; }
@@ -28,6 +46,15 @@ public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStat
     public List<ChartPoint> Chart { get; private set; } = [];
     public List<CheckResult> RecentChecks { get; private set; } = [];
     public List<Incident> Incidents { get; private set; } = [];
+
+    /// <summary>Compact phase breakdown of one check for the history table (empty without timing data).</summary>
+    public string PhaseText(CheckResult c)
+    {
+        if (c.TtfbMs is not int ttfb) return "";
+        if (c.DnsMs is null) return L["reused connection, TTFB {0} ms", ttfb].Value;
+        var tls = c.TlsMs is int t ? $" · TLS {t}" : "";
+        return $"DNS {c.DnsMs} · TCP {c.ConnectMs}{tls} · TTFB {ttfb} ms";
+    }
 
     private bool IsAdmin => User.IsInRole(Roles.CustomerAdmin);
 
@@ -38,7 +65,7 @@ public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStat
         return q.FirstOrDefaultAsync(x => x.Id == id && x.CustomerId == cid, ct);
     }
 
-    public async Task<IActionResult> OnGetAsync(int id, CancellationToken ct)
+    public async Task<IActionResult> OnGetAsync(int id, string? range, CancellationToken ct)
     {
         var m = await FindAsync(id, ct, tracking: false);
         if (m is null) return NotFound();
@@ -50,24 +77,25 @@ public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStat
         Stats7d = (await stats.GetSummariesAsync(ids, now.AddDays(-7), now, ct))[id];
         Stats30d = (await stats.GetSummariesAsync(ids, now.AddDays(-30), now, ct))[id];
 
-        var from = now.AddHours(-24);
-        var points = await db.CheckResults.AsNoTracking()
-            .Where(c => c.MonitorId == id && c.CheckedAtUtc >= from)
-            .OrderBy(c => c.CheckedAtUtc)
-            .Select(c => new { c.CheckedAtUtc, c.ResponseTimeMs, c.IsUp })
+        Range = range is not null && Ranges.ContainsKey(range) ? range : "24h";
+        var s = await series.GetRecentAsync(id, m.CustomerId, Ranges[Range], ct); // cached for a minute
+        var from = s.FromUtc;
+        now = s.ToUtc;
+        string Label(DateTime utc) => Range == "24h" ? Fmt.ShortTime(utc) : Fmt.ToLocal(utc).ToString("dd.MM HH:mm", System.Globalization.CultureInfo.InvariantCulture);
+        Chart = s.Buckets.Select(b => new ChartPoint(Label(b.StartUtc), b.AvgMs, b.P95Ms, b.Checks, b.Failures,
+            b.DnsMs, b.ConnectMs, b.TlsMs, b.WaitMs, b.TransferMs)).ToList();
+        if (Chart.All(p => p.Checks == 0)) Chart = [];
+
+        var rangeIncidents = await db.Incidents.AsNoTracking()
+            .Where(i => i.MonitorId == id && i.Monitor.CustomerId == m.CustomerId && i.StartedAtUtc <= now && (i.ResolvedAtUtc == null || i.ResolvedAtUtc >= from))
+            .OrderByDescending(i => i.StartedAtUtc)
+            .Take(200) // newest
             .ToListAsync(ct);
-        if (points.Count <= MaxChartPoints)
-        {
-            Chart = points.Select(p => new ChartPoint(Fmt.ShortTime(p.CheckedAtUtc), p.ResponseTimeMs, p.IsUp)).ToList();
-        }
-        else
-        {
-            // Downsample to MaxChartPoints buckets: average response time, bucket is "down" if any check failed.
-            var bucket = (int)Math.Ceiling(points.Count / (double)MaxChartPoints);
-            Chart = points.Chunk(bucket)
-                .Select(b => new ChartPoint(Fmt.ShortTime(b[0].CheckedAtUtc), (int)b.Average(x => x.ResponseTimeMs), b.All(x => x.IsUp)))
-                .ToList();
-        }
+        rangeIncidents.Reverse();
+        ChartIncidents = rangeIncidents.Select(i => new ChartIncident(
+            s.BucketIndexOf(i.StartedAtUtc < from ? from : i.StartedAtUtc) ?? 0,
+            i.ResolvedAtUtc is DateTime r ? s.BucketIndexOf(r) : null,
+            Label(i.StartedAtUtc))).ToList();
 
         RecentChecks = await db.CheckResults.AsNoTracking()
             .Where(c => c.MonitorId == id)
@@ -152,7 +180,10 @@ public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStat
         {
             var r = await runner.RunAsync(m.Id, ct);
             var http = r.StatusCode is int sc ? $" (HTTP {sc})" : "";
+            var confirming = !r.IsUp && await db.Monitors.AsNoTracking().AnyAsync(x => x.Id == m.Id && x.PendingConfirmationSinceUtc != null, ct);
             if (r.IsUp) TempData["Success"] = L["Check succeeded: {0}{1}.", Fmt.Ms(r.ResponseTimeMs), http].Value;
+            else if (confirming)
+                TempData["Error"] = L["Check failed: {0}{1}. The failure was recorded; a confirmation check runs shortly before the monitor is marked down.", r.Error ?? L["an unknown error"].Value, http].Value;
             else TempData["Error"] = L["Check failed: {0}{1}.", r.Error ?? L["an unknown error"].Value, http].Value;
         }
         catch (MonitorCheckDiscardedException ex) when (ex.MonitorDeleted)

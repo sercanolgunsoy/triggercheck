@@ -295,9 +295,6 @@
   <data name="No alert channels yet. Add an e-mail or webhook channel to hear about downtime." xml:space="preserve">
     <value>Henüz bildirim kanalı yok. Kesintilerden haberdar olmak için bir e-posta veya webhook kanalı ekleyin.</value>
   </data>
-  <data name="No check results in the last 24 hours." xml:space="preserve">
-    <value>Son 24 saatte kontrol sonucu yok.</value>
-  </data>
   <data name="No checks yet." xml:space="preserve">
     <value>Henüz kontrol yapılmadı.</value>
   </data>
@@ -345,12 +342,6 @@
   </data>
   <data name="Resolved" xml:space="preserve">
     <value>Çözüldü</value>
-  </data>
-  <data name="Response time (ms)" xml:space="preserve">
-    <value>Yanıt süresi (ms)</value>
-  </data>
-  <data name="Response time — last 24 hours ({0})" xml:space="preserve">
-    <value>Yanıt süresi — son 24 saat ({0})</value>
   </data>
   <data name="Result" xml:space="preserve">
     <value>Sonuç</value>
@@ -556,6 +547,105 @@
   <data name="Too many manual checks for your account. Try again in {0} seconds." xml:space="preserve">
     <value>Hesabınız için çok fazla manuel kontrol yapıldı. {0} saniye sonra tekrar deneyin.</value>
   </data>
+  <data name="Certificate expiry warning" xml:space="preserve">
+    <value>Sertifika süresi uyarısı</value>
+  </data>
+  <data name="Invalid certificate expiry warning." xml:space="preserve">
+    <value>Geçersiz sertifika süresi uyarısı.</value>
+  </data>
+  <data name="Off" xml:space="preserve">
+    <value>Kapalı</value>
+  </data>
+  <data name="{0} days before expiry" xml:space="preserve">
+    <value>Süre bitiminden {0} gün önce</value>
+  </data>
+  <data name="https only: one alert when the TLS certificate is about to expire." xml:space="preserve">
+    <value>Yalnızca https: TLS sertifikasının süresi dolmak üzereyken tek bir uyarı gönderilir.</value>
+  </data>
+  <data name="TLS certificate" xml:space="preserve">
+    <value>TLS sertifikası</value>
+  </data>
+  <data name="expired on {0}" xml:space="preserve">
+    <value>{0} tarihinde süresi doldu</value>
+  </data>
+  <data name="expires {0} ({1} days left)" xml:space="preserve">
+    <value>{0} tarihinde sona eriyor ({1} gün kaldı)</value>
+  </data>
+  <data name="Issuer: {0}" xml:space="preserve">
+    <value>Yayıncı: {0}</value>
+  </data>
+  <data name="Not checked yet." xml:space="preserve">
+    <value>Henüz kontrol edilmedi.</value>
+  </data>
+  <data name="Expiry warning: {0}" xml:space="preserve">
+    <value>Süre uyarısı: {0}</value>
+  </data>
+  <data name="Response time ({0})" xml:space="preserve">
+    <value>Yanıt süresi ({0})</value>
+  </data>
+  <data name="Chart range" xml:space="preserve">
+    <value>Grafik aralığı</value>
+  </data>
+  <data name="No check results in this period." xml:space="preserve">
+    <value>Bu dönemde kontrol sonucu yok.</value>
+  </data>
+  <data name="Average and 95th percentile of successful checks; failed checks and incidents are marked in red." xml:space="preserve">
+    <value>Başarılı kontrollerin ortalaması ve 95. yüzdeliği; başarısız kontroller ve olaylar kırmızıyla işaretlenir.</value>
+  </data>
+  <data name="Response time chart" xml:space="preserve">
+    <value>Yanıt süresi grafiği</value>
+  </data>
+  <data name="Phase breakdown (average, ms)" xml:space="preserve">
+    <value>Aşama kırılımı (ortalama, ms)</value>
+  </data>
+  <data name="A reused connection has no DNS, connect or TLS phase; these phases count as 0 for it." xml:space="preserve">
+    <value>Yeniden kullanılan bağlantıda DNS, bağlantı ve TLS aşaması yoktur; bu aşamalar 0 sayılır.</value>
+  </data>
+  <data name="Phase breakdown chart" xml:space="preserve">
+    <value>Aşama kırılımı grafiği</value>
+  </data>
+  <data name="Phases" xml:space="preserve">
+    <value>Aşamalar</value>
+  </data>
+  <data name="Average (ms)" xml:space="preserve">
+    <value>Ortalama (ms)</value>
+  </data>
+  <data name="95th percentile (ms)" xml:space="preserve">
+    <value>95. yüzdelik (ms)</value>
+  </data>
+  <data name="Failed checks" xml:space="preserve">
+    <value>Başarısız kontroller</value>
+  </data>
+  <data name="Incident" xml:space="preserve">
+    <value>Olay</value>
+  </data>
+  <data name="DNS" xml:space="preserve">
+    <value>DNS</value>
+  </data>
+  <data name="Connect" xml:space="preserve">
+    <value>Bağlantı</value>
+  </data>
+  <data name="TLS" xml:space="preserve">
+    <value>TLS</value>
+  </data>
+  <data name="Waiting (TTFB)" xml:space="preserve">
+    <value>Bekleme (TTFB)</value>
+  </data>
+  <data name="Transfer" xml:space="preserve">
+    <value>Aktarım</value>
+  </data>
+  <data name="reused connection, TTFB {0} ms" xml:space="preserve">
+    <value>yeniden kullanılan bağlantı, TTFB {0} ms</value>
+  </data>
+  <data name="Check failed: {0}{1}. The failure was recorded; a confirmation check runs shortly before the monitor is marked down." xml:space="preserve">
+    <value>Kontrol başarısız: {0}{1}. Hata kaydedildi; monitör kapalı olarak işaretlenmeden önce kısa süre içinde bir doğrulama kontrolü yapılacak.</value>
+  </data>
+  <data name="Confirming failure…" xml:space="preserve">
+    <value>Hata doğrulanıyor…</value>
+  </data>
+  <data name="Confirmation check" xml:space="preserve">
+    <value>Doğrulama kontrolü</value>
+  </data>
   <data name="Slack" xml:space="preserve">
     <value>Slack</value>
   </data>
@@ -654,6 +744,81 @@
   </data>
   <data name="Some enabled channels cannot deliver: SMS and voice call alerts are not available for your plan or not set up for this service. They are skipped, and if no other channel is enabled the setting below applies." xml:space="preserve">
     <value>Bazı etkin kanallar bildirim iletemez: SMS ve sesli arama bildirimleri planınızda bulunmuyor veya bu hizmette yapılandırılmamış. Bu kanallar atlanır; başka etkin kanal yoksa aşağıdaki ayar uygulanır.</value>
+  </data>
+  <data name="TLS certificate expiry warnings are never sent as voice calls; if voice calls are your only channel, they follow this setting as well." xml:space="preserve">
+    <value>TLS sertifikası süre uyarıları hiçbir zaman sesli arama olarak gönderilmez; tek kanalınız sesli arama ise bu uyarılar da bu ayara göre gönderilir.</value>
+  </data>
+  <data name="API key &quot;{0}&quot; was created. Copy it now: it will not be shown again." xml:space="preserve">
+    <value>"{0}" API anahtarı oluşturuldu. Şimdi kopyalayın: bir daha gösterilmeyecek.</value>
+  </data>
+  <data name="API key &quot;{0}&quot; was revoked. Requests using it are rejected from now on." xml:space="preserve">
+    <value>"{0}" API anahtarı iptal edildi. Bu anahtarla yapılan istekler artık reddedilir.</value>
+  </data>
+  <data name="Access" xml:space="preserve">
+    <value>Erişim</value>
+  </data>
+  <data name="Expired" xml:space="preserve">
+    <value>Süresi doldu</value>
+  </data>
+  <data name="Expires" xml:space="preserve">
+    <value>Geçerlilik sonu</value>
+  </data>
+  <data name="Key" xml:space="preserve">
+    <value>Anahtar</value>
+  </data>
+  <data name="Keys for the REST API (/api/v1). Send them as &quot;Authorization: Bearer &lt;key&gt;&quot;. Read-only keys can only list and read data." xml:space="preserve">
+    <value>REST API (/api/v1) anahtarları. "Authorization: Bearer &lt;anahtar&gt;" başlığıyla gönderin. Salt okunur anahtarlar yalnızca veri listeleyip okuyabilir.</value>
+  </data>
+  <data name="Last used" xml:space="preserve">
+    <value>Son kullanım</value>
+  </data>
+  <data name="Never" xml:space="preserve">
+    <value>Hiçbir zaman</value>
+  </data>
+  <data name="New API key" xml:space="preserve">
+    <value>Yeni API anahtarı</value>
+  </data>
+  <data name="No API keys yet." xml:space="preserve">
+    <value>Henüz API anahtarı yok.</value>
+  </data>
+  <data name="OpenAPI document" xml:space="preserve">
+    <value>OpenAPI dokümanı</value>
+  </data>
+  <data name="Revoke" xml:space="preserve">
+    <value>İptal et</value>
+  </data>
+  <data name="Revoke API key {0}? Requests using it will be rejected. This cannot be undone." xml:space="preserve">
+    <value>{0} API anahtarı iptal edilsin mi? Bu anahtarla yapılan istekler reddedilecek. Bu işlem geri alınamaz.</value>
+  </data>
+  <data name="Revoked" xml:space="preserve">
+    <value>İptal edildi</value>
+  </data>
+  <data name="e.g. Deploy pipeline" xml:space="preserve">
+    <value>ör. Dağıtım hattı</value>
+  </data>
+  <data name="In 1 year" xml:space="preserve">
+    <value>1 yıl sonra</value>
+  </data>
+  <data name="In {0} days" xml:space="preserve">
+    <value>{0} gün sonra</value>
+  </data>
+  <data name="Invalid access level." xml:space="preserve">
+    <value>Geçersiz erişim düzeyi.</value>
+  </data>
+  <data name="Invalid expiry." xml:space="preserve">
+    <value>Geçersiz geçerlilik süresi.</value>
+  </data>
+  <data name="Name can be at most 100 characters." xml:space="preserve">
+    <value>Ad en fazla 100 karakter olabilir.</value>
+  </data>
+  <data name="Read &amp; write" xml:space="preserve">
+    <value>Okuma ve yazma</value>
+  </data>
+  <data name="Read-only" xml:space="preserve">
+    <value>Salt okunur</value>
+  </data>
+  <data name="You can have at most {0} active API keys. Revoke one you no longer use first." xml:space="preserve">
+    <value>En fazla {0} etkin API anahtarınız olabilir. Önce artık kullanmadığınız birini iptal edin.</value>
   </data>
   <data name="Plan, subscription and payments are managed on the Billing page." xml:space="preserve">
     <value>Plan, abonelik ve ödemeler Faturalandırma sayfasından yönetilir.</value>

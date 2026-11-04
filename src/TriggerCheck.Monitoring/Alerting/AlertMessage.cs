@@ -10,10 +10,12 @@ public enum AlertKind
     Down,
     Up,
     /// <summary>"Send test notification" from the alert channels page (no monitor involved, MonitorId = 0).</summary>
-    Test
+    Test,
+    /// <summary>The TLS certificate of an https monitor expires soon (FEAT-1). Independent of Down/Up.</summary>
+    CertificateExpiring
 }
 
-/// <summary>A status-change alert for one monitor (or a channel test message).</summary>
+/// <summary>A status-change alert for one monitor, a certificate-expiry warning, or a channel test message.</summary>
 public sealed record AlertMessage(
     int MonitorId,
     int CustomerId,
@@ -22,12 +24,22 @@ public sealed record AlertMessage(
     AlertKind Kind,
     string? Error,
     DateTime OccurredAtUtc,
-    TimeSpan? Downtime = null)
+    TimeSpan? Downtime = null,
+    DateTime? CertificateExpiresAtUtc = null)
 {
-    public string StatusText => Kind switch { AlertKind.Down => "down", AlertKind.Up => "up", _ => "test" };
+    public string StatusText => Kind switch
+    {
+        AlertKind.Down => "down",
+        AlertKind.Up => "up",
+        AlertKind.CertificateExpiring => "certificate_expiring",
+        _ => "test"
+    };
 
-    /// <summary>Upper-case status for titles: DOWN / UP / TEST.</summary>
-    public string StatusLabel => StatusText.ToUpperInvariant();
+    /// <summary>Upper-case status for titles: DOWN / UP / TEST / CERTIFICATE EXPIRING.</summary>
+    public string StatusLabel => Kind == AlertKind.CertificateExpiring ? "CERTIFICATE EXPIRING" : StatusText.ToUpperInvariant();
+
+    /// <summary>Whole days until <see cref="CertificateExpiresAtUtc"/> at <see cref="OccurredAtUtc"/> (never negative).</summary>
+    public int? CertificateDaysLeft => CertificateExpiresAtUtc is { } e ? Math.Max(0, (int)Math.Floor((e - OccurredAtUtc).TotalDays)) : null;
 
     /// <summary>Single-line subject (CR/LF stripped so it is safe as a mail header).</summary>
     public string Subject => $"[TriggerCheck] {StatusLabel}: {OneLine(MonitorName)}";
@@ -37,6 +49,9 @@ public sealed record AlertMessage(
     {
         AlertKind.Down => $"Monitor \"{OneLine(MonitorName)}\" is DOWN.",
         AlertKind.Up => $"Monitor \"{OneLine(MonitorName)}\" is UP again.",
+        AlertKind.CertificateExpiring => CertificateDaysLeft is { } days
+            ? $"The TLS certificate of monitor \"{OneLine(MonitorName)}\" expires in {days} day{(days == 1 ? "" : "s")}."
+            : $"The TLS certificate of monitor \"{OneLine(MonitorName)}\" expires soon.",
         _ => "This is a test notification from TriggerCheck."
     };
 
@@ -68,6 +83,8 @@ public sealed record AlertMessage(
         sb.AppendLine($"Target: {target}");
         sb.AppendLine($"Time (UTC): {OccurredAtUtc:yyyy-MM-dd HH:mm:ss}");
         if (Kind == AlertKind.Down && !string.IsNullOrEmpty(Error)) sb.AppendLine($"Error: {Error}");
+        if (Kind == AlertKind.CertificateExpiring && CertificateExpiresAtUtc is { } exp)
+            sb.AppendLine($"Certificate expires (UTC): {exp:yyyy-MM-dd HH:mm:ss}");
         if (DowntimeText is { } d) sb.AppendLine($"Downtime: {d}");
         return sb.ToString();
     }
@@ -76,6 +93,12 @@ public sealed record AlertMessage(
         new(monitor.Id, monitor.CustomerId, monitor.Name, monitor.Target, kind,
             kind == AlertKind.Down ? monitor.LastError : null,
             DateTime.SpecifyKind(occurredAtUtc, DateTimeKind.Utc), downtime);
+
+    /// <summary>Warning that the monitor's TLS certificate (<see cref="Domain.Entities.Monitor.CertExpiresAtUtc"/>) expires soon.</summary>
+    public static AlertMessage CertificateExpiring(Domain.Entities.Monitor monitor, DateTime occurredAtUtc) =>
+        new(monitor.Id, monitor.CustomerId, monitor.Name, monitor.Target, AlertKind.CertificateExpiring, null,
+            DateTime.SpecifyKind(occurredAtUtc, DateTimeKind.Utc), null,
+            monitor.CertExpiresAtUtc is { } e ? DateTime.SpecifyKind(e, DateTimeKind.Utc) : null);
 
     /// <summary>The message sent by "Send test notification".</summary>
     public static AlertMessage TestFor(int customerId, DateTime occurredAtUtc) =>

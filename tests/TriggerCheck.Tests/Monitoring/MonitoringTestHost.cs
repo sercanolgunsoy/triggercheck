@@ -49,6 +49,8 @@ public sealed class MonitoringTestHost : IAsyncDisposable
             ["Monitoring:MaxConcurrency"] = "4",
             // Tests probe local servers; SSRF blocking itself is covered in Security/ with the flag off.
             ["Monitoring:AllowPrivateTargets"] = "true",
+            // Scripted checkers count probes; confirm-before-alert is covered explicitly in ConfirmBeforeAlertTests.
+            ["Monitoring:ConfirmBeforeDown"] = "false",
         };
         foreach (var kv in settings ?? new()) all[kv.Key] = kv.Value;
         var config = new ConfigurationBuilder().AddInMemoryCollection(all).Build();

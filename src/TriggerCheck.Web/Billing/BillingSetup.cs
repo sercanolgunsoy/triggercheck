@@ -56,7 +56,7 @@ public static class BillingSetup
         return services;
     }
 
-    private static string ClientIp(HttpContext ctx) => ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+    private static string ClientIp(HttpContext ctx) => TriggerCheck.Web.Api.ApiSetup.ClientPartition(ctx.Connection.RemoteIpAddress);
 
     /// <summary>
     /// Anonymous provider endpoints. Neither uses cookies or antiforgery tokens (the provider posts them cross-site):

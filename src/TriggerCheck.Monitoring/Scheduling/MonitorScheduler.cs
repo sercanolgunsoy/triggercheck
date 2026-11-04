@@ -43,6 +43,7 @@ public sealed class MonitorScheduler : BackgroundService
     private readonly MonitoringOptions _options;
     private readonly TimeProvider _time;
     private readonly ILogger<MonitorScheduler> _logger;
+    // Not disposed (no wait handle is ever created): checks still finishing after a stop must be able to release it.
     private readonly SemaphoreSlim _slots;
     private readonly ConcurrentDictionary<int, byte> _inFlight = new();
     private readonly ConcurrentDictionary<Task, byte> _running = new();
@@ -170,9 +171,4 @@ public sealed class MonitorScheduler : BackgroundService
         }
     }
 
-    public override void Dispose()
-    {
-        base.Dispose();
-        _slots.Dispose();
-    }
 }

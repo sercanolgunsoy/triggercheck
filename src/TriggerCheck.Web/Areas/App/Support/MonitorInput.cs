@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 using TriggerCheck.Domain;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Monitoring;
+using TriggerCheck.Monitoring.Engine;
 using TriggerCheck.Monitoring.Security;
 using TriggerCheck.Web.Localization;
 using MonitorEntity = TriggerCheck.Domain.Entities.Monitor;
@@ -63,6 +64,9 @@ public class MonitorInput : IValidatableObject
     [Display(Name = "Failure threshold")]
     public int FailureThreshold { get; set; } = 2;
 
+    [Display(Name = "Certificate expiry warning")]
+    public int CertWarnDays { get; set; } = 14;
+
     private static readonly Regex StatusCodesRx = new(@"^\s*\d{3}(\s*-\s*\d{3})?(\s*,\s*\d{3}(\s*-\s*\d{3})?)*\s*$", RegexOptions.Compiled);
     private static readonly Regex HostRx = new(@"^(?=.{1,253}$)([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$", RegexOptions.Compiled);
 
@@ -70,7 +74,8 @@ public class MonitorInput : IValidatableObject
     {
         Name = m.Name, Type = m.Type, Target = m.Target, Port = m.Port, Keyword = m.Keyword,
         HttpMethod = m.HttpMethod, ExpectedStatusCodes = m.ExpectedStatusCodes,
-        IntervalSeconds = m.IntervalSeconds, TimeoutSeconds = m.TimeoutSeconds, FailureThreshold = m.FailureThreshold
+        IntervalSeconds = m.IntervalSeconds, TimeoutSeconds = m.TimeoutSeconds, FailureThreshold = m.FailureThreshold,
+        CertWarnDays = m.CertWarnDays
     };
 
     /// <summary>Business validation (type-specific fields + plan rules). Errors are added with the "Input." prefix,
@@ -97,6 +102,8 @@ public class MonitorInput : IValidatableObject
                     ExpectedStatusCodes = "200-299";
                 else if (!StatusCodesRx.IsMatch(ExpectedStatusCodes))
                     ms.AddModelError(prefix + nameof(ExpectedStatusCodes), L["Expected status codes must look like \"200-299,301\"."]);
+                if (!MonitorStateMachine.CertWarnDayChoices.Contains(CertWarnDays))
+                    ms.AddModelError(prefix + nameof(CertWarnDays), L["Invalid certificate expiry warning."]);
                 if (Type == MonitorType.Keyword && string.IsNullOrWhiteSpace(Keyword))
                     ms.AddModelError(prefix + nameof(Keyword), L["A keyword monitor needs the text to search for."]);
                 break;
@@ -147,6 +154,18 @@ public class MonitorInput : IValidatableObject
     public void ApplyTo(MonitorEntity m)
     {
         var isHttp = Type is MonitorType.Http or MonitorType.Keyword;
+        if (m.Target != Target || m.Type != Type)
+        {
+            // The stored certificate belonged to the old target.
+            m.CertExpiresAtUtc = null;
+            m.CertSubject = null;
+            m.CertIssuer = null;
+            m.CertError = null;
+            m.CertCheckedAtUtc = null;
+            m.CertWarningSentForUtc = null;
+            m.CertWarningSentDays = null;
+        }
+        m.CertWarnDays = isHttp ? CertWarnDays : 0;
         m.Name = Name;
         m.Type = Type;
         m.Target = Target;
