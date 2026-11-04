@@ -56,6 +56,27 @@
                 <dt class="col-sm-5">@L["Next check"]</dt><dd class="col-sm-7">@(isPaused ? "—" : Fmt.Time(m.NextCheckAtUtc) + " " + Fmt.TimeZoneLabel)</dd>
                 <dt class="col-sm-5">@L["Last response time"]</dt><dd class="col-sm-7">@Fmt.Ms(m.LastResponseTimeMs)</dd>
                 <dt class="col-sm-5">@L["Last error"]</dt><dd class="col-sm-7 text-danger">@(m.LastError ?? "—")</dd>
+                @if (Model.IsHttps)
+                {
+                    <dt class="col-sm-5">@L["TLS certificate"]</dt>
+                    <dd class="col-sm-7" id="cert-info">
+                        @if (m.CertExpiresAtUtc is DateTime exp)
+                        {
+                            var daysLeft = (int)Math.Floor((exp - DateTime.UtcNow).TotalDays);
+                            var expiring = m.CertWarnDays > 0 && daysLeft < m.CertWarnDays;
+                            <span class="@(m.CertError is not null || daysLeft < 0 ? "text-danger" : expiring ? "text-warning" : "")">
+                                @(daysLeft < 0 ? L["expired on {0}", Fmt.Date(exp)] : L["expires {0} ({1} days left)", Fmt.Date(exp), daysLeft])
+                            </span>
+                            <div class="small text-muted text-break">@L["Issuer: {0}", m.CertIssuer ?? "—"]</div>
+                            @if (m.CertError is not null) { <div class="small text-danger">@m.CertError</div> }
+                        }
+                        else
+                        {
+                            <span class="text-muted">@L["Not checked yet."]</span>
+                        }
+                        <div class="small text-muted">@L["Expiry warning: {0}", m.CertWarnDays > 0 ? L["{0} days before expiry", m.CertWarnDays].Value : L["Off"].Value]</div>
+                    </dd>
+                }
             </dl>
         </div></div>
     </div>
@@ -76,15 +97,31 @@
 </div>
 
 <div class="card mb-4">
-    <div class="card-header">@L["Response time — last 24 hours ({0})", Fmt.TimeZoneLabel]</div>
+    <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <span>@L["Response time ({0})", Fmt.TimeZoneLabel]</span>
+        <nav class="btn-group btn-group-sm" aria-label="@L["Chart range"]">
+            @foreach (var (key, label) in new[] { ("24h", L["24 hours"].Value), ("7d", L["7 days"].Value), ("30d", L["30 days"].Value) })
+            {
+                <a class="btn @(Model.Range == key ? "btn-primary" : "btn-outline-secondary")" asp-route-id="@m.Id" asp-route-range="@key"
+                   aria-current="@(Model.Range == key ? "true" : null)">@label</a>
+            }
+        </nav>
+    </div>
     <div class="card-body">
         @if (Model.Chart.Count == 0)
         {
-            <div class="text-muted">@L["No check results in the last 24 hours."]</div>
+            <div class="text-muted">@L["No check results in this period."]</div>
         }
         else
         {
-            <div style="height: 260px"><canvas id="rtChart"></canvas></div>
+            <div class="small text-muted mb-2">@L["Average and 95th percentile of successful checks; failed checks and incidents are marked in red."]</div>
+            <div class="tc-chart"><canvas id="rtChart" aria-label="@L["Response time chart"]" role="img"></canvas></div>
+            @if (Model.HasPhaseData)
+            {
+                <h3 class="h6 mt-4 mb-1">@L["Phase breakdown (average, ms)"]</h3>
+                <div class="small text-muted mb-2">@L["A reused connection has no DNS, connect or TLS phase; these phases count as 0 for it."]</div>
+                <div class="tc-chart"><canvas id="phaseChart" aria-label="@L["Phase breakdown chart"]" role="img"></canvas></div>
+            }
         }
     </div>
 </div>
@@ -95,11 +132,11 @@
             <div class="card-header">@L["Last 50 checks"]</div>
             <div class="table-responsive" style="max-height: 480px">
                 <table class="table table-sm table-striped mb-0">
-                    <thead class="sticky-top bg-body"><tr><th>@L["Time ({0})", Fmt.TimeZoneLabel]</th><th>@L["Result"]</th><th>@L["Code"]</th><th class="text-end">@L["Duration"]</th><th>@L["Error"]</th></tr></thead>
+                    <thead class="sticky-top bg-body"><tr><th>@L["Time ({0})", Fmt.TimeZoneLabel]</th><th>@L["Result"]</th><th>@L["Code"]</th><th class="text-end">@L["Duration"]</th><th>@L["Phases"]</th><th>@L["Error"]</th></tr></thead>
                     <tbody>
                     @if (Model.RecentChecks.Count == 0)
                     {
-                        <tr><td colspan="5" class="text-muted">@L["No checks yet."]</td></tr>
+                        <tr><td colspan="6" class="text-muted">@L["No checks yet."]</td></tr>
                     }
                     @foreach (var c in Model.RecentChecks)
                     {
@@ -108,6 +145,7 @@
                             <td>@if (c.IsUp) { <span class="badge bg-success">@Fmt.StatusName(MonitorStatus.Up)</span> } else { <span class="badge bg-danger">@Fmt.StatusName(MonitorStatus.Down)</span> }</td>
                             <td>@(c.StatusCode?.ToString() ?? "—")</td>
                             <td class="text-end">@Fmt.Ms(c.ResponseTimeMs)</td>
+                            <td class="small text-muted text-nowrap">@Model.PhaseText(c)</td>
                             <td class="small text-danger">@c.Error</td>
                         </tr>
                     }
@@ -147,56 +185,136 @@
         <script>
         (function () {
             var data = @Json.Serialize(Model.Chart);
+            var incidents = @Json.Serialize(Model.ChartIncidents);
+            var text = @Json.Serialize(new
+            {
+                avg = L["Average (ms)"].Value,
+                p95 = L["95th percentile (ms)"].Value,
+                failed = L["Failed checks"].Value,
+                checks = L["Checks"].Value,
+                incident = L["Incident"].Value,
+                dns = L["DNS"].Value,
+                connect = L["Connect"].Value,
+                tls = L["TLS"].Value,
+                wait = L["Waiting (TTFB)"].Value,
+                transfer = L["Transfer"].Value
+            });
             if (typeof Chart === 'undefined') return;
-            var css = getComputedStyle(document.documentElement);
-            var brand = css.getPropertyValue('--tc-brand').trim() || '#4f46e5';
-            var down = css.getPropertyValue('--tc-down').trim() || '#e11d48';
-            var muted = css.getPropertyValue('--tc-muted').trim() || '#64748b';
-            var grid = css.getPropertyValue('--tc-border').trim() || '#e5e7eb';
-            Chart.defaults.font.family = css.getPropertyValue('--tc-font');
-            Chart.defaults.color = muted;
-            var chart = new Chart(document.getElementById('rtChart'), {
-                type: 'line',
-                data: {
-                    labels: data.map(function (p) { return p.label; }),
-                    datasets: [{
-                        label: @Json.Serialize(L["Response time (ms)"].Value),
-                        data: data.map(function (p) { return p.ms; }),
-                        borderColor: brand,
-                        borderWidth: 2,
-                        backgroundColor: function (ctx) {
-                            var a = ctx.chart.chartArea;
-                            if (!a) return 'transparent';
-                            var g = ctx.chart.ctx.createLinearGradient(0, a.top, 0, a.bottom);
-                            g.addColorStop(0, 'rgba(99,102,241,0.28)');
-                            g.addColorStop(1, 'rgba(99,102,241,0)');
-                            return g;
-                        },
-                        fill: true,
-                        tension: 0.35,
-                        pointRadius: data.map(function (p) { return p.isUp ? 0 : 3.5; }),
-                        pointHoverRadius: 4,
-                        pointBackgroundColor: data.map(function (p) { return p.isUp ? brand : down; }),
-                        pointBorderWidth: 0
-                    }]
-                },
-                options: {
+            var root = document.documentElement;
+            function token(name, fallback) { return getComputedStyle(root).getPropertyValue(name).trim() || fallback; }
+            function isDark() { return root.getAttribute('data-bs-theme') === 'dark' || root.getAttribute('data-theme') === 'dark'; }
+            // Categorical phase colors (validated for CVD separation in light and dark mode).
+            function phaseColors() {
+                return isDark() ? ['#3987e5', '#d95926', '#199e70', '#c98500', '#9085e9'] : ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#6250d6'];
+            }
+            var labels = data.map(function (p) { return p.label; });
+            Chart.defaults.font.family = token('--tc-font', 'system-ui');
+            Chart.defaults.color = token('--tc-muted', '#64748b');
+
+            // Incident markers: a red line where an incident started and a light band until it was resolved.
+            var incidentPlugin = {
+                id: 'tcIncidents',
+                beforeDatasetsDraw: function (chart) {
+                    if (!incidents.length) return;
+                    var x = chart.scales.x, a = chart.chartArea, ctx = chart.ctx;
+                    var rgb = token('--tc-down-rgb', '225, 29, 72');
+                    ctx.save();
+                    incidents.forEach(function (i) {
+                        var x1 = x.getPixelForValue(i.start);
+                        var x2 = i.end === null ? a.right : x.getPixelForValue(i.end);
+                        ctx.fillStyle = 'rgba(' + rgb + ', 0.08)';
+                        ctx.fillRect(x1, a.top, Math.max(2, x2 - x1), a.bottom - a.top);
+                        ctx.strokeStyle = 'rgba(' + rgb + ', 0.9)';
+                        ctx.lineWidth = 2;
+                        ctx.beginPath(); ctx.moveTo(x1, a.top); ctx.lineTo(x1, a.bottom); ctx.stroke();
+                    });
+                    ctx.restore();
+                }
+            };
+
+            function baseOptions(stacked) {
+                var grid = token('--tc-border', '#e5e7eb');
+                return {
                     maintainAspectRatio: false,
                     animation: false,
+                    spanGaps: false,
                     interaction: { mode: 'index', intersect: false },
-                    plugins: { legend: { display: false }, tooltip: { backgroundColor: '#0f172a', padding: 10, cornerRadius: 8, displayColors: false } },
+                    plugins: {
+                        legend: { display: true, position: 'bottom', labels: { boxWidth: 12, boxHeight: 12 } },
+                        tooltip: { backgroundColor: '#0f172a', padding: 10, cornerRadius: 8 }
+                    },
                     scales: {
-                        y: { beginAtZero: true, title: { display: true, text: 'ms' }, grid: { color: grid }, border: { display: false } },
-                        x: { ticks: { maxTicksLimit: 12 }, grid: { display: false }, border: { color: grid } }
+                        y: { stacked: stacked, beginAtZero: true, title: { display: true, text: 'ms' }, grid: { color: grid }, border: { display: false } },
+                        x: { ticks: { maxTicksLimit: 10, autoSkip: true, maxRotation: 0 }, grid: { display: false }, border: { color: grid } }
                     }
+                };
+            }
+
+            var brand = token('--tc-brand', '#4f46e5');
+            var down = token('--tc-down', '#e11d48');
+            var rtOptions = baseOptions(false);
+            rtOptions.plugins.tooltip.callbacks = {
+                afterBody: function (items) {
+                    var p = data[items[0].dataIndex], lines = [text.checks + ': ' + p.checks];
+                    if (p.failures) lines.push(text.failed + ': ' + p.failures);
+                    incidents.forEach(function (i) { if (i.start === items[0].dataIndex) lines.push(text.incident + ': ' + i.label); });
+                    return lines;
                 }
-            });
+            };
+            var charts = [new Chart(document.getElementById('rtChart'), {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: text.avg,
+                        data: data.map(function (p) { return p.avg; }),
+                        borderColor: brand, backgroundColor: brand, borderWidth: 2, tension: 0.3, pointRadius: 0, pointHoverRadius: 4
+                    }, {
+                        label: text.p95,
+                        data: data.map(function (p) { return p.p95; }),
+                        borderColor: token('--tc-muted', '#64748b'), backgroundColor: token('--tc-muted', '#64748b'),
+                        borderWidth: 2, borderDash: [5, 4], tension: 0.3, pointRadius: 0, pointHoverRadius: 4
+                    }, {
+                        label: text.failed,
+                        data: data.map(function (p) { return p.failures > 0 ? 0 : null; }),
+                        showLine: false, pointRadius: 5, pointHoverRadius: 6, pointStyle: 'triangle',
+                        borderColor: down, backgroundColor: down
+                    }]
+                },
+                options: rtOptions,
+                plugins: [incidentPlugin]
+            })];
+
+            var phaseCanvas = document.getElementById('phaseChart');
+            if (phaseCanvas) {
+                var keys = ['dns', 'connect', 'tls', 'wait', 'transfer'], colors = phaseColors();
+                charts.push(new Chart(phaseCanvas, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: keys.map(function (k, n) {
+                            return {
+                                label: text[k],
+                                data: data.map(function (p) { return p[k]; }),
+                                borderColor: colors[n], backgroundColor: colors[n],
+                                borderWidth: 1, fill: n === 0 ? 'origin' : '-1', pointRadius: 0, pointHoverRadius: 3, tension: 0.2
+                            };
+                        })
+                    },
+                    options: baseOptions(true),
+                    plugins: [incidentPlugin]
+                }));
+            }
+
             document.addEventListener('tc:theme', function () {
-                var c = getComputedStyle(document.documentElement), g = c.getPropertyValue('--tc-border').trim();
-                Chart.defaults.color = c.getPropertyValue('--tc-muted').trim();
-                chart.options.scales.y.grid.color = g;
-                chart.options.scales.x.border.color = g;
-                chart.update('none');
+                var g = token('--tc-border', '#e5e7eb'), colors = phaseColors();
+                Chart.defaults.color = token('--tc-muted', '#64748b');
+                charts.forEach(function (chart, n) {
+                    chart.options.scales.y.grid.color = g;
+                    chart.options.scales.x.border.color = g;
+                    if (n === 1) chart.data.datasets.forEach(function (d, i) { d.borderColor = d.backgroundColor = colors[i]; });
+                    chart.update('none');
+                });
             });
         })();
         </script>

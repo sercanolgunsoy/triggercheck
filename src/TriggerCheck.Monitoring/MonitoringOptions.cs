@@ -13,4 +13,11 @@ public class MonitoringOptions
     public int RetentionCleanupMinutes { get; set; } = 60;
     /// <summary>SSRF guard off: probes and webhooks may reach loopback / private / link-local addresses. Development and tests only.</summary>
     public bool AllowPrivateTargets { get; set; }
+    /// <summary>
+    /// Confirm before alert: when a failed probe would take a monitor DOWN, run one more probe after
+    /// <see cref="ConfirmationDelaySeconds"/> before opening an incident. See MonitorCheckRunner.
+    /// </summary>
+    public bool ConfirmBeforeDown { get; set; } = true;
+    /// <summary>Delay before the confirmation probe (0-60 s).</summary>
+    public int ConfirmationDelaySeconds { get; set; } = 5;
 }

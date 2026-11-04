@@ -27,6 +27,9 @@ public class Monitor
 
     public bool IsEnabled { get; set; } = true;
 
+    /// <summary>Https Http/Keyword monitors: send a one-time alert this many days before the certificate expires. 0 = off.</summary>
+    public int CertWarnDays { get; set; } = 14;
+
     // ---- runtime state, maintained by the monitoring engine ----
     public MonitorStatus Status { get; set; } = MonitorStatus.Unknown;
     public int ConsecutiveFailures { get; set; }
@@ -40,6 +43,20 @@ public class Monitor
     /// check after resuming then sends an UP alert, so subscribers are not left with a DOWN as the last word.
     /// </summary>
     public bool DownWhenPaused { get; set; }
+
+    // ---- TLS certificate of https targets, captured on each new connection by the probe ----
+    /// <summary>NotAfter of the server certificate last seen (UTC).</summary>
+    public DateTime? CertExpiresAtUtc { get; set; }
+    public string? CertSubject { get; set; }
+    public string? CertIssuer { get; set; }
+    /// <summary>Validation problem of the last seen certificate (expired, name mismatch, untrusted chain...); null when valid.</summary>
+    public string? CertError { get; set; }
+    public DateTime? CertCheckedAtUtc { get; set; }
+    /// <summary>
+    /// <see cref="CertExpiresAtUtc"/> of the certificate an "expiring" alert was already sent for. A renewed certificate
+    /// has a different NotAfter, so the next threshold crossing alerts again.
+    /// </summary>
+    public DateTime? CertWarningSentForUtc { get; set; }
 
     /// <summary>
     /// Application-managed optimistic concurrency token (SQLite has no rowversion). Bumped by user changes (edit,

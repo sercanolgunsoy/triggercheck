@@ -45,6 +45,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
             e.Property(x => x.Target).HasMaxLength(2048).IsRequired();
             e.Property(x => x.HttpMethod).HasMaxLength(10);
             e.Property(x => x.ExpectedStatusCodes).HasMaxLength(100);
+            e.Property(x => x.CertSubject).HasMaxLength(500);
+            e.Property(x => x.CertIssuer).HasMaxLength(500);
+            e.Property(x => x.CertError).HasMaxLength(500);
             e.HasOne(x => x.Customer).WithMany(c => c.Monitors).HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(x => new { x.IsEnabled, x.NextCheckAtUtc });
             e.Property(x => x.Version).IsConcurrencyToken();

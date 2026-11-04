@@ -556,4 +556,94 @@
   <data name="Too many manual checks for your account. Try again in {0} seconds." xml:space="preserve">
     <value>Hesabınız için çok fazla manuel kontrol yapıldı. {0} saniye sonra tekrar deneyin.</value>
   </data>
+  <data name="Certificate expiry warning" xml:space="preserve">
+    <value>Sertifika süresi uyarısı</value>
+  </data>
+  <data name="Invalid certificate expiry warning." xml:space="preserve">
+    <value>Geçersiz sertifika süresi uyarısı.</value>
+  </data>
+  <data name="Off" xml:space="preserve">
+    <value>Kapalı</value>
+  </data>
+  <data name="{0} days before expiry" xml:space="preserve">
+    <value>Süre bitiminden {0} gün önce</value>
+  </data>
+  <data name="https only: one alert when the TLS certificate is about to expire." xml:space="preserve">
+    <value>Yalnızca https: TLS sertifikasının süresi dolmak üzereyken tek bir uyarı gönderilir.</value>
+  </data>
+  <data name="TLS certificate" xml:space="preserve">
+    <value>TLS sertifikası</value>
+  </data>
+  <data name="expired on {0}" xml:space="preserve">
+    <value>{0} tarihinde süresi doldu</value>
+  </data>
+  <data name="expires {0} ({1} days left)" xml:space="preserve">
+    <value>{0} tarihinde sona eriyor ({1} gün kaldı)</value>
+  </data>
+  <data name="Issuer: {0}" xml:space="preserve">
+    <value>Yayıncı: {0}</value>
+  </data>
+  <data name="Not checked yet." xml:space="preserve">
+    <value>Henüz kontrol edilmedi.</value>
+  </data>
+  <data name="Expiry warning: {0}" xml:space="preserve">
+    <value>Süre uyarısı: {0}</value>
+  </data>
+  <data name="Response time ({0})" xml:space="preserve">
+    <value>Yanıt süresi ({0})</value>
+  </data>
+  <data name="Chart range" xml:space="preserve">
+    <value>Grafik aralığı</value>
+  </data>
+  <data name="No check results in this period." xml:space="preserve">
+    <value>Bu dönemde kontrol sonucu yok.</value>
+  </data>
+  <data name="Average and 95th percentile of successful checks; failed checks and incidents are marked in red." xml:space="preserve">
+    <value>Başarılı kontrollerin ortalaması ve 95. yüzdeliği; başarısız kontroller ve olaylar kırmızıyla işaretlenir.</value>
+  </data>
+  <data name="Response time chart" xml:space="preserve">
+    <value>Yanıt süresi grafiği</value>
+  </data>
+  <data name="Phase breakdown (average, ms)" xml:space="preserve">
+    <value>Aşama kırılımı (ortalama, ms)</value>
+  </data>
+  <data name="A reused connection has no DNS, connect or TLS phase; these phases count as 0 for it." xml:space="preserve">
+    <value>Yeniden kullanılan bağlantıda DNS, bağlantı ve TLS aşaması yoktur; bu aşamalar 0 sayılır.</value>
+  </data>
+  <data name="Phase breakdown chart" xml:space="preserve">
+    <value>Aşama kırılımı grafiği</value>
+  </data>
+  <data name="Phases" xml:space="preserve">
+    <value>Aşamalar</value>
+  </data>
+  <data name="Average (ms)" xml:space="preserve">
+    <value>Ortalama (ms)</value>
+  </data>
+  <data name="95th percentile (ms)" xml:space="preserve">
+    <value>95. yüzdelik (ms)</value>
+  </data>
+  <data name="Failed checks" xml:space="preserve">
+    <value>Başarısız kontroller</value>
+  </data>
+  <data name="Incident" xml:space="preserve">
+    <value>Olay</value>
+  </data>
+  <data name="DNS" xml:space="preserve">
+    <value>DNS</value>
+  </data>
+  <data name="Connect" xml:space="preserve">
+    <value>Bağlantı</value>
+  </data>
+  <data name="TLS" xml:space="preserve">
+    <value>TLS</value>
+  </data>
+  <data name="Waiting (TTFB)" xml:space="preserve">
+    <value>Bekleme (TTFB)</value>
+  </data>
+  <data name="Transfer" xml:space="preserve">
+    <value>Aktarım</value>
+  </data>
+  <data name="reused connection, TTFB {0} ms" xml:space="preserve">
+    <value>yeniden kullanılan bağlantı, TTFB {0} ms</value>
+  </data>
 </root>

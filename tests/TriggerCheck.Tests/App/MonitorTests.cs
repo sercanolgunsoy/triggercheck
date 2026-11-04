@@ -48,7 +48,8 @@ public class MonitorTests : IClassFixture<TestWebAppFactory>
     [Fact]
     public async Task Create_form_offers_only_plan_intervals()
     {
-        var html = await (await AdminAsync()).GetHtmlAsync("/App/Monitors/Create");
+        var page = await (await AdminAsync()).GetHtmlAsync("/App/Monitors/Create");
+        var html = System.Text.RegularExpressions.Regex.Match(page, "<select[^>]*name=\"Input.IntervalSeconds\"[\\s\\S]*?</select>").Value;
         Assert.Contains("value=\"60\"", html);
         Assert.Contains("value=\"300\"", html);
         Assert.DoesNotContain("value=\"30\"", html);
@@ -269,6 +270,111 @@ public class MonitorTests : IClassFixture<TestWebAppFactory>
         Assert.Contains("1 h 5 min", html);    // incident duration
         Assert.Contains("HTTP 503", html);
         Assert.Contains("Check now", html);
+    }
+
+    private static System.Text.Json.JsonElement ChartJson(string html, string variable)
+    {
+        var json = System.Text.RegularExpressions.Regex.Match(html, "var " + variable + @" = (\[.*?\]);").Groups[1].Value;
+        return System.Text.Json.JsonDocument.Parse(json).RootElement;
+    }
+
+    [Theory]
+    [InlineData("24h")]
+    [InlineData("7d")]
+    [InlineData("30d")]
+    public async Task Details_chart_renders_each_range_with_phases_and_incident_markers(string range)
+    {
+        var cid = await _f.DemoCustomerIdAsync();
+        var id = await _f.AddMonitorAsync(cid, "Ranges" + range, m => m.Status = MonitorStatus.Up);
+        await _f.WithDbAsync(async db =>
+        {
+            var now = DateTime.UtcNow;
+            for (var i = 0; i < 2000; i++) // one check every 20 minutes for ~28 days
+                db.CheckResults.Add(new CheckResult
+                {
+                    MonitorId = id, CheckedAtUtc = now.AddMinutes(-20 * i), IsUp = i % 25 != 0, ResponseTimeMs = 150,
+                    DnsMs = i % 2 == 0 ? 10 : null, ConnectMs = i % 2 == 0 ? 5 : null, TlsMs = i % 2 == 0 ? 20 : null, TtfbMs = 120
+                });
+            db.Incidents.Add(new Incident { MonitorId = id, StartedAtUtc = now.AddHours(-2), ResolvedAtUtc = now.AddHours(-1), Cause = "HTTP 502" });
+            await db.SaveChangesAsync();
+        });
+
+        var html = await (await AdminAsync()).GetHtmlAsync($"/App/Monitors/Details/{id}?range={range}");
+        Assert.Contains("id=\"rtChart\"", html);
+        Assert.Contains("id=\"phaseChart\"", html);
+        Assert.Matches($"<a class=\"btn btn-primary\"[^>]*range={range}\"", html);
+        var points = ChartJson(html, "data");
+        Assert.InRange(points.GetArrayLength(), 280, 300);
+        Assert.Contains(points.EnumerateArray(), p => p.GetProperty("failures").GetInt32() > 0);
+        var withData = points.EnumerateArray().First(p => p.GetProperty("checks").GetInt32() > 0 && p.GetProperty("failures").GetInt32() == 0);
+        Assert.Equal(150, withData.GetProperty("avg").GetDouble());
+        Assert.Equal(150, withData.GetProperty("p95").GetInt32());
+        Assert.True(withData.GetProperty("wait").GetDouble() > 0);
+        var incidents = ChartJson(html, "incidents");
+        Assert.Equal(1, incidents.GetArrayLength());
+        Assert.True(incidents[0].GetProperty("start").GetInt32() > 200); // near the end of the range
+        Assert.Contains("DNS 10 · TCP 5 · TLS 20 · TTFB 120 ms", html);
+        Assert.Contains("reused connection, TTFB 120 ms", html);
+    }
+
+    [Fact]
+    public async Task Details_unknown_range_falls_back_to_24h_and_empty_chart_shows_message()
+    {
+        var cid = await _f.DemoCustomerIdAsync();
+        var id = await _f.AddMonitorAsync(cid, "NoChecksYet");
+        var html = await (await AdminAsync()).GetHtmlAsync($"/App/Monitors/Details/{id}?range=1y");
+        Assert.Contains("No check results in this period.", html);
+        Assert.Matches("<a class=\"btn btn-primary\"[^>]*range=24h\"", html);
+        Assert.DoesNotContain("rtChart", html);
+    }
+
+    [Fact]
+    public async Task Details_shows_certificate_info_for_https_monitors()
+    {
+        var cid = await _f.DemoCustomerIdAsync();
+        var id = await _f.AddMonitorAsync(cid, "CertShown", m =>
+        {
+            m.Target = "https://secure.example.org/";
+            m.CertExpiresAtUtc = DateTime.UtcNow.AddDays(10.5);
+            m.CertIssuer = "CN=Example Issuing CA";
+            m.CertSubject = "CN=secure.example.org";
+            m.CertWarnDays = 30;
+        });
+        var html = await (await AdminAsync()).GetHtmlAsync($"/App/Monitors/Details/{id}");
+        Assert.Contains("TLS certificate", html);
+        Assert.Contains("(10 days left)", html);
+        Assert.Contains("Issuer: CN=Example Issuing CA", html);
+        Assert.Contains("Expiry warning: 30 days before expiry", html);
+
+        var plain = await _f.AddMonitorAsync(cid, "PlainHttp", m => m.Target = "http://plain.example.org/");
+        Assert.DoesNotContain("TLS certificate", await (await AdminAsync()).GetHtmlAsync($"/App/Monitors/Details/{plain}"));
+    }
+
+    [Fact]
+    public async Task Cert_warning_days_are_saved_validated_and_reset_with_the_target()
+    {
+        var c = await AdminAsync();
+        AssertRedirect(await c.PostFormAsync("/App/Monitors/Create", MonitorForm("CertDays", ("CertWarnDays", "7"))), "/Details/");
+        var id = (await FindByNameAsync("CertDays"))!.Id;
+        Assert.Equal(7, (await _f.GetMonitorAsync(id))!.CertWarnDays);
+
+        var bad = await c.PostFormAsync("/App/Monitors/Create", MonitorForm("CertDaysBad", ("CertWarnDays", "3")));
+        Assert.Equal(HttpStatusCode.OK, bad.StatusCode);
+        Assert.Contains("Invalid certificate expiry warning.", await bad.ReadHtmlAsync());
+        Assert.Null(await FindByNameAsync("CertDaysBad"));
+
+        await _f.WithDbAsync(async db =>
+        {
+            var m = await db.Monitors.SingleAsync(x => x.Id == id);
+            m.CertExpiresAtUtc = DateTime.UtcNow.AddDays(5);
+            m.CertWarningSentForUtc = m.CertExpiresAtUtc;
+            await db.SaveChangesAsync();
+        });
+        AssertRedirect(await c.PostFormAsync($"/App/Monitors/Edit/{id}", MonitorForm("CertDays", ("CertWarnDays", "0"), ("Target", "https://other.example.org"))), "/Details/");
+        var edited = (await _f.GetMonitorAsync(id))!;
+        Assert.Equal(0, edited.CertWarnDays);
+        Assert.Null(edited.CertExpiresAtUtc);
+        Assert.Null(edited.CertWarningSentForUtc);
     }
 
     [Fact]

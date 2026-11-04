@@ -561,3 +561,6 @@ dl.row dd { margin-bottom: .6rem; }
 [data-bs-theme="dark"] .theme-icon-light, [data-bs-theme="light"] .theme-icon-dark, :root:not([data-bs-theme]) .theme-icon-dark { display: none; }
 .validation-summary-valid { display: none; }
 .validation-summary-errors.alert ul { margin: 0; padding-left: 1.1rem; }
+
+/* Monitor details charts (UI-4) */
+.tc-chart { position: relative; height: 260px; }

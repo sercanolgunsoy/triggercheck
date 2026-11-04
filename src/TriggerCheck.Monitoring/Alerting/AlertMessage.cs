@@ -3,7 +3,7 @@ using TriggerCheck.Domain.Entities;
 
 namespace TriggerCheck.Monitoring.Alerting;
 
-public enum AlertKind { Down, Up }
+public enum AlertKind { Down, Up, CertificateExpiring }
 
 /// <summary>A status-change alert for one monitor.</summary>
 public sealed record AlertMessage(
@@ -14,18 +14,39 @@ public sealed record AlertMessage(
     AlertKind Kind,
     string? Error,
     DateTime OccurredAtUtc,
-    TimeSpan? Downtime = null)
+    TimeSpan? Downtime = null,
+    DateTime? CertificateExpiresAtUtc = null)
 {
-    public string StatusText => Kind == AlertKind.Down ? "down" : "up";
+    public string StatusText => Kind switch
+    {
+        AlertKind.Down => "down",
+        AlertKind.CertificateExpiring => "certificate_expiring",
+        _ => "up"
+    };
+
+    private string KindTitle => Kind switch
+    {
+        AlertKind.Down => "DOWN",
+        AlertKind.CertificateExpiring => "CERTIFICATE EXPIRING",
+        _ => "UP"
+    };
 
     /// <summary>Single-line subject (CR/LF stripped so it is safe as a mail header).</summary>
-    public string Subject => $"[TriggerCheck] {(Kind == AlertKind.Down ? "DOWN" : "UP")}: {OneLine(MonitorName)}";
+    public string Subject => $"[TriggerCheck] {KindTitle}: {OneLine(MonitorName)}";
 
     public string Body
     {
         get
         {
             var sb = new StringBuilder();
+            if (Kind == AlertKind.CertificateExpiring)
+            {
+                sb.AppendLine($"The TLS certificate of monitor \"{MonitorName}\" expires soon.");
+                sb.AppendLine($"Target: {Target}");
+                if (CertificateExpiresAtUtc is { } exp)
+                    sb.AppendLine($"Expires (UTC): {exp:yyyy-MM-dd HH:mm:ss} ({Math.Max(0, (int)Math.Floor((exp - OccurredAtUtc).TotalDays))} days left)");
+                return sb.ToString();
+            }
             sb.AppendLine(Kind == AlertKind.Down
                 ? $"Monitor \"{MonitorName}\" is DOWN."
                 : $"Monitor \"{MonitorName}\" is UP again.");
@@ -41,6 +62,12 @@ public sealed record AlertMessage(
         new(monitor.Id, monitor.CustomerId, monitor.Name, monitor.Target, kind,
             kind == AlertKind.Down ? monitor.LastError : null,
             DateTime.SpecifyKind(occurredAtUtc, DateTimeKind.Utc), downtime);
+
+    /// <summary>One-time warning that the monitor's TLS certificate (<see cref="Domain.Entities.Monitor.CertExpiresAtUtc"/>) expires soon.</summary>
+    public static AlertMessage CertificateExpiring(Domain.Entities.Monitor monitor, DateTime occurredAtUtc) =>
+        new(monitor.Id, monitor.CustomerId, monitor.Name, monitor.Target, AlertKind.CertificateExpiring, null,
+            DateTime.SpecifyKind(occurredAtUtc, DateTimeKind.Utc), null,
+            monitor.CertExpiresAtUtc is { } e ? DateTime.SpecifyKind(e, DateTimeKind.Utc) : null);
 
     private static string OneLine(string s) => s.Replace('\r', ' ').Replace('\n', ' ');
 

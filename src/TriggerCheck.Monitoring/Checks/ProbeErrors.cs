@@ -29,6 +29,8 @@ public static class ProbeErrors
     private static string DescribeHttp(HttpRequestException ex)
     {
         var socket = Find<SocketException>(ex);
+        // The probe does its own TLS handshake in the connect callback, so TLS failures arrive as ConnectionError.
+        if (Find<AuthenticationException>(ex) is { } tls) return "TLS/SSL error: " + tls.Message;
         switch (ex.HttpRequestError)
         {
             case HttpRequestError.NameResolutionError:

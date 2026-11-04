@@ -54,32 +54,43 @@ public abstract class HttpCheckerBase(IHttpClientFactory httpClientFactory) : IM
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         cts.CancelAfter(timeout);
+        var probe = new ProbeContext(uri.IdnHost);
+        int? ttfb = null;
         var sw = Stopwatch.StartNew();
         try
         {
             using var request = new HttpRequestMessage(method, uri);
+            request.Options.Set(ProbeContext.Key, probe);
             using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cts.Token);
+            ttfb = Elapsed(sw);
             var code = (int)response.StatusCode;
 
             if (!matcher.IsMatch(code))
-                return CheckOutcome.Down($"Unexpected status code {code} (expected {matcher})", Elapsed(sw), code);
+                return WithProbe(CheckOutcome.Down($"Unexpected status code {code} (expected {matcher})", Elapsed(sw), code), probe, ttfb);
 
             if (MatchKeyword)
             {
                 var body = await ReadCappedBodyAsync(response, cts.Token);
                 var ms = Elapsed(sw);
-                return body.Contains(keyword!, StringComparison.OrdinalIgnoreCase)
+                return WithProbe(body.Contains(keyword!, StringComparison.OrdinalIgnoreCase)
                     ? CheckOutcome.Up(ms, code)
-                    : CheckOutcome.Down($"Keyword '{keyword}' not found in response", ms, code);
+                    : CheckOutcome.Down($"Keyword '{keyword}' not found in response", ms, code), probe, ttfb);
             }
 
-            return CheckOutcome.Up(Elapsed(sw), code);
+            return WithProbe(CheckOutcome.Up(Elapsed(sw), code), probe, ttfb);
         }
         catch (Exception ex) when (!ct.IsCancellationRequested)
         {
-            return CheckOutcome.Down(ProbeErrors.Describe(ex, timeout), Elapsed(sw));
+            // A rejected certificate gets a precise, non-secret reason (expired / name mismatch / untrusted chain).
+            var error = probe.Certificate?.Error is { } certError && ttfb is null
+                ? "TLS certificate error: " + certError
+                : ProbeErrors.Describe(ex, timeout);
+            return WithProbe(CheckOutcome.Down(error, Elapsed(sw)), probe, ttfb);
         }
     }
+
+    private static CheckOutcome WithProbe(CheckOutcome outcome, ProbeContext probe, int? ttfb) =>
+        outcome with { Timings = probe.Timings(ttfb), Certificate = probe.Certificate };
 
     private static int Elapsed(Stopwatch sw) => (int)Math.Min(int.MaxValue, sw.ElapsedMilliseconds);
 
