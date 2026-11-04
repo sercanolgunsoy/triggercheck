@@ -80,6 +80,13 @@ public sealed class MonitorCheckRunner(
                 {
                     logger.LogDebug("Monitor {MonitorId} changed while its check was being saved; retrying", monitorId);
                 }
+                catch (DbUpdateException ex) when (ex is not DbUpdateConcurrencyException)
+                {
+                    // Deleted between our re-read and our save: the CheckResult insert hit the foreign key.
+                    if (await MonitorExistsAsync(monitorId)) throw;
+                    logger.LogDebug("Monitor {MonitorId} was deleted while its check was being saved; result discarded", monitorId);
+                    throw new MonitorCheckDiscardedException(monitorId, monitorDeleted: true);
+                }
             }
         }
 
@@ -96,6 +103,12 @@ public sealed class MonitorCheckRunner(
         }
 
         return result;
+    }
+
+    private async Task<bool> MonitorExistsAsync(int monitorId)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(CancellationToken.None);
+        return await db.Monitors.AnyAsync(m => m.Id == monitorId);
     }
 
     /// <summary>Re-reads the monitor and applies the outcome to it. Returns the alert to send, if any.</summary>

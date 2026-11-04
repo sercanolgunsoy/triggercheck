@@ -120,6 +120,26 @@ public sealed class MonitoringTestHost : IAsyncDisposable
     }
 }
 
+/// <summary>
+/// Runs <see cref="Action"/> once, inside the first SaveChanges matching the predicate, before it executes.
+/// Used to make a concurrent change land deterministically between a read and the following save.
+/// </summary>
+public sealed class SaveHook(Func<DbContext, bool> when) : Microsoft.EntityFrameworkCore.Diagnostics.SaveChangesInterceptor
+{
+    private int _fired;
+    public Func<Task>? Action { get; set; }
+    public bool Fired => _fired == 1;
+
+    public override async ValueTask<Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<int>> SavingChangesAsync(
+        Microsoft.EntityFrameworkCore.Diagnostics.DbContextEventData eventData,
+        Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<int> result, CancellationToken cancellationToken = default)
+    {
+        if (Action is not null && eventData.Context is { } db && when(db) && Interlocked.Exchange(ref _fired, 1) == 0)
+            await Action();
+        return result;
+    }
+}
+
 /// <summary>Checker returning scripted outcomes (last one repeats).</summary>
 public sealed class ScriptedChecker(MonitorType type) : IMonitorChecker
 {

@@ -292,6 +292,29 @@ public class MonitorLifecycleTests
     }
 
     [Fact]
+    public async Task Delete_landing_between_runner_reread_and_save_discards_result()
+    {
+        var hook = new SaveHook(db => db.ChangeTracker.Entries<CheckResult>().Any(e => e.State == EntityState.Added));
+        var checker = new ScriptedChecker(MonitorType.Http).Then(Fail);
+        await using var host = await MonitoringTestHost.CreateAsync(s =>
+        {
+            s.ReplaceCheckers(checker).ReplaceNotifiers(_email);
+            s.ConfigureDbContext<TriggerCheck.Infrastructure.Data.AppDbContext>(o => o.AddInterceptors(hook));
+        });
+        var c = await host.AddCustomerAsync();
+        var monitor = await host.AddMonitorAsync(c.Id, m => { m.Status = MonitorStatus.Up; m.FailureThreshold = 1; });
+        hook.Action = () => host.WithDbAsync(db => db.Monitors.Where(m => m.Id == monitor.Id).ExecuteDeleteAsync());
+
+        var ex = await Assert.ThrowsAsync<MonitorCheckDiscardedException>(() => host.RunCheckAsync(monitor.Id));
+
+        Assert.True(hook.Fired);
+        Assert.True(ex.MonitorDeleted);
+        Assert.Equal(0, await host.WithDbAsync(db => db.CheckResults.CountAsync()));
+        Assert.Equal(0, await host.WithDbAsync(db => db.Incidents.CountAsync()));
+        Assert.Empty(_email.Sent);
+    }
+
+    [Fact]
     public async Task Down_transition_landing_between_pause_read_and_save_is_not_lost()
     {
         // The hook runs once, inside the pause's SaveChanges (after it read the monitor as Up), and lets a check
@@ -345,23 +368,6 @@ public class MonitorLifecycleTests
             m.Version++;
             await db.SaveChangesAsync();
         });
-
-    /// <summary>Runs <see cref="Action"/> once, inside the first SaveChanges matching the predicate, before it executes.</summary>
-    private sealed class SaveHook(Func<DbContext, bool> when) : Microsoft.EntityFrameworkCore.Diagnostics.SaveChangesInterceptor
-    {
-        private int _fired;
-        public Func<Task>? Action { get; set; }
-        public bool Fired => _fired == 1;
-
-        public override async ValueTask<Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<int>> SavingChangesAsync(
-            Microsoft.EntityFrameworkCore.Diagnostics.DbContextEventData eventData,
-            Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<int> result, CancellationToken cancellationToken = default)
-        {
-            if (Action is not null && eventData.Context is { } db && when(db) && Interlocked.Exchange(ref _fired, 1) == 0)
-                await Action();
-            return result;
-        }
-    }
 
     /// <summary>Checker that signals when the probe starts and blocks until released.</summary>
     private sealed class BlockingChecker(CheckOutcome outcome) : IMonitorChecker

@@ -64,6 +64,8 @@ public class EditModel(AppDbContext db, Text<AdminResource> L) : PageModel
 
         var messages = new List<string> { L["Customer details were saved."] };
         string? warning = null;
+        // The interval clamp is a set-based update: commit it together with the customer change.
+        await using var tx = await db.Database.BeginTransactionAsync();
         if (newPlan!.Id != Customer.PlanId)
         {
             var oldPlanName = Customer.Plan.Name;
@@ -77,6 +79,7 @@ public class EditModel(AppDbContext db, Text<AdminResource> L) : PageModel
         }
 
         await db.SaveChangesAsync();
+        await tx.CommitAsync();
         TempData["Success"] = string.Join(" ", messages);
         if (warning is not null) TempData["Error"] = warning;
         return RedirectToPage("Details", new { id });

@@ -39,7 +39,8 @@ public class EditModel(AppDbContext db, ICurrentCustomer current, Text<AppResour
 
         // Bumping Version lets an in-flight check notice the edit (it discards results for changed probe settings).
         // If a check or a pause changed the row since we read it, the save fails on the token: reload the fresh row
-        // and re-apply the form (form fields: last writer wins; runtime state written by others is preserved).
+        // and re-apply the form. Form fields are intentionally last-writer-wins between concurrent admins (no
+        // "someone else edited this" check); runtime state written by checks or a pause is preserved.
         for (var attempt = 1; ; attempt++)
         {
             ApplyInput(m);

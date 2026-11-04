@@ -15,7 +15,8 @@ public static class SuperAdminOps
     /// <summary>
     /// Slows down monitors of the given customers that are faster than <paramref name="plan"/> allows
     /// (PlanRules.ClampInterval = raise to the plan minimum). Executes immediately as a set-based update that bumps
-    /// the monitors' concurrency token (no conflict with running checks). Returns the number of adjusted monitors.
+    /// the monitors' concurrency token (no conflict with running checks); callers wrap it and their SaveChanges in
+    /// one transaction. Returns the number of adjusted monitors.
     /// </summary>
     public static async Task<int> ClampMonitorsAsync(AppDbContext db, Plan plan, IReadOnlyCollection<int> customerIds)
     {
