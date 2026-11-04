@@ -45,8 +45,9 @@ public class HostedServiceResilienceTests
         var lifetime = f.Services.GetRequiredService<IHostApplicationLifetime>();
         await Task.Delay(300); // a few scheduler ticks on the healthy database
 
-        var dataSource = new SqliteConnectionStringBuilder(f.Services.GetRequiredService<IConfiguration>().GetConnectionString("Default")).DataSource;
-        SqliteConnection.ClearAllPools();
+        var connectionString = f.Services.GetRequiredService<IConfiguration>().GetConnectionString("Default")!;
+        var dataSource = new SqliteConnectionStringBuilder(connectionString).DataSource;
+        SqliteTestFiles.ClearPool(connectionString);
         File.Delete(dataSource);
         File.WriteAllBytes(dataSource, [1, 2, 3]); // not even a database: every query fails
 
@@ -67,8 +68,9 @@ public class HostedServiceUnitResilienceTests
             ["Monitoring:SchedulerTickMilliseconds"] = "1000",
             ["Monitoring:RetentionCleanupMinutes"] = "1"
         });
-        var dataSource = new SqliteConnectionStringBuilder(host.Services.GetRequiredService<IConfiguration>().GetConnectionString("Default")).DataSource;
-        SqliteConnection.ClearAllPools();
+        var connectionString = host.Services.GetRequiredService<IConfiguration>().GetConnectionString("Default")!;
+        var dataSource = new SqliteConnectionStringBuilder(connectionString).DataSource;
+        SqliteTestFiles.ClearPool(connectionString);
         File.WriteAllBytes(dataSource, [1, 2, 3]); // every query fails from now on
 
         var services = host.Services.GetServices<IHostedService>().Cast<BackgroundService>().ToList();

@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,6 +13,7 @@ using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Monitoring;
 using TriggerCheck.Monitoring.Alerting;
 using TriggerCheck.Monitoring.Checks;
+using TriggerCheck.Tests.Infrastructure;
 using MonitorEntity = TriggerCheck.Domain.Entities.Monitor;
 
 namespace TriggerCheck.Tests.Monitoring;
@@ -150,8 +150,7 @@ public sealed class MonitoringTestHost : IAsyncDisposable
         using (var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5)))
             await Services.GetRequiredService<AlertSenderService>().StopAsync(stop.Token);
         await Services.DisposeAsync();
-        SqliteConnection.ClearAllPools();
-        try { File.Delete(_dbPath); } catch { /* ignore */ }
+        SqliteTestFiles.Delete(_dbPath);
     }
 }
 
