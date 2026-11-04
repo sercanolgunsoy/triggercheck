@@ -1,0 +1,113 @@
+name: CI
+
+on:
+  push:
+    branches: [main, backlog-impl]
+  pull_request:
+    branches: [main, backlog-impl]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+
+jobs:
+  build-test:
+    name: Build, format check and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore
+
+      # Rules come from .editorconfig (describes the existing compact style). The excluded files predate the check
+      # and have whitespace that no editorconfig option accepts (nested brace-less foreach, column alignment); they
+      # are excluded instead of being reformatted while other branches still edit them. Remove the excludes once
+      # they have been formatted (`dotnet format` on those files, whitespace-only commit).
+      - name: Verify formatting
+        run: >
+          dotnet format --verify-no-changes --no-restore --verbosity minimal
+          --exclude src/TriggerCheck.Infrastructure/Data/DbSeeder.cs
+          tests/TriggerCheck.Tests/Infrastructure/LocalizationTests.cs
+          tests/TriggerCheck.Tests/SuperAdmin/OverviewAndMonitorsTests.cs
+
+      - name: Build (warnings as errors)
+        run: dotnet build --no-restore --configuration Release -warnaserror
+
+      # No secrets are needed: tests use local fakes (SMTP/webhook notifiers, loopback probe targets) and the
+      # upcoming AI features use a fake client in CI.
+      - name: Test
+        run: >
+          dotnet test --no-build --configuration Release
+          --logger "trx;LogFileName=test-results.trx"
+          --results-directory TestResults
+          --collect "XPlat Code Coverage"
+
+      - name: Upload test results and coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: TestResults/
+          if-no-files-found: warn
+          retention-days: 14
+
+  docker:
+    name: Container image
+    runs-on: ubuntu-latest
+    needs: build-test
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/sercanolgunsoy/triggercheck
+      # Only pushes to main publish the image; branches and pull requests just verify that it builds.
+      PUBLISH: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        if: env.PUBLISH == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,format=short
+            type=ref,event=branch
+            type=ref,event=pr
+
+      - name: Build (and push on main)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: ${{ env.PUBLISH == 'true' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
