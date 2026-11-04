@@ -45,9 +45,9 @@ else
                     <td><partial name="_StatusBadge" model="m.Status" /></td>
                     <td><a asp-page="Details" asp-route-id="@m.Id">@m.Name</a></td>
                     <td>@Fmt.TypeName(m.Type)</td>
-                    <td class="text-truncate" style="max-width: 260px">@m.Target@(m.Port is int p ? ":" + p : "")</td>
+                    <td class="text-truncate" style="max-width: 260px">@m.Target@(m.Port is int p ? ":" + p : "")@(m.DnsRecordType is { } rt ? " (" + rt + ")" : "")</td>
                     <td>@Fmt.Interval(m.IntervalSeconds)</td>
-                    <td class="text-end">@Fmt.Ms(m.LastResponseTimeMs)</td>
+                    <td class="text-end">@(m.Type == MonitorType.Heartbeat ? "—" : Fmt.Ms(m.LastResponseTimeMs))</td>
                     <td class="text-end">@Fmt.Percent(m.Uptime24h)</td>
                     <td class="small text-muted">@Fmt.Time(m.LastCheckedAtUtc)</td>
                     <td class="text-end text-nowrap">

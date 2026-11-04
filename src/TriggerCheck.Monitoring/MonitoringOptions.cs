@@ -20,4 +20,13 @@ public class MonitoringOptions
     public bool ConfirmBeforeDown { get; set; } = true;
     /// <summary>Delay before the confirmation probe (0-300 s); the confirmation runs on the first scheduler tick after it.</summary>
     public int ConfirmationDelaySeconds { get; set; } = 5;
+
+    /// <summary>Resolvers used when <see cref="DnsResolvers"/> is not configured.</summary>
+    public static readonly string[] DefaultDnsResolvers = ["1.1.1.1", "8.8.8.8"];
+
+    /// <summary>
+    /// Recursive resolvers queried by DNS monitors, in order (the next one is tried when one fails): "ip" or "ip:port",
+    /// IPv6 as "[addr]:port". Operator configuration: these are not subject to the SSRF guard. Empty = <see cref="DefaultDnsResolvers"/>.
+    /// </summary>
+    public string[]? DnsResolvers { get; set; }
 }

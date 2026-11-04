@@ -5,8 +5,10 @@ using TriggerCheck.Domain;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Monitoring;
+using TriggerCheck.Monitoring.Checks;
 using TriggerCheck.Monitoring.Engine;
 using TriggerCheck.Monitoring.Stats;
+using TriggerCheck.Web.Heartbeat;
 using TriggerCheck.Web.Infrastructure;
 using TriggerCheck.Web.Localization;
 using MonitorEntity = TriggerCheck.Domain.Entities.Monitor;
@@ -18,6 +20,9 @@ public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStat
     ManualCheckLimiter limiter, IResponseTimeSeriesService series) : PageModel
 {
     public const int MaxChartPoints = ResponseTimeSeriesService.MaxPoints;
+
+    /// <summary>TempData key carrying a freshly issued heartbeat ping URL (shown once, to the admin who issued it).</summary>
+    public const string HeartbeatUrlKey = "HeartbeatUrl";
 
     /// <summary>Chart ranges offered on the page (query string <c>?range=</c>).</summary>
     public static readonly IReadOnlyDictionary<string, TimeSpan> Ranges = new Dictionary<string, TimeSpan>
@@ -145,6 +150,34 @@ public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStat
         return Back(id, returnTo);
     }
 
+    /// <summary>Heartbeat: replaces the ping token. The old URL stops working immediately; the new one is shown once.</summary>
+    public async Task<IActionResult> OnPostRegenerateTokenAsync(int id, CancellationToken ct)
+    {
+        if (!IsAdmin) return Forbid();
+        for (var attempt = 1; ; attempt++)
+        {
+            var m = await FindAsync(id, ct);
+            if (m is null || m.Type != MonitorType.Heartbeat) return NotFound();
+            var token = HeartbeatTokens.Issue(m);
+            m.Version++;
+            try
+            {
+                await db.SaveChangesAsync(ct);
+                TempData[HeartbeatUrlKey] = HeartbeatEndpoint.PingUrl(Request, token);
+                TempData["Success"] = L["A new ping URL was generated. The old URL no longer works."].Value;
+                return Back(id, null);
+            }
+            catch (DbUpdateConcurrencyException) when (attempt < 3)
+            {
+                db.ChangeTracker.Clear(); // a ping or check changed the row: retry on fresh state
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return ConcurrencyConflict(id, null);
+            }
+        }
+    }
+
     public async Task<IActionResult> OnPostCheckNowAsync(int id, CancellationToken ct)
     {
         if (!IsAdmin) return Forbid();
@@ -154,6 +187,11 @@ public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStat
         if (m.Status == MonitorStatus.Paused || !m.IsEnabled)
         {
             TempData["Error"] = L["A paused monitor cannot be checked. Resume it first."].Value;
+            return Back(id, null);
+        }
+        if (m.Type == MonitorType.Heartbeat)
+        {
+            TempData["Error"] = L["A heartbeat monitor is checked when its ping arrives or is overdue; it cannot be checked on demand."].Value;
             return Back(id, null);
         }
 

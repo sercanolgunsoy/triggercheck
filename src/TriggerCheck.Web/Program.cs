@@ -5,6 +5,7 @@ using TriggerCheck.Infrastructure;
 using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Infrastructure.Identity;
 using TriggerCheck.Monitoring;
+using TriggerCheck.Web.Heartbeat;
 using TriggerCheck.Web.Infrastructure;
 using TriggerCheck.Web.Localization;
 
@@ -54,6 +55,7 @@ builder.Services.AddAuthorization(o =>
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentCustomer, CurrentCustomer>();
 builder.Services.AddSingleton<ManualCheckLimiter>();
+builder.Services.AddHeartbeatEndpoint(); // FEAT-9: /hb/{token} ping endpoint of heartbeat monitors
 builder.Services.AddSingleton<TriggerCheck.Web.Areas.App.Pages.Alerts.TestNotificationLimiter>();
 
 builder.Services.AddRazorPages(o =>
@@ -92,6 +94,7 @@ app.UseAuthorization();
 app.MapStaticAssets().AllowAnonymous();
 app.MapRazorPages().WithStaticAssets();
 app.MapAppHealthChecks(includeDetails: app.Environment.IsDevelopment());
+app.MapHeartbeatEndpoint();
 app.MapSetLanguage();
 
 await DbSeeder.SeedAsync(app.Services);

@@ -66,9 +66,10 @@ public static class Fmt
         return span.Hours > 0 ? T("{0} d {1} h", (int)span.TotalDays, span.Hours) : T("{0} d", (int)span.TotalDays);
     }
 
-    /// <summary>Check interval: en "5 min" / "30 sec", tr "5 dk" / "30 sn".</summary>
+    /// <summary>Check interval: en "5 min" / "30 sec" / "6 h", tr "5 dk" / "30 sn" / "6 sa".</summary>
     public static string Interval(int seconds) =>
-        seconds >= 60 && seconds % 60 == 0 ? T("{0} min", seconds / 60) : T("{0} sec", seconds);
+        seconds >= 3600 && seconds % 3600 == 0 ? T("{0} h", seconds / 3600)
+        : seconds >= 60 && seconds % 60 == 0 ? T("{0} min", seconds / 60) : T("{0} sec", seconds);
 
     /// <summary>en "99.95%", tr "%99,95"; null → "—".</summary>
     public static string Percent(double? value)
@@ -99,6 +100,9 @@ public static class Fmt
         MonitorType.Keyword => T("Keyword"),
         MonitorType.Tcp => T("TCP port"),
         MonitorType.Ping => "Ping",
+        MonitorType.Dns => T("DNS record"),
+        MonitorType.Heartbeat => T("Heartbeat (cron)"),
+        MonitorType.JsonApi => T("JSON API"),
         _ => t.ToString()
     };
 

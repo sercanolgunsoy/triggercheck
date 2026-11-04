@@ -949,4 +949,13 @@
   <data name="Too many failed attempts. Try again in a few minutes." xml:space="preserve">
     <value>Çok fazla başarısız deneme. Birkaç dakika sonra tekrar deneyin.</value>
   </data>
+  <data name="DNS record" xml:space="preserve">
+    <value>DNS kaydı</value>
+  </data>
+  <data name="Heartbeat (cron)" xml:space="preserve">
+    <value>Heartbeat (cron)</value>
+  </data>
+  <data name="JSON API" xml:space="preserve">
+    <value>JSON API</value>
+  </data>
 </root>

@@ -3,8 +3,10 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Infrastructure.Data;
+using TriggerCheck.Monitoring.Checks;
 using TriggerCheck.Monitoring.Engine;
 using TriggerCheck.Web.Areas.App.Support;
+using TriggerCheck.Web.Heartbeat;
 using TriggerCheck.Web.Infrastructure;
 using TriggerCheck.Web.Localization;
 
@@ -61,6 +63,7 @@ public class EditModel(AppDbContext db, ICurrentCustomer current, Text<AppResour
             }
         }
         TempData["Success"] = L["Monitor \"{0}\" was updated.", m.Name].Value;
+        if (Input.IssuedHeartbeatToken is { } token) TempData[DetailsModel.HeartbeatUrlKey] = HeartbeatEndpoint.PingUrl(Request, token);
         return RedirectToPage("Details", new { id });
     }
 
@@ -68,6 +71,7 @@ public class EditModel(AppDbContext db, ICurrentCustomer current, Text<AppResour
     {
         var before = ProbeSettings.Of(m);
         var intervalChanged = m.IntervalSeconds != Input.IntervalSeconds;
+        var becameHeartbeat = m.Type != MonitorType.Heartbeat && Input.Type == MonitorType.Heartbeat;
         Input.ApplyTo(m);
         var probeChanged = ProbeSettings.Of(m) != before;
 
@@ -78,7 +82,8 @@ public class EditModel(AppDbContext db, ICurrentCustomer current, Text<AppResour
             m.ConsecutiveFailures = 0;
             m.DownWhenPaused = false;
         }
-        if (m.Status != MonitorStatus.Paused && (probeChanged || intervalChanged)) m.NextCheckAtUtc = DateTime.UtcNow;
+        if (m.Status != MonitorStatus.Paused && (probeChanged || intervalChanged))
+            m.NextCheckAtUtc = m.Type == MonitorType.Heartbeat ? HeartbeatSchedule.AfterSettingsChange(m, becameHeartbeat, DateTime.UtcNow) : DateTime.UtcNow;
         m.Version++;
     }
 }

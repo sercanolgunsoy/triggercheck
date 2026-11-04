@@ -53,7 +53,11 @@ namespace TriggerCheck.Monitoring.Engine;
 /// Worst-case DOWN detection: interval + delay + scheduler tick + probe timeout.
 /// </para>
 /// <para>
-/// TLS certificates (https Http/Keyword): the certificate captured by the probe is stored on the monitor, and a
+/// Heartbeat monitors are not probed; their "check" evaluates the pings received (<see cref="HeartbeatMonitorChecker"/>),
+/// skips confirmation and is scheduled by <see cref="HeartbeatSchedule"/> (ping received or deadline passed).
+/// </para>
+/// <para>
+/// TLS certificates (https Http/Keyword/JsonApi): the certificate captured by the probe is stored on the monitor, and a
 /// "certificate expiring" alert is sent once when it enters <see cref="MonitorEntity.CertWarnDays"/> and once more at 7 days
 /// (<see cref="MonitorStateMachine.TryMarkCertificateWarning"/>), for actively monitored monitors only.
 /// </para>
@@ -193,10 +197,18 @@ public sealed class MonitorCheckRunner(
             else
             {
                 MonitorStateMachine.ClearPendingConfirmation(monitor); // monitor changed since, too old and up now, or none
-                if (o.ConfirmBeforeDown && MonitorStateMachine.NeedsConfirmation(monitor, outcome))
+                // Heartbeats are not confirmed: the grace period already is the tolerance (see HeartbeatMonitorChecker).
+                if (o.ConfirmBeforeDown && monitor.Type != MonitorType.Heartbeat && MonitorStateMachine.NeedsConfirmation(monitor, outcome))
                     MonitorStateMachine.BeginConfirmation(monitor, outcome, checkedAt, probeEndedAt + delay);
                 else
                     transition = MonitorStateMachine.Apply(monitor, outcome, checkedAt);
+            }
+            if (monitor.Type == MonitorType.Heartbeat)
+            {
+                // Evaluated against the snapshot: a ping that arrived meanwhile is evaluated right away (next tick).
+                monitor.NextCheckAtUtc = monitor.LastHeartbeatAtUtc != snapshot.LastHeartbeatAtUtc
+                    ? checkedAt
+                    : HeartbeatSchedule.NextEvaluation(monitor, checkedAt);
             }
             alert = await ApplyTransitionAsync(db, monitor, transition, transitionAt, ct);
             // Status changed (and possibly an incident opened/closed): make concurrent user writers retry.

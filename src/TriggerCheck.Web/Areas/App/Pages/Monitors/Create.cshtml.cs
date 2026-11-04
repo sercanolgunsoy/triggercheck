@@ -5,6 +5,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TriggerCheck.Domain;
 using TriggerCheck.Infrastructure.Data;
+using TriggerCheck.Monitoring.Checks;
+using TriggerCheck.Web.Heartbeat;
 using TriggerCheck.Web.Infrastructure;
 using TriggerCheck.Web.Localization;
 using MonitorEntity = TriggerCheck.Domain.Entities.Monitor;
@@ -56,6 +58,8 @@ public class CreateModel(AppDbContext db, ICurrentCustomer current, Text<AppReso
             NextCheckAtUtc = now
         };
         Input.ApplyTo(monitor);
+        // A heartbeat is not probed: its first evaluation is when the first ping is due.
+        if (monitor.Type == Domain.Entities.MonitorType.Heartbeat) monitor.NextCheckAtUtc = HeartbeatSchedule.FirstDeadline(monitor, now);
 
         // Re-count and insert atomically so parallel posts cannot exceed the plan quota. On SQLite a Serializable
         // transaction is BEGIN IMMEDIATE: it takes the write lock up front, so concurrent creates run one by one.
@@ -82,6 +86,12 @@ public class CreateModel(AppDbContext db, ICurrentCustomer current, Text<AppReso
         }
 
         TempData["Success"] = L["Monitor \"{0}\" was created. The first check will run shortly.", monitor.Name].Value;
+        if (Input.IssuedHeartbeatToken is { } token)
+        {
+            // Shown once on the details page (only the hash is stored).
+            TempData[DetailsModel.HeartbeatUrlKey] = HeartbeatEndpoint.PingUrl(Request, token);
+            TempData["Success"] = L["Monitor \"{0}\" was created. Call its ping URL from your job; it goes down when no ping arrives in time.", monitor.Name].Value;
+        }
         return RedirectToPage("Details", new { id = monitor.Id });
     }
 

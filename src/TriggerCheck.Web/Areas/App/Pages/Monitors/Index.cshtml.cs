@@ -11,7 +11,7 @@ namespace TriggerCheck.Web.Areas.App.Pages.Monitors;
 public class IndexModel(AppDbContext db, ICurrentCustomer current, IUptimeStatsService stats) : PageModel
 {
     public record Row(int Id, string Name, MonitorType Type, string Target, int? Port, MonitorStatus Status, int IntervalSeconds,
-        int? LastResponseTimeMs, DateTime? LastCheckedAtUtc, double? Uptime24h);
+        int? LastResponseTimeMs, DateTime? LastCheckedAtUtc, double? Uptime24h, DnsRecordType? DnsRecordType = null);
 
     [BindProperty(SupportsGet = true)] public MonitorStatus? Status { get; set; }
 
@@ -29,12 +29,12 @@ public class IndexModel(AppDbContext db, ICurrentCustomer current, IUptimeStatsS
         if (Status is MonitorStatus s) q = q.Where(m => m.Status == s);
 
         var list = await q.OrderBy(m => m.Name)
-            .Select(m => new { m.Id, m.Name, m.Type, m.Target, m.Port, m.Status, m.IntervalSeconds, m.LastResponseTimeMs, m.LastCheckedAtUtc })
+            .Select(m => new { m.Id, m.Name, m.Type, m.Target, m.Port, m.Status, m.IntervalSeconds, m.LastResponseTimeMs, m.LastCheckedAtUtc, m.DnsRecordType })
             .ToListAsync(ct);
 
         var now = DateTime.UtcNow;
         var sums = await stats.GetSummariesAsync(list.Select(m => m.Id), now.AddHours(-24), now, ct);
         Monitors = list.Select(m => new Row(m.Id, m.Name, m.Type, m.Target, m.Port, m.Status, m.IntervalSeconds, m.LastResponseTimeMs,
-            m.LastCheckedAtUtc, sums.TryGetValue(m.Id, out var x) ? x.UptimePercent : null)).ToList();
+            m.LastCheckedAtUtc, sums.TryGetValue(m.Id, out var x) ? x.UptimePercent : null, m.DnsRecordType)).ToList();
     }
 }
