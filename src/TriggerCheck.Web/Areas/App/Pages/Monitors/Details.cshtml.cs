@@ -1,6 +1,8 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
+using TriggerCheck.Ai.Features;
 using TriggerCheck.Domain;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Infrastructure.Data;
@@ -21,7 +23,7 @@ namespace TriggerCheck.Web.Areas.App.Pages.Monitors;
 
 /// <summary>Readable by all customer members; the POST handlers (pause/resume/check now) are CustomerAdmin only.</summary>
 public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStatsService stats, MonitorLifecycle lifecycle, ILogger<DetailsModel> logger, Text<AppResource> L,
-    ManualCheckLimiter limiter, IResponseTimeSeriesService series, TimeProvider time, MonitorCommands commands, HeartbeatUrlReveal reveals,
+    ManualCheckLimiter limiter, IResponseTimeSeriesService series, TimeProvider time, MonitorCommands commands, HeartbeatUrlReveal reveals, AiPanels ai,
     IOptionsMonitor<RegionOptions> regionOptions) : PageModel
 {
     public const int MaxChartPoints = ResponseTimeSeriesService.MaxPoints;
@@ -64,6 +66,11 @@ public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStat
     public List<Incident> Incidents { get; private set; } = [];
     /// <summary>FEAT-6: per-region breakdown (empty for single-region monitors) and whether regions can be managed here.</summary>
     public RegionPanel Regions { get; private set; } = new([], false, 0);
+    /// <summary>AI-1 slowdown signal that is open or ended within the last 24 hours (AI-3 explains it).</summary>
+    public AnomalySignal? Slowdown { get; private set; }
+    /// <summary>Highest observed / baseline ratio of <see cref="Slowdown"/> (raw L1 text).</summary>
+    public double? SlowdownRatio { get; private set; }
+    public AiPanelModel? SlowdownAi { get; private set; }
 
     /// <summary>Compact phase breakdown of one check for the history table (empty without timing data).</summary>
     public string PhaseText(CheckResult c)
@@ -142,7 +149,22 @@ public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStat
             .Take(50)
             .ToListAsync(ct);
 
+        await LoadSlowdownAsync(m, ct);
         return Page();
+    }
+
+    private async Task LoadSlowdownAsync(MonitorEntity m, CancellationToken ct)
+    {
+        var since = time.GetUtcNow().UtcDateTime.AddHours(-24);
+        Slowdown = await db.AnomalySignals.AsNoTracking()
+            .Where(a => a.MonitorId == m.Id && a.CustomerId == m.CustomerId && (a.EndedAtUtc == null || a.EndedAtUtc >= since))
+            .OrderBy(a => a.EndedAtUtc != null).ThenByDescending(a => a.StartedAtUtc)
+            .FirstOrDefaultAsync(ct);
+        if (Slowdown is null) return;
+        SlowdownRatio = SlowdownEvidence.PeakRatio(Slowdown.DetailsJson);
+        SlowdownAi = await ai.LoadAsync(await current.GetCustomerAsync(ct), AiFeatures.SlowdownExplanation, AiSubjects.AnomalySignal,
+            Slowdown.Id.ToString(System.Globalization.CultureInfo.InvariantCulture), Slowdown.UpdatedAtUtc,
+            Url.Page("Details", new { id = m.Id }) ?? "/App/Monitors", User.FindFirstValue(ClaimTypes.NameIdentifier), IsAdmin, ct);
     }
 
     private IActionResult Back(int id, string? returnTo) =>

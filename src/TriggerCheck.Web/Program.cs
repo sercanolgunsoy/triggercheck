@@ -67,6 +67,7 @@ builder.Services.AddAuthorization(o =>
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentCustomer, CurrentCustomer>();
+builder.Services.AddScoped<AiPanels>(); // AI-2 / AI-3 blocks on incident and monitor pages
 builder.Services.AddScoped<TriggerCheck.Web.Areas.App.Support.MonitorCommands>();
 builder.Services.AddSingleton<ManualCheckLimiter>();
 builder.Services.AddHeartbeatEndpoint(builder.Configuration); // FEAT-9: /hb/{token} ping endpoint of heartbeat monitors

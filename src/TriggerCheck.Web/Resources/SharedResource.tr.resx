@@ -1276,4 +1276,76 @@
   <data name="Region" xml:space="preserve">
     <value>Bölge</value>
   </data>
+  <data name="The AI summary is being prepared. Reload the page in a moment." xml:space="preserve">
+    <value>Yapay zekâ özeti hazırlanıyor. Birazdan sayfayı yenileyin.</value>
+  </data>
+  <data name="AI summaries are switched off for this service." xml:space="preserve">
+    <value>Yapay zekâ özetleri bu hizmette kapalı.</value>
+  </data>
+  <data name="AI summaries are turned off for your account." xml:space="preserve">
+    <value>Yapay zekâ özetleri hesabınız için kapalı.</value>
+  </data>
+  <data name="AI settings" xml:space="preserve">
+    <value>Yapay zekâ ayarları</value>
+  </data>
+  <data name="AI summaries are not included in your plan." xml:space="preserve">
+    <value>Yapay zekâ özetleri planınıza dahil değil.</value>
+  </data>
+  <data name="No AI summary is available for this item." xml:space="preserve">
+    <value>Bu kayıt için yapay zekâ özeti yok.</value>
+  </data>
+  <data name="DNS" xml:space="preserve">
+    <value>DNS</value>
+  </data>
+  <data name="Certificate expired" xml:space="preserve">
+    <value>Sertifika süresi dolmuş</value>
+  </data>
+  <data name="Certificate name mismatch" xml:space="preserve">
+    <value>Sertifika adı uyuşmuyor</value>
+  </data>
+  <data name="Untrusted certificate" xml:space="preserve">
+    <value>Güvenilmeyen sertifika</value>
+  </data>
+  <data name="Server error (5xx)" xml:space="preserve">
+    <value>Sunucu hatası (5xx)</value>
+  </data>
+  <data name="Client error (4xx)" xml:space="preserve">
+    <value>İstemci hatası (4xx)</value>
+  </data>
+  <data name="Timeout" xml:space="preserve">
+    <value>Zaman aşımı</value>
+  </data>
+  <data name="Connection refused" xml:space="preserve">
+    <value>Bağlantı reddedildi</value>
+  </data>
+  <data name="Network unreachable" xml:space="preserve">
+    <value>Ağa erişilemiyor</value>
+  </data>
+  <data name="Expected content missing" xml:space="preserve">
+    <value>Beklenen içerik yok</value>
+  </data>
+  <data name="Host-wide outage" xml:space="preserve">
+    <value>Sunucunun tamamında kesinti</value>
+  </data>
+  <data name="Slow response" xml:space="preserve">
+    <value>Yavaş yanıt</value>
+  </data>
+  <data name="Configuration change" xml:space="preserve">
+    <value>Yapılandırma değişikliği</value>
+  </data>
+  <data name="Missed heartbeat" xml:space="preserve">
+    <value>Kaçırılan heartbeat</value>
+  </data>
+  <data name="Slow DNS" xml:space="preserve">
+    <value>Yavaş DNS</value>
+  </data>
+  <data name="Slow connection" xml:space="preserve">
+    <value>Yavaş bağlantı</value>
+  </data>
+  <data name="Slow TLS handshake" xml:space="preserve">
+    <value>Yavaş TLS el sıkışması</value>
+  </data>
+  <data name="Slow server response" xml:space="preserve">
+    <value>Yavaş sunucu yanıtı</value>
+  </data>
 </root>

@@ -42,6 +42,13 @@
             </dl>
         </div></div>
     </div>
+    <div class="col-12 order-last" id="incident-ai">
+        @if (Model.RelatedIncidentId is int related)
+        {
+            <div class="small text-muted mb-2" id="ai-related">@L["Other monitors on the same host failed at the same time. AI summary of the related incident:"] <a asp-page="Details" asp-route-id="@related">#@related</a></div>
+        }
+        <partial name="_AiPanel" model="Model.Ai" />
+    </div>
     @if (isAdmin && i.ResolvedAtUtc is null && i.AcknowledgedAtUtc is null)
     {
         <div class="col-lg-5">

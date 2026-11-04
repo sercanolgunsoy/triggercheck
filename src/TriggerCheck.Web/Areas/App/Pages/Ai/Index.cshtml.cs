@@ -50,8 +50,23 @@ public class IndexModel(AppDbContext db, ICurrentCustomer current, IAiUsage usag
         var cid = current.RequiredCustomerId;
         var customer = await db.Customers.FirstAsync(c => c.Id == cid, ct);
         customer.AiEnabled = enabled;
+        // Background summaries (AI-2 / AI-3) are written in the language of the admin who switched AI on.
+        if (enabled) customer.AiLanguage = Fmt.IsTurkish ? "tr" : "en";
         await db.SaveChangesAsync(ct);
         TempData["Success"] = (enabled ? L["AI features were enabled."] : L["AI features were disabled."]).Value;
+        return RedirectToPage();
+    }
+
+    /// <summary>Language of AI summaries generated in the background (CustomerAdmin).</summary>
+    public async Task<IActionResult> OnPostLanguageAsync(string? language, CancellationToken ct)
+    {
+        if (!IsAdmin) return Forbid();
+        if (language is not ("en" or "tr")) return BadRequest();
+        var cid = current.RequiredCustomerId;
+        var customer = await db.Customers.FirstAsync(c => c.Id == cid, ct);
+        customer.AiLanguage = language;
+        await db.SaveChangesAsync(ct);
+        TempData["Success"] = L["The AI summary language was saved."].Value;
         return RedirectToPage();
     }
 

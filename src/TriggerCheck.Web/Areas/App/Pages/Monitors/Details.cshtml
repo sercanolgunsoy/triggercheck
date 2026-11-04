@@ -157,6 +157,23 @@
     </div>
 </div>
 
+@if (Model.Slowdown is AnomalySignal slow)
+{
+    <div class="card mb-4 border-warning" id="slowdown-card">
+        <div class="card-header d-flex align-items-center gap-2">
+            <span class="badge text-bg-warning">@(slow.IsOpen ? L["Slowdown"] : L["Slowdown ended"])</span>
+            <span>@L["Response times are above this monitor's usual level."]</span>
+        </div>
+        <div class="card-body">
+            <p class="mb-3" id="slowdown-raw">
+                @L["Since {0} {1}", Fmt.Time(slow.StartedAtUtc), Fmt.TimeZoneLabel]@(slow.EndedAtUtc is DateTime ended ? " – " + Fmt.Time(ended) : "")@(Model.SlowdownRatio is double ratio ? " · " + L["up to {0}× the baseline", ratio.ToString("0.#", Fmt.Culture)].Value : "").
+                @if (slow.IsOpen && m.Status == MonitorStatus.Up) { <strong>@L["No outage so far: the monitor is still up."]</strong> }
+            </p>
+            @if (Model.SlowdownAi is not null) { <partial name="_AiPanel" model="Model.SlowdownAi" /> }
+        </div>
+    </div>
+}
+
 <div class="card mb-4">
     <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
         <span>@L["Response time ({0})", Fmt.TimeZoneLabel]</span>

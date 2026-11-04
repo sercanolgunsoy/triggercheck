@@ -23,6 +23,8 @@ public class IndexModel(AppDbContext db, ICurrentCustomer current, IUptimeStatsS
     public double? OverallUptime24h { get; private set; }
     /// <summary>BIZ-3 quota meters.</summary>
     public PlanUsage Usage { get; private set; } = null!;
+    /// <summary>Monitors with an open slowdown signal (AI-1; explained by AI-3 on the monitor page).</summary>
+    public HashSet<int> SlowMonitorIds { get; private set; } = [];
 
     public async Task OnGetAsync(CancellationToken ct)
     {
@@ -57,5 +59,9 @@ public class IndexModel(AppDbContext db, ICurrentCustomer current, IUptimeStatsS
             .ToListAsync(ct);
 
         Usage = await usage.GetAsync(cid, ct);
+
+        SlowMonitorIds = (await db.AnomalySignals.AsNoTracking()
+            .Where(a => a.CustomerId == cid && a.EndedAtUtc == null)
+            .Select(a => a.MonitorId).Distinct().ToListAsync(ct)).ToHashSet();
     }
 }

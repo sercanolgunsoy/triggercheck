@@ -1,0 +1,104 @@
+{
+  "id": "http-500-after-slowdown",
+  "feature": "IncidentInterpretation",
+  "language": "en",
+  "description": "Slowdown signal before HTTP 500 errors.",
+  "expect": {
+    "primaryCause": "http_5xx"
+  },
+  "monitor": {
+    "name": "Shop API",
+    "type": "Http",
+    "target": "https://shop.example.test/health",
+    "status": "Down",
+    "certExpiresInDays": 60
+  },
+  "incident": {
+    "startedMinutesAgo": 10,
+    "cause": "HTTP 500 (expected 200-299)"
+  },
+  "checks": [
+    {
+      "minutesAgo": 1,
+      "repeat": 10,
+      "everyMinutes": 1,
+      "up": false,
+      "ms": 2400,
+      "status": 500,
+      "error": "HTTP 500 (expected 200-299)",
+      "dns": 4,
+      "connect": 12,
+      "tls": 25,
+      "ttfb": 2300
+    },
+    {
+      "minutesAgo": 11,
+      "repeat": 10,
+      "everyMinutes": 1,
+      "up": true,
+      "status": 200,
+      "ms": 1900,
+      "dns": 4,
+      "connect": 12,
+      "tls": 25,
+      "ttfb": 1800
+    },
+    {
+      "minutesAgo": 21,
+      "repeat": 20,
+      "everyMinutes": 1,
+      "up": true,
+      "status": 200,
+      "ms": 180,
+      "dns": 4,
+      "connect": 12,
+      "tls": 25,
+      "ttfb": 150
+    }
+  ],
+  "anomaly": {
+    "startedMinutesAgo": 50,
+    "endedMinutesAgo": 12,
+    "score": 9.5,
+    "points": [
+      {
+        "minutesAgo": 14,
+        "ms": 1900,
+        "medianMs": 180
+      },
+      {
+        "minutesAgo": 13,
+        "ms": 2000,
+        "medianMs": 180
+      }
+    ]
+  },
+  "baselineMedianMs": 180,
+  "canned": {
+    "summary": "Shop API is down with HTTP 500 errors after response times had already tripled for about 40 minutes.",
+    "hypotheses": [
+      {
+        "cause": "The application fails with HTTP 500 Internal Server Error, likely under load.",
+        "confidence": "high",
+        "evidence": [
+          "10 checks returned status 500",
+          "A slowdown signal started 50 minutes before the incident; TTFB rose from 150 ms to 1800 ms"
+        ],
+        "category": "http_5xx",
+        "evidence_refs": [
+          "error E1",
+          "signal"
+        ]
+      }
+    ],
+    "suggested_actions": [
+      {
+        "action": "check_server_health",
+        "description": "Check application logs and resource usage (CPU, memory, database connections).",
+        "autonomy": "A0",
+        "reversible": true
+      }
+    ],
+    "unknowns": []
+  }
+}

@@ -1504,4 +1504,34 @@
   <data name="Your plan ({0}) checks monitors from the main region only." xml:space="preserve">
     <value>Planınızda ({0}) monitörler yalnızca ana bölgeden kontrol edilir.</value>
   </data>
+  <data name="Slowdown" xml:space="preserve">
+    <value>Yavaşlama</value>
+  </data>
+  <data name="Slowdown ended" xml:space="preserve">
+    <value>Yavaşlama sona erdi</value>
+  </data>
+  <data name="Response times are above this monitor's usual level." xml:space="preserve">
+    <value>Yanıt süreleri bu monitörün olağan seviyesinin üzerinde.</value>
+  </data>
+  <data name="Since {0} {1}" xml:space="preserve">
+    <value>{0} {1} itibarıyla</value>
+  </data>
+  <data name="up to {0}× the baseline" xml:space="preserve">
+    <value>olağan seviyenin {0} katına kadar</value>
+  </data>
+  <data name="No outage so far: the monitor is still up." xml:space="preserve">
+    <value>Henüz kesinti yok: monitör hâlâ çalışıyor.</value>
+  </data>
+  <data name="Slow" xml:space="preserve">
+    <value>Yavaş</value>
+  </data>
+  <data name="Language of AI summaries" xml:space="preserve">
+    <value>Yapay zekâ özetlerinin dili</value>
+  </data>
+  <data name="The AI summary language was saved." xml:space="preserve">
+    <value>Yapay zekâ özeti dili kaydedildi.</value>
+  </data>
+  <data name="Other monitors on the same host failed at the same time. AI summary of the related incident:" xml:space="preserve">
+    <value>Aynı sunucudaki diğer monitörler de aynı anda hata verdi. İlgili olayın yapay zekâ özeti:</value>
+  </data>
 </root>

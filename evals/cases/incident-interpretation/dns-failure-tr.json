@@ -1,0 +1,83 @@
+{
+  "id": "dns-failure-tr",
+  "feature": "IncidentInterpretation",
+  "language": "tr",
+  "description": "Resolved DNS outage, Turkish output.",
+  "expect": {
+    "primaryCause": "dns_failure"
+  },
+  "monitor": {
+    "name": "Shop API",
+    "type": "Http",
+    "target": "https://shop.example.test/health",
+    "status": "Down",
+    "certExpiresInDays": 60
+  },
+  "incident": {
+    "startedMinutesAgo": 40,
+    "resolvedMinutesAgo": 10,
+    "cause": "Name or service not known (shop.example.test:443)"
+  },
+  "checks": [
+    {
+      "minutesAgo": 1,
+      "repeat": 9,
+      "everyMinutes": 1,
+      "up": true,
+      "status": 200,
+      "ms": 180,
+      "dns": 4,
+      "connect": 12,
+      "tls": 25,
+      "ttfb": 150
+    },
+    {
+      "minutesAgo": 11,
+      "repeat": 29,
+      "everyMinutes": 1,
+      "up": false,
+      "ms": 30,
+      "error": "Name or service not known (shop.example.test:443)"
+    },
+    {
+      "minutesAgo": 41,
+      "repeat": 8,
+      "everyMinutes": 1,
+      "up": true,
+      "status": 200,
+      "ms": 180,
+      "dns": 4,
+      "connect": 12,
+      "tls": 25,
+      "ttfb": 150
+    }
+  ],
+  "canned": {
+    "summary": "Shop API, alan adı DNS'te çözümlenemediği için yaklaşık 30 dakika erişilemedi; ad çözümleme düzelince hizmet geri geldi.",
+    "hypotheses": [
+      {
+        "cause": "shop.example.test alan adı DNS'te çözümlenemedi.",
+        "confidence": "high",
+        "evidence": [
+          "Kesinti boyunca tüm kontroller 'Name or service not known' hatası verdi",
+          "Kurtarma kontrolünde DNS süresi 4 ms"
+        ],
+        "category": "dns",
+        "evidence_refs": [
+          "error E1"
+        ]
+      }
+    ],
+    "suggested_actions": [
+      {
+        "action": "check_dns_configuration",
+        "description": "Alan adının DNS kayıtlarını ve sağlayıcının durum sayfasını kontrol edin.",
+        "autonomy": "A0",
+        "reversible": true
+      }
+    ],
+    "unknowns": [
+      "DNS sağlayıcısında bir kesinti olup olmadığı."
+    ]
+  }
+}
