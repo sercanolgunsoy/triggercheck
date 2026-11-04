@@ -15,6 +15,13 @@ public static partial class PhoneNumber
     private static partial Regex E164Regex();
 
     public static bool IsE164(string? value) => value is not null && E164Regex().IsMatch(value);
+
+    /// <summary>For logs: <c>+905551234567</c> → <c>+90*******67</c>.</summary>
+    public static string Mask(string? value)
+    {
+        value = value?.Trim() ?? "";
+        return value.Length <= 5 ? "***" : value[..3] + new string('*', value.Length - 5) + value[^2..];
+    }
 }
 
 /// <summary>
@@ -27,6 +34,8 @@ public abstract class TwilioNotifier(IHttpClientFactory httpClientFactory, IOpti
     public const string NotConfiguredError = "SMS / voice provider (Twilio) is not configured";
 
     public abstract AlertChannelType Type { get; }
+    /// <summary>A repeated POST sends another SMS / places another call: see <see cref="WebhookPost.SendAsync"/>.</summary>
+    public bool IsIdempotent => false;
     protected abstract string Resource { get; }
     protected abstract IEnumerable<KeyValuePair<string, string>> Fields(AlertMessage message);
 
@@ -37,7 +46,7 @@ public abstract class TwilioNotifier(IHttpClientFactory httpClientFactory, IOpti
         if (!o.IsConfigured)
         {
             logger.LogWarning("Twilio is not configured (Twilio:AccountSid / AuthToken / FromNumber); {Type} alert '{Subject}' to {To} not sent",
-                Type, message.Subject, to);
+                Type, message.Subject, PhoneNumber.Mask(to));
             return Task.FromResult(NotifyResult.Fail(NotConfiguredError));
         }
         if (!PhoneNumber.IsE164(to)) return Task.FromResult(NotifyResult.Fail("Invalid phone number (E.164 format required)"));
@@ -51,7 +60,7 @@ public abstract class TwilioNotifier(IHttpClientFactory httpClientFactory, IOpti
         {
             Headers = { Authorization = new AuthenticationHeaderValue("Basic", credentials) },
             Content = new FormUrlEncodedContent(form)
-        }, "Twilio", ct, o.AuthToken);
+        }, "Twilio", ct, o.AuthToken, idempotent: false);
     }
 }
 
@@ -70,9 +79,9 @@ public sealed class TwilioSmsNotifier(IHttpClientFactory f, IOptionsMonitor<Twil
         var text = m.Kind switch
         {
             AlertKind.Test => "TriggerCheck: test notification. This alert channel works.",
-            AlertKind.Down => $"TriggerCheck DOWN: {AlertMessage.OneLine(m.MonitorName)} ({m.Target}) {m.OccurredAtUtc:HH:mm} UTC"
+            AlertKind.Down => $"TriggerCheck DOWN: {AlertMessage.OneLine(m.MonitorName)} ({m.MaskedTarget}) {m.OccurredAtUtc:HH:mm} UTC"
                               + (string.IsNullOrEmpty(m.Error) ? "" : $" - {AlertMessage.OneLine(m.Error)}"),
-            _ => $"TriggerCheck UP: {AlertMessage.OneLine(m.MonitorName)} ({m.Target}) {m.OccurredAtUtc:HH:mm} UTC"
+            _ => $"TriggerCheck UP: {AlertMessage.OneLine(m.MonitorName)} ({m.MaskedTarget}) {m.OccurredAtUtc:HH:mm} UTC"
                  + (m.DowntimeText is { } d ? $", down for {d}" : "")
         };
         return text.Length <= MaxLength ? text : text[..(MaxLength - 1)] + "…";
@@ -96,6 +105,8 @@ public sealed class TwilioVoiceNotifier(IHttpClientFactory f, IOptionsMonitor<Tw
             AlertKind.Up => $"TriggerCheck notice. Monitor {name} is up again.",
             _ => "This is a test call from TriggerCheck. Your alert channel works."
         };
-        return $"<Response><Say loop=\"2\">{SecurityElement.Escape(speech)}</Say></Response>";
+        // Control characters are not allowed in XML at all (escaping does not help): drop them.
+        var clean = new string(speech.Where(System.Xml.XmlConvert.IsXmlChar).ToArray());
+        return $"<Response><Say loop=\"2\">{SecurityElement.Escape(clean)}</Say></Response>";
     }
 }

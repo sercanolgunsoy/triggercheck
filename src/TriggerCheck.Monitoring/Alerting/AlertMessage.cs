@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using TriggerCheck.Domain.Entities;
+using TriggerCheck.Domain.Security;
 
 namespace TriggerCheck.Monitoring.Alerting;
 
@@ -39,27 +40,36 @@ public sealed record AlertMessage(
         _ => "This is a test notification from TriggerCheck."
     };
 
+    /// <summary>
+    /// Monitor target without credentials / query string (<see cref="SecretMasker.MaskUrl"/>), for chat, SMS and voice
+    /// messages that end up in third-party systems.
+    /// </summary>
+    public string MaskedTarget => SecretMasker.MaskUrl(Target);
+
     /// <summary>Downtime as "1h 5m", or null.</summary>
     public string? DowntimeText => Kind == AlertKind.Up && Downtime is { } d ? FormatDuration(d) : null;
 
-    public string Body
+    /// <summary>Plain-text body (e-mail).</summary>
+    public string Body => BuildBody(Target);
+
+    /// <summary>Plain-text body with <see cref="MaskedTarget"/> (third-party chat channels).</summary>
+    public string MaskedBody => BuildBody(MaskedTarget);
+
+    private string BuildBody(string target)
     {
-        get
+        var sb = new StringBuilder();
+        sb.AppendLine(Headline);
+        if (Kind == AlertKind.Test)
         {
-            var sb = new StringBuilder();
-            sb.AppendLine(Headline);
-            if (Kind == AlertKind.Test)
-            {
-                sb.AppendLine("If you can read this, the alert channel works.");
-                sb.AppendLine($"Time (UTC): {OccurredAtUtc:yyyy-MM-dd HH:mm:ss}");
-                return sb.ToString();
-            }
-            sb.AppendLine($"Target: {Target}");
+            sb.AppendLine("If you can read this, the alert channel works.");
             sb.AppendLine($"Time (UTC): {OccurredAtUtc:yyyy-MM-dd HH:mm:ss}");
-            if (Kind == AlertKind.Down && !string.IsNullOrEmpty(Error)) sb.AppendLine($"Error: {Error}");
-            if (DowntimeText is { } d) sb.AppendLine($"Downtime: {d}");
             return sb.ToString();
         }
+        sb.AppendLine($"Target: {target}");
+        sb.AppendLine($"Time (UTC): {OccurredAtUtc:yyyy-MM-dd HH:mm:ss}");
+        if (Kind == AlertKind.Down && !string.IsNullOrEmpty(Error)) sb.AppendLine($"Error: {Error}");
+        if (DowntimeText is { } d) sb.AppendLine($"Downtime: {d}");
+        return sb.ToString();
     }
 
     public static AlertMessage For(Domain.Entities.Monitor monitor, AlertKind kind, DateTime occurredAtUtc, TimeSpan? downtime = null) =>
@@ -113,5 +123,12 @@ public sealed record NotifyTarget(string Address, string? Secret = null)
 public interface INotifier
 {
     AlertChannelType Type { get; }
+
+    /// <summary>
+    /// Whether repeating a request whose outcome is unknown (timeout, exception) is harmless. Non-idempotent channels
+    /// (SMS / voice: a repeat costs money and pages twice) are only retried when the request surely was not processed.
+    /// </summary>
+    bool IsIdempotent => true;
+
     Task<NotifyResult> SendAsync(NotifyTarget target, AlertMessage message, CancellationToken ct);
 }

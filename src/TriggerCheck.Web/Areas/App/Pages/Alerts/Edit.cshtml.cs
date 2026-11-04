@@ -40,7 +40,7 @@ public class EditModel(AppDbContext db, ICurrentCustomer current, IOptionsMonito
         Id = id;
         var smsVoice = await LoadAsync(c, ct);
 
-        Input.Validate(ModelState, L, smsVoice, hasStoredSecret: HasStoredSecret);
+        Input.Validate(ModelState, L, smsVoice, existing: c);
         if (!ModelState.IsValid) return Page();
 
         Input.ApplyTo(c);

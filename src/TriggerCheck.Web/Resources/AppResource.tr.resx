@@ -652,4 +652,7 @@
   <data name="Test notification to &quot;{0}&quot; failed: {1}" xml:space="preserve">
     <value>"{0}" kanalına test bildirimi başarısız oldu: {1}</value>
   </data>
+  <data name="Some enabled channels cannot deliver: SMS and voice call alerts are not available for your plan or not set up for this service. They are skipped, and if no other channel is enabled the setting below applies." xml:space="preserve">
+    <value>Bazı etkin kanallar bildirim iletemez: SMS ve sesli arama bildirimleri planınızda bulunmuyor veya bu hizmette yapılandırılmamış. Bu kanallar atlanır; başka etkin kanal yoksa aşağıdaki ayar uygulanır.</value>
+  </data>
 </root>

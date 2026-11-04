@@ -12,25 +12,23 @@ public interface IAlertQueue
 }
 
 /// <summary>
-/// Bounded in-process queue (<see cref="Channel{T}"/>) between the check runner and <see cref="AlertSenderService"/>,
-/// so a slow or hanging notification target never holds a check slot.
+/// In-process queue (<see cref="Channel{T}"/>) between the check runner and <see cref="AlertSenderService"/>, so a
+/// slow or hanging notification target never holds a check slot. Bounded by <see cref="AlertingOptions.QueueCapacity"/>
+/// alerts that are queued or still in delivery (including retry waits).
 /// Known limitation: the queue lives in memory; alerts still queued or being retried when the process crashes are lost
 /// (a graceful shutdown drains it, see <see cref="AlertSenderService"/>).
 /// </summary>
 public sealed class AlertQueue : IAlertQueue
 {
-    private readonly Channel<AlertMessage> _channel;
+    private readonly Channel<AlertMessage> _channel = Channel.CreateUnbounded<AlertMessage>(new UnboundedChannelOptions { SingleReader = true });
     private readonly ILogger<AlertQueue> _logger;
+    private readonly int _capacity;
     private int _pending;
 
     public AlertQueue(IOptions<AlertingOptions> options, ILogger<AlertQueue> logger)
     {
         _logger = logger;
-        _channel = Channel.CreateBounded<AlertMessage>(new BoundedChannelOptions(Math.Max(1, options.Value.QueueCapacity))
-        {
-            FullMode = BoundedChannelFullMode.Wait, // TryWrite returns false instead of waiting
-            SingleReader = true
-        });
+        _capacity = Math.Max(1, options.Value.QueueCapacity);
     }
 
     public ChannelReader<AlertMessage> Reader => _channel.Reader;
@@ -40,8 +38,7 @@ public sealed class AlertQueue : IAlertQueue
 
     public bool TryEnqueue(AlertMessage message)
     {
-        Interlocked.Increment(ref _pending);
-        if (_channel.Writer.TryWrite(message)) return true;
+        if (Interlocked.Increment(ref _pending) <= _capacity && _channel.Writer.TryWrite(message)) return true;
         Interlocked.Decrement(ref _pending);
         _logger.LogError("Alert queue full or shut down; alert '{Subject}' for monitor {MonitorId} was dropped",
             message.Subject, message.MonitorId);
@@ -58,5 +55,45 @@ public sealed class AlertQueue : IAlertQueue
     public async Task WhenIdleAsync(CancellationToken ct = default)
     {
         while (Pending > 0) await Task.Delay(10, ct);
+    }
+}
+
+/// <summary>
+/// Limits concurrent delivery attempts: <see cref="AlertingOptions.MaxConcurrency"/> overall and
+/// <see cref="AlertingOptions.MaxConcurrencyPerCustomer"/> per customer. Held only for one attempt, never during retry
+/// waits. The customer slot is taken first, so a customer waiting for its own cap does not hold a global slot.
+/// (Per-customer semaphores are kept for the process lifetime: one small object per customer that ever alerted.)
+/// </summary>
+public sealed class AlertDeliveryThrottle(IOptions<AlertingOptions> options)
+{
+    private readonly SemaphoreSlim _global = new(Math.Max(1, options.Value.MaxConcurrency));
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<int, SemaphoreSlim> _perCustomer = new();
+    private readonly int _perCustomerLimit = Math.Max(1, options.Value.MaxConcurrencyPerCustomer);
+
+    public async Task<IDisposable> AcquireAsync(int customerId, CancellationToken ct)
+    {
+        var customer = _perCustomer.GetOrAdd(customerId, _ => new SemaphoreSlim(_perCustomerLimit));
+        await customer.WaitAsync(ct);
+        try
+        {
+            await _global.WaitAsync(ct);
+        }
+        catch
+        {
+            customer.Release();
+            throw;
+        }
+        return new Releaser(this, customer);
+    }
+
+    private sealed class Releaser(AlertDeliveryThrottle owner, SemaphoreSlim customer) : IDisposable
+    {
+        private int _disposed;
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _disposed, 1) == 1) return;
+            owner._global.Release();
+            customer.Release();
+        }
     }
 }

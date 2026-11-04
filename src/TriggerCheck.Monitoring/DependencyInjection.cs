@@ -77,6 +77,7 @@ public static class DependencyInjection
         services.AddScoped<IAlertDispatcher, AlertDispatcher>();
         // Runner -> bounded queue -> sender (own concurrency, timeouts, retries). Registered before the scheduler so
         // it stops after it (hosted services stop in reverse order) and can drain the last alerts.
+        services.AddSingleton<AlertDeliveryThrottle>();
         services.AddSingleton<AlertQueue>();
         services.AddSingleton<IAlertQueue>(sp => sp.GetRequiredService<AlertQueue>());
         services.AddSingleton<AlertSenderService>();

@@ -18,7 +18,7 @@ public class ChannelPayloadTests
     private const string Sid = "AC0123456789abcdef";
     private const string AuthToken = "twilio-auth-token-secret";
 
-    private static readonly AlertMessage Down = new(7, 1, "Shop <prod>", "https://shop.example.test", AlertKind.Down, "Connection refused",
+    private static readonly AlertMessage Down = new(7, 1, "Shop <prod>", "https://user:pw@shop.example.test/health?key=secret", AlertKind.Down, "Connection refused",
         new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc));
     private static readonly AlertMessage Up = Down with { Kind = AlertKind.Up, Error = null, Downtime = TimeSpan.FromMinutes(65) };
 
@@ -62,7 +62,9 @@ public class ChannelPayloadTests
         Assert.Equal("mrkdwn", blocks[0].GetProperty("text").GetProperty("type").GetString());
         Assert.Contains("Shop &lt;prod&gt;", blocks[0].GetProperty("text").GetProperty("text").GetString()); // mrkdwn-escaped
         var fields = blocks[1].GetProperty("fields").EnumerateArray().Select(f => f.GetProperty("text").GetString()).ToList();
-        Assert.Contains("*Target*\nhttps://shop.example.test", fields);
+        Assert.Contains("*Target*\nhttps://shop.example.test/health?…", fields); // credentials / query masked
+        Assert.DoesNotContain("secret", req.Body);
+        Assert.DoesNotContain("<prod>", root.GetProperty("text").GetString()); // top-level text is escaped too
         Assert.Contains("*Time (UTC)*\n2026-01-01 12:00:00", fields);
         Assert.Contains(blocks, b => b.GetProperty("type").GetString() == "section"
                                      && b.TryGetProperty("text", out var t) && t.GetProperty("text").GetString()!.Contains("```Connection refused```"));
@@ -95,7 +97,7 @@ public class ChannelPayloadTests
         Assert.Equal("Attention", body[0].GetProperty("color").GetString());
         var facts = body[2].GetProperty("facts").EnumerateArray()
             .ToDictionary(f => f.GetProperty("title").GetString()!, f => f.GetProperty("value").GetString());
-        Assert.Equal("https://shop.example.test", facts["Target"]);
+        Assert.Equal("https://shop.example.test/health?…", facts["Target"]);
         Assert.Equal("Connection refused", facts["Error"]);
     }
 
@@ -120,6 +122,7 @@ public class ChannelPayloadTests
         Assert.StartsWith("[TriggerCheck] DOWN: Shop <prod>", json.RootElement.GetProperty("text").GetString());
         Assert.True(json.RootElement.GetProperty("disable_web_page_preview").GetBoolean());
         Assert.False(json.RootElement.TryGetProperty("parse_mode", out _)); // plain text: nothing to escape
+        Assert.DoesNotContain("key=secret", json.RootElement.GetProperty("text").GetString());
 
         Assert.False((await telegram.SendAsync(new NotifyTarget("-100123", null), Down, CancellationToken.None)).Success);
         Assert.False((await telegram.SendAsync(new NotifyTarget("not a chat", BotToken), Down, CancellationToken.None)).Success);
@@ -168,7 +171,7 @@ public class ChannelPayloadTests
         var smsForm = QueryHelpers(reqs[0].Body);
         Assert.Equal("+905551234567", smsForm["To"]);
         Assert.Equal("+15550001111", smsForm["From"]);
-        Assert.StartsWith("TriggerCheck DOWN: Shop <prod> (https://shop.example.test) 12:00 UTC - Connection refused", smsForm["Body"]);
+        Assert.StartsWith("TriggerCheck DOWN: Shop <prod> (https://shop.example.test/health?…) 12:00 UTC - Connection refused", smsForm["Body"]);
         Assert.True(smsForm["Body"].Length <= TwilioSmsNotifier.MaxLength);
 
         Assert.Equal($"/2010-04-01/Accounts/{Sid}/Calls.json", reqs[1].Path);
@@ -198,6 +201,54 @@ public class ChannelPayloadTests
         Assert.False(none.Success);
         Assert.False(none.Retryable);
         Assert.Equal(TwilioNotifier.NotConfiguredError, none.Error);
+    }
+
+    [Fact]
+    public async Task Twilio_is_only_retried_when_the_request_surely_was_not_processed()
+    {
+        foreach (var (status, retryable) in new[] { (429, true), (503, true), (500, false), (502, false), (504, false) })
+        {
+            var (server, _) = await StartReceiverAsync(status);
+            await using var s = server;
+            await using var host = await MonitoringTestHost.CreateAsync(settings: new()
+            {
+                ["Twilio:AccountSid"] = Sid, ["Twilio:AuthToken"] = AuthToken, ["Twilio:FromNumber"] = "+15550001111",
+                ["Twilio:ApiBaseUrl"] = server.BaseUrl
+            });
+            var r = await Notifier(host, AlertChannelType.Sms).SendAsync("+905551234567", Down, CancellationToken.None);
+            Assert.Equal(retryable, r.Retryable);
+        }
+
+        // Connection refused: the request never left, a retry cannot double-send.
+        await using var refused = await MonitoringTestHost.CreateAsync(settings: new()
+        {
+            ["Twilio:AccountSid"] = Sid, ["Twilio:AuthToken"] = AuthToken, ["Twilio:FromNumber"] = "+15550001111",
+            ["Twilio:ApiBaseUrl"] = "http://127.0.0.1:1"
+        });
+        var notifier = Notifier(refused, AlertChannelType.VoiceCall);
+        Assert.False(notifier.IsIdempotent);
+        var c = await notifier.SendAsync("+905551234567", Down, CancellationToken.None);
+        Assert.True(c.Retryable, c.Error);
+        Assert.DoesNotContain(AuthToken, c.Error);
+
+    }
+
+    [Fact]
+    public void Slack_text_is_truncated_and_twiml_drops_control_characters()
+    {
+        var huge = Down with { MonitorName = new string('n', 5000), Target = "https://x.test/" + new string('p', 5000), Error = new string('e', 5000) };
+        var payload = SlackNotifier.BuildPayload(huge);
+        foreach (var block in payload["blocks"]!.AsArray())
+        {
+            if (block!["text"] is { } text) Assert.True(((string)text["text"]!).Length <= SlackNotifier.MaxSectionText);
+            if (block["fields"] is { } fields)
+                Assert.All(fields.AsArray(), f => Assert.True(((string)f!["text"]!).Length <= SlackNotifier.MaxFieldText));
+        }
+        Assert.True(((string)payload["text"]!).Length <= SlackNotifier.MaxSectionText);
+
+        var twiml = TwilioVoiceNotifier.BuildTwiml(Down with { MonitorName = "Shop\u0001\u0007 & Co" });
+        Assert.Equal("<Response><Say loop=\"2\">TriggerCheck alert. Monitor Shop &amp; Co is down.</Say></Response>", twiml);
+        System.Xml.Linq.XDocument.Parse(twiml); // well-formed
     }
 
     [Fact]

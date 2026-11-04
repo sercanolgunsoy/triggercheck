@@ -60,7 +60,11 @@ else
     <div class="card-body">
         <h5 class="card-title">@L["When no channel is enabled"]</h5>
         <p class="text-muted small mb-3">@L["Alerts go to every enabled channel above. If no channel is enabled (none added, or all disabled), this setting decides what happens to DOWN / UP alerts. Disabling every channel therefore does not silence alerts unless you choose \"Do not send alerts\"."]</p>
-        @if (!Model.AnyEnabled)
+        @if (Model.HasUndeliverable)
+        {
+            <div class="alert alert-warning small py-2">@L["Some enabled channels cannot deliver: SMS and voice call alerts are not available for your plan or not set up for this service. They are skipped, and if no other channel is enabled the setting below applies."]</div>
+        }
+        @if (!Model.AnyDeliverable)
         {
             <div class="alert alert-warning small py-2">
                 @(Model.FallbackToContactEmail

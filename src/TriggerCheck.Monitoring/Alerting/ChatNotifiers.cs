@@ -23,17 +23,17 @@ public sealed partial class SlackNotifier(IHttpClientFactory httpClientFactory) 
         var emoji = m.Kind switch { AlertKind.Down => ":red_circle:", AlertKind.Up => ":large_green_circle:", _ => ":white_check_mark:" };
         var blocks = new JsonArray
         {
-            Section($"{emoji} *{Escape(m.Headline)}*")
+            Section(Cut($"{emoji} *{Escape(m.Headline)}*", MaxSectionText))
         };
 
         var fields = new JsonArray();
-        if (m.Kind != AlertKind.Test) fields.Add(Mrkdwn($"*Target*\n{Escape(m.Target)}"));
+        if (m.Kind != AlertKind.Test) fields.Add(Mrkdwn(Cut($"*Target*\n{Escape(m.MaskedTarget)}", MaxFieldText)));
         fields.Add(Mrkdwn($"*Time (UTC)*\n{m.OccurredAtUtc:yyyy-MM-dd HH:mm:ss}"));
         if (m.DowntimeText is { } downtime) fields.Add(Mrkdwn($"*Downtime*\n{downtime}"));
         blocks.Add(new JsonObject { ["type"] = "section", ["fields"] = fields });
 
         if (m.Kind == AlertKind.Down && !string.IsNullOrEmpty(m.Error))
-            blocks.Add(Section($"*Error*\n```{Escape(m.Error).Replace("```", "'''")}```"));
+            blocks.Add(Section($"*Error*\n```{Cut(Escape(m.Error).Replace("```", "'''"), MaxSectionText - 20)}```"));
         blocks.Add(new JsonObject
         {
             ["type"] = "context",
@@ -42,10 +42,15 @@ public sealed partial class SlackNotifier(IHttpClientFactory httpClientFactory) 
 
         return new JsonObject
         {
-            ["text"] = $"{emoji} {m.Headline}", // notification / fallback text (plain)
+            ["text"] = Cut($"{emoji} {Escape(m.Headline)}", MaxSectionText), // notification / fallback text
             ["blocks"] = blocks
         };
     }
+
+    /// <summary>Slack limits: section text 3000 characters, each field 2000 (kept below with some margin).</summary>
+    public const int MaxSectionText = 3000, MaxFieldText = 1900;
+
+    private static string Cut(string s, int max) => s.Length <= max ? s : s[..(max - 1)] + "…";
 
     private static JsonObject Section(string text) => new() { ["type"] = "section", ["text"] = Mrkdwn(text) };
     private static JsonObject Mrkdwn(string text) => new() { ["type"] = "mrkdwn", ["text"] = text };
@@ -72,7 +77,7 @@ public sealed class TeamsNotifier(IHttpClientFactory httpClientFactory) : INotif
     public static JsonObject BuildPayload(AlertMessage m)
     {
         var facts = new JsonArray();
-        if (m.Kind != AlertKind.Test) facts.Add(Fact("Target", m.Target));
+        if (m.Kind != AlertKind.Test) facts.Add(Fact("Target", m.MaskedTarget));
         facts.Add(Fact("Time (UTC)", m.OccurredAtUtc.ToString("yyyy-MM-dd HH:mm:ss")));
         if (m.Kind == AlertKind.Down && !string.IsNullOrEmpty(m.Error)) facts.Add(Fact("Error", m.Error));
         if (m.DowntimeText is { } downtime) facts.Add(Fact("Downtime", downtime));
@@ -142,7 +147,7 @@ public sealed partial class TelegramNotifier(IHttpClientFactory httpClientFactor
     public static JsonObject BuildPayload(string chatId, AlertMessage m) => new()
     {
         ["chat_id"] = chatId,
-        ["text"] = m.Subject + "\n\n" + m.Body,
+        ["text"] = m.Subject + "\n\n" + m.MaskedBody,
         ["disable_web_page_preview"] = true
     };
 }

@@ -107,20 +107,34 @@ internal static class WebhookPost
         return SendAsync(factory, () => new HttpRequestMessage(HttpMethod.Post, uri) { Content = JsonContent.Create(payload) }, what, ct, secret);
     }
 
-    public static async Task<NotifyResult> SendAsync(IHttpClientFactory factory, Func<HttpRequestMessage> request, string what, CancellationToken ct, string? secret = null)
+    /// <param name="idempotent">
+    /// False for requests that must not be repeated when their outcome is unknown (Twilio): only HTTP 429 / 503 and
+    /// failures before the request was sent (DNS, connect, TLS) are then retryable; timeouts and other errors are final.
+    /// </param>
+    public static async Task<NotifyResult> SendAsync(IHttpClientFactory factory, Func<HttpRequestMessage> request, string what, CancellationToken ct,
+        string? secret = null, bool idempotent = true)
     {
         var client = factory.CreateClient(MonitoringHttpClients.Webhook);
         try
         {
             using var req = request();
             using var response = await client.SendAsync(req, ct);
-            return response.IsSuccessStatusCode ? NotifyResult.Ok : NotifyResult.ForHttpStatus(what, response.StatusCode);
+            if (response.IsSuccessStatusCode) return NotifyResult.Ok;
+            if (idempotent) return NotifyResult.ForHttpStatus(what, response.StatusCode);
+            var error = $"{what} returned HTTP {(int)response.StatusCode}";
+            return response.StatusCode is HttpStatusCode.TooManyRequests or HttpStatusCode.ServiceUnavailable
+                ? NotifyResult.Transient(error) : NotifyResult.Fail(error);
         }
         catch (Exception ex) when (!ct.IsCancellationRequested)
         {
-            return NotifyResult.Transient(SecretMasker.Redact(ProbeErrors.Describe(ex, client.Timeout), secret)!);
+            var error = SecretMasker.Redact(ProbeErrors.Describe(ex, client.Timeout), secret)!;
+            return idempotent || IsBeforeSend(ex) ? NotifyResult.Transient(error) : NotifyResult.Fail(error);
         }
     }
+
+    /// <summary>The request never reached the server: DNS, connect or TLS handshake failed.</summary>
+    public static bool IsBeforeSend(Exception ex) =>
+        ex is HttpRequestException { HttpRequestError: HttpRequestError.NameResolutionError or HttpRequestError.ConnectionError or HttpRequestError.SecureConnectionError };
 
     public static bool TryParseHttpUrl(string? url, out Uri uri) =>
         Uri.TryCreate(url?.Trim(), UriKind.Absolute, out uri!) && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);

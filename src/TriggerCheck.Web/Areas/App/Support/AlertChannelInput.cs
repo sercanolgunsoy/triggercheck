@@ -63,9 +63,10 @@ public class AlertChannelInput : IValidatableObject
     public static bool UsesUrl(AlertChannelType t) => t is AlertChannelType.Webhook or AlertChannelType.Slack or AlertChannelType.Teams;
 
     /// <param name="smsVoiceAvailable">Twilio configured and the customer's plan allows SMS / voice.</param>
-    /// <param name="hasStoredSecret">Editing a Telegram channel that already has a bot token.</param>
-    public void Validate(ModelStateDictionary ms, IStringLocalizer L, bool smsVoiceAvailable = false, bool hasStoredSecret = false, string prefix = "Input.")
+    /// <param name="existing">The channel being edited (null when creating).</param>
+    public void Validate(ModelStateDictionary ms, IStringLocalizer L, bool smsVoiceAvailable = false, AlertChannel? existing = null, string prefix = "Input.")
     {
+        var hasStoredSecret = existing is { Type: AlertChannelType.Telegram } && !string.IsNullOrEmpty(existing.Secret);
         Name = Name?.Trim() ?? "";
         Target = Target?.Trim() ?? "";
         Secret = string.IsNullOrWhiteSpace(Secret) ? null : Secret.Trim();
@@ -96,7 +97,10 @@ public class AlertChannelInput : IValidatableObject
                 break;
             case AlertChannelType.Sms:
             case AlertChannelType.VoiceCall:
-                if (!smsVoiceAvailable)
+                // After a plan downgrade an existing SMS / voice channel can still be renamed or disabled;
+                // only creating one or (re-)enabling it is refused.
+                var keepsExisting = existing is not null && existing.Type == Type && (!IsEnabled || existing.IsEnabled);
+                if (!smsVoiceAvailable && !keepsExisting)
                     ms.AddModelError(prefix + nameof(Type), L["SMS and voice call alerts are not available for your plan."]);
                 else if (!PhoneNumber.IsE164(Target))
                     ms.AddModelError(target, L["Enter the phone number in international E.164 format, e.g. +905551234567."]);

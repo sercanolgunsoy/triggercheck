@@ -204,6 +204,7 @@ public class TwilioWebAppFactory : TestWebAppFactory
         builder.UseSetting("Twilio:AccountSid", "AC0123456789abcdef");
         builder.UseSetting("Twilio:AuthToken", "test-token");
         builder.UseSetting("Twilio:FromNumber", "+15550001111");
+        builder.UseSetting("Twilio:ApiBaseUrl", "http://127.0.0.1:1"); // never call the real API from tests
     }
 }
 
@@ -249,6 +250,54 @@ public class SmsVoiceChannelTests(TwilioWebAppFactory f) : IClassFixture<TwilioW
             var standard = await f.PlanIdAsync("Standard");
             await f.WithDbAsync(db => db.Customers.Where(x => x.Id == cid).ExecuteUpdateAsync(s => s.SetProperty(x => x.PlanId, standard)));
         }
+    }
+
+    [Fact]
+    public async Task Sms_tests_are_limited_and_channels_stay_editable_after_a_downgrade()
+    {
+        var cid = await f.AddCustomerAsync($"Ent-{Guid.NewGuid():N}", "Enterprise");
+        var email = $"admin-{Guid.NewGuid():N}@ent.local";
+        await f.AddUserAsync(cid, email, "Admin123!", Roles.CustomerAdmin);
+        var c = await f.LoginAsync(email, "Admin123!");
+        var ids = new List<int>();
+        for (var i = 0; i < 4; i++)
+            ids.Add(await f.WithDbAsync(async db =>
+            {
+                var ch = new AlertChannel { CustomerId = cid, Name = $"Pager {i}", Type = AlertChannelType.Sms, Target = "+905551234567" };
+                db.AlertChannels.Add(ch);
+                await db.SaveChangesAsync();
+                return ch.Id;
+            }));
+
+        // SMS / voice tests cost money: 3 per customer per hour.
+        for (var i = 0; i < 3; i++)
+        {
+            var sent = await c.PostFormAsync($"/App/Alerts/Index?handler=Test&id={ids[i]}", new(), "/App/Alerts/Index");
+            Assert.Contains($"Test notification to \"Pager {i}\" failed", await c.FollowAsync(sent));
+        }
+        var r = await c.PostFormAsync($"/App/Alerts/Index?handler=Test&id={ids[3]}", new(), "/App/Alerts/Index");
+        Assert.Contains("Too many test notifications. Try again in", await c.FollowAsync(r));
+
+        // Downgrade: channels are flagged, can be renamed and disabled, but not (re-)enabled.
+        var standard = await f.PlanIdAsync("Standard");
+        await f.WithDbAsync(db => db.Customers.Where(x => x.Id == cid).ExecuteUpdateAsync(s => s.SetProperty(x => x.PlanId, standard)));
+        Assert.Contains("Some enabled channels cannot deliver", await c.GetHtmlAsync("/App/Alerts/Index"));
+
+        AssertRedirect(await c.PostFormAsync($"/App/Alerts/Edit/{ids[0]}", Form("Pager renamed", "Sms", "+905551234567")), "/App/Alerts");
+        var disabled = Form("Pager renamed", "Sms", "+905551234567");
+        disabled["Input.IsEnabled"] = "false";
+        AssertRedirect(await c.PostFormAsync($"/App/Alerts/Edit/{ids[0]}", disabled), "/App/Alerts");
+        Assert.False(await f.WithDbAsync(db => db.AlertChannels.Where(x => x.Id == ids[0]).Select(x => x.IsEnabled).SingleAsync()));
+
+        r = await c.PostFormAsync($"/App/Alerts/Edit/{ids[0]}", Form("Pager renamed", "Sms", "+905551234567"));
+        Assert.Contains("SMS and voice call alerts are not available for your plan.", await r.ReadHtmlAsync());
+        r = await c.PostFormAsync($"/App/Alerts/Index?handler=Toggle&id={ids[0]}", new(), "/App/Alerts/Index");
+        Assert.Contains("SMS and voice call alerts are not available for your plan.", await c.FollowAsync(r));
+        Assert.False(await f.WithDbAsync(db => db.AlertChannels.Where(x => x.Id == ids[0]).Select(x => x.IsEnabled).SingleAsync()));
+
+        // The no-channel setting must be posted explicitly.
+        r = await c.PostFormAsync("/App/Alerts/Index?handler=Fallback", new(), "/App/Alerts/Index");
+        Assert.Equal(HttpStatusCode.BadRequest, r.StatusCode);
     }
 
     [Fact]

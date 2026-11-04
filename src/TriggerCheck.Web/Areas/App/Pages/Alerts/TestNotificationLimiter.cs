@@ -2,13 +2,17 @@ namespace TriggerCheck.Web.Areas.App.Pages.Alerts;
 
 /// <summary>
 /// Light rate limit for "Send test notification": one test per channel every <see cref="ChannelCooldownSeconds"/>
-/// and at most <see cref="PerCustomerPerMinute"/> tests per customer in any rolling minute.
+/// and at most <see cref="PerCustomerPerMinute"/> tests per customer in any rolling minute; SMS / voice tests (they cost
+/// money) additionally at most <see cref="SmsVoicePerCustomerPerHour"/> per customer in any rolling hour.
 /// State lives in memory and is per instance (the app runs as a single instance).
 /// </summary>
 public sealed class TestNotificationLimiter(TimeProvider time)
 {
     public const int ChannelCooldownSeconds = 10;
     public const int PerCustomerPerMinute = 5;
+    public const int SmsVoicePerCustomerPerHour = 3;
+    private static readonly TimeSpan Hour = TimeSpan.FromHours(1);
+    private readonly Dictionary<int, Queue<DateTime>> _smsVoiceByCustomer = new();
     private static readonly TimeSpan ChannelCooldown = TimeSpan.FromSeconds(ChannelCooldownSeconds);
     private static readonly TimeSpan Window = TimeSpan.FromMinutes(1);
 
@@ -17,7 +21,7 @@ public sealed class TestNotificationLimiter(TimeProvider time)
     private readonly Dictionary<int, Queue<DateTime>> _recentByCustomer = new();
 
     /// <summary>Records the test when allowed; otherwise returns the whole seconds to wait (at least 1).</summary>
-    public bool TryAcquire(int customerId, int channelId, out int retryAfterSeconds)
+    public bool TryAcquire(int customerId, int channelId, bool smsOrVoice, out int retryAfterSeconds)
     {
         var now = time.GetUtcNow().UtcDateTime;
         lock (_lock)
@@ -32,6 +36,17 @@ public sealed class TestNotificationLimiter(TimeProvider time)
             if (recent.Count >= PerCustomerPerMinute)
                 return Deny(recent.Peek() + Window - now, out retryAfterSeconds);
 
+            Queue<DateTime>? paid = null;
+            if (smsOrVoice)
+            {
+                if (!_smsVoiceByCustomer.TryGetValue(customerId, out paid))
+                    _smsVoiceByCustomer[customerId] = paid = new Queue<DateTime>();
+                while (paid.Count > 0 && now - paid.Peek() >= Hour) paid.Dequeue();
+                if (paid.Count >= SmsVoicePerCustomerPerHour)
+                    return Deny(paid.Peek() + Hour - now, out retryAfterSeconds);
+            }
+
+            paid?.Enqueue(now);
             recent.Enqueue(now);
             _lastByChannel[channelId] = now;
             if (_lastByChannel.Count > 1000)
