@@ -886,4 +886,40 @@
   <data name="{0} days of check history" xml:space="preserve">
     <value>{0} günlük kontrol geçmişi</value>
   </data>
+  <data name="Your account is suspended. Please contact your administrator." xml:space="preserve">
+    <value>Hesabınız askıya alınmış. Lütfen yöneticinizle iletişime geçin.</value>
+  </data>
+  <data name="Change password" xml:space="preserve">
+    <value>Şifre değiştir</value>
+  </data>
+  <data name="Current password" xml:space="preserve">
+    <value>Mevcut şifre</value>
+  </data>
+  <data name="New password" xml:space="preserve">
+    <value>Yeni şifre</value>
+  </data>
+  <data name="Confirm new password" xml:space="preserve">
+    <value>Yeni şifre (tekrar)</value>
+  </data>
+  <data name="The password must be at least 8 characters long." xml:space="preserve">
+    <value>Şifre en az 8 karakter olmalıdır.</value>
+  </data>
+  <data name="The passwords do not match." xml:space="preserve">
+    <value>Şifreler eşleşmiyor</value>
+  </data>
+  <data name="Your password was changed." xml:space="preserve">
+    <value>Şifreniz değiştirildi.</value>
+  </data>
+  <data name="New password is required." xml:space="preserve">
+    <value>Yeni şifre zorunludur</value>
+  </data>
+  <data name="Current password is required." xml:space="preserve">
+    <value>Mevcut şifre zorunludur</value>
+  </data>
+  <data name="The new password must be different from the current one." xml:space="preserve">
+    <value>Yeni şifre mevcut şifreden farklı olmalıdır.</value>
+  </data>
+  <data name="You must choose a new password before you continue." xml:space="preserve">
+    <value>Devam etmeden önce yeni bir şifre belirlemelisiniz.</value>
+  </data>
 </root>

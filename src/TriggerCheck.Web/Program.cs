@@ -36,6 +36,8 @@ builder.Services.ConfigureApplicationCookie(o =>
     o.AccessDeniedPath = "/Account/AccessDenied";
     o.Cookie.Name = "TriggerCheck.Auth";
     o.SlidingExpiration = true;
+    // Role / active-state changes take effect on the next request (security stamp checked per request).
+    SessionValidator.Attach(o);
 });
 
 builder.Services.AddAuthorization(o =>
@@ -57,6 +59,8 @@ builder.Services.AddRazorPages(o =>
     // Platform administration: /SuperAdmin/...
     o.Conventions.AuthorizeAreaFolder("SuperAdmin", "/", Policies.SuperAdmin);
 }).AddAppDataAnnotationsLocalization();
+// Users flagged MustChangePassword (e.g. the seeded SuperAdmin) are sent to /Account/ChangePassword first (all pages, all areas).
+builder.Services.Configure<MvcOptions>(o => o.Filters.Add(new MustChangePasswordFilter()));
 
 var app = builder.Build();
 

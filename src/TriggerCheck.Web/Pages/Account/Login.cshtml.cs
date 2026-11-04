@@ -31,16 +31,27 @@ public class LoginModel(SignInManager<ApplicationUser> signIn, Text<SharedResour
 
         var user = await signIn.UserManager.Users.Include(u => u.Customer)
             .FirstOrDefaultAsync(u => u.NormalizedEmail == Input.Email.ToUpperInvariant());
-        if (user is null || !user.IsActive || (user.Customer is not null && !user.Customer.IsActive))
+        if (user is null)
         {
-            // Same message for unknown and inactive accounts to avoid account enumeration.
             ModelState.AddModelError("", L["Invalid login attempt."]);
             return Page();
         }
 
-        var result = await signIn.PasswordSignInAsync(user, Input.Password, Input.RememberMe, lockoutOnFailure: true);
+        Microsoft.AspNetCore.Identity.SignInResult result;
+        if (!user.IsActive || (user.Customer is not null && !user.Customer.IsActive))
+        {
+            // Inactive user or suspended customer: never sign in. The specific message is shown only after a correct
+            // password, so a wrong password still gets the generic message (no account enumeration).
+            result = await signIn.CheckPasswordSignInAsync(user, Input.Password, lockoutOnFailure: true);
+            if (result.Succeeded) { ModelState.AddModelError("", L["Your account is suspended. Please contact your administrator."]); return Page(); }
+        }
+        else
+            result = await signIn.PasswordSignInAsync(user, Input.Password, Input.RememberMe, lockoutOnFailure: true);
         if (result.IsLockedOut) { ModelState.AddModelError("", L["The account is temporarily locked. Try again in a few minutes."]); return Page(); }
         if (!result.Succeeded) { ModelState.AddModelError("", L["Invalid login attempt."]); return Page(); }
+
+        if (user.MustChangePassword)
+            return RedirectToPage("/Account/ChangePassword", new { returnUrl = Url.IsLocalUrl(returnUrl) ? returnUrl : null });
 
         if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl)) return LocalRedirect(returnUrl);
         return RedirectToPage("/Index");

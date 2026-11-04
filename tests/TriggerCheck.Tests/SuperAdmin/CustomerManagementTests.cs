@@ -1,7 +1,15 @@
+using System.Collections.Concurrent;
 using System.Net;
+using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using TriggerCheck.Domain;
 using TriggerCheck.Domain.Entities;
+using TriggerCheck.Infrastructure.Identity;
 using TriggerCheck.Tests.Infrastructure;
 
 namespace TriggerCheck.Tests.SuperAdmin;
@@ -173,15 +181,16 @@ public class CustomerManagementTests
         var stampAfter = await f.WithDbAsync(db => db.Users.Where(u => u.Email == TestWebAppFactory.DemoAdminEmail).Select(u => u.SecurityStamp).SingleAsync());
         Assert.NotEqual(stampBefore, stampAfter);
 
-        // Existing session is redirected away from the customer panel.
+        // Existing session is ended on its very next request, with the "inactive" hint for the login page.
         var kicked = await customerClient.GetAsync("/App");
         Assert.Equal(HttpStatusCode.Redirect, kicked.StatusCode);
         Assert.Contains("/Account/Login", kicked.Headers.Location!.ToString());
+        Assert.Contains("reason=inactive", kicked.Headers.Location!.ToString());
 
-        // New login fails.
+        // New login fails; with the correct password the user is told the account is suspended.
         var login = await f.TryLoginAsync(TestWebAppFactory.DemoAdminEmail, TestWebAppFactory.DemoAdminPassword);
         Assert.Equal(HttpStatusCode.OK, login.StatusCode);
-        Assert.Contains("Invalid login attempt.", await login.BodyAsync());
+        Assert.Contains("Your account is suspended. Please contact your administrator.", await login.BodyAsync());
 
         // Activate.
         var before = DateTime.UtcNow.AddSeconds(-1);
@@ -309,6 +318,63 @@ public class CustomerManagementTests
         Assert.Equal(HttpStatusCode.NotFound, resp.StatusCode);
         Assert.True(await f.WithDbAsync(db => db.Users.AnyAsync(u => u.Id == demoAdminId)));
         Assert.Equal(HttpStatusCode.NotFound, (await sa.GetAsync($"/SuperAdmin/Customers/ResetPassword/{otherId}/{demoAdminId}")).StatusCode);
+    }
+
+    /// <summary>Throws for "boom@" e-mails, simulating an unexpected failure inside customer creation.</summary>
+    private sealed class ThrowingUserValidator : IUserValidator<ApplicationUser>
+    {
+        public Task<IdentityResult> ValidateAsync(UserManager<ApplicationUser> manager, ApplicationUser user) =>
+            user.Email?.StartsWith("boom@") == true
+                ? throw new InvalidOperationException("SECRET-INTERNAL-DETAIL")
+                : Task.FromResult(IdentityResult.Success);
+    }
+
+    private sealed class CapturingLoggerProvider : ILoggerProvider
+    {
+        public ConcurrentQueue<(string Message, Exception? Exception)> Entries { get; } = new();
+        public ILogger CreateLogger(string categoryName) => new Logger(this);
+        public void Dispose() { }
+
+        private sealed class Logger(CapturingLoggerProvider p) : ILogger
+        {
+            public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+            public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Error;
+            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+            {
+                if (IsEnabled(logLevel)) p.Entries.Enqueue((formatter(state, exception), exception));
+            }
+        }
+    }
+
+    [Fact]
+    public async Task Unexpected_creation_error_shows_generic_message_with_logged_reference_not_exception_text()
+    {
+        using var f = new TestWebAppFactory();
+        var logs = new CapturingLoggerProvider();
+        using var host = f.WithWebHostBuilder(b => b.ConfigureTestServices(s =>
+        {
+            s.AddScoped<IUserValidator<ApplicationUser>, ThrowingUserValidator>();
+            s.AddSingleton<ILoggerProvider>(logs);
+        }));
+        var sa = host.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, HandleCookies = true });
+        var login = await sa.PostFormAsync("/Account/Login", new() { ["Input.Email"] = TestWebAppFactory.SuperAdminEmail, ["Input.Password"] = TestWebAppFactory.SuperAdminPassword });
+        Assert.Equal(HttpStatusCode.Redirect, login.StatusCode);
+        using var scope = host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<TriggerCheck.Infrastructure.Data.AppDbContext>();
+        var basicId = await db.Plans.Where(p => p.Name == "Basic").Select(p => p.Id).SingleAsync();
+
+        var resp = await sa.PostFormAsync("/SuperAdmin/Customers/Create", NewCustomerForm(basicId, "boom@acme.test", name: "Boom Ltd"));
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+        var html = await resp.BodyAsync();
+        Assert.DoesNotContain("SECRET-INTERNAL-DETAIL", html);
+        var m = Regex.Match(html, @"The customer could not be created because of an unexpected error\. Reference: ([^<\s]+)");
+        Assert.True(m.Success, "generic error with a reference expected");
+
+        // The same reference is logged together with the exception.
+        var entry = Assert.Single(logs.Entries, e => e.Message.Contains("Customer creation failed"));
+        Assert.Contains(m.Groups[1].Value, entry.Message);
+        Assert.Equal("SECRET-INTERNAL-DETAIL", entry.Exception?.Message);
+        Assert.False(await db.Customers.AnyAsync(c => c.Name == "Boom Ltd"));
     }
 
     [Fact]

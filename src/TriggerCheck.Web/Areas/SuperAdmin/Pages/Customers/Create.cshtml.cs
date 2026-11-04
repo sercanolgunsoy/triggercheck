@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Diagnostics;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -94,10 +95,12 @@ public class CreateModel(AppDbContext db, UserManager<ApplicationUser> users, IL
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Customer creation failed");
+            // Never show exception text in the UI; log it under a correlation id the user can quote.
+            var correlationId = Activity.Current?.Id ?? HttpContext.TraceIdentifier;
+            logger.LogError(ex, "Customer creation failed (correlation id {CorrelationId})", correlationId);
             await tx.RollbackAsync();
             db.ChangeTracker.Clear();
-            ModelState.AddModelError("", L["The customer could not be created: {0}", ex.Message]);
+            ModelState.AddModelError("", L["The customer could not be created because of an unexpected error. Reference: {0}", correlationId]);
             return Page();
         }
     }

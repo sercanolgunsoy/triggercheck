@@ -72,7 +72,7 @@ public class IndexModel(AppDbContext db, UserManager<ApplicationUser> users, ICu
         var toRemove = existing.Where(r => r is Roles.CustomerAdmin or Roles.CustomerViewer && r != role).ToList();
         if (toRemove.Count > 0) await users.RemoveFromRolesAsync(u, toRemove);
         if (!existing.Contains(role)) await users.AddToRoleAsync(u, role);
-        await users.UpdateSecurityStampAsync(u); // forces the user's cookie (role claims) to be refreshed
+        await users.UpdateSecurityStampAsync(u); // ends the user's sessions on their next request (SessionValidator); re-login picks up the new role
 
         TempData["Success"] = L["The role of {0} was changed to \"{1}\".", u.Email ?? "", Fmt.RoleName(role)].Value;
         return RedirectToPage("Index");

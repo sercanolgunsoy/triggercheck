@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using TriggerCheck.Domain;
 using TriggerCheck.Domain.Entities;
@@ -38,17 +39,14 @@ public static class DbSeeder
         }
 
         var userManager = sp.GetRequiredService<UserManager<ApplicationUser>>();
-        var saEmail = config["Seed:SuperAdminEmail"] ?? "superadmin@triggercheck.local";
-        var saPassword = config["Seed:SuperAdminPassword"] ?? "SuperAdmin123!";
-        if (await userManager.FindByEmailAsync(saEmail) is null)
-        {
-            var sa = new ApplicationUser { UserName = saEmail, Email = saEmail, EmailConfirmed = true, FullName = "Super Admin" };
-            var r = await userManager.CreateAsync(sa, saPassword);
-            if (r.Succeeded) await userManager.AddToRoleAsync(sa, Roles.SuperAdmin);
-            else logger.LogError("SuperAdmin seed failed: {Errors}", string.Join("; ", r.Errors.Select(e => e.Description)));
-        }
+        var env = sp.GetRequiredService<IHostEnvironment>();
+        await SeedSuperAdminAsync(userManager, config, env, logger);
 
-        if (config.GetValue("Seed:DemoData", true) && !await db.Customers.AnyAsync())
+        // Demo data (with its well-known password) is opt-in and never created in Production.
+        var demoData = config.GetValue("Seed:DemoData", false);
+        if (demoData && env.IsProduction())
+            logger.LogWarning("Seed:DemoData is ignored in the Production environment.");
+        else if (demoData && !await db.Customers.AnyAsync())
         {
             var standard = await db.Plans.FirstAsync(p => p.Name == "Standard");
             var demo = new Customer { Name = "Demo Company", ContactEmail = "admin@demo.local", PlanId = standard.Id };
@@ -66,5 +64,42 @@ public static class DbSeeder
             });
             await db.SaveChangesAsync();
         }
+    }
+
+    /// <summary>
+    /// Creates the SuperAdmin from configuration (Seed:SuperAdminEmail / Seed:SuperAdminPassword, e.g. the
+    /// Seed__SuperAdminPassword environment variable). There is no built-in password: in Production a missing
+    /// password while no SuperAdmin exists stops the startup. The seeded account must change its password on first login
+    /// unless Seed:SuperAdminMustChangePassword is false.
+    /// </summary>
+    private static async Task SeedSuperAdminAsync(UserManager<ApplicationUser> userManager, IConfiguration config, IHostEnvironment env, ILogger logger)
+    {
+        var saEmail = config["Seed:SuperAdminEmail"] is { Length: > 0 } e ? e : "superadmin@triggercheck.local";
+        if (await userManager.FindByEmailAsync(saEmail) is not null) return;
+        if ((await userManager.GetUsersInRoleAsync(Roles.SuperAdmin)).Count > 0) return;
+
+        var saPassword = config["Seed:SuperAdminPassword"];
+        if (string.IsNullOrWhiteSpace(saPassword))
+        {
+            const string msg = "No SuperAdmin user exists and no password is configured. " +
+                               "Set Seed:SuperAdminPassword (environment variable Seed__SuperAdminPassword) to create one.";
+            if (env.IsProduction()) throw new InvalidOperationException(msg);
+            logger.LogWarning(msg);
+            return;
+        }
+
+        var sa = new ApplicationUser
+        {
+            UserName = saEmail, Email = saEmail, EmailConfirmed = true, FullName = "Super Admin",
+            // Anything but an explicit "false" (including an empty value) keeps the forced change.
+            MustChangePassword = !bool.TryParse(config["Seed:SuperAdminMustChangePassword"], out var mustChange) || mustChange
+        };
+        var r = await userManager.CreateAsync(sa, saPassword);
+        if (r.Succeeded) r = await userManager.AddToRoleAsync(sa, Roles.SuperAdmin);
+        if (r.Succeeded) return;
+
+        var errors = string.Join("; ", r.Errors.Select(x => x.Description));
+        if (env.IsProduction()) throw new InvalidOperationException("SuperAdmin seed failed: " + errors);
+        logger.LogError("SuperAdmin seed failed: {Errors}", errors);
     }
 }

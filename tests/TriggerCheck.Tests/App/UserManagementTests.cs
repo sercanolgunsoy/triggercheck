@@ -111,6 +111,33 @@ public class UserManagementTests : IClassFixture<TestWebAppFactory>
     }
 
     [Fact]
+    public async Task Admin_downgraded_to_viewer_is_denied_on_the_very_next_write_request()
+    {
+        var cid = await _f.DemoCustomerIdAsync();
+        var id = await _f.AddUserAsync(cid, "demoted@demo.local", "Demoted123", Roles.CustomerAdmin);
+        var demoted = await _f.LoginAsync("demoted@demo.local", "Demoted123");
+
+        // The demoted admin already has the form (and its antiforgery token) open.
+        var form = await demoted.GetStringAsync("/App/Monitors/Create");
+        var token = WebUtility.HtmlDecode(System.Text.RegularExpressions.Regex.Match(form, "name=\"__RequestVerificationToken\" type=\"hidden\" value=\"([^\"]+)\"").Groups[1].Value);
+
+        var admin = await AdminAsync();
+        AssertRedirect(await admin.PostFormAsync($"/App/Users/Index?handler=ChangeRole&id={id}", new() { ["role"] = Roles.CustomerViewer }, "/App/Users/Index"), "/App/Users");
+
+        // No grace period: the next write is rejected immediately (session ended, back to login).
+        var fields = MonitorForm("Written after demotion");
+        fields["__RequestVerificationToken"] = token;
+        var r = await demoted.PostAsync("/App/Monitors/Create", new FormUrlEncodedContent(fields));
+        AssertRedirect(r, "/Account/Login");
+        Assert.False(await _f.WithDbAsync(db => db.Monitors.AnyAsync(m => m.Name == "Written after demotion")));
+
+        // After signing in again the user is a read-only viewer.
+        var again = await _f.LoginAsync("demoted@demo.local", "Demoted123");
+        Assert.Equal(HttpStatusCode.OK, (await again.GetAsync("/App")).StatusCode);
+        AssertAccessDenied(await again.GetAsync("/App/Monitors/Create"));
+    }
+
+    [Fact]
     public async Task Invalid_role_value_is_rejected()
     {
         var cid = await _f.DemoCustomerIdAsync();

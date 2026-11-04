@@ -8,7 +8,8 @@ namespace TriggerCheck.Web.Infrastructure;
 
 /// <summary>
 /// Applied to the customer panel (Areas/App). Signs the user out immediately if the user or its customer
-/// was deactivated by a SuperAdmin while the session was still alive.
+/// was deactivated by a SuperAdmin while the session was still alive. SessionValidator already rejects such cookies for
+/// every request; this filter additionally verifies that the cookie's customer claim still matches the user's customer.
 /// </summary>
 public class ActiveAccountFilter(AppDbContext db, SignInManager<ApplicationUser> signIn, ICurrentCustomer current) : IAsyncPageFilter
 {

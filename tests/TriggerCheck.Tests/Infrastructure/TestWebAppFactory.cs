@@ -27,6 +27,9 @@ public class TestWebAppFactory : WebApplicationFactory<Program>
         builder.UseSetting("ConnectionStrings:Default", $"Data Source={_dbPath}");
         builder.UseSetting("Monitoring:Enabled", "false");
         builder.UseSetting("Seed:DemoData", "true");
+        builder.UseSetting("Seed:SuperAdminPassword", SuperAdminPassword);
+        // Tests sign in as the seeded SuperAdmin directly; the forced change is covered in Accounts/PasswordChangeTests.
+        builder.UseSetting("Seed:SuperAdminMustChangePassword", "false");
     }
 
     public HttpClient CreateBrowser() => CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, HandleCookies = true });
