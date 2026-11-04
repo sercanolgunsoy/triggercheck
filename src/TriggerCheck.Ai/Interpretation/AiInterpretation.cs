@@ -43,7 +43,10 @@ public sealed record AiInterpretation(
     }
 }
 
-public sealed record AiHypothesis(string Cause, AiConfidence Confidence, IReadOnlyList<string> Evidence);
+/// <param name="Category">Cause category from the feature's fixed list (AI-2 / AI-3); null for features without one.</param>
+/// <param name="EvidenceRefs">Keys of the input items the hypothesis relies on ("check #1234", "ttfb"); checked against the input.</param>
+public sealed record AiHypothesis(string Cause, AiConfidence Confidence, IReadOnlyList<string> Evidence,
+    string? Category = null, IReadOnlyList<string>? EvidenceRefs = null);
 
 /// <param name="Action">Code from the feature's fixed allow-list; anything else is dropped.</param>
 /// <param name="Description">Human readable explanation of the action.</param>
@@ -56,8 +59,29 @@ public static class AiInterpretationSchema
     /// Builds the schema. <paramref name="allowedActions"/> becomes an enum on suggested_actions[].action, so the model
     /// can only choose from the fixed list (an empty list leaves it a string; validation then drops every action).
     /// </summary>
-    public static IReadOnlyDictionary<string, JsonElement> Build(IReadOnlyList<string> allowedActions)
+    /// <param name="categories">
+    /// When given, each hypothesis also requires "category" (this enum) and "evidence_refs" (input keys), the contract of
+    /// AI-2 / AI-3.
+    /// </param>
+    public static IReadOnlyDictionary<string, JsonElement> Build(IReadOnlyList<string> allowedActions, IReadOnlyList<string>? categories = null)
     {
+        var hypothesisProps = new Dictionary<string, object>
+        {
+            ["cause"] = new { type = "string" },
+            ["confidence"] = new { type = "string", @enum = new[] { "low", "medium", "high" } },
+            ["evidence"] = new { type = "array", items = new { type = "string" }, description = "Concrete facts from the input (check, metric, value)." },
+        };
+        var hypothesisRequired = new List<string> { "cause", "confidence", "evidence" };
+        if (categories is { Count: > 0 })
+        {
+            hypothesisProps["category"] = new { type = "string", @enum = categories };
+            hypothesisProps["evidence_refs"] = new
+            {
+                type = "array", items = new { type = "string" },
+                description = "Keys of the input lines this hypothesis relies on, exactly as written before the colon, e.g. \"check #1234\", \"ttfb\", \"validation_error\", \"error E1\". At least one."
+            };
+            hypothesisRequired.AddRange(["category", "evidence_refs"]);
+        }
         object actionProp = allowedActions.Count > 0
             ? new { type = "string", @enum = allowedActions }
             : new { type = "string" };
@@ -76,13 +100,8 @@ public static class AiInterpretationSchema
                     {
                         type = "object",
                         additionalProperties = false,
-                        required = new[] { "cause", "confidence", "evidence" },
-                        properties = new
-                        {
-                            cause = new { type = "string" },
-                            confidence = new { type = "string", @enum = new[] { "low", "medium", "high" } },
-                            evidence = new { type = "array", items = new { type = "string" }, description = "Concrete facts from the input (check, metric, value)." },
-                        },
+                        required = hypothesisRequired,
+                        properties = hypothesisProps,
                     },
                 },
                 ["suggested_actions"] = new

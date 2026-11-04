@@ -1,0 +1,94 @@
+{
+  "id": "maintenance-aftermath",
+  "feature": "IncidentInterpretation",
+  "language": "en",
+  "description": "Service did not come back after a maintenance window.",
+  "expect": {
+    "primaryCause": "maintenance_aftermath"
+  },
+  "monitor": {
+    "name": "Shop API",
+    "type": "Http",
+    "target": "https://shop.example.test/health",
+    "status": "Down",
+    "certExpiresInDays": 60
+  },
+  "incident": {
+    "startedMinutesAgo": 19,
+    "cause": "HTTP 503 (expected 200-299)"
+  },
+  "checks": [
+    {
+      "minutesAgo": 1,
+      "repeat": 19,
+      "everyMinutes": 1,
+      "up": false,
+      "ms": 50,
+      "status": 503,
+      "error": "HTTP 503 (expected 200-299)",
+      "dns": 4,
+      "connect": 11,
+      "tls": 24,
+      "ttfb": 45
+    },
+    {
+      "minutesAgo": 20,
+      "repeat": 50,
+      "everyMinutes": 1,
+      "up": false,
+      "ms": 50,
+      "status": 503,
+      "error": "HTTP 503 (expected 200-299)",
+      "dns": 4,
+      "connect": 11,
+      "tls": 24,
+      "ttfb": 45,
+      "maintenance": true
+    },
+    {
+      "minutesAgo": 71,
+      "repeat": 8,
+      "everyMinutes": 1,
+      "up": true,
+      "status": 200,
+      "ms": 180,
+      "dns": 4,
+      "connect": 12,
+      "tls": 25,
+      "ttfb": 150
+    }
+  ],
+  "maintenance": [
+    {
+      "startedMinutesAgo": 70,
+      "endedMinutesAgo": 20
+    }
+  ],
+  "canned": {
+    "summary": "Shop API has stayed down since the planned maintenance ended 20 minutes ago; it still answers HTTP 503.",
+    "hypotheses": [
+      {
+        "cause": "The service did not come back after the planned maintenance window and still returns HTTP 503.",
+        "confidence": "high",
+        "evidence": [
+          "The maintenance period ended 20 minutes ago",
+          "Checks during and after maintenance return status 503"
+        ],
+        "category": "maintenance_related",
+        "evidence_refs": [
+          "period",
+          "error E1"
+        ]
+      }
+    ],
+    "suggested_actions": [
+      {
+        "action": "check_recent_deployment",
+        "description": "Verify that the maintenance work completed and the service was restarted.",
+        "autonomy": "A0",
+        "reversible": true
+      }
+    ],
+    "unknowns": []
+  }
+}

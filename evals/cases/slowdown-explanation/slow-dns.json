@@ -1,0 +1,92 @@
+{
+  "id": "slow-dns",
+  "feature": "SlowdownExplanation",
+  "language": "en",
+  "description": "DNS lookups slowed down.",
+  "expect": {
+    "primaryCause": "slow_dns",
+    "noOutageStatement": true
+  },
+  "monitor": {
+    "name": "Shop API",
+    "type": "Http",
+    "target": "https://shop.example.test/health",
+    "status": "Up",
+    "certExpiresInDays": 60
+  },
+  "anomaly": {
+    "startedMinutesAgo": 30,
+    "score": 7.5,
+    "points": [
+      {
+        "minutesAgo": 3,
+        "ms": 1080,
+        "medianMs": 180
+      },
+      {
+        "minutesAgo": 2,
+        "ms": 1080,
+        "medianMs": 180
+      },
+      {
+        "minutesAgo": 1,
+        "ms": 1080,
+        "medianMs": 180
+      }
+    ]
+  },
+  "checks": [
+    {
+      "minutesAgo": 1,
+      "repeat": 29,
+      "everyMinutes": 1,
+      "up": true,
+      "status": 200,
+      "ms": 1080,
+      "dns": 900,
+      "connect": 12,
+      "tls": 25,
+      "ttfb": 150
+    },
+    {
+      "minutesAgo": 31,
+      "repeat": 60,
+      "everyMinutes": 2,
+      "up": true,
+      "status": 200,
+      "ms": 180,
+      "dns": 4,
+      "connect": 12,
+      "tls": 25,
+      "ttfb": 150
+    }
+  ],
+  "baselineMedianMs": 180,
+  "canned": {
+    "summary": "Shop API is slower than usual since 11:30 because DNS lookups take about 900 ms instead of 4 ms. There is no outage yet; the monitor is still up.",
+    "hypotheses": [
+      {
+        "cause": "DNS resolution slowed down: the median DNS time rose from 4 ms to 900 ms (ratio 225).",
+        "confidence": "high",
+        "evidence": [
+          "dns before=4 since=900",
+          "ttfb unchanged at 150 ms"
+        ],
+        "category": "slow_dns",
+        "evidence_refs": [
+          "dns",
+          "point"
+        ]
+      }
+    ],
+    "suggested_actions": [
+      {
+        "action": "check_dns_configuration",
+        "description": "Check the name servers' response times.",
+        "autonomy": "A0",
+        "reversible": true
+      }
+    ],
+    "unknowns": []
+  }
+}

@@ -37,6 +37,11 @@ public class Customer
     /// every creation path for new customers sets it to true.
     /// </summary>
     public bool AiEnabled { get; set; }
+    /// <summary>
+    /// Language of AI summaries generated in the background ("en" / "tr"). Set from the admin's UI language when AI is
+    /// switched on, and selectable on the AI features page.
+    /// </summary>
+    public string AiLanguage { get; set; } = "en";
 
     public ICollection<Monitor> Monitors { get; set; } = new List<Monitor>();
     public ICollection<AlertChannel> AlertChannels { get; set; } = new List<AlertChannel>();

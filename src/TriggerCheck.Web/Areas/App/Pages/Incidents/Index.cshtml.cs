@@ -1,12 +1,14 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
+using TriggerCheck.Ai.Features;
+using TriggerCheck.Domain;
 using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Web.Infrastructure;
 
 namespace TriggerCheck.Web.Areas.App.Pages.Incidents;
 
-public class IndexModel(AppDbContext db, ICurrentCustomer current) : PageModel
+public class IndexModel(AppDbContext db, ICurrentCustomer current, AiPanels ai) : PageModel
 {
     public const int PageSize = 50;
 
@@ -20,6 +22,8 @@ public class IndexModel(AppDbContext db, ICurrentCustomer current) : PageModel
     public List<Row> Items { get; private set; } = [];
     public int TotalCount { get; private set; }
     public int OpenCount { get; private set; }
+    /// <summary>AI-2 summary per incident id (latest succeeded; empty when AI is off or the customer opted out).</summary>
+    public Dictionary<string, string> AiSummaries { get; private set; } = [];
     public int TotalPages => Math.Max(1, (int)Math.Ceiling(TotalCount / (double)PageSize));
 
     public async Task OnGetAsync(CancellationToken ct)
@@ -44,5 +48,11 @@ public class IndexModel(AppDbContext db, ICurrentCustomer current) : PageModel
             .Skip((PageNumber - 1) * PageSize).Take(PageSize)
             .Select(i => new Row(i.Id, i.MonitorId, i.Monitor.Name, i.StartedAtUtc, i.ResolvedAtUtc, i.Cause, i.AcknowledgedAtUtc, i.ResolvedDuringMaintenance))
             .ToListAsync(ct);
+
+        AiSummaries = await ai.SummariesAsync(await current.GetCustomerAsync(ct), AiFeatures.IncidentInterpretation, AiSubjects.Incident,
+            Items.Select(i => i.Id.ToString(System.Globalization.CultureInfo.InvariantCulture)).ToList(), ct);
     }
+
+    /// <summary>Short form of an AI summary for the table (first 160 characters).</summary>
+    public static string Short(string summary) => summary.Length <= 160 ? summary : summary[..159].TrimEnd() + "…";
 }

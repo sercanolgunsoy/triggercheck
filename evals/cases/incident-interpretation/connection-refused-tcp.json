@@ -1,0 +1,61 @@
+{
+  "id": "connection-refused-tcp",
+  "feature": "IncidentInterpretation",
+  "language": "en",
+  "description": "Database port closed.",
+  "expect": {
+    "primaryCause": "connection_refused"
+  },
+  "monitor": {
+    "name": "Orders DB",
+    "type": "Tcp",
+    "target": "db.example.test",
+    "port": 5432,
+    "status": "Down"
+  },
+  "incident": {
+    "startedMinutesAgo": 5,
+    "cause": "Connection refused"
+  },
+  "checks": [
+    {
+      "minutesAgo": 1,
+      "repeat": 5,
+      "everyMinutes": 1,
+      "up": false,
+      "ms": 3,
+      "error": "Connection refused"
+    },
+    {
+      "minutesAgo": 6,
+      "repeat": 6,
+      "up": true,
+      "ms": 2
+    }
+  ],
+  "canned": {
+    "summary": "Orders DB is down because TCP connections to port 5432 are refused.",
+    "hypotheses": [
+      {
+        "cause": "TCP connections to port 5432 are refused; the database is not listening.",
+        "confidence": "high",
+        "evidence": [
+          "5 checks failed with 'Connection refused' within 3 ms"
+        ],
+        "category": "connection_refused",
+        "evidence_refs": [
+          "error E1"
+        ]
+      }
+    ],
+    "suggested_actions": [
+      {
+        "action": "check_firewall_and_ports",
+        "description": "Check that the database service runs and listens on port 5432.",
+        "autonomy": "A0",
+        "reversible": true
+      }
+    ],
+    "unknowns": []
+  }
+}

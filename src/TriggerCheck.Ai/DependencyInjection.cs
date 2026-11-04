@@ -8,6 +8,7 @@ using TriggerCheck.Ai.Budget;
 using TriggerCheck.Ai.Client;
 using TriggerCheck.Ai.Context;
 using TriggerCheck.Ai.Execution;
+using TriggerCheck.Ai.Features;
 using TriggerCheck.Ai.Interpretation;
 
 namespace TriggerCheck.Ai;
@@ -15,7 +16,7 @@ namespace TriggerCheck.Ai;
 public static class DependencyInjection
 {
     /// <summary>
-    /// Registers the AI layer (AI-0, AI-1, AI-10). The real Claude client is used only when Ai:Enabled is true AND a key
+    /// Registers the AI layer (AI-0, AI-1, AI-2, AI-3, AI-10). The real Claude client is used only when Ai:Enabled is true AND a key
     /// is configured (Ai:ApiKey or ANTHROPIC_API_KEY); otherwise <see cref="UnavailableAiClient"/> reports "AI
     /// unavailable" and every job is recorded as skipped. Tests replace <see cref="IAiClient"/> with
     /// <see cref="FakeAiClient"/>. The monitoring layer does not depend on this project.
@@ -46,6 +47,12 @@ public static class DependencyInjection
         services.AddSingleton<AiJobQueue>();
         services.AddSingleton<IAiJobQueue>(sp => sp.GetRequiredService<AiJobQueue>());
         services.AddHostedService<AiWorkerService>();
+
+        // AI-2 / AI-3: context providers and the event watcher that queues their jobs (never on the alert path).
+        services.AddScoped<IAiContextProvider, IncidentInterpretationProvider>();
+        services.AddScoped<IAiContextProvider, SlowdownExplanationProvider>();
+        services.AddScoped<AiEventScanner>();
+        services.AddHostedService<AiEventWatcher>();
 
         services.AddScoped<BaselineJob>();
         services.AddHostedService<BaselineHostedService>();

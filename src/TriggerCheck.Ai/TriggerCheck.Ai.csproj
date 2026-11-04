@@ -3,6 +3,8 @@
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <ProjectReference Include="..\TriggerCheck.Infrastructure\TriggerCheck.Infrastructure.csproj" />
+    <!-- Read-only helpers (maintenance schedule) for AI context. Monitoring never references this project. -->
+    <ProjectReference Include="..\TriggerCheck.Monitoring\TriggerCheck.Monitoring.csproj" />
   </ItemGroup>
 
   <ItemGroup>

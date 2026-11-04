@@ -61,6 +61,8 @@ public class AiDecision
     public string InputHash { get; set; } = "";
     public string Model { get; set; } = "";
     public string Effort { get; set; } = "";
+    /// <summary>Language the output was requested in ("en" / "tr", see <see cref="Customer.AiLanguage"/>).</summary>
+    public string Language { get; set; } = "en";
     /// <summary>Validated AiInterpretation JSON (null unless Succeeded).</summary>
     public string? OutputJson { get; set; }
     public AiConfidence? MaxConfidence { get; set; }

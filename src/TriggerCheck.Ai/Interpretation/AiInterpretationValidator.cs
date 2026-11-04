@@ -18,6 +18,36 @@ public static class AiInterpretationValidator
 
     public sealed record Result(AiInterpretation Interpretation, AiConfidence? MaxConfidence, AiAutonomy AutonomyLevel);
 
+    /// <summary>
+    /// Contract of features with cause categories (AI-2 / AI-3), applied before <see cref="Validate"/>: a hypothesis is
+    /// kept only when its category is one of <paramref name="categories"/> and at least one of its evidence_refs resolves
+    /// to an item actually present in the input (<paramref name="evidenceKeys"/>). Refs are normalised ("#1234" or "1234"
+    /// → "check #1234"), unresolvable ones removed. Without categories the output is returned unchanged.
+    /// </summary>
+    public static AiInterpretation ApplyContract(AiInterpretation raw, IReadOnlyList<string>? categories, IReadOnlySet<string>? evidenceKeys)
+    {
+        if (categories is not { Count: > 0 }) return raw;
+        var keys = evidenceKeys ?? new HashSet<string>();
+        var kept = (raw.Hypotheses ?? [])
+            .Where(h => h is not null && h.Category is not null && categories.Contains(h.Category))
+            .Select(h => h with { EvidenceRefs = (h.EvidenceRefs ?? []).Select(r => ResolveRef(r, keys)).OfType<string>().Distinct().Take(MaxItems).ToList() })
+            .Where(h => h.EvidenceRefs!.Count > 0)
+            .ToList();
+        return raw with { Hypotheses = kept };
+    }
+
+    /// <summary>The input key an evidence ref points to, or null when it points to nothing that was sent.</summary>
+    public static string? ResolveRef(string? reference, IReadOnlySet<string> keys)
+    {
+        var r = (reference ?? "").Trim();
+        if (r.Length == 0) return null;
+        var exact = keys.FirstOrDefault(k => string.Equals(k, r, StringComparison.OrdinalIgnoreCase));
+        if (exact is not null) return exact;
+        var digits = r.TrimStart('#');
+        if (r.StartsWith("check", StringComparison.OrdinalIgnoreCase)) digits = r[5..].Trim().TrimStart('#').Trim();
+        return digits.Length > 0 && digits.All(char.IsAsciiDigit) && keys.Contains("check #" + digits) ? "check #" + digits : null;
+    }
+
     /// <returns>Null when the output is unusable (no summary).</returns>
     public static Result? Validate(AiInterpretation raw, IReadOnlyCollection<string> allowedActions, AiAutonomy maxAutonomy)
     {
@@ -29,6 +59,7 @@ public static class AiInterpretationValidator
             .Select(h => h with
             {
                 Cause = Clip(h.Cause, MaxText),
+                Category = h.Category is null ? null : Clip(h.Category, 64),
                 Evidence = (h.Evidence ?? []).Select(e => Clip(e, MaxText)).Where(e => e.Length > 0).Take(MaxItems).ToList()
             })
             .Where(h => h.Evidence.Count > 0)

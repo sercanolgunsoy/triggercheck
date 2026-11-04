@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
+using TriggerCheck.Ai.Features;
 using TriggerCheck.Domain;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Infrastructure.Data;
@@ -13,8 +14,11 @@ using TriggerCheck.Web.Localization;
 
 namespace TriggerCheck.Web.Areas.App.Pages.Incidents;
 
-/// <summary>One incident with its acknowledgement and escalation state (FEAT-5). Acknowledging is CustomerAdmin only.</summary>
-public class DetailsModel(AppDbContext db, ICurrentCustomer current, IncidentAcknowledger acknowledger, TimeProvider time, Text<AppResource> L) : PageModel
+/// <summary>
+/// One incident with its acknowledgement and escalation state (FEAT-5) and its AI summary (AI-2). Acknowledging is
+/// CustomerAdmin only.
+/// </summary>
+public class DetailsModel(AppDbContext db, ICurrentCustomer current, IncidentAcknowledger acknowledger, TimeProvider time, Text<AppResource> L, AiPanels ai) : PageModel
 {
     public const string ApiKeyUserPrefix = "api-key:";
 
@@ -23,6 +27,9 @@ public class DetailsModel(AppDbContext db, ICurrentCustomer current, IncidentAck
     public string MonitorName { get; private set; } = "";
     /// <summary>Name or e-mail of the user who acknowledged it (null when unknown / deleted).</summary>
     public string? AcknowledgedBy { get; private set; }
+    public AiPanelModel Ai { get; private set; } = null!;
+    /// <summary>Correlated outage: the interpreted incident on the same host whose summary is shown instead.</summary>
+    public int? RelatedIncidentId { get; private set; }
 
     public async Task<IActionResult> OnGetAsync(int id, CancellationToken ct)
     {
@@ -35,6 +42,16 @@ public class DetailsModel(AppDbContext db, ICurrentCustomer current, IncidentAck
         Incident = row.Incident;
         MonitorName = row.Name;
         AcknowledgedBy = await AcknowledgedByAsync(db, cid, Incident.AcknowledgedByUserId, L, ct);
+        Ai = await ai.LoadAsync(await current.GetCustomerAsync(ct), AiFeatures.IncidentInterpretation, AiSubjects.Incident,
+            id.ToString(System.Globalization.CultureInfo.InvariantCulture), Incident.ResolvedAtUtc ?? Incident.StartedAtUtc,
+            Url.Page("Details", new { id }) ?? "/App/Incidents", User.FindFirstValue(ClaimTypes.NameIdentifier), User.IsInRole(Roles.CustomerAdmin), ct);
+        if ((Ai.State is AiPanelState.None or AiPanelState.Pending) && await ai.RelatedIncidentAsync(cid, id, ct) is int related)
+        {
+            RelatedIncidentId = related;
+            Ai = await ai.LoadAsync(await current.GetCustomerAsync(ct), AiFeatures.IncidentInterpretation, AiSubjects.Incident,
+                related.ToString(System.Globalization.CultureInfo.InvariantCulture), Incident.StartedAtUtc,
+                Url.Page("Details", new { id }) ?? "/App/Incidents", User.FindFirstValue(ClaimTypes.NameIdentifier), User.IsInRole(Roles.CustomerAdmin), ct);
+        }
         return Page();
     }
 
