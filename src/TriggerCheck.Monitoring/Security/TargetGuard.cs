@@ -1,10 +1,11 @@
 using System.Net;
 using System.Net.Sockets;
+using Microsoft.Extensions.Logging;
 
 namespace TriggerCheck.Monitoring.Security;
 
 /// <summary>Thrown when a probe or webhook would connect to a private/internal address (SSRF protection).</summary>
-public sealed class BlockedTargetException(string message) : Exception(message);
+public sealed class BlockedTargetException() : Exception(TargetGuard.BlockedMessage);
 
 /// <summary>
 /// SSRF policy: which destination addresses probes and webhooks may connect to. The real guard runs at connect time
@@ -14,19 +15,26 @@ public sealed class BlockedTargetException(string message) : Exception(message);
 /// </summary>
 public static class TargetGuard
 {
-    public const string BlockedPrefix = "Blocked target";
+    /// <summary>Error shown to tenants. Deliberately generic: the resolved address is only logged server-side.</summary>
+    public const string BlockedMessage = "Blocked target: address is not allowed";
 
-    /// <summary>True when <paramref name="ip"/> is loopback, unspecified, link-local, private (RFC1918, CGNAT, ULA),
-    /// multicast/broadcast or otherwise reserved. IPv4-mapped / -compatible / NAT64 IPv6 forms are unwrapped first.</summary>
+    /// <summary>
+    /// True when <paramref name="ip"/> must not be contacted. IPv4: loopback, unspecified, link-local (incl. cloud
+    /// metadata), RFC1918, CGNAT, documentation/benchmark ranges, Azure's 168.63.129.16, multicast/broadcast/reserved.
+    /// IPv6: allowlist - only global unicast 2000::/3 passes, minus Teredo and documentation prefixes; IPv4 embedded in
+    /// IPv6 (mapped, compatible, NAT64 64:ff9b::/96, 6to4 2002::/16) is unwrapped and checked as IPv4.
+    /// </summary>
     public static bool IsBlocked(IPAddress ip)
     {
-        if (ip.AddressFamily == AddressFamily.InterNetworkV6)
-        {
-            var embedded = EmbeddedIPv4(ip);
-            if (embedded is not null) return IsBlockedV4(embedded.GetAddressBytes());
-            return IsBlockedV6(ip);
-        }
-        return ip.AddressFamily != AddressFamily.InterNetwork || IsBlockedV4(ip.GetAddressBytes());
+        if (ip.AddressFamily == AddressFamily.InterNetwork) return IsBlockedV4(ip.GetAddressBytes());
+        if (ip.AddressFamily != AddressFamily.InterNetworkV6) return true;
+
+        var b = ip.GetAddressBytes();
+        if (EmbeddedIPv4(ip, b) is { } v4) return IsBlockedV4(v4);
+        if ((b[0] & 0xE0) != 0x20) return true;                                   // not 2000::/3 global unicast
+        if (b[0] == 0x20 && b[1] == 0x01 && b[2] == 0x00 && b[3] == 0x00) return true; // 2001::/32 Teredo
+        if (b[0] == 0x20 && b[1] == 0x01 && b[2] == 0x0d && b[3] == 0xb8) return true; // 2001:db8::/32 documentation
+        return false;
     }
 
     private static bool IsBlockedV4(byte[] b) =>
@@ -38,25 +46,25 @@ public static class TargetGuard
         || (b[0] == 192 && b[1] == 168)                  // 192.168.0.0/16
         || (b[0] == 100 && (b[1] & 0xC0) == 64)          // 100.64.0.0/10 CGNAT
         || (b[0] == 192 && b[1] == 0 && b[2] == 0)       // 192.0.0.0/24 IETF protocol assignments
+        || (b[0] == 192 && b[1] == 0 && b[2] == 2)       // 192.0.2.0/24 TEST-NET-1
+        || (b[0] == 198 && b[1] == 51 && b[2] == 100)    // 198.51.100.0/24 TEST-NET-2
+        || (b[0] == 203 && b[1] == 0 && b[2] == 113)     // 203.0.113.0/24 TEST-NET-3
         || (b[0] == 198 && (b[1] & 0xFE) == 18)          // 198.18.0.0/15 benchmarking
+        || (b[0] == 168 && b[1] == 63 && b[2] == 129 && b[3] == 16) // Azure host/metadata endpoint
         || b[0] >= 224;                                  // multicast, reserved, broadcast
 
-    private static bool IsBlockedV6(IPAddress ip)
+    /// <summary>
+    /// IPv4 bytes hidden in an IPv6 address: ::ffff:a.b.c.d (mapped), ::a.b.c.d (compatible, incl. :: and ::1 which
+    /// become the blocked 0.0.0.x), 64:ff9b::a.b.c.d (NAT64) and 2002:AABB:CCDD::/48 (6to4).
+    /// </summary>
+    private static byte[]? EmbeddedIPv4(IPAddress ip, byte[] b)
     {
-        if (ip.IsIPv6LinkLocal || ip.IsIPv6SiteLocal || ip.IsIPv6Multicast) return true;
-        var b = ip.GetAddressBytes();
-        return (b[0] & 0xFE) == 0xFC; // fc00::/7 unique local
-    }
-
-    /// <summary>IPv4 address hidden in an IPv6 one: ::ffff:a.b.c.d (mapped), ::a.b.c.d (compatible, incl. :: and ::1), 64:ff9b::a.b.c.d (NAT64).</summary>
-    private static IPAddress? EmbeddedIPv4(IPAddress ip)
-    {
-        if (ip.IsIPv4MappedToIPv6) return ip.MapToIPv4();
-        var b = ip.GetAddressBytes();
+        if (ip.IsIPv4MappedToIPv6) return ip.MapToIPv4().GetAddressBytes();
         var zeroPrefix = b.Take(12).All(x => x == 0);
         var nat64 = b[0] == 0x00 && b[1] == 0x64 && b[2] == 0xff && b[3] == 0x9b && b.Skip(4).Take(8).All(x => x == 0);
-        // :: and ::1 become 0.0.0.0 / 0.0.0.1, which are blocked as "this network".
-        return zeroPrefix || nat64 ? new IPAddress(b[12..]) : null;
+        if (zeroPrefix || nat64) return b[12..];
+        if (b[0] == 0x20 && b[1] == 0x02) return b[2..6];
+        return null;
     }
 
     /// <summary>
@@ -76,10 +84,10 @@ public static class TargetGuard
 
     /// <summary>
     /// Resolves <paramref name="host"/> and returns the addresses to connect to. Unless <paramref name="allowPrivate"/>,
-    /// throws <see cref="BlockedTargetException"/> when any resolved address is blocked (a mixed answer is treated as hostile).
-    /// DNS failures surface as <see cref="SocketException"/> like a normal connect would.
+    /// throws <see cref="BlockedTargetException"/> when any resolved address is blocked (a mixed answer is treated as hostile);
+    /// the host and address are logged, never returned to the caller. DNS failures surface as <see cref="SocketException"/>.
     /// </summary>
-    public static async Task<IPAddress[]> ResolveAsync(string host, bool allowPrivate, CancellationToken ct)
+    public static async Task<IPAddress[]> ResolveAsync(string host, bool allowPrivate, CancellationToken ct, ILogger? logger = null)
     {
         var h = host.Trim();
         if (h.StartsWith('[') && h.EndsWith(']')) h = h[1..^1];
@@ -89,16 +97,17 @@ public static class TargetGuard
 
         var blocked = addresses.FirstOrDefault(IsBlocked);
         if (blocked is not null)
-            throw new BlockedTargetException(literal is not null
-                ? $"{BlockedPrefix}: {h} is a private or internal address"
-                : $"{BlockedPrefix}: {h} resolves to a private or internal address ({blocked})");
+        {
+            logger?.LogWarning("Blocked outbound connection to {Host} (resolved to {Address}): private or internal address", h, blocked);
+            throw new BlockedTargetException();
+        }
         return addresses;
     }
 
     /// <summary>Opens a TCP connection to a validated address of <paramref name="host"/> (used by probes, webhooks and the TCP checker).</summary>
-    public static async Task<Socket> ConnectAsync(string host, int port, bool allowPrivate, CancellationToken ct)
+    public static async Task<Socket> ConnectAsync(string host, int port, bool allowPrivate, CancellationToken ct, ILogger? logger = null)
     {
-        var addresses = await ResolveAsync(host, allowPrivate, ct);
+        var addresses = await ResolveAsync(host, allowPrivate, ct, logger);
         // Dual-mode socket: works for IPv4 and IPv6 addresses.
         var socket = new Socket(SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
         try
@@ -114,10 +123,10 @@ public static class TargetGuard
     }
 
     /// <summary><see cref="SocketsHttpHandler.ConnectCallback"/> that applies the policy to every connection (incl. redirects).</summary>
-    public static Func<SocketsHttpConnectionContext, CancellationToken, ValueTask<Stream>> ConnectCallback(Func<bool> allowPrivate) =>
+    public static Func<SocketsHttpConnectionContext, CancellationToken, ValueTask<Stream>> ConnectCallback(Func<bool> allowPrivate, ILogger? logger = null) =>
         async (context, ct) =>
         {
-            var socket = await ConnectAsync(context.DnsEndPoint.Host, context.DnsEndPoint.Port, allowPrivate(), ct);
+            var socket = await ConnectAsync(context.DnsEndPoint.Host, context.DnsEndPoint.Port, allowPrivate(), ct, logger);
             return new NetworkStream(socket, ownsSocket: true);
         };
 }

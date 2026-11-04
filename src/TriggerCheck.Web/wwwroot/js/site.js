@@ -10,6 +10,14 @@
         document.dispatchEvent(new CustomEvent('tc:theme', { detail: next }));
     });
 
+    // Forms with data-confirm ask before submitting (no inline handlers: the CSP forbids them).
+    document.addEventListener('submit', function (e) {
+        var form = e.target;
+        if (form.matches && form.matches('form[data-confirm]') && !window.confirm(form.getAttribute('data-confirm'))) {
+            e.preventDefault();
+        }
+    });
+
     // Marketing nav gets a border once the page is scrolled.
     var nav = document.querySelector('.site-nav');
     if (nav) {

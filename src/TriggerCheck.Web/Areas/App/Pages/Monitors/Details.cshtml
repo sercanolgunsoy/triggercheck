@@ -143,7 +143,7 @@
 @section Scripts {
     @if (Model.Chart.Count > 0)
     {
-        <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+        <script src="~/lib/chart.js/dist/chart.umd.js"></script>
         <script>
         (function () {
             var data = @Json.Serialize(Model.Chart);

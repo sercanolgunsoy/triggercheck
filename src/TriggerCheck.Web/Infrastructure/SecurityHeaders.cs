@@ -6,25 +6,18 @@ using Microsoft.AspNetCore.Razor.TagHelpers;
 namespace TriggerCheck.Web.Infrastructure;
 
 /// <summary>
-/// Adds security headers to every response. The CSP allows scripts only from this site, Chart.js' CDN and inline
-/// &lt;script&gt; blocks carrying the per-request nonce (stamped automatically by <see cref="CspNonceTagHelper"/>).
-/// Inline styles stay allowed (style="" attributes, Bootstrap JS). HSTS is added separately by UseHsts outside Development.
+/// Adds security headers to every response. The CSP allows scripts only from this site (Chart.js is self-hosted) and
+/// inline &lt;script&gt; blocks carrying the per-request nonce (stamped automatically by <see cref="CspNonceTagHelper"/>).
+/// Inline event handlers are not allowed (data-confirm forms are handled in site.js). Inline styles stay allowed
+/// (style="" attributes, Bootstrap JS). HSTS is added separately by UseHsts outside Development.
 /// </summary>
-public sealed class SecurityHeadersMiddleware(RequestDelegate next)
+public sealed class SecurityHeadersMiddleware(RequestDelegate next, IWebHostEnvironment env)
 {
     public const string NonceItemKey = "TriggerCheck.CspNonce";
 
-    /// <summary>
-    /// SHA-256 of the only inline event handler in the views: <c>onsubmit="return confirm(this.dataset.confirm);"</c>.
-    /// Allowed via 'unsafe-hashes'; any other inline handler is blocked.
-    /// </summary>
-    public const string ConfirmHandlerHash = "sha256-nDi4jH9Ul4/CZPnziEanuiVPSSZt3gaYRfsdLZh5gOQ=";
-
-    public const string ChartJsOrigin = "https://cdn.jsdelivr.net";
-
     public static string BuildCsp(string nonce) => string.Join("; ",
         "default-src 'self'",
-        $"script-src 'self' 'nonce-{nonce}' 'unsafe-hashes' '{ConfirmHandlerHash}' {ChartJsOrigin}",
+        $"script-src 'self' 'nonce-{nonce}'",
         "style-src 'self' 'unsafe-inline'",
         "img-src 'self' data:",
         "font-src 'self'",
@@ -42,7 +35,9 @@ public sealed class SecurityHeadersMiddleware(RequestDelegate next)
         context.Response.OnStarting(() =>
         {
             var h = context.Response.Headers;
-            h.ContentSecurityPolicy = BuildCsp(nonce);
+            // The Development exception page uses inline scripts without our nonce: leave it without a CSP.
+            if (!(env.IsDevelopment() && context.Response.StatusCode >= 500))
+                h.ContentSecurityPolicy = BuildCsp(nonce);
             h.XContentTypeOptions = "nosniff";
             h.XFrameOptions = "DENY";
             h["Referrer-Policy"] = "strict-origin-when-cross-origin";

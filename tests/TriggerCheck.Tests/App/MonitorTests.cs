@@ -258,7 +258,7 @@ public class MonitorTests : IClassFixture<TestWebAppFactory>
 
         var html = await (await AdminAsync()).GetHtmlAsync($"/App/Monitors/Details/{id}");
         Assert.Contains("rtChart", html);
-        Assert.Contains("chart.js@4.4.1", html);
+        Assert.Contains("/lib/chart.js/dist/chart.umd", html);
         Assert.Contains("90%", html);          // 24h uptime
         Assert.Contains("1 h 5 min", html);    // incident duration
         Assert.Contains("HTTP 503", html);

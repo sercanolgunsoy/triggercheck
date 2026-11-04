@@ -2,6 +2,7 @@ using System.Net;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TriggerCheck.Monitoring.Alerting;
 using TriggerCheck.Monitoring.Checks;
@@ -46,7 +47,7 @@ public static class DependencyInjection
                 AllowAutoRedirect = false,
                 UseCookies = false,
                 UseProxy = false,
-                ConnectCallback = TargetGuard.ConnectCallback(AllowPrivateTargets(sp))
+                ConnectCallback = TargetGuard.ConnectCallback(AllowPrivateTargets(sp), GuardLogger(sp))
             });
 
         // ---- checkers ----
@@ -79,6 +80,9 @@ public static class DependencyInjection
         c.DefaultRequestHeaders.UserAgent.ParseAdd(MonitoringHttpClients.UserAgent);
     }
 
+    private static ILogger GuardLogger(IServiceProvider sp) =>
+        sp.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(TargetGuard).FullName!);
+
     private static Func<bool> AllowPrivateTargets(IServiceProvider sp)
     {
         var options = sp.GetRequiredService<IOptionsMonitor<MonitoringOptions>>();
@@ -87,7 +91,7 @@ public static class DependencyInjection
 
     private static SocketsHttpHandler CreateProbeHandler(IServiceProvider sp, bool followRedirects) => new()
     {
-        ConnectCallback = TargetGuard.ConnectCallback(AllowPrivateTargets(sp)),
+        ConnectCallback = TargetGuard.ConnectCallback(AllowPrivateTargets(sp), GuardLogger(sp)),
         // No proxy: the connect-time guard must see the real destination, not the proxy's address.
         UseProxy = false,
         AllowAutoRedirect = followRedirects,

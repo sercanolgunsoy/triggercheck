@@ -45,7 +45,7 @@
                         </form>
                         <form method="post" asp-page-handler="Delete" asp-route-id="@u.Id" class="d-inline"
                               data-confirm="@L["Delete user {0}? This cannot be undone.", u.Email]"
-                              onsubmit="return confirm(this.dataset.confirm);">
+                             >
                             <button type="submit" class="btn btn-sm btn-outline-danger">@L["Delete"]</button>
                         </form>
                     }

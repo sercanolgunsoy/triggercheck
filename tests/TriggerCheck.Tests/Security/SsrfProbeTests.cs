@@ -9,6 +9,7 @@ using TriggerCheck.Domain.Entities;
 using TriggerCheck.Monitoring;
 using TriggerCheck.Monitoring.Alerting;
 using TriggerCheck.Monitoring.Checks;
+using TriggerCheck.Monitoring.Security;
 using TriggerCheck.Tests.Monitoring;
 using MonitorEntity = TriggerCheck.Domain.Entities.Monitor;
 
@@ -56,7 +57,7 @@ public class SsrfProbeTests : IAsyncLifetime
         await using var sp = Build();
         var o = await Checker(sp, type).CheckAsync(new MonitorEntity { Type = type, Target = _target.Url("/secret"), Keyword = "secret", TimeoutSeconds = 5 }, CancellationToken.None);
         Assert.False(o.IsUp);
-        Assert.StartsWith("Blocked target", o.Error);
+        Assert.Equal(TargetGuard.BlockedMessage, o.Error);
         Assert.Equal(0, _targetHits);
     }
 
@@ -70,7 +71,7 @@ public class SsrfProbeTests : IAsyncLifetime
         await using var sp = Build();
         var o = await Checker(sp, MonitorType.Http).CheckAsync(new MonitorEntity { Type = MonitorType.Http, Target = url, TimeoutSeconds = 5 }, CancellationToken.None);
         Assert.False(o.IsUp);
-        Assert.StartsWith("Blocked target", o.Error);
+        Assert.Equal(TargetGuard.BlockedMessage, o.Error);
     }
 
     [Fact]
@@ -79,13 +80,19 @@ public class SsrfProbeTests : IAsyncLifetime
         // The first connection (to the redirector) is allowed, every later one is not: proves each redirect hop
         // goes through the connect-time guard of the production probe client.
         var options = new FirstConnectionAllowed();
-        await using var sp = Build(s => s.AddSingleton<IOptionsMonitor<MonitoringOptions>>(options));
+        var logs = new CapturingLoggerProvider();
+        await using var sp = Build(s =>
+        {
+            s.AddSingleton<IOptionsMonitor<MonitoringOptions>>(options);
+            s.AddSingleton<Microsoft.Extensions.Logging.ILoggerProvider>(logs);
+        });
 
         var o = await Checker(sp, MonitorType.Keyword).CheckAsync(
             new MonitorEntity { Type = MonitorType.Keyword, Target = _redirector.Url("/go"), Keyword = "secret", TimeoutSeconds = 5 }, CancellationToken.None);
 
         Assert.False(o.IsUp);
-        Assert.StartsWith("Blocked target: 127.0.0.1", o.Error);
+        Assert.Equal(TargetGuard.BlockedMessage, o.Error);   // generic for the tenant...
+        Assert.Contains(logs.Messages, m => m.Contains("Blocked outbound connection") && m.Contains("127.0.0.1")); // ...details server-side
         Assert.Equal(0, _targetHits);
         Assert.True(options.Reads >= 2);
     }
@@ -101,7 +108,7 @@ public class SsrfProbeTests : IAsyncLifetime
         var o = await Checker(sp, MonitorType.Tcp).CheckAsync(new MonitorEntity { Type = MonitorType.Tcp, Target = "localhost", Port = port, TimeoutSeconds = 5 }, CancellationToken.None);
 
         Assert.False(o.IsUp);
-        Assert.StartsWith("Blocked target", o.Error);
+        Assert.Equal(TargetGuard.BlockedMessage, o.Error);
         Assert.False(listener.Pending());
     }
 
@@ -114,7 +121,7 @@ public class SsrfProbeTests : IAsyncLifetime
         await using var sp = Build();
         var o = await Checker(sp, MonitorType.Ping).CheckAsync(new MonitorEntity { Type = MonitorType.Ping, Target = host, TimeoutSeconds = 2 }, CancellationToken.None);
         Assert.False(o.IsUp);
-        Assert.StartsWith("Blocked target", o.Error);
+        Assert.Equal(TargetGuard.BlockedMessage, o.Error);
     }
 
     [Fact]
@@ -129,7 +136,7 @@ public class SsrfProbeTests : IAsyncLifetime
             new AlertMessage(1, 1, "M", "https://example.org", AlertKind.Down, "x", DateTime.UtcNow), CancellationToken.None);
 
         Assert.False(r.Success);
-        Assert.StartsWith("Blocked target", r.Error);
+        Assert.Equal(TargetGuard.BlockedMessage, r.Error);
         Assert.Equal(0, hits);
     }
 

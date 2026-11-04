@@ -82,19 +82,20 @@ public class WebhookMaskingTests
             Assert.DoesNotContain("TOPSECRET", html);
         }
     }
+}
 
-    private sealed class CapturingLoggerProvider : ILoggerProvider
+/// <summary>Collects formatted log messages of every category.</summary>
+public sealed class CapturingLoggerProvider : ILoggerProvider
+{
+    public ConcurrentQueue<string> Messages { get; } = new();
+    public ILogger CreateLogger(string categoryName) => new Logger(Messages);
+    public void Dispose() { }
+
+    private sealed class Logger(ConcurrentQueue<string> messages) : ILogger
     {
-        public ConcurrentQueue<string> Messages { get; } = new();
-        public ILogger CreateLogger(string categoryName) => new Logger(Messages);
-        public void Dispose() { }
-
-        private sealed class Logger(ConcurrentQueue<string> messages) : ILogger
-        {
-            public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
-            public bool IsEnabled(LogLevel logLevel) => true;
-            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
-                messages.Enqueue(formatter(state, exception));
-        }
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+            messages.Enqueue(formatter(state, exception));
     }
 }

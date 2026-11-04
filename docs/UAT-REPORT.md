@@ -21,6 +21,7 @@
   - 8780: aralık ölçümü
   - 8770: webhook alıcısı
   - 8799: kapalı port
+  - Not: SSRF korumasından (SEC-1) sonra yerel hedefler yalnızca `Monitoring:AllowPrivateTargets=true` ile izlenebilir. Bu bayrak `appsettings.Development.json` içinde açıktır; üretimde varsayılan `false` kalır.
 - **Nasıl sürüldü:** Senaryolar gerçek HTTP istekleriyle yürütüldü: login, antiforgery token, form POST. Sonuçlar arayüz yanıtlarından ve veritabanından doğrulandı.
 - **Kod incelemesi:** Ayrı bir agent kodu bağımsız olarak, salt okunur şekilde inceledi.
 - **Test verisi:** Acme (Standard), Beta (Basic), Ent (Enterprise) müşterileri ve Ent altında bir CustomerViewer kullanıcısı.

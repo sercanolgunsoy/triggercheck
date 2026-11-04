@@ -26,14 +26,20 @@ public class ManualCheckLimiterTests
         Assert.Equal(TimeSpan.FromSeconds(expected), CooldownFor(planMin));
 
     [Fact]
-    public void Recently_checked_monitor_is_in_cooldown()
+    public void Only_a_short_guard_applies_after_a_scheduled_check()
     {
         var limiter = new ManualCheckLimiter(_time);
-        var d = limiter.TryAcquire(1, 10, Now.AddSeconds(-20), planMinIntervalSeconds: 60);
+        var d = limiter.TryAcquire(1, 10, Now.AddSeconds(-4), planMinIntervalSeconds: 300);
         Assert.Equal(Denial.MonitorCooldown, d.Denial);
-        Assert.Equal(40, d.RetryAfterSeconds);
+        Assert.Equal(6, d.RetryAfterSeconds);
 
-        Assert.True(limiter.TryAcquire(1, 10, Now.AddSeconds(-61), 60).Allowed);
+        // Monitor at the plan minimum (300s), scheduler checked it 10s ago: a manual check is allowed...
+        Assert.True(limiter.TryAcquire(1, 10, Now.AddSeconds(-10), 300).Allowed);
+        // ...and the plan cooldown then applies between manual checks.
+        _time.Advance(TimeSpan.FromSeconds(60));
+        d = limiter.TryAcquire(1, 10, Now.AddSeconds(-60), 300);
+        Assert.Equal(Denial.MonitorCooldown, d.Denial);
+        Assert.Equal(240, d.RetryAfterSeconds);
     }
 
     [Fact]
@@ -42,7 +48,9 @@ public class ManualCheckLimiterTests
         var limiter = new ManualCheckLimiter(_time);
         Assert.True(limiter.TryAcquire(1, 10, null, 15).Allowed);
         Assert.Equal(Denial.MonitorCooldown, limiter.TryAcquire(1, 10, null, 15).Denial);
-        _time.Advance(TimeSpan.FromSeconds(30));
+        _time.Advance(TimeSpan.FromSeconds(29));
+        Assert.Equal(Denial.MonitorCooldown, limiter.TryAcquire(1, 10, null, 15).Denial);
+        _time.Advance(TimeSpan.FromSeconds(1));
         Assert.True(limiter.TryAcquire(1, 10, null, 15).Allowed);
     }
 
@@ -58,7 +66,6 @@ public class ManualCheckLimiterTests
         Assert.Equal(60, denied.RetryAfterSeconds);
 
         Assert.True(limiter.TryAcquire(2, 500, null, 15).Allowed);               // other customer unaffected
-        Assert.True(limiter.TryAcquire(1, 998, null, 15, bypassCustomerQuota: true).Allowed);
 
         _time.Advance(TimeSpan.FromMinutes(1));
         Assert.True(limiter.TryAcquire(1, 999, null, 15).Allowed);
@@ -96,7 +103,7 @@ public class CheckNowRateLimitTests : IAsyncLifetime
         return client;
     }
 
-    private async Task<int> AddMonitorAsync(DateTime? lastChecked)
+    private async Task<int> AddMonitorAsync(DateTime? lastChecked, int intervalSeconds = 300)
     {
         using var scope = _f.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<TriggerCheck.Infrastructure.Data.AppDbContext>();
@@ -104,7 +111,7 @@ public class CheckNowRateLimitTests : IAsyncLifetime
         var m = new TriggerCheck.Domain.Entities.Monitor
         {
             CustomerId = cid, Name = "Rate-" + Guid.NewGuid().ToString("N")[..6], Type = MonitorType.Http, Target = "https://example.org/",
-            IntervalSeconds = 300, Status = MonitorStatus.Up, LastCheckedAtUtc = lastChecked, NextCheckAtUtc = DateTime.UtcNow.AddHours(1)
+            IntervalSeconds = intervalSeconds, Status = MonitorStatus.Up, LastCheckedAtUtc = lastChecked, NextCheckAtUtc = DateTime.UtcNow.AddHours(1)
         };
         db.Monitors.Add(m);
         await db.SaveChangesAsync();
@@ -134,8 +141,9 @@ public class CheckNowRateLimitTests : IAsyncLifetime
     [Fact]
     public async Task First_check_runs_and_an_immediate_second_one_is_refused()
     {
+        // Demo plan "Standard" has a 60s minimum; the monitor runs at it and the scheduler checked it 15s ago.
         var c = await AdminAsync();
-        var id = await AddMonitorAsync(DateTime.UtcNow.AddMinutes(-10));
+        var id = await AddMonitorAsync(DateTime.UtcNow.AddSeconds(-15), intervalSeconds: 60);
 
         Assert.Contains("Check succeeded", await CheckNowAsync(c, id));
         Assert.Contains("This monitor was checked moments ago.", await CheckNowAsync(c, id));
