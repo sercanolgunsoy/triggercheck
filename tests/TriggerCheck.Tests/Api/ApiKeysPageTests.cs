@@ -52,7 +52,9 @@ public class ApiKeysPageTests : IClassFixture<ApiKeysPageTests.Fixture>
         Assert.DoesNotContain("tc_", r.Headers.Location!.ToString());
         Assert.DoesNotContain(r.Headers.TryGetValues("Set-Cookie", out var cookies) ? cookies : [], h => h.Contains("tc_"));
 
-        var shown = await c.GetAsync("/App/ApiKeys");
+        var revealUrl = r.Headers.Location!.ToString();
+        Assert.Contains("reveal=", revealUrl);
+        var shown = await c.GetAsync(revealUrl);
         Assert.Contains("no-store", shown.Headers.CacheControl?.ToString());
         var token = TokenRx.Match(await shown.ReadHtmlAsync()).Groups[1].Value;
         Assert.NotEmpty(token);
@@ -68,8 +70,8 @@ public class ApiKeysPageTests : IClassFixture<ApiKeysPageTests.Fixture>
 
         // The token works against the API ...
         Assert.Equal(HttpStatusCode.OK, (await _f.ApiClient(token).GetAsync("/api/v1/monitors")).StatusCode);
-        // ... and is never shown again (a refresh shows the list only), not even to another admin session.
-        var list = await c.GetHtmlAsync("/App/ApiKeys");
+        // ... and is never shown again: refreshing the same URL shows the list only.
+        var list = await c.GetHtmlAsync(revealUrl);
         Assert.DoesNotContain(token, list);
         Assert.Contains($"tc_{key.Prefix}_", list);
         Assert.Equal(1, await _f.WithDbAsync(db => db.ApiKeys.CountAsync(k => k.Name == "Deploy")));
@@ -79,12 +81,31 @@ public class ApiKeysPageTests : IClassFixture<ApiKeysPageTests.Fixture>
     public async Task Pending_key_is_shown_only_to_its_creator()
     {
         var creator = await AdminAsync();
-        AppTestData.AssertRedirect(await creator.PostFormAsync("/App/ApiKeys?handler=Create", CreateForm("Mine"), "/App/ApiKeys"), "/App/ApiKeys");
+        var r = await creator.PostFormAsync("/App/ApiKeys?handler=Create", CreateForm("Mine"), "/App/ApiKeys");
+        var revealUrl = r.Headers.Location!.ToString();
 
         await _f.InitAsync();
         var viewer = await _f.LoginAsync(ViewerEmail, ViewerPassword);
-        Assert.DoesNotMatch(TokenRx, await viewer.GetHtmlAsync("/App/ApiKeys"));
-        Assert.Matches(TokenRx, await creator.GetHtmlAsync("/App/ApiKeys"));
+        Assert.DoesNotMatch(TokenRx, await viewer.GetHtmlAsync(revealUrl));
+        Assert.DoesNotMatch(TokenRx, await creator.GetHtmlAsync("/App/ApiKeys")); // needs the reveal id
+        Assert.Matches(TokenRx, await creator.GetHtmlAsync(revealUrl));
+    }
+
+    [Fact]
+    public async Task Two_tabs_each_reveal_their_own_key()
+    {
+        var c = await AdminAsync();
+        var first = (await c.PostFormAsync("/App/ApiKeys?handler=Create", CreateForm("TabOne"), "/App/ApiKeys")).Headers.Location!.ToString();
+        var second = (await c.PostFormAsync("/App/ApiKeys?handler=Create", CreateForm("TabTwo"), "/App/ApiKeys")).Headers.Location!.ToString();
+        Assert.NotEqual(first, second);
+
+        var t1 = TokenRx.Match(await c.GetHtmlAsync(first)).Groups[1].Value;
+        var t2 = TokenRx.Match(await c.GetHtmlAsync(second)).Groups[1].Value;
+        Assert.NotEmpty(t1);
+        Assert.NotEmpty(t2);
+        Assert.NotEqual(t1, t2);
+        var hashes = await _f.WithDbAsync(db => db.ApiKeys.Where(k => k.Name == "TabOne" || k.Name == "TabTwo").OrderBy(k => k.Name).Select(k => k.SecretHash).ToListAsync());
+        Assert.Equal([ApiKeyTokens.Hash(t1), ApiKeyTokens.Hash(t2)], hashes);
     }
 
     [Fact]

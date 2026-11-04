@@ -19,7 +19,7 @@ namespace TriggerCheck.Web.Areas.App.Pages.ApiKeys;
 /// <summary>
 /// REST API keys of the customer. Every member sees the list (never a secret); only CustomerAdmins create and revoke.
 /// Only the token's hash is stored. The full token is shown once: the create POST parks it for 5 minutes in a server-side
-/// one-time store (IMemoryCache, bound to user + customer, never TempData / a cookie) and redirects; the following GET
+/// one-time store (IMemoryCache, bound to user + customer + a per-create reveal id, never TempData / a cookie) and redirects; the following GET
 /// takes it out and renders it, so refreshing neither shows it again nor creates a second key.
 /// </summary>
 public class IndexModel(AppDbContext db, ICurrentCustomer current, TimeProvider time, IMemoryCache cache, Text<AppResource> L) : PageModel
@@ -56,17 +56,18 @@ public class IndexModel(AppDbContext db, ICurrentCustomer current, TimeProvider 
     private sealed record Reveal(string Name, string Token);
     private static readonly TimeSpan RevealLifetime = TimeSpan.FromMinutes(5);
 
-    private string RevealKey(int customerId) =>
-        $"api-key-reveal:{User.FindFirstValue(ClaimTypes.NameIdentifier)}:{customerId}";
+    /// <summary>Bound to the user, the customer and one create (<paramref name="revealId"/>), so two tabs never collide.</summary>
+    private string RevealKey(int customerId, Guid revealId) =>
+        $"api-key-reveal:{User.FindFirstValue(ClaimTypes.NameIdentifier)}:{customerId}:{revealId:N}";
 
-    public async Task OnGetAsync(CancellationToken ct)
+    public async Task OnGetAsync(Guid? reveal, CancellationToken ct)
     {
-        var key = RevealKey(current.RequiredCustomerId);
-        if (cache.TryGetValue(key, out Reveal? reveal) && reveal is not null)
+        var key = reveal is Guid id ? RevealKey(current.RequiredCustomerId, id) : null;
+        if (key is not null && cache.TryGetValue(key, out Reveal? pending) && pending is not null)
         {
             cache.Remove(key); // one-time
-            NewToken = reveal.Token;
-            NewTokenName = reveal.Name;
+            NewToken = pending.Token;
+            NewTokenName = pending.Name;
             Response.Headers.CacheControl = "no-store";
         }
         await LoadAsync(ct);
@@ -95,8 +96,9 @@ public class IndexModel(AppDbContext db, ICurrentCustomer current, TimeProvider 
             var (token, error) = await CreateKeyAsync(cid, ct);
             if (token is not null)
             {
-                cache.Set(RevealKey(cid), new Reveal(Input.Name, token), RevealLifetime);
-                return RedirectToPage("Index");
+                var revealId = Guid.NewGuid();
+                cache.Set(RevealKey(cid, revealId), new Reveal(Input.Name, token), RevealLifetime);
+                return RedirectToPage("Index", new { reveal = revealId });
             }
             ModelState.AddModelError("", error!);
         }

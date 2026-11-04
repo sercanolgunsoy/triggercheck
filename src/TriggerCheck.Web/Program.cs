@@ -78,6 +78,8 @@ if (!app.Environment.IsDevelopment() && app.Configuration.GetValue<bool>("Monito
     app.Logger.LogWarning("Monitoring:AllowPrivateTargets is enabled in {Environment}: SSRF protection is OFF and monitors/webhooks " +
                           "can reach internal addresses. Use this only for development or testing.", app.Environment.EnvironmentName);
 
+// Behind a reverse proxy (ForwardedHeaders:Enabled): real client IP and scheme, before anything that uses them.
+app.UseAppForwardedHeaders();
 app.UseSecurityHeaders();
 
 if (!app.Environment.IsDevelopment())

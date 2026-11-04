@@ -22,6 +22,8 @@ Create keys in the panel under **Settings > API keys** (`/App/ApiKeys`, Customer
   keys and revoke them all at once (SuperAdmin > Customers > customer > API keys).
 - After creation the panel redirects and shows the key once (kept server-side for at most 5 minutes until that page
   is opened; never stored in a cookie). Refreshing does not show it again or create another key.
+  The pending key is held in the memory of the app instance (TriggerCheck runs as a single instance on SQLite); after
+  a restart within those minutes it is lost and the key has to be revoked and created again.
 
 Send the key as a bearer token:
 
@@ -42,7 +44,7 @@ Three limits apply to `/api` requests; over any of them the API answers `429 Too
 |-------|---------|---------|-------|
 | Per API key | 120 / min (fixed window) | `Api:RequestsPerMinute` | |
 | Per customer, all keys together | 300 / min (fixed window) | `Api:RequestsPerMinutePerCustomer` | |
-| Per client IP | 600 / min (sliding window) | `Api:RequestsPerMinutePerIp` | Applied before authentication, so it also throttles invalid-key floods. Behind a reverse proxy configure forwarded headers, otherwise all clients share the proxy's IP. |
+| Per client IP (IPv6: per /64) | 600 / min (sliding window) | `Api:RequestsPerMinutePerIp` | Applied before authentication, so it also throttles invalid-key floods. Behind a reverse proxy enable `ForwardedHeaders:Enabled` with `KnownProxies` / `KnownNetworks` (see DEPLOYMENT.md), otherwise all clients share the proxy's IP. |
 
 Limits are kept in memory per app instance.
 
