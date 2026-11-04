@@ -244,8 +244,8 @@ public class SubscriptionFlowTests : IClassFixture<BillingTestFactory>, IAsyncLi
         AssertRedirect(fourth, "/App/Billing");
         Assert.Contains("several unfinished checkouts", await client.GetHtmlAsync("/App/Billing"));
         Assert.Equal(3, await _f.WithDbAsync(db => db.Subscriptions.CountAsync(s => s.CustomerId == cid)));
-        await client.PostFormAsync($"/App/Billing/Checkout?planId={await PlanIdAsync("Pro")}", Contact());
-        // Sixth POST within the hour: rate limited per customer.
+        for (var i = 0; i < 6; i++) await client.PostFormAsync($"/App/Billing/Checkout?planId={await PlanIdAsync("Pro")}", Contact());
+        // Eleventh POST within the hour: rate limited per customer.
         var limited = await client.PostFormAsync($"/App/Billing/Checkout?planId={await PlanIdAsync("Pro")}", Contact());
         Assert.Equal(HttpStatusCode.TooManyRequests, limited.StatusCode);
         // Another customer is not affected.

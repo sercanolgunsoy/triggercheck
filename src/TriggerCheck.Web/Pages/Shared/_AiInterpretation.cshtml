@@ -42,7 +42,7 @@ else if (i is not null)
             @foreach (var h in Model.Likely)
             {
                 <div class="mb-3 ai-hypothesis" data-confidence="@h.Confidence.ToString().ToLowerInvariant()">
-                    <div class="fw-semibold">@h.Cause <span class="badge @(h.Confidence == AiConfidence.High ? "text-bg-success" : "text-bg-warning") ms-1">@ConfidenceLabel(h.Confidence)</span></div>
+                    <div class="fw-semibold">@h.Cause <span class="badge @(h.Confidence == AiConfidence.High ? "text-bg-success" : "text-bg-warning") ms-1">@ConfidenceLabel(h.Confidence)</span>@if (AiContentModel.CategoryLabel(h.Category) is string cat) { <span class="badge text-bg-light border ms-1 ai-category" data-category="@h.Category">@L[cat]</span> }</div>
                     <div class="small text-muted">@L["Evidence"]:</div>
                     <ul class="small mb-0">@foreach (var e in h.Evidence) { <li>@e</li> }</ul>
                 </div>
@@ -55,7 +55,7 @@ else if (i is not null)
                     @foreach (var h in Model.Possible)
                     {
                         <div class="mt-2 ai-hypothesis" data-confidence="low">
-                            <div><span class="badge text-bg-secondary me-1">@L["possible"]</span>@h.Cause</div>
+                            <div><span class="badge text-bg-secondary me-1">@L["possible"]</span>@h.Cause@if (AiContentModel.CategoryLabel(h.Category) is string cat) { <span class="badge text-bg-light border ms-1 ai-category" data-category="@h.Category">@L[cat]</span> }</div>
                             <ul class="small mb-0">@foreach (var e in h.Evidence) { <li>@e</li> }</ul>
                         </div>
                     }

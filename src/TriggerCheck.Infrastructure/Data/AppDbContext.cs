@@ -54,6 +54,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
             e.Property(x => x.ContactEmail).HasMaxLength(256);
             e.Property(x => x.TrialKey).HasMaxLength(256);
             e.Property(x => x.ReportTimeZoneId).HasMaxLength(100);
+            e.Property(x => x.AiLanguage).HasMaxLength(8);
             e.HasIndex(x => x.TrialKey);
             e.HasOne(x => x.Plan).WithMany(p => p.Customers).HasForeignKey(x => x.PlanId).OnDelete(DeleteBehavior.Restrict);
         });
@@ -94,6 +95,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
         {
             e.HasOne(x => x.Monitor).WithMany(m => m.Incidents).HasForeignKey(x => x.MonitorId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(x => new { x.MonitorId, x.StartedAtUtc });
+            e.HasIndex(x => x.ResolvedAtUtc); // AI event watcher: recently resolved incidents
             e.Ignore(x => x.IsOpen);
             e.Property(x => x.AcknowledgedByUserId).HasMaxLength(450);
             e.Property(x => x.AcknowledgeNote).HasMaxLength(500);
@@ -193,6 +195,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
             e.Property(x => x.InputHash).HasMaxLength(64);
             e.Property(x => x.Model).HasMaxLength(100);
             e.Property(x => x.Effort).HasMaxLength(20);
+            e.Property(x => x.Language).HasMaxLength(8);
             e.Property(x => x.ErrorCode).HasMaxLength(64);
             e.Property(x => x.FeedbackByUserId).HasMaxLength(450);
             e.Property(x => x.CostEstimate).HasConversion<double>();

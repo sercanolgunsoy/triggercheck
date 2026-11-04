@@ -37,6 +37,11 @@ public class Customer
     /// every creation path for new customers sets it to true.
     /// </summary>
     public bool AiEnabled { get; set; }
+    /// <summary>
+    /// Language of AI summaries generated in the background ("en" / "tr"). Set from the admin's UI language when AI is
+    /// switched on, and selectable on the AI features page.
+    /// </summary>
+    public string AiLanguage { get; set; } = "en";
 
     // ---- SLA reports (FEAT-10) ----
     /// <summary>Opt-in: e-mail the monthly SLA report to the customer admins on the 1st of the month.</summary>

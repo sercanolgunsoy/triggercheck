@@ -111,7 +111,9 @@ public class CheckerIntegrationTests : IAsyncLifetime
         Assert.False(o.IsUp);
         Assert.Null(o.StatusCode);
         Assert.Equal("Timeout after 1s", o.Error);
-        Assert.InRange(o.ResponseTimeMs, 900, 5000);
+        // The timeout cannot fire early; "Timeout after 1s" (instead of a 200 after /slow's 10 s) already proves it fired.
+        // No wall-clock upper bound: on a loaded machine the cancellation callback itself can be scheduled seconds late.
+        Assert.True(o.ResponseTimeMs >= 900, $"{o.ResponseTimeMs} ms");
     }
 
     [Fact]

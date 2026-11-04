@@ -1,0 +1,61 @@
+{
+  "id": "ping-unreachable-tr",
+  "feature": "IncidentInterpretation",
+  "language": "tr",
+  "description": "Ping target unreachable, Turkish output.",
+  "expect": {
+    "primaryCause": "network_unreachable"
+  },
+  "monitor": {
+    "name": "Edge gateway",
+    "type": "Ping",
+    "target": "gw.example.test",
+    "status": "Down"
+  },
+  "incident": {
+    "startedMinutesAgo": 6,
+    "cause": "Ping failed: DestinationHostUnreachable"
+  },
+  "checks": [
+    {
+      "minutesAgo": 1,
+      "repeat": 6,
+      "everyMinutes": 1,
+      "up": false,
+      "ms": 0,
+      "error": "Ping failed: DestinationHostUnreachable"
+    },
+    {
+      "minutesAgo": 7,
+      "repeat": 6,
+      "up": true,
+      "ms": 18
+    }
+  ],
+  "canned": {
+    "summary": "Gateway sunucusu ağdan erişilemez durumda; ping istekleri 'host unreachable' hatası veriyor.",
+    "hypotheses": [
+      {
+        "cause": "Sunucu erişilemez durumda (DestinationHostUnreachable).",
+        "confidence": "high",
+        "evidence": [
+          "6 kontrol 'DestinationHostUnreachable' hatası verdi",
+          "Önceki ping süresi 18 ms"
+        ],
+        "category": "network_unreachable",
+        "evidence_refs": [
+          "error E1"
+        ]
+      }
+    ],
+    "suggested_actions": [
+      {
+        "action": "contact_hosting_provider",
+        "description": "Barındırma sağlayıcısında ağ veya sunucu kesintisi olup olmadığını sorun.",
+        "autonomy": "A0",
+        "reversible": true
+      }
+    ],
+    "unknowns": []
+  }
+}

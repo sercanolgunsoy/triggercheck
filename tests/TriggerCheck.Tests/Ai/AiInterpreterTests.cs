@@ -417,13 +417,17 @@ public class AiInterpreterTests
     [Fact]
     public async Task Shutdown_during_a_call_completes_the_reservation()
     {
-        await using var h = await AiTestHost.CreateAsync(client: new HangingClient());
+        var client = new HangingClient();
+        await using var h = await AiTestHost.CreateAsync(client: client);
         var c = await h.AddCustomerAsync();
         var m = await h.AddMonitorAsync(c.Id);
-        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(300));
+        using var cts = new CancellationTokenSource();
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            h.InScopeAsync(sp => sp.GetRequiredService<IAiInterpreter>().RunAsync(AiTestHost.Job(c.Id, m.Id.ToString()), cts.Token)));
+        var run = h.InScopeAsync(sp => sp.GetRequiredService<IAiInterpreter>().RunAsync(AiTestHost.Job(c.Id, m.Id.ToString()), cts.Token));
+        // Shut down only once the call is in flight (a fixed delay could fire before the reservation on a busy machine).
+        await client.Called.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        cts.CancelAfter(TimeSpan.FromMilliseconds(20)); // some latency to record
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run);
 
         var d = await h.WithDbAsync(db => db.AiDecisions.AsNoTracking().SingleAsync());
         Assert.Equal((AiDecisionStatus.Failed, "shutdown"), (d.Status, d.ErrorCode));
@@ -516,9 +520,11 @@ public class AiInterpreterTests
 
     private sealed class HangingClient : IAiClient
     {
+        public TaskCompletionSource Called { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public bool IsAvailable => true;
         public async Task<AiCallResult> CompleteAsync(AiCallRequest request, CancellationToken ct)
         {
+            Called.TrySetResult();
             await Task.Delay(TimeSpan.FromSeconds(30), ct);
             return FakeAiClient.Success(FakeAiClient.CannedJson);
         }

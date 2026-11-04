@@ -69,7 +69,14 @@ public sealed class BillingMaintenance(AppDbContext db, BillingService billing, 
                 var claimed = await db.Customers.Where(x => x.Id == c.Id && x.TrialReminderSentAtUtc == null)
                     .ExecuteUpdateAsync(u => u.SetProperty(x => x.TrialReminderSentAtUtc, now), ct);
                 if (claimed == 0) return;
-                await mailer.TrialReminderAsync(c, fallback, ct);
+                try { await mailer.TrialReminderAsync(c, fallback, ct); }
+                catch
+                {
+                    // Never "sent" without an outbox row: release the claim so the next run tries again.
+                    await db.Customers.Where(x => x.Id == c.Id)
+                        .ExecuteUpdateAsync(u => u.SetProperty(x => x.TrialReminderSentAtUtc, (DateTime?)null), CancellationToken.None);
+                    throw;
+                }
                 reminders++;
             }, ct);
 

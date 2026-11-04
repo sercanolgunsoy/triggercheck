@@ -1,0 +1,74 @@
+{
+  "id": "http-404",
+  "feature": "IncidentInterpretation",
+  "language": "en",
+  "description": "Health endpoint removed by a deployment.",
+  "expect": {
+    "primaryCause": "http_4xx"
+  },
+  "monitor": {
+    "name": "Shop API",
+    "type": "Http",
+    "target": "https://shop.example.test/health",
+    "status": "Down",
+    "certExpiresInDays": 60
+  },
+  "incident": {
+    "startedMinutesAgo": 15,
+    "cause": "HTTP 404 (expected 200-299)"
+  },
+  "checks": [
+    {
+      "minutesAgo": 1,
+      "repeat": 15,
+      "everyMinutes": 1,
+      "up": false,
+      "ms": 60,
+      "status": 404,
+      "error": "HTTP 404 (expected 200-299)",
+      "dns": 4,
+      "connect": 11,
+      "tls": 24,
+      "ttfb": 50
+    },
+    {
+      "minutesAgo": 16,
+      "repeat": 8,
+      "everyMinutes": 1,
+      "up": true,
+      "status": 200,
+      "ms": 180,
+      "dns": 4,
+      "connect": 12,
+      "tls": 25,
+      "ttfb": 150
+    }
+  ],
+  "canned": {
+    "summary": "Shop API is down because the monitored endpoint now returns HTTP 404 Not Found.",
+    "hypotheses": [
+      {
+        "cause": "The endpoint returns HTTP 404 Not Found; the path was probably removed or renamed.",
+        "confidence": "high",
+        "evidence": [
+          "15 checks returned status 404 with fast responses (50 ms TTFB)"
+        ],
+        "category": "http_4xx",
+        "evidence_refs": [
+          "error E1"
+        ]
+      }
+    ],
+    "suggested_actions": [
+      {
+        "action": "check_recent_deployment",
+        "description": "Check whether a recent deployment changed or removed the health endpoint.",
+        "autonomy": "A0",
+        "reversible": true
+      }
+    ],
+    "unknowns": [
+      "Whether a deployment happened when the incident started."
+    ]
+  }
+}

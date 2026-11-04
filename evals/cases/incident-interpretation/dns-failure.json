@@ -1,0 +1,75 @@
+{
+  "id": "dns-failure",
+  "feature": "IncidentInterpretation",
+  "language": "en",
+  "description": "Host name stops resolving; no phase timings on failed checks.",
+  "expect": {
+    "primaryCause": "dns_failure"
+  },
+  "monitor": {
+    "name": "Shop API",
+    "type": "Http",
+    "target": "https://shop.example.test/health?token=abc123secretvalue",
+    "status": "Down",
+    "certExpiresInDays": 60
+  },
+  "incident": {
+    "startedMinutesAgo": 6,
+    "cause": "Name or service not known (shop.example.test:443)"
+  },
+  "checks": [
+    {
+      "minutesAgo": 1,
+      "repeat": 6,
+      "everyMinutes": 1,
+      "up": false,
+      "ms": 30,
+      "error": "Name or service not known (shop.example.test:443)"
+    },
+    {
+      "minutesAgo": 7,
+      "repeat": 8,
+      "everyMinutes": 1,
+      "up": true,
+      "status": 200,
+      "ms": 180,
+      "dns": 4,
+      "connect": 12,
+      "tls": 25,
+      "ttfb": 150
+    }
+  ],
+  "secrets": [
+    "abc123secretvalue",
+    "token="
+  ],
+  "baselineMedianMs": 180,
+  "canned": {
+    "summary": "Shop API is down because its host name no longer resolves in DNS, so no connection can be opened.",
+    "hypotheses": [
+      {
+        "cause": "DNS resolution of shop.example.test fails (unknown host name).",
+        "confidence": "high",
+        "evidence": [
+          "The last 6 checks failed with 'Name or service not known' and recorded no DNS, connect or TLS timing",
+          "Checks before the incident resolved the name in 4 ms"
+        ],
+        "category": "dns",
+        "evidence_refs": [
+          "error E1"
+        ]
+      }
+    ],
+    "suggested_actions": [
+      {
+        "action": "check_dns_configuration",
+        "description": "Check the DNS records of shop.example.test and the domain's expiry at the registrar.",
+        "autonomy": "A0",
+        "reversible": true
+      }
+    ],
+    "unknowns": [
+      "Whether DNS records were changed recently."
+    ]
+  }
+}

@@ -1,0 +1,74 @@
+{
+  "id": "tls-expired",
+  "feature": "IncidentInterpretation",
+  "language": "en",
+  "description": "Certificate expired two days ago.",
+  "expect": {
+    "primaryCause": "tls_expired"
+  },
+  "monitor": {
+    "name": "Shop API",
+    "type": "Http",
+    "target": "https://shop.example.test/health",
+    "status": "Down",
+    "certExpiresInDays": -2,
+    "certError": "RemoteCertificateChainErrors: NotTimeValid (expired)"
+  },
+  "incident": {
+    "startedMinutesAgo": 5,
+    "cause": "The SSL connection could not be established: the remote certificate has expired."
+  },
+  "checks": [
+    {
+      "minutesAgo": 1,
+      "repeat": 5,
+      "everyMinutes": 1,
+      "up": false,
+      "ms": 30,
+      "error": "The SSL connection could not be established: the remote certificate has expired.",
+      "dns": 4,
+      "connect": 11
+    },
+    {
+      "minutesAgo": 6,
+      "repeat": 6,
+      "everyMinutes": 1,
+      "up": true,
+      "status": 200,
+      "ms": 180,
+      "dns": 4,
+      "connect": 12,
+      "tls": 25,
+      "ttfb": 150
+    }
+  ],
+  "canned": {
+    "summary": "Shop API is down because its TLS certificate expired two days ago, so HTTPS connections are rejected.",
+    "hypotheses": [
+      {
+        "cause": "The TLS certificate of shop.example.test has expired.",
+        "confidence": "high",
+        "evidence": [
+          "Certificate expires_at is 2 days in the past",
+          "Every failing check reports 'the remote certificate has expired'"
+        ],
+        "category": "tls_expired",
+        "evidence_refs": [
+          "validation_error",
+          "error E1"
+        ]
+      }
+    ],
+    "suggested_actions": [
+      {
+        "action": "renew_tls_certificate",
+        "description": "Renew and install the certificate for shop.example.test.",
+        "autonomy": "A0",
+        "reversible": true
+      }
+    ],
+    "unknowns": [
+      "Why the automatic renewal did not run."
+    ]
+  }
+}
