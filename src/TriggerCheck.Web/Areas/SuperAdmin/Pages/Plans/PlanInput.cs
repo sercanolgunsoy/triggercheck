@@ -34,11 +34,23 @@ public class PlanInput
 
     [Display(Name = "SMS and voice call alerts (Twilio)")] public bool AllowsSmsVoice { get; set; }
 
+    // ---- AI (AI-10) ----
+    [Required(ErrorMessage = "AI call limit is required."), Range(0, 10_000_000, ErrorMessage = "The AI call limit must be 0 or greater.")]
+    [Display(Name = "AI calls per month")] public int? AiMonthlyCallLimit { get; set; } = 0;
+
+    [Required(ErrorMessage = "AI token limit is required."), Range(0L, 100_000_000_000L, ErrorMessage = "The AI token limit must be 0 or greater.")]
+    [Display(Name = "AI tokens per month (0 = no token limit)")] public long? AiMonthlyTokenLimit { get; set; } = 0;
+
+    /// <summary>Selected <see cref="TriggerCheck.Domain.AiFeatures"/> names.</summary>
+    public List<string> AiFeatures { get; set; } = [];
+
     public static PlanInput From(Plan p) => new()
     {
         Name = p.Name, MinIntervalSeconds = p.MinIntervalSeconds, MaxMonitors = p.MaxMonitors,
         RetentionDays = p.RetentionDays, MonthlyPrice = p.MonthlyPrice, IsActive = p.IsActive,
-        AllowsSmsVoice = p.AllowsSmsVoice
+        AllowsSmsVoice = p.AllowsSmsVoice,
+        AiMonthlyCallLimit = p.AiMonthlyCallLimit, AiMonthlyTokenLimit = p.AiMonthlyTokenLimit,
+        AiFeatures = Domain.AiFeatures.Parse(p.AiFeatures).ToList()
     };
 
     public void ApplyTo(Plan p)
@@ -50,6 +62,9 @@ public class PlanInput
         p.MonthlyPrice = MonthlyPrice!.Value;
         p.IsActive = IsActive;
         p.AllowsSmsVoice = AllowsSmsVoice;
+        p.AiMonthlyCallLimit = AiMonthlyCallLimit!.Value;
+        p.AiMonthlyTokenLimit = AiMonthlyTokenLimit!.Value;
+        p.AiFeatures = Domain.AiFeatures.Format(AiFeatures);
     }
 
     /// <summary>Rules that DataAnnotations can't express: supported interval and unique name (case-insensitive).</summary>

@@ -53,6 +53,7 @@
                     <ul class="sidebar-nav">
                         @if (isCustomerAdmin) { @NavItem("/App/Users", "users", L["Users"]) }
                         @NavItem("/App/Account", "card", L["Account & plan"])
+                        @NavItem("/App/Ai", "sparkles", L["AI features"])
                     </ul>
                 </div>
             }
@@ -65,6 +66,7 @@
                         @NavItem("/SuperAdmin/Customers", "building", L["Customers"])
                         @NavItem("/SuperAdmin/Plans", "layers", L["Plans"])
                         @NavItem("/SuperAdmin/Monitors", "list", L["All monitors"])
+                        @NavItem("/SuperAdmin/Ai", "sparkles", L["AI usage"])
                     </ul>
                 </div>
             }

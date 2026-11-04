@@ -13,7 +13,7 @@ public class IndexModel(AppDbContext db, Text<AdminResource> L) : PageModel
 {
     public List<Row> Rows { get; private set; } = [];
 
-    public record Row(int Id, string Name, int MinIntervalSeconds, int MaxMonitors, int RetentionDays, decimal MonthlyPrice, bool IsActive, int Customers, int ActiveCustomers, int Monitors);
+    public record Row(int Id, string Name, int MinIntervalSeconds, int MaxMonitors, int RetentionDays, decimal MonthlyPrice, bool IsActive, int Customers, int ActiveCustomers, int Monitors, int AiCalls, int AiFeatureCount);
 
     public async Task OnGetAsync()
     {
@@ -27,7 +27,8 @@ public class IndexModel(AppDbContext db, Text<AdminResource> L) : PageModel
             .Select(p => new Row(p.Id, p.Name, p.MinIntervalSeconds, p.MaxMonitors, p.RetentionDays, p.MonthlyPrice, p.IsActive,
                 cust.FirstOrDefault(x => x.PlanId == p.Id)?.Total ?? 0,
                 cust.FirstOrDefault(x => x.PlanId == p.Id)?.Active ?? 0,
-                mons.FirstOrDefault(x => x.PlanId == p.Id)?.Count ?? 0))
+                mons.FirstOrDefault(x => x.PlanId == p.Id)?.Count ?? 0,
+                p.AiMonthlyCallLimit, Domain.AiFeatures.Parse(p.AiFeatures).Count))
             .ToList();
     }
 

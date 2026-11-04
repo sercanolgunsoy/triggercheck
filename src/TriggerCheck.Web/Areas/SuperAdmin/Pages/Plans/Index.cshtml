@@ -11,7 +11,7 @@
 <div class="table-responsive">
 <table class="table table-hover align-middle mb-0">
     <thead class="table-light">
-        <tr><th>@L["Plan"]</th><th>@L["Min. interval"]</th><th class="text-end">@L["Max monitors"]</th><th class="text-end">@L["Retention"]</th><th class="text-end">@L["Monthly price"]</th><th>@L["Status"]</th><th class="text-end">@L["Customers (active)"]</th><th class="text-end">@L["Monitors"]</th><th></th></tr>
+        <tr><th>@L["Plan"]</th><th>@L["Min. interval"]</th><th class="text-end">@L["Max monitors"]</th><th class="text-end">@L["Retention"]</th><th class="text-end">@L["Monthly price"]</th><th class="text-end">@L["AI calls / month"]</th><th>@L["Status"]</th><th class="text-end">@L["Customers (active)"]</th><th class="text-end">@L["Monitors"]</th><th></th></tr>
     </thead>
     <tbody>
     @foreach (var p in Model.Rows)
@@ -22,6 +22,7 @@
             <td class="text-end">@Fmt.Number(p.MaxMonitors)</td>
             <td class="text-end">@L["{0} days", Fmt.Number(p.RetentionDays)]</td>
             <td class="text-end">@Fmt.Money(p.MonthlyPrice)</td>
+            <td class="text-end">@(p.AiCalls > 0 ? Fmt.Number(p.AiCalls) : "—") @if (p.AiCalls > 0) { <span class="text-muted small">(@L["{0} features", p.AiFeatureCount])</span> }</td>
             <td>@if (p.IsActive) { <span class="badge bg-success">@L["Active"]</span> } else { <span class="badge bg-secondary">@L["Inactive"]</span> }</td>
             <td class="text-end"><a asp-page="/Customers/Index" asp-route-planId="@p.Id">@p.Customers</a> (@p.ActiveCustomers)</td>
             <td class="text-end">@Fmt.Number(p.Monitors)</td>

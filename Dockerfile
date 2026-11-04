@@ -10,6 +10,7 @@ COPY global.json TriggerCheck.sln ./
 COPY src/TriggerCheck.Domain/TriggerCheck.Domain.csproj src/TriggerCheck.Domain/
 COPY src/TriggerCheck.Infrastructure/TriggerCheck.Infrastructure.csproj src/TriggerCheck.Infrastructure/
 COPY src/TriggerCheck.Monitoring/TriggerCheck.Monitoring.csproj src/TriggerCheck.Monitoring/
+COPY src/TriggerCheck.Ai/TriggerCheck.Ai.csproj src/TriggerCheck.Ai/
 COPY src/TriggerCheck.Web/TriggerCheck.Web.csproj src/TriggerCheck.Web/
 RUN dotnet restore src/TriggerCheck.Web/TriggerCheck.Web.csproj
 

@@ -15,5 +15,13 @@ public class Plan
     /// <summary>Customers on this plan may use SMS and voice call alert channels (Twilio).</summary>
     public bool AllowsSmsVoice { get; set; }
 
+    // ---- AI (AI-10): monthly budget and the AI features included in the plan ----
+    /// <summary>Comma separated <see cref="TriggerCheck.Domain.AiFeatures"/> names included in the plan (empty = no AI).</summary>
+    public string AiFeatures { get; set; } = "";
+    /// <summary>Maximum AI calls per customer per calendar month (UTC). 0 = no AI calls.</summary>
+    public int AiMonthlyCallLimit { get; set; }
+    /// <summary>Maximum AI tokens (input + output) per customer per calendar month (UTC). 0 = no limit besides the call limit.</summary>
+    public long AiMonthlyTokenLimit { get; set; }
+
     public ICollection<Customer> Customers { get; set; } = new List<Customer>();
 }

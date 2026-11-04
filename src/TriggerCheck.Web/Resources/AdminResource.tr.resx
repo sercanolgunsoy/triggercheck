@@ -499,4 +499,94 @@
   <data name="Customers on this plan can add SMS and voice call alert channels. They are only offered when Twilio is configured for this installation." xml:space="preserve">
     <value>Bu plandaki müşteriler SMS ve sesli arama bildirim kanalları ekleyebilir. Bu kanallar yalnızca bu kurulumda Twilio yapılandırılmışsa sunulur.</value>
   </data>
+  <data name="AI status" xml:space="preserve">
+    <value>Yapay zekâ durumu</value>
+  </data>
+  <data name="API key" xml:space="preserve">
+    <value>API anahtarı</value>
+  </data>
+  <data name="Available" xml:space="preserve">
+    <value>Kullanılabilir</value>
+  </data>
+  <data name="Configured" xml:space="preserve">
+    <value>Yapılandırıldı</value>
+  </data>
+  <data name="Current calendar month (UTC). Costs are estimates from token counts and list prices." xml:space="preserve">
+    <value>İçinde bulunulan takvim ayı (UTC). Maliyetler token sayıları ve liste fiyatlarından hesaplanan tahminlerdir.</value>
+  </data>
+  <data name="Default model" xml:space="preserve">
+    <value>Varsayılan model</value>
+  </data>
+  <data name="Estimated cost" xml:space="preserve">
+    <value>Tahmini maliyet</value>
+  </data>
+  <data name="Feedback (helpful / not helpful)" xml:space="preserve">
+    <value>Geri bildirim (faydalı / faydalı değil)</value>
+  </data>
+  <data name="Global switch (Ai:Enabled)" xml:space="preserve">
+    <value>Genel anahtar (Ai:Enabled)</value>
+  </data>
+  <data name="No AI usage yet." xml:space="preserve">
+    <value>Henüz yapay zekâ kullanımı yok.</value>
+  </data>
+  <data name="Not configured" xml:space="preserve">
+    <value>Yapılandırılmadı</value>
+  </data>
+  <data name="Off" xml:space="preserve">
+    <value>Kapalı</value>
+  </data>
+  <data name="On" xml:space="preserve">
+    <value>Açık</value>
+  </data>
+  <data name="Opted in" xml:space="preserve">
+    <value>Katılım verdi</value>
+  </data>
+  <data name="Read-only: AI is switched on and off with the Ai:Enabled setting (environment variable Ai__Enabled) and needs ANTHROPIC_API_KEY. Customers must also opt in." xml:space="preserve">
+    <value>Salt okunur: yapay zekâ Ai:Enabled ayarıyla (ortam değişkeni Ai__Enabled) açılıp kapatılır ve ANTHROPIC_API_KEY gerektirir. Müşterilerin ayrıca katılım vermesi gerekir.</value>
+  </data>
+  <data name="This month" xml:space="preserve">
+    <value>Bu ay</value>
+  </data>
+  <data name="Timeout" xml:space="preserve">
+    <value>Zaman aşımı</value>
+  </data>
+  <data name="Unavailable" xml:space="preserve">
+    <value>Kullanılamıyor</value>
+  </data>
+  <data name="Usage by customer" xml:space="preserve">
+    <value>Müşteri bazında kullanım</value>
+  </data>
+  <data name="effort" xml:space="preserve">
+    <value>efor</value>
+  </data>
+  <data name="over budget" xml:space="preserve">
+    <value>bütçe aşıldı</value>
+  </data>
+  <data name="AI calls / month" xml:space="preserve">
+    <value>Yapay zekâ çağrısı / ay</value>
+  </data>
+  <data name="{0} features" xml:space="preserve">
+    <value>{0} özellik</value>
+  </data>
+  <data name="AI call limit is required." xml:space="preserve">
+    <value>Yapay zekâ çağrı limiti zorunludur.</value>
+  </data>
+  <data name="AI calls per month" xml:space="preserve">
+    <value>Aylık yapay zekâ çağrısı</value>
+  </data>
+  <data name="AI token limit is required." xml:space="preserve">
+    <value>Yapay zekâ token limiti zorunludur.</value>
+  </data>
+  <data name="AI tokens per month (0 = no token limit)" xml:space="preserve">
+    <value>Aylık yapay zekâ token sayısı (0 = token limiti yok)</value>
+  </data>
+  <data name="The AI call limit must be 0 or greater." xml:space="preserve">
+    <value>Yapay zekâ çağrı limiti 0 veya daha büyük olmalıdır.</value>
+  </data>
+  <data name="The AI token limit must be 0 or greater." xml:space="preserve">
+    <value>Yapay zekâ token limiti 0 veya daha büyük olmalıdır.</value>
+  </data>
+  <data name="Monthly AI budget per customer on this plan. When it is used up, AI output is skipped until next month; monitoring is not affected. 0 AI calls = no AI." xml:space="preserve">
+    <value>Bu plandaki her müşteri için aylık yapay zekâ bütçesi. Bütçe dolduğunda yapay zekâ çıktısı gelecek aya kadar atlanır; izleme etkilenmez. 0 yapay zekâ çağrısı = yapay zekâ yok.</value>
+  </data>
 </root>

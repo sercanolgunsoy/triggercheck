@@ -17,6 +17,13 @@ public class Customer
     public bool AlertContactEmailWhenNoChannel { get; set; } = true;
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 
+    // ---- AI ----
+    /// <summary>
+    /// Customer opt-in for AI features (only masked technical data is sent). Existing customers default to off (opt-in);
+    /// every creation path for new customers sets it to true.
+    /// </summary>
+    public bool AiEnabled { get; set; }
+
     public ICollection<Monitor> Monitors { get; set; } = new List<Monitor>();
     public ICollection<AlertChannel> AlertChannels { get; set; } = new List<AlertChannel>();
 }

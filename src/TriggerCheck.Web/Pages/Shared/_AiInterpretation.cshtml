@@ -1,0 +1,96 @@
+@model TriggerCheck.Web.Infrastructure.AiContentModel
+@*
+    Generic AI content block (AI-0). Renders one AiDecision: "AI-generated" badge, summary, hypotheses with confidence
+    and evidence (low confidence collapsed as "possible"), suggested actions, unknowns and helpful / not helpful
+    feedback. AI-off, opt-out and not-in-plan render nothing (the page works without AI); a used-up budget shows a
+    short note. All text is HTML-encoded by Razor; feedback uses plain forms (no inline handlers, CSP).
+*@
+@{
+    var i = Model.Interpretation;
+    string ConfidenceLabel(AiConfidence c) => c switch
+    {
+        AiConfidence.High => L["High confidence"].Value,
+        AiConfidence.Medium => L["Medium confidence"].Value,
+        _ => L["Low confidence"].Value
+    };
+    string AutonomyLabel(AiAutonomy a) => a switch
+    {
+        AiAutonomy.A1 => L["Suggestion"].Value,
+        AiAutonomy.A2 => L["Needs approval"].Value,
+        AiAutonomy.A3 => L["Automatic"].Value,
+        _ => L["Information"].Value
+    };
+}
+@if (Model.Status == AiDecisionStatus.SkippedBudget)
+{
+    <div class="ai-content ai-unavailable small text-muted" data-ai-status="budget">@Icons.Get("sparkles", 14) @L["AI summary unavailable this month."]</div>
+}
+else if (Model.Status is AiDecisionStatus.Failed or AiDecisionStatus.Refused || (Model.Status == AiDecisionStatus.Succeeded && i is null))
+{
+    <div class="ai-content ai-unavailable small text-muted" data-ai-status="failed">@Icons.Get("sparkles", 14) @L["The AI summary could not be generated."]</div>
+}
+else if (i is not null)
+{
+    <section class="card ai-content" data-ai-decision="@Model.DecisionId" aria-label="@L["AI-generated"]">
+        <div class="card-header d-flex align-items-center gap-2">
+            <span class="badge text-bg-info ai-badge">@Icons.Get("sparkles", 12) @L["AI-generated"]</span>
+            <span class="small text-muted">@L["AI output may be wrong. Status and alerts are always decided by the monitoring rules."]</span>
+        </div>
+        <div class="card-body">
+            <p class="mb-3 ai-summary">@i.Summary</p>
+
+            @foreach (var h in Model.Likely)
+            {
+                <div class="mb-3 ai-hypothesis" data-confidence="@h.Confidence.ToString().ToLowerInvariant()">
+                    <div class="fw-semibold">@h.Cause <span class="badge @(h.Confidence == AiConfidence.High ? "text-bg-success" : "text-bg-warning") ms-1">@ConfidenceLabel(h.Confidence)</span></div>
+                    <div class="small text-muted">@L["Evidence"]:</div>
+                    <ul class="small mb-0">@foreach (var e in h.Evidence) { <li>@e</li> }</ul>
+                </div>
+            }
+
+            @if (Model.Possible.Count > 0)
+            {
+                <details class="mb-3 ai-possible">
+                    <summary class="small">@L["Possible causes (low confidence): {0}", Model.Possible.Count]</summary>
+                    @foreach (var h in Model.Possible)
+                    {
+                        <div class="mt-2 ai-hypothesis" data-confidence="low">
+                            <div><span class="badge text-bg-secondary me-1">@L["possible"]</span>@h.Cause</div>
+                            <ul class="small mb-0">@foreach (var e in h.Evidence) { <li>@e</li> }</ul>
+                        </div>
+                    }
+                </details>
+            }
+
+            @if (i.SuggestedActions.Count > 0)
+            {
+                <div class="small text-muted">@L["Suggested actions"]:</div>
+                <ul class="small">
+                    @foreach (var a in i.SuggestedActions)
+                    {
+                        <li class="ai-action" data-action="@a.Action">@a.Description <span class="badge text-bg-light border">@AutonomyLabel(a.Autonomy)</span>@if (a.Reversible) { <span class="text-muted"> · @L["reversible"]</span> }</li>
+                    }
+                </ul>
+            }
+
+            @if (i.Unknowns.Count > 0)
+            {
+                <div class="small text-muted">@L["Not in the data, worth checking"]:</div>
+                <ul class="small mb-0 ai-unknowns">@foreach (var u in i.Unknowns) { <li>@u</li> }</ul>
+            }
+        </div>
+        <div class="card-footer d-flex align-items-center gap-2 small">
+            <span class="text-muted">@L["Was this helpful?"]</span>
+            @foreach (var (value, emoji, label) in new[] { (1, "👍", L["Helpful"].Value), (-1, "👎", L["Not helpful"].Value) })
+            {
+                <form method="post" asp-area="App" asp-page="/Ai/Feedback" class="d-inline m-0">
+                    <input type="hidden" name="decisionId" value="@Model.DecisionId" />
+                    <input type="hidden" name="value" value="@value" />
+                    <input type="hidden" name="returnUrl" value="@Model.ReturnUrl" />
+                    <button type="submit" class="btn btn-sm @(Model.UserFeedback == value ? "btn-primary" : "btn-outline-secondary")"
+                            title="@label" aria-label="@label" aria-pressed="@(Model.UserFeedback == value ? "true" : "false")">@emoji</button>
+                </form>
+            }
+        </div>
+    </section>
+}

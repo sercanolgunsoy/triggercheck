@@ -1,0 +1,168 @@
+using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using TriggerCheck.Ai.Budget;
+using TriggerCheck.Ai.Client;
+using TriggerCheck.Ai.Interpretation;
+using TriggerCheck.Domain;
+using TriggerCheck.Domain.Entities;
+using TriggerCheck.Infrastructure.Data;
+
+namespace TriggerCheck.Ai.Execution;
+
+/// <summary>
+/// Runs one AI job end to end (L2 + L3). Independent of the monitoring layer: features hand it an <see cref="AiJob"/>
+/// through <see cref="IAiJobQueue"/>, never call it on a request or check path.
+/// </summary>
+public interface IAiInterpreter
+{
+    /// <summary>
+    /// Returns the recorded decision (one row per call, including skips and failures), an earlier succeeded decision
+    /// for the identical input (idempotency), or null when the subject is gone / the feature has no provider.
+    /// </summary>
+    Task<AiDecision?> RunAsync(AiJob job, CancellationToken ct = default);
+}
+
+/// <summary>
+/// Gates (in order): global switch + key → customer opt-in → plan feature → monthly budget. Then: context from the
+/// feature's provider → idempotency check on (Feature, Subject, InputHash) → Claude call with timeout → validation
+/// (<see cref="AiInterpretationValidator"/>) → <see cref="AiDecision"/> row. Failures never throw to the caller and
+/// never leak exception text.
+/// </summary>
+public sealed class AiInterpreter(
+    AppDbContext db,
+    IAiClient client,
+    IAiUsage usage,
+    IEnumerable<IAiContextProvider> providers,
+    IOptions<AiOptions> options,
+    TimeProvider time,
+    ILogger<AiInterpreter> logger) : IAiInterpreter
+{
+    public async Task<AiDecision?> RunAsync(AiJob job, CancellationToken ct = default)
+    {
+        var feature = AiFeatures.Find(job.Feature) ?? throw new ArgumentException($"Unknown AI feature '{job.Feature}'.", nameof(job));
+        var customer = await db.Customers.AsNoTracking().Include(c => c.Plan).FirstOrDefaultAsync(c => c.Id == job.CustomerId, ct);
+        if (customer is null) return null;
+
+        var o = options.Value;
+        var decision = new AiDecision
+        {
+            CustomerId = customer.Id,
+            Feature = feature.Name,
+            SubjectType = job.SubjectType,
+            SubjectId = job.SubjectId,
+            Model = o.ModelFor(feature.Name),
+            Effort = o.EffortFor(feature.Name),
+            CreatedAtUtc = time.GetUtcNow().UtcDateTime,
+        };
+
+        AiDecisionStatus? skip =
+            !o.Enabled || !client.IsAvailable ? AiDecisionStatus.SkippedDisabled
+            : !customer.AiEnabled ? AiDecisionStatus.SkippedOptOut
+            : !AiFeatures.PlanAllows(customer.Plan, feature.Name) ? AiDecisionStatus.SkippedPlan
+            : null;
+        if (skip is null && (await usage.GetMonthlyUsageAsync(customer.Id, ct)).IsOverBudget) skip = AiDecisionStatus.SkippedBudget;
+        if (skip is not null)
+        {
+            decision.Status = skip.Value;
+            return await SaveAsync(decision, ct);
+        }
+
+        var provider = providers.FirstOrDefault(p => p.Feature == feature.Name);
+        if (provider is null)
+        {
+            logger.LogWarning("No AI context provider is registered for feature {Feature}", feature.Name);
+            return null;
+        }
+        var prompt = await provider.BuildAsync(job, ct);
+        if (prompt is null) return null;
+
+        var system = AiPrompts.For(prompt.FeatureInstructions);
+        var schema = AiInterpretationSchema.Build(prompt.AllowedActions);
+        decision.InputHash = Hash(decision.Model, decision.Effort, system, JsonSerializer.Serialize(schema), prompt.UserContent);
+
+        var existing = await db.AiDecisions.AsNoTracking()
+            .Where(d => d.CustomerId == customer.Id && d.Feature == decision.Feature && d.SubjectType == decision.SubjectType
+                        && d.SubjectId == decision.SubjectId && d.InputHash == decision.InputHash && d.Status == AiDecisionStatus.Succeeded)
+            .OrderByDescending(d => d.Id)
+            .FirstOrDefaultAsync(ct);
+        if (existing is not null) return existing;
+
+        var request = new AiCallRequest(feature.Name, decision.Model, decision.Effort, o.MaxTokensFor(feature.Name), system, prompt.UserContent, schema);
+        var sw = Stopwatch.StartNew();
+        AiCallResult result;
+        using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct))
+        {
+            timeout.CancelAfter(TimeSpan.FromSeconds(Math.Max(1, o.TimeoutSeconds)));
+            try
+            {
+                result = await client.CompleteAsync(request, timeout.Token);
+            }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+            {
+                result = AiCallResult.Fail("timeout");
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogError(ex, "AI client failed for {Feature} {SubjectType} {SubjectId}", feature.Name, job.SubjectType, job.SubjectId);
+                result = AiCallResult.Fail("error");
+            }
+        }
+        decision.LatencyMs = (int)Math.Min(int.MaxValue, sw.ElapsedMilliseconds);
+        decision.InputTokens = result.InputTokens;
+        decision.OutputTokens = result.OutputTokens;
+        decision.CacheReadTokens = result.CacheReadTokens;
+        decision.CacheWriteTokens = result.CacheWriteTokens;
+        decision.CostEstimate = decimal.Round(o.PriceFor(decision.Model).Estimate(result.InputTokens, result.OutputTokens, result.CacheReadTokens, result.CacheWriteTokens), 6);
+        decision.ErrorCode = result.ErrorCode;
+
+        switch (result.Outcome)
+        {
+            case AiCallOutcome.Succeeded:
+                var parsed = AiInterpretation.TryParse(result.Json);
+                var valid = parsed is null ? null : AiInterpretationValidator.Validate(parsed, prompt.AllowedActions, feature.MaxAutonomy);
+                if (valid is null)
+                {
+                    logger.LogWarning("AI output for {Feature} {SubjectType} {SubjectId} did not match the contract", feature.Name, job.SubjectType, job.SubjectId);
+                    decision.Status = AiDecisionStatus.Failed;
+                    decision.ErrorCode = "invalid_output";
+                    break;
+                }
+                decision.Status = AiDecisionStatus.Succeeded;
+                decision.OutputJson = valid.Interpretation.ToJson();
+                decision.MaxConfidence = valid.MaxConfidence;
+                decision.AutonomyLevel = valid.AutonomyLevel;
+                break;
+            case AiCallOutcome.Refused:
+                decision.Status = AiDecisionStatus.Refused;
+                break;
+            case AiCallOutcome.Unavailable:
+                decision.Status = AiDecisionStatus.SkippedDisabled;
+                break;
+            default: // MaxTokens, Failed
+                decision.Status = AiDecisionStatus.Failed;
+                decision.ErrorCode ??= "failed";
+                break;
+        }
+        return await SaveAsync(decision, ct);
+    }
+
+    private async Task<AiDecision> SaveAsync(AiDecision decision, CancellationToken ct)
+    {
+        db.AiDecisions.Add(decision);
+        await db.SaveChangesAsync(ct);
+        return decision;
+    }
+
+    /// <summary>SHA-256 over the exact model input (model, effort, prompt, schema, data); parts are length-prefixed.</summary>
+    public static string Hash(params string[] parts)
+    {
+        var sb = new StringBuilder();
+        foreach (var p in parts) sb.Append(p.Length).Append(':').Append(p).Append('\n');
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(sb.ToString()))).ToLowerInvariant();
+    }
+}

@@ -1,0 +1,61 @@
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.EntityFrameworkCore;
+using TriggerCheck.Ai.Budget;
+using TriggerCheck.Domain;
+using TriggerCheck.Domain.Entities;
+using TriggerCheck.Infrastructure.Data;
+using TriggerCheck.Web.Infrastructure;
+using TriggerCheck.Web.Localization;
+
+namespace TriggerCheck.Web.Areas.App.Pages.Ai;
+
+/// <summary>
+/// AI settings of the customer: opt-in switch (CustomerAdmin; decision K2), privacy note (K5), plan features and this
+/// month's AI quota (AI-10), and the latest AI results with feedback. Viewers see everything read-only.
+/// </summary>
+public class IndexModel(AppDbContext db, ICurrentCustomer current, IAiUsage usage, Text<AppResource> L) : PageModel
+{
+    public const int RecentCount = 10;
+
+    public Customer Customer { get; private set; } = null!;
+    public AiUsageSnapshot Usage { get; private set; } = null!;
+    public List<AiContentModel> Recent { get; private set; } = [];
+    public bool IsAdmin => User.IsInRole(Roles.CustomerAdmin);
+
+    public async Task OnGetAsync(CancellationToken ct)
+    {
+        Customer = await current.GetCustomerAsync(ct);
+        Usage = await usage.GetMonthlyUsageAsync(Customer.Id, ct);
+        var returnUrl = Url.Page("/Ai/Index", new { area = "App" }) ?? "/App/Ai";
+        Recent = (await db.AiDecisions.AsNoTracking()
+                .Where(d => d.CustomerId == Customer.Id && d.Status == AiDecisionStatus.Succeeded)
+                .OrderByDescending(d => d.Id)
+                .Take(RecentCount)
+                .ToListAsync(ct))
+            .Select(d => AiContentModel.From(d, returnUrl)).ToList();
+    }
+
+    public async Task<IActionResult> OnPostAsync(bool enabled, CancellationToken ct)
+    {
+        if (!IsAdmin) return Forbid();
+        var cid = current.RequiredCustomerId;
+        var customer = await db.Customers.FirstAsync(c => c.Id == cid, ct);
+        customer.AiEnabled = enabled;
+        await db.SaveChangesAsync(ct);
+        TempData["Success"] = (enabled ? L["AI features were enabled."] : L["AI features were disabled."]).Value;
+        return RedirectToPage();
+    }
+
+    public string FeatureName(string feature) => feature switch
+    {
+        AiFeatures.IncidentInterpretation => L["Incident summaries and likely causes"],
+        AiFeatures.SlowdownExplanation => L["Slowdown explanations"],
+        AiFeatures.SettingsSuggestions => L["Monitor setting suggestions"],
+        AiFeatures.CorrelationGrouping => L["Grouping of related incidents"],
+        AiFeatures.NarrativeReport => L["Weekly and monthly reports"],
+        AiFeatures.QuestionAnswer => L["Questions in natural language"],
+        AiFeatures.PostmortemDraft => L["Postmortem and status page drafts"],
+        _ => feature
+    };
+}

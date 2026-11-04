@@ -63,7 +63,8 @@ secret store, never in the image or in `appsettings.json`.
 | `Seed__SuperAdminEmail` | no | SuperAdmin login. |
 | `Smtp__Host`, `Smtp__Port` (587), `Smtp__UseSsl` (true), `Smtp__User`, `Smtp__Password`, `Smtp__From`, `Smtp__TimeoutSeconds` | for email alerts | If `Smtp__Host` is empty, alert emails are only written to the log. |
 | `Twilio__*` | coming (SMS/voice, FEAT-7) | Twilio account SID / auth token / sender. Names are fixed when the feature lands. |
-| `ANTHROPIC_API_KEY` | coming (AI features) | API key for the AI features. CI uses a fake client and needs no key. |
+| `ANTHROPIC_API_KEY` (or `Ai__ApiKey`) | for AI features | Claude API key. Used only when `Ai__Enabled=true`. CI uses a fake client and needs no key. See [AI features](#ai-features). |
+| `Ai__Enabled` | no (false) | Global AI kill switch. See [AI features](#ai-features). |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` (or a per-signal `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` / `_METRICS_ENDPOINT` / `_LOGS_ENDPOINT`) | no | Turns on OTLP export, e.g. `http://otel-collector:4317`. Each signal is configured separately: the generic variable enables traces and metrics, while a per-signal variable enables only that signal (logs additionally need `Telemetry__ExportLogs=true`). Per OTel convention, a per-signal endpoint is used as-is: for http/protobuf, include the path, e.g. `http://collector:4318/v1/traces`. Its protocol comes from `OTEL_EXPORTER_OTLP_<SIGNAL>_PROTOCOL`, or else `OTEL_EXPORTER_OTLP_PROTOCOL` (default grpc). With the generic endpoint, the standard `OTEL_*` variables apply (`OTEL_EXPORTER_OTLP_PROTOCOL`, `OTEL_EXPORTER_OTLP_HEADERS`, `OTEL_SERVICE_NAME`, `OTEL_RESOURCE_ATTRIBUTES`). |
 | `Telemetry__OtlpEndpoint`, `Telemetry__OtlpProtocol` (`grpc` \| `http/protobuf`) | no | Base collector address set through configuration. For http/protobuf, the `/v1/traces`, `/v1/metrics` and `/v1/logs` paths are appended. It is a per-signal fallback: it applies to each signal that has neither its own `OTEL_EXPORTER_OTLP_<SIGNAL>_ENDPOINT` nor the generic `OTEL_EXPORTER_OTLP_ENDPOINT`. |
 | `Telemetry__ExportLogs` | no (false) | Also exports logs through OTLP. **Off by default because logs contain personal data**: alert recipient addresses, monitor names and targets (masked where they hold secrets), error texts. Turn it on only if the collector and its storage are approved for that data. |
@@ -163,3 +164,39 @@ database's data was still entirely in the `-wal` file: the main `.db` file was 4
 - changed a row after the backup, stopped the app, and restored with the steps above.
 - started the app again: the changed row was back to its backed-up value, `/health/ready` returned 200, and the
   journal mode was back to `wal`.
+
+## AI features
+
+The AI layer (`src/TriggerCheck.Ai`) interprets monitoring data with Claude and runs an L1 statistical baseline. The
+product works fully without it: status, incidents and alerts are always decided by the deterministic engine.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `Ai__Enabled` | `false` | **Global kill switch.** `false` (or no API key) registers a no-op client: every AI job is recorded as skipped and nothing leaves the system. Restart to apply. The SuperAdmin *AI usage* page shows the state read-only. |
+| `ANTHROPIC_API_KEY` / `Ai__ApiKey` | none | Claude API key (`Ai__ApiKey` wins when both are set). Keep it in the secret store. |
+| `Ai__Model` | `claude-opus-5-5` | Default model (decision K1). |
+| `Ai__Effort` | `low` | Default effort (`low`, `medium`, `high`, `xhigh`, `max`). |
+| `Ai__Features__<Feature>__Model`, `__Effort`, `__MaxTokens` | inherit | Per-feature overrides, e.g. `Ai__Features__IncidentInterpretation__Model=claude-haiku-5-5`. Change a model or effort only after the eval run passes (`evals/README.md`). |
+| `Ai__MaxTokens` (4000), `Ai__TimeoutSeconds` (60), `Ai__MaxRetries` (2) | | Per-call limits. Retries (429/5xx/network) are the SDK's and happen inside the timeout. |
+| `Ai__QueueCapacity` (200), `Ai__MaxConcurrency` (2) | | Background AI queue. AI calls never run on a request or check path; a full queue drops the job (logged). |
+| `Ai__Pricing__<model>__InputPerMTok`, `__OutputPerMTok`, `__CacheReadPerMTok`, `__CacheWritePerMTok` | list prices | USD prices for cost estimates (SuperAdmin *AI usage*). |
+| `Ai__Baseline__Enabled` (true), `__IntervalMinutes` (5), `__WindowDays` (7), `__ZThreshold` (4), `__K` / `__N` (3 of 5) | | L1 baseline / anomaly job (no LLM, no key needed). Runs only when `Monitoring__Enabled` is true. |
+
+**Who gets AI:** a call is made only when all of these hold: `Ai__Enabled=true` and a key is set; the customer has opted
+in (*AI features* page, CustomerAdmin; customers created after this release start opted in, existing customers start
+opted out, decision K2); the customer's plan includes the feature; and the plan's monthly AI budget (calls and tokens,
+edited on the SuperAdmin *Plans* page) is not used up. Otherwise the job is recorded in `AiDecisions` with a `Skipped*`
+status and the UI silently shows no AI content (or "AI summary unavailable this month" when the budget is used up).
+
+**Privacy (decision K5):** only masked technical data is sent: monitor type, host name and URL path, status codes,
+error types and timings. Query strings, URL credentials, webhook URLs, e-mail addresses, phone numbers and
+`Authorization`/token-like values are masked first. Probe error texts and response snippets are truncated and sent in
+delimited `<untrusted_data>` blocks that the prompt declares to be data, never instructions. Model output is validated
+(hypotheses need evidence, actions only from a fixed list, autonomy capped per feature) and never triggers an action by
+itself. Context is loaded per tenant only. Requests go to the Claude API (Anthropic); update the privacy notice
+before enabling AI in production.
+
+**Audit:** every AI call, skip and failure is a row in `AiDecisions` (feature, subject, input hash, model, effort,
+validated output, confidence, autonomy level, status, tokens, estimated cost, latency, user feedback). Failures store a
+short code (`timeout`, `rate_limited`, `refusal`, `max_tokens`, `invalid_output`, ...), never exception text.
+
