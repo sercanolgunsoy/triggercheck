@@ -66,7 +66,9 @@ public sealed class AlertSenderService(
                     }
                     else
                     {
-                        _lanes[message.MonitorId] = started = new Lane();
+                        // The token exists before the lane task runs, so an alert arriving right behind this one
+                        // (e.g. UP queued back-to-back with DOWN) always cancels the DOWN's retries.
+                        _lanes[message.MonitorId] = started = new Lane { Superseded = new CancellationTokenSource() };
                     }
                 }
                 toCancel?.Cancel();
@@ -100,10 +102,10 @@ public sealed class AlertSenderService(
     {
         await Task.Yield(); // never deliver on the reader loop
         var message = first;
+        CancellationTokenSource superseded;
+        lock (_lock) superseded = lane.Superseded!;
         while (true)
         {
-            var superseded = new CancellationTokenSource();
-            lock (_lock) lane.Superseded = superseded;
             try
             {
                 await DeliverAsync(message, stopRetrying, superseded.Token);
@@ -115,14 +117,17 @@ public sealed class AlertSenderService(
 
             lock (_lock)
             {
-                lane.Superseded = null;
                 if (lane.Waiting is null)
                 {
+                    lane.Superseded = null;
                     _lanes.Remove(message.MonitorId);
                     return;
                 }
                 message = lane.Waiting;
                 lane.Waiting = null;
+                // Fresh token for the next delivery, published in the same lock in which Waiting was taken, so the
+                // reader cancels it for any alert that arrives from now on.
+                lane.Superseded = superseded = new CancellationTokenSource();
             }
         }
     }

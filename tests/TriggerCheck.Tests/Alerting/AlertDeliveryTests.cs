@@ -350,19 +350,24 @@ public class AlertDeliveryTests
             ? new TaskCompletionSource<NotifyResult>().Task
             : Task.FromResult(NotifyResult.Ok));
         await using var host = await MonitoringTestHost.CreateAsync(s => s.ReplaceNotifiers(notifier),
-            new() { ["Alerting:QueueCapacityPerCustomer"] = "5", ["Alerting:QueueCapacity"] = "8" });
+            new() { ["Alerting:QueueCapacityPerCustomer"] = "5", ["Alerting:QueueCapacity"] = "20" });
         var noisy = await host.AddCustomerAsync();
         var quiet = await host.AddCustomerAsync();
+        // Plan with 1 monitor: share = max(5, 2 x 1 + 10) = 12.
+        await host.WithDbAsync(db => db.Plans.Where(p => p.Customers.Any(c => c.Id == noisy.Id))
+            .ExecuteUpdateAsync(s => s.SetProperty(p => p.MaxMonitors, 1)));
         await AddChannelAsync(host, noisy.Id, AlertChannelType.Webhook, "https://broken.example.test/x");
         await AddChannelAsync(host, quiet.Id, AlertChannelType.Webhook, "https://ok.example.test/x");
 
         var accepted = 0;
-        for (var i = 0; i < 10; i++)
+        for (var i = 0; i < 15; i++)
         {
             var m = await host.AddMonitorAsync(noisy.Id);
             if (host.Alerts.TryEnqueue(Down(m.Id, noisy.Id))) accepted++;
         }
-        Assert.Equal(5, accepted);
+        Assert.Equal(12, accepted);
+        // Refused alerts are visible in the notification log.
+        await WaitUntilAsync(() => host.WithDbAsync(db => db.Notifications.CountAsync(n => n.Error == AlertQueue.DroppedError)).Result == 3);
 
         var quietMonitor = await host.AddMonitorAsync(quiet.Id);
         Assert.True(host.Alerts.TryEnqueue(Down(quietMonitor.Id, quiet.Id)));
@@ -371,6 +376,53 @@ public class AlertDeliveryTests
         await host.AdvanceUntilAlertsIdleAsync(maxSimulated: TimeSpan.FromHours(2));
         Assert.True(await host.WithDbAsync(db => db.Notifications.AnyAsync(n => n.MonitorId == quietMonitor.Id && n.Success)));
         Assert.Equal(0, host.Services.GetRequiredService<AlertDeliveryThrottle>().CustomerCount); // idle semaphores evicted
+    }
+
+    [Fact]
+    public async Task Mass_outage_of_a_big_plan_fits_its_queue_share()
+    {
+        var release = new TaskCompletionSource<NotifyResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var notifier = new ScriptedNotifier(AlertChannelType.Webhook, (_, _, _) => release.Task);
+        await using var host = await MonitoringTestHost.CreateAsync(s => s.ReplaceNotifiers(notifier),
+            new() { ["Alerting:QueueCapacityPerCustomer"] = "5" });
+        var customer = await host.AddCustomerAsync(); // test plan: MaxMonitors = 100 -> share 210
+        await AddChannelAsync(host, customer.Id, AlertChannelType.Webhook, "https://hooks.example.test/x");
+
+        for (var i = 0; i < 40; i++)
+        {
+            var m = await host.AddMonitorAsync(customer.Id);
+            Assert.True(host.Alerts.TryEnqueue(Down(m.Id, customer.Id)), $"alert {i} refused");
+        }
+        release.SetResult(NotifyResult.Ok);
+        await host.AlertsIdleAsync();
+        Assert.Equal(40, await host.WithDbAsync(db => db.Notifications.CountAsync(n => n.Success)));
+    }
+
+    [Fact]
+    public async Task Up_queued_right_behind_a_failing_down_cuts_its_retries_for_every_monitor()
+    {
+        var notifier = new ScriptedNotifier(AlertChannelType.Webhook, (_, m, _) =>
+            Task.FromResult(m.Kind == AlertKind.Down ? NotifyResult.Transient("Webhook returned HTTP 503") : NotifyResult.Ok));
+        await using var host = await MonitoringTestHost.CreateAsync(s => s.ReplaceNotifiers(notifier));
+        var customer = await host.AddCustomerAsync();
+        await AddChannelAsync(host, customer.Id, AlertChannelType.Webhook, "https://hooks.example.test/x");
+        var monitors = new List<int>();
+        for (var i = 0; i < 40; i++) monitors.Add((await host.AddMonitorAsync(customer.Id)).Id);
+
+        foreach (var id in monitors)
+        {
+            host.Alerts.TryEnqueue(Down(id, customer.Id));
+            host.Alerts.TryEnqueue(Down(id, customer.Id) with { Kind = AlertKind.Up, Error = null }); // back-to-back
+        }
+        await host.AlertsIdleAsync(); // no fake time advanced: no DOWN may sit in a retry wait
+
+        foreach (var id in monitors)
+        {
+            var kinds = notifier.Calls.Where(c => c.MonitorId == id).Select(c => c.Kind).ToList();
+            Assert.Equal(AlertKind.Up, kinds.Last());
+            Assert.True(kinds.Count(k => k == AlertKind.Down) <= 1);
+        }
+        Assert.Equal(40, await host.WithDbAsync(db => db.Notifications.CountAsync(n => n.Subject.Contains("UP") && n.Success)));
     }
 
     [Fact]
@@ -500,13 +552,13 @@ public class AlertDeliveryTests
     {
         public TimeProvider? Time { get; set; }
         public bool Idempotent { get; init; } = true;
-        public ConcurrentQueue<(string Target, AlertKind Kind, DateTimeOffset At)> Calls { get; } = new();
+        public ConcurrentQueue<(string Target, AlertKind Kind, DateTimeOffset At, int MonitorId)> Calls { get; } = new();
         public AlertChannelType Type => type;
         public bool IsIdempotent => Idempotent;
 
         public Task<NotifyResult> SendAsync(NotifyTarget target, AlertMessage message, CancellationToken ct)
         {
-            Calls.Enqueue((target.Address, message.Kind, Time?.GetUtcNow() ?? default));
+            Calls.Enqueue((target.Address, message.Kind, Time?.GetUtcNow() ?? default, message.MonitorId));
             return behavior(target, message, ct);
         }
     }

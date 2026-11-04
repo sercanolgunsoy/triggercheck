@@ -59,6 +59,7 @@ public sealed class AlertDispatcher(
     public const string AbortedError = "Delivery aborted (shutdown)";
     public const string SupersededError = "Superseded by a newer alert for this monitor";
     public const string DailyLimitError = "Daily SMS / voice call limit reached";
+    public const string UsageUnavailableError = "SMS / voice limit could not be checked; not sent";
 
     public async Task<IReadOnlyList<Notification>> DispatchAsync(AlertMessage message, CancellationToken ct = default,
         CancellationToken stopRetrying = default, CancellationToken superseded = default)
@@ -210,8 +211,17 @@ public sealed class AlertDispatcher(
         var maybeSent = false; // some attempt may have reached the provider (success or an unknown / final outcome)
         if (blocked is null && IsSmsOrVoice(target.Type))
         {
-            reservedDay = await TryReserveSmsVoiceAsync(message.CustomerId, ct);
-            if (reservedDay is null) blocked = DailyLimitError;
+            try
+            {
+                reservedDay = await TryReserveSmsVoiceAsync(message.CustomerId, ct);
+                if (reservedDay is null) blocked = DailyLimitError;
+            }
+            catch (Exception ex) when (!ct.IsCancellationRequested)
+            {
+                // Fail closed (cost protection) but keep the other channels and this row.
+                logger.LogError(ex, "Could not reserve the SMS / voice budget of customer {CustomerId}", message.CustomerId);
+                blocked = UsageUnavailableError;
+            }
         }
         if (blocked is not null)
         {
@@ -251,7 +261,17 @@ public sealed class AlertDispatcher(
 
         // Only failures that certainly did not reach the provider (retryable for a non-idempotent channel means
         // 429 / 503 / not sent at all) give the SMS / voice slot back.
-        if (reservedDay is { } day && !maybeSent) await ReleaseSmsVoiceAsync(message.CustomerId, day);
+        if (reservedDay is { } day && !maybeSent)
+        {
+            try
+            {
+                await ReleaseSmsVoiceAsync(message.CustomerId, day);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Could not give back an SMS / voice slot of customer {CustomerId}", message.CustomerId);
+            }
+        }
 
         Log(target, message, result, attempts);
         return new Notification
