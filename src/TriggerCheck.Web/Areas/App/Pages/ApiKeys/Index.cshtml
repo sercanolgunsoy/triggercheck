@@ -1,0 +1,98 @@
+@page
+@model TriggerCheck.Web.Areas.App.Pages.ApiKeys.IndexModel
+@using TriggerCheck.Domain.Entities
+@{ ViewData["Title"] = L["API keys"].Value; }
+
+<div class="page-head">
+    <div>
+        <h2 class="mb-0">@L["API keys"]</h2>
+        <div class="text-muted small">@L["Keys for the REST API (/api/v1). Send them as \"Authorization: Bearer <key>\". Read-only keys can only list and read data."]</div>
+    </div>
+    <a class="btn btn-outline-secondary" href="/api/v1/openapi.json">@L["OpenAPI document"]</a>
+</div>
+
+@if (Model.NewToken is not null)
+{
+    <div class="alert alert-warning" role="status">
+        <div class="fw-semibold mb-2">@L["API key \"{0}\" was created. Copy it now: it will not be shown again.", Model.NewTokenName ?? ""]</div>
+        <input type="text" class="form-control font-monospace" readonly value="@Model.NewToken" aria-label="@L["New API key"]" id="new-api-key" />
+    </div>
+}
+
+@if (Model.IsAdmin)
+{
+    <div class="card mb-4"><div class="card-body">
+        <h5 class="card-title">@L["New API key"]</h5>
+        <form method="post" asp-page-handler="Create" autocomplete="off">
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+            <div class="row g-3 align-items-end">
+                <div class="col-md-5">
+                    <label asp-for="Input.Name" class="form-label"></label>
+                    <input asp-for="Input.Name" class="form-control" maxlength="100" placeholder="@L["e.g. Deploy pipeline"]" />
+                    <span asp-validation-for="Input.Name" class="text-danger small"></span>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="Input.Scope" class="form-label"></label>
+                    <select asp-for="Input.Scope" class="form-select">
+                        <option value="@ApiKeyScope.ReadOnly">@Model.ScopeName(ApiKeyScope.ReadOnly)</option>
+                        <option value="@ApiKeyScope.ReadWrite">@Model.ScopeName(ApiKeyScope.ReadWrite)</option>
+                    </select>
+                    <span asp-validation-for="Input.Scope" class="text-danger small"></span>
+                </div>
+                <div class="col-md-2">
+                    <label asp-for="Input.ExpiresInDays" class="form-label"></label>
+                    <select asp-for="Input.ExpiresInDays" class="form-select">
+                        @foreach (var d in TriggerCheck.Web.Areas.App.Pages.ApiKeys.IndexModel.ExpiryOptions)
+                        {
+                            <option value="@d">@Model.ExpiryName(d)</option>
+                        }
+                    </select>
+                    <span asp-validation-for="Input.ExpiresInDays" class="text-danger small"></span>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">@Icons.Get("plus", 16) @L["Create"]</button>
+                </div>
+            </div>
+        </form>
+    </div></div>
+}
+
+@if (Model.Keys.Count == 0)
+{
+    <div class="alert alert-light border">@L["No API keys yet."]</div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead><tr><th>@L["Name"]</th><th>@L["Key"]</th><th>@L["Access"]</th><th>@L["Status"]</th><th>@L["Created ({0})", Fmt.TimeZoneLabel]</th><th>@L["Expires"]</th><th>@L["Last used"]</th><th></th></tr></thead>
+            <tbody>
+            @foreach (var k in Model.Keys)
+            {
+                <tr>
+                    <td>@k.Name @if (k.CreatedBy is not null) { <div class="small text-muted">@k.CreatedBy</div> }</td>
+                    <td class="font-monospace small">@k.Display</td>
+                    <td>@Model.ScopeName(k.Scope)</td>
+                    <td>
+                        @if (k.RevokedAtUtc is not null) { <span class="badge bg-secondary">@L["Revoked"]</span> }
+                        else if (k.IsExpired) { <span class="badge bg-warning text-dark">@L["Expired"]</span> }
+                        else { <span class="badge bg-success">@L["Active"]</span> }
+                    </td>
+                    <td class="small text-muted">@Fmt.Time(k.CreatedAtUtc)</td>
+                    <td class="small text-muted">@(k.ExpiresAtUtc is null ? L["Never"].Value : Fmt.Time(k.ExpiresAtUtc))</td>
+                    <td class="small text-muted">@(k.LastUsedAtUtc is null ? L["Never"].Value : Fmt.Time(k.LastUsedAtUtc))</td>
+                    <td class="text-end text-nowrap">
+                        @if (Model.IsAdmin && k.RevokedAtUtc is null)
+                        {
+                            <form method="post" asp-page-handler="Revoke" asp-route-id="@k.Id" class="d-inline"
+                                  data-confirm="@L["Revoke API key {0}? Requests using it will be rejected. This cannot be undone.", k.Name]">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">@L["Revoke"]</button>
+                            </form>
+                        }
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+}
