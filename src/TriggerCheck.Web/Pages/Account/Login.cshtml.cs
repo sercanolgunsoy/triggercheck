@@ -22,8 +22,17 @@ public class LoginModel(SignInManager<ApplicationUser> signIn, Text<SharedResour
 
     public void OnGet(string? reason)
     {
-        if (reason == "inactive") Message = L["Your account is inactive. Please contact your administrator."];
+        Message = reason switch
+        {
+            "inactive" => L["Your account is inactive. Please contact your administrator."].Value,
+            "changed" => L["Your account settings changed. Please sign in again."].Value,
+            "locked" => L["The account is temporarily locked. Try again in a few minutes."].Value,
+            _ => null
+        };
     }
+
+    /// <summary>Hash verified for unknown e-mails so they take about as long as known ones (no timing enumeration).</summary>
+    private static string? _dummyHash;
 
     public async Task<IActionResult> OnPostAsync(string? returnUrl)
     {
@@ -33,6 +42,10 @@ public class LoginModel(SignInManager<ApplicationUser> signIn, Text<SharedResour
             .FirstOrDefaultAsync(u => u.NormalizedEmail == Input.Email.ToUpperInvariant());
         if (user is null)
         {
+            var hasher = signIn.UserManager.PasswordHasher;
+            var dummy = new ApplicationUser();
+            _dummyHash ??= hasher.HashPassword(dummy, Guid.NewGuid().ToString());
+            hasher.VerifyHashedPassword(dummy, _dummyHash, Input.Password);
             ModelState.AddModelError("", L["Invalid login attempt."]);
             return Page();
         }

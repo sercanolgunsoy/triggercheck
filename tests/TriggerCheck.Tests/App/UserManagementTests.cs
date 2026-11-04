@@ -33,8 +33,14 @@ public class UserManagementTests : IClassFixture<TestWebAppFactory>
         Assert.Equal([Roles.CustomerViewer], await _f.RolesOfAsync(id));
         Assert.Contains("new@demo.local", await c.GetHtmlAsync("/App/Users/Index"));
 
-        // The new user can log in and use the panel.
+        // The new user can log in but must first replace the admin-chosen password, then uses the panel.
+        Assert.True(await _f.WithDbAsync(db => db.Users.Where(u => u.Id == id).Select(u => u.MustChangePassword).FirstAsync()));
         var nu = await _f.LoginAsync("new@demo.local", "Newuser123");
+        AssertRedirect(await nu.GetAsync("/App"), "/Account/ChangePassword");
+        AssertRedirect(await nu.PostFormAsync("/Account/ChangePassword", new()
+        {
+            ["Input.CurrentPassword"] = "Newuser123", ["Input.NewPassword"] = "Ownpass123", ["Input.ConfirmPassword"] = "Ownpass123"
+        }), "/");
         Assert.Equal(HttpStatusCode.OK, (await nu.GetAsync("/App")).StatusCode);
     }
 
@@ -129,7 +135,9 @@ public class UserManagementTests : IClassFixture<TestWebAppFactory>
         fields["__RequestVerificationToken"] = token;
         var r = await demoted.PostAsync("/App/Monitors/Create", new FormUrlEncodedContent(fields));
         AssertRedirect(r, "/Account/Login");
+        Assert.Contains("reason=changed", r.Headers.Location!.ToString());
         Assert.False(await _f.WithDbAsync(db => db.Monitors.AnyAsync(m => m.Name == "Written after demotion")));
+        Assert.Contains("Your account settings changed. Please sign in again.", await demoted.GetHtmlAsync(r.Headers.Location!.ToString()));
 
         // After signing in again the user is a read-only viewer.
         var again = await _f.LoginAsync("demoted@demo.local", "Demoted123");

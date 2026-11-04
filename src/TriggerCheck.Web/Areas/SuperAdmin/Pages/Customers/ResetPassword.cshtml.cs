@@ -38,6 +38,7 @@ public class ResetPasswordModel(UserManager<ApplicationUser> users, Text<AdminRe
         if (!await LoadAsync(customerId, userId)) return NotFound();
         if (!ModelState.IsValid) return Page();
 
+        TargetUser.MustChangePassword = true; // saved by ResetPasswordAsync: the user must replace the password set by the SuperAdmin
         var token = await users.GeneratePasswordResetTokenAsync(TargetUser);
         var r = await users.ResetPasswordAsync(TargetUser, token, NewPassword); // also rotates the security stamp
         if (!r.Succeeded)

@@ -49,7 +49,7 @@ public class PasswordChangeTests
 
         var wrong = await c.PostFormAsync("/Account/ChangePassword", Form("Wrong12345", "Brandnew123"));
         Assert.Equal(HttpStatusCode.OK, wrong.StatusCode);
-        Assert.Contains("Incorrect password.", await wrong.BodyAsync());
+        Assert.Contains("The current password is incorrect.", await wrong.BodyAsync());
         Assert.True(await FlagAsync());
 
         var ok = await c.PostFormAsync("/Account/ChangePassword", Form(OldPw, "Brandnew123"));

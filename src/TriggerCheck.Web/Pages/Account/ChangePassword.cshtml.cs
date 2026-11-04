@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using TriggerCheck.Infrastructure.Identity;
+using TriggerCheck.Web.Areas.App.Support;
+using TriggerCheck.Web.Infrastructure;
 using TriggerCheck.Web.Localization;
 
 namespace TriggerCheck.Web.Pages.Account;
@@ -46,14 +48,18 @@ public class ChangePasswordModel(SignInManager<ApplicationUser> signIn, Text<Sha
             ModelState.AddModelError("Input.NewPassword", L["The new password must be different from the current one."]);
         if (!ModelState.IsValid) return Page();
 
-        // ChangePasswordAsync saves the whole user (including the cleared flag) and renews the security stamp.
-        user.MustChangePassword = false;
         var result = await signIn.UserManager.ChangePasswordAsync(user, Input.CurrentPassword, Input.NewPassword);
+        if (await PasswordChangeLockout.RecordAsync(signIn, user, result))
+            return RedirectToPage("/Account/Login", new { reason = "locked" });
         if (!result.Succeeded)
         {
-            user.MustChangePassword = Required;
-            foreach (var e in result.Errors.Select(e => e.Description).Distinct()) ModelState.AddModelError("", e);
+            foreach (var e in result.Errors.Select(e => IdentityErrorMessages.Describe(e, L)).Distinct()) ModelState.AddModelError("", e);
             return Page();
+        }
+        if (user.MustChangePassword)
+        {
+            user.MustChangePassword = false;
+            await signIn.UserManager.UpdateAsync(user);
         }
 
         // Re-issue the cookie with the new security stamp and without the must_change_password claim.

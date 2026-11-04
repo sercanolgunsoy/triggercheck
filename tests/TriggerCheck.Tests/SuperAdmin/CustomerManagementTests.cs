@@ -51,7 +51,17 @@ public class CustomerManagementTests
         Assert.Equal(customer.Id, user.CustomerId);
         Assert.Equal([Roles.CustomerAdmin], roles);
 
+        // The SuperAdmin chose the password, so the new admin must replace it before using the panel.
+        Assert.True(user.MustChangePassword);
         var client = await f.LoginAsync("ayse@acme.test", "Secret123");
+        var toApp = await client.GetAsync("/App");
+        Assert.Equal(HttpStatusCode.Redirect, toApp.StatusCode);
+        Assert.Contains("/Account/ChangePassword", toApp.Headers.Location!.ToString());
+        var changed = await client.PostFormAsync("/Account/ChangePassword", new()
+        {
+            ["Input.CurrentPassword"] = "Secret123", ["Input.NewPassword"] = "Ownsecret123", ["Input.ConfirmPassword"] = "Ownsecret123"
+        });
+        Assert.Equal(HttpStatusCode.Redirect, changed.StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/App")).StatusCode);
     }
 
@@ -262,7 +272,15 @@ public class CustomerManagementTests
         var userId = await f.WithDbAsync(db => db.Users.Where(u => u.Email == "viewer@demo.local").Select(u => u.Id).SingleAsync());
         var role = await f.WithDbAsync(db => (from ur in db.UserRoles join r in db.Roles on ur.RoleId equals r.Id where ur.UserId == userId select r.Name).SingleAsync());
         Assert.Equal(Roles.CustomerViewer, role);
+        Task<bool> MustChangeAsync() => f.WithDbAsync(db => db.Users.Where(u => u.Id == userId).Select(u => u.MustChangePassword).SingleAsync());
+        Assert.True(await MustChangeAsync()); // password chosen by the SuperAdmin
         var viewer = await f.LoginAsync("viewer@demo.local", "Viewer123");
+        Assert.Contains("/Account/ChangePassword", (await viewer.GetAsync("/App")).Headers.Location!.ToString());
+        await f.WithDbAsync(async db =>
+        {
+            (await db.Users.SingleAsync(u => u.Id == userId)).MustChangePassword = false; // as if the user had changed it
+            await db.SaveChangesAsync();
+        });
 
         // Invalid role is rejected
         resp = await sa.PostFormAsync($"/SuperAdmin/Customers/AddUser/{demo.Id}", new()
@@ -278,13 +296,17 @@ public class CustomerManagementTests
         resp = await sa.PostFormAsync(resetUrl, new() { ["NewPassword"] = "Changed123" });
         Assert.Contains("The password of viewer@demo.local was reset", await sa.FollowAsync(resp));
         Assert.Equal(HttpStatusCode.OK, (await f.TryLoginAsync("viewer@demo.local", "Viewer123")).StatusCode); // old pw fails
+        Assert.True(await MustChangeAsync()); // a reset password must be replaced again
         viewer = await f.LoginAsync("viewer@demo.local", "Changed123");
 
         // Deactivate -> existing session kicked, login blocked
         var detailsUrl = $"/SuperAdmin/Customers/Details/{demo.Id}";
         resp = await sa.PostFormAsync($"{detailsUrl}?handler=ToggleUser", new() { ["userId"] = userId }, detailsUrl);
         Assert.Contains("viewer@demo.local was deactivated", await sa.FollowAsync(resp));
-        Assert.Equal(HttpStatusCode.Redirect, (await viewer.GetAsync("/App")).StatusCode);
+        var kicked = await viewer.GetAsync("/App");
+        Assert.Equal(HttpStatusCode.Redirect, kicked.StatusCode);
+        Assert.Contains("/Account/Login", kicked.Headers.Location!.ToString());
+        Assert.Contains("reason=inactive", kicked.Headers.Location!.ToString());
         Assert.Equal(HttpStatusCode.OK, (await f.TryLoginAsync("viewer@demo.local", "Changed123")).StatusCode);
 
         // Reactivate -> can log in

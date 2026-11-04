@@ -5,7 +5,7 @@ namespace TriggerCheck.Web.Infrastructure;
 
 /// <summary>
 /// Global page filter: while the signed-in user carries the must_change_password claim, every page except the
-/// account pages (/Account/*: change password, logout, ...) redirects to /Account/ChangePassword.
+/// account pages (/Account/*: change password, logout, ...) and /Error redirects to /Account/ChangePassword.
 /// The claim lives in the auth cookie, so this check costs no database query.
 /// </summary>
 public class MustChangePasswordFilter : IPageFilter
@@ -16,7 +16,8 @@ public class MustChangePasswordFilter : IPageFilter
     {
         if (!context.HttpContext.User.HasClaim(c => c.Type == AppClaims.MustChangePassword)) return;
         var page = context.ActionDescriptor;
-        if (string.IsNullOrEmpty(page.AreaName) && page.ViewEnginePath.StartsWith("/Account/", StringComparison.OrdinalIgnoreCase)) return;
+        if (string.IsNullOrEmpty(page.AreaName) &&
+            (page.ViewEnginePath.StartsWith("/Account/", StringComparison.OrdinalIgnoreCase) || page.ViewEnginePath == "/Error")) return;
         context.Result = new RedirectToPageResult("/Account/ChangePassword", new { area = "" });
     }
 

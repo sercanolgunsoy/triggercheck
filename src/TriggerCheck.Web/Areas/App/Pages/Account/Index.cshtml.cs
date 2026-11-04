@@ -58,6 +58,8 @@ public class IndexModel(AppDbContext db, ICurrentCustomer current, UserManager<A
         if (user is null || user.CustomerId != current.RequiredCustomerId) return Forbid();
 
         var r = await users.ChangePasswordAsync(user, Password.CurrentPassword, Password.NewPassword);
+        if (await PasswordChangeLockout.RecordAsync(signIn, user, r))
+            return RedirectToPage("/Account/Login", new { area = "", reason = "locked" });
         if (!r.Succeeded)
         {
             foreach (var e in r.Errors.Select(e => IdentityErrorMessages.Describe(e, L)).Distinct())

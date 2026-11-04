@@ -36,7 +36,8 @@ builder.Services.ConfigureApplicationCookie(o =>
     o.AccessDeniedPath = "/Account/AccessDenied";
     o.Cookie.Name = "TriggerCheck.Auth";
     o.SlidingExpiration = true;
-    // Role / active-state changes take effect on the next request (security stamp checked per request).
+    // Role / active-state changes take effect on the next request (security stamp, active state and customer
+    // checked per request; replaces the former ActiveAccountFilter).
     SessionValidator.Attach(o);
 });
 
@@ -49,13 +50,11 @@ builder.Services.AddAuthorization(o =>
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentCustomer, CurrentCustomer>();
-builder.Services.AddScoped<ActiveAccountFilter>();
 
 builder.Services.AddRazorPages(o =>
 {
     // Customer panel: /App/...
     o.Conventions.AuthorizeAreaFolder("App", "/", Policies.Customer);
-    o.Conventions.AddAreaFolderApplicationModelConvention("App", "/", m => m.Filters.Add(new ServiceFilterAttribute(typeof(ActiveAccountFilter))));
     // Platform administration: /SuperAdmin/...
     o.Conventions.AuthorizeAreaFolder("SuperAdmin", "/", Policies.SuperAdmin);
 }).AddAppDataAnnotationsLocalization();
