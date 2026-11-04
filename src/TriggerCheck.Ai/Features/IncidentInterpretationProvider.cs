@@ -87,7 +87,8 @@ public sealed class IncidentInterpretationProvider(AiTenantData data, TimeProvid
         b.Section("Not recorded")
             .Fact("configuration_change_history", "not available (only the current configuration is known)");
 
-        return new AiPrompt(AiFeaturePrompts.IncidentInstructions, b.Build(), AiFeaturePrompts.IncidentActions);
+        return new AiPrompt(AiFeaturePrompts.IncidentInstructions, b.Build(), AiFeaturePrompts.IncidentActions,
+            AiFeaturePrompts.IncidentCategories, AiFeaturePrompts.EvidenceKeys(b));
     }
 
     /// <summary>
@@ -171,7 +172,7 @@ public sealed class IncidentInterpretationProvider(AiTenantData data, TimeProvid
         if (errors.Count == 0) return;
         b.Section("Error texts of these checks");
         foreach (var e in errors)
-            b.Untrusted($"error {e.Key} (checks {string.Join(", ", e.Ids.Select(i => "#" + i.ToString(CultureInfo.InvariantCulture)))})", e.Text, ErrorTextChars);
+            b.Untrusted("error " + e.Key, e.Text, ErrorTextChars); // the check lines reference it as error=E1
     }
 
     /// <summary>Grouping key of an error text: masked, digit runs and hex ids replaced, whitespace collapsed.</summary>

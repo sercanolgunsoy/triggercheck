@@ -1,24 +1,25 @@
 using System.Text.RegularExpressions;
 using TriggerCheck.Ai.Client;
+using TriggerCheck.Ai.Features;
 using TriggerCheck.Ai.Interpretation;
 using TriggerCheck.Domain.Entities;
 
 namespace TriggerCheck.Evals;
 
 /// <summary>
-/// Code-graded checks per case (no LLM judge):
+/// Code-graded checks per case (no LLM judge, no keyword matching in pass / fail):
 /// <list type="bullet">
-/// <item><b>primary cause</b>: the most confident hypothesis of the raw output is classified into cause categories by
-/// word-boundary patterns (English and Turkish; status codes only next to "HTTP" / "status" / a reason phrase, so
-/// "1500 ms" or "check #5004" are no 5xx). The category mentioned first is the primary one and must be accepted for the
-/// case's label; a hedge ("maybe DNS or a timeout") naming several categories has no primary cause and fails;</item>
-/// <item><b>evidence</b>: every raw hypothesis cites at least one piece of evidence that is grounded in the input: a
-/// check id that was sent, a number (2+ digits) or a quoted text / CamelCase identifier that occurs in the input;</item>
+/// <item><b>primary cause</b>: the <c>category</c> of the highest-confidence hypothesis that survived validation (tie: the
+/// first) must be one of the categories accepted for the case's label;</item>
+/// <item><b>evidence</b>: every raw hypothesis cites at least one <c>evidence_refs</c> entry that resolves to an item
+/// actually present in the request ("check #1234" sent, a fact key such as "ttfb" or "validation_error", an error
+/// block such as "error E1"), and at least one hypothesis survives validation;</item>
 /// <item><b>masking</b>: none of the case's planted secrets, monitor names, URL paths or e-mail addresses appear anywhere
 /// in the request actually sent (system prompt + user content);</item>
 /// <item><b>language</b>: the request asks for the case's language and the summary is written in it;</item>
 /// <item><b>no outage statement</b> (AI-3 cases that expect it): the summary says there is no outage yet.</item>
 /// </list>
+/// Keyword classification of the cause text (<see cref="Classify"/>) is reported as a soft diagnostic only.
 /// </summary>
 public static partial class EvalGrader
 {
@@ -42,6 +43,7 @@ public static partial class EvalGrader
     private static readonly Regex Certificate = R(@"certificate|\bcert\b|\btls\b|\bssl\b|sertifika");
     private const string StatusWord = @"(?:\bhttp|\bstatus(?: code)?|\bcode|\breturn(?:s|ed)?|\brespond(?:s|ed)? with|\banswer(?:s|ed)? with|durum kodu)\W{1,4}";
 
+    /// <summary>Keyword patterns used only for the "text mentions" diagnostic column.</summary>
     public static readonly IReadOnlyList<Category> Categories =
     [
         new("dns", R(@"\bdns\b|name resolution|\bresolv(?:e|es|ing|er|ution)\b|(?:could|can)(?:not| not|n't) be resolved|nxdomain|\bname ?servers?\b|no such host|alan ad[ıi]|çözümlen|ad çözümle")),
@@ -61,10 +63,7 @@ public static partial class EvalGrader
         new("slow_ttfb", R(@"\bttfb\b|time to first byte|first byte|ilk bayt|server processing|server-side|\bapplication\b|uygulama|backend|sunucu tarafı")),
     ];
 
-    /// <summary>Words that make a multi-category cause a hedge ("maybe DNS or a timeout").</summary>
-    private static readonly Regex Hedge = R(@"\bmaybe\b|\bperhaps\b|\bpossibly\b|\beither\b|\bor\b|could be|might be|\bbelki\b|\bveya\b|\bya da\b|olabilir");
-
-    /// <summary>Case label → categories accepted as the primary cause.</summary>
+    /// <summary>Case label → categories (hypotheses[].category) accepted as the primary cause.</summary>
     public static readonly IReadOnlyDictionary<string, string[]> Labels = new Dictionary<string, string[]>
     {
         ["dns_failure"] = ["dns"],
@@ -75,9 +74,10 @@ public static partial class EvalGrader
         ["http_4xx"] = ["http_4xx"],
         ["timeout"] = ["timeout"],
         ["connection_refused"] = ["connection_refused"],
+        ["network_unreachable"] = ["network_unreachable", "connection_refused"],
         ["keyword_missing"] = ["keyword_missing"],
         ["host_outage"] = ["host_outage"],
-        ["maintenance_aftermath"] = ["maintenance"],
+        ["maintenance_aftermath"] = ["maintenance_related"],
         ["slow_dns"] = ["slow_dns"],
         ["slow_tls"] = ["slow_tls"],
         ["slow_connect"] = ["slow_connect"],
@@ -87,7 +87,7 @@ public static partial class EvalGrader
     /// <summary>Categories that only make sense for slowdowns are not counted for incident causes (and vice versa).</summary>
     private static bool IsSlowdownCategory(string name) => name.StartsWith("slow_", StringComparison.Ordinal);
 
-    /// <summary>Matching categories, in the order they are first mentioned.</summary>
+    /// <summary>Diagnostic only: keyword categories the cause text mentions, in the order they are first mentioned.</summary>
     public static List<string> Classify(string? cause, bool slowdown)
     {
         if (string.IsNullOrWhiteSpace(cause)) return [];
@@ -97,40 +97,37 @@ public static partial class EvalGrader
             .OrderBy(x => x.Index).Select(x => x.Name).ToList();
     }
 
-    /// <summary>The primary category of a cause: the first one mentioned; null when none, or when a hedge names several.</summary>
-    public static string? PrimaryCategory(string? cause, bool slowdown)
+    /// <summary>The primary hypothesis: highest confidence, the first one on a tie.</summary>
+    public static AiHypothesis? Primary(AiInterpretation? output)
     {
-        var categories = Classify(cause, slowdown);
-        if (categories.Count == 0) return null;
-        if (categories.Count > 1 && Hedge.IsMatch(cause!.ToLowerInvariant())) return null;
-        return categories[0];
+        var list = (output?.Hypotheses ?? []).Where(h => h is not null).ToList();
+        if (list.Count == 0) return null;
+        var max = list.Max(h => h.Confidence);
+        return list.First(h => h.Confidence == max);
     }
 
-    /// <summary>True when the label accepts the primary category of <paramref name="cause"/>.</summary>
-    public static bool CauseMatches(string? cause, string label, bool slowdown) =>
-        PrimaryCategory(cause, slowdown) is { } p && Labels.TryGetValue(label, out var accepted) && accepted.Contains(p);
+    /// <summary>True when the label accepts the category of the primary hypothesis.</summary>
+    public static bool PrimaryMatches(AiInterpretation? output, string label) =>
+        Primary(output)?.Category is { } c && Labels.TryGetValue(label, out var accepted) && accepted.Contains(c);
 
-    [GeneratedRegex(@"#(\d+)")]
-    private static partial Regex CheckRef();
+    [GeneratedRegex(@"^(?!#|<)([^:\r\n]+): ", RegexOptions.Multiline)]
+    private static partial Regex FactKey();
 
-    [GeneratedRegex(@"['""‘’“”«»]([^'""‘’“”«»]{6,})['""‘’“”«»]")]
-    private static partial Regex Quoted();
+    [GeneratedRegex(@"<untrusted_data source=""([^""]+)"">")]
+    private static partial Regex UntrustedSource();
 
-    [GeneratedRegex(@"(?<![\d.])\d{2,}(?:\.\d+)?(?![\d])")]
-    private static partial Regex Number();
-
-    [GeneratedRegex(@"\b[A-Z][a-z]+(?:[A-Z][a-z]+){2,}\b")]
-    private static partial Regex CamelCase();
-
-    /// <summary>Evidence is grounded when it cites a sent check id, or a number / quoted text / identifier present in the input.</summary>
-    public static bool Grounded(string? evidence, string input)
+    /// <summary>Evidence keys present in a user turn (the same keys the context builder recorded).</summary>
+    public static IReadOnlySet<string> EvidenceKeys(string userContent)
     {
-        if (string.IsNullOrWhiteSpace(evidence)) return false;
-        if (CheckRef().Matches(evidence).Any(m => input.Contains("check #" + m.Groups[1].Value + ":", StringComparison.Ordinal))) return true;
-        if (Quoted().Matches(evidence).Any(m => input.Contains(m.Groups[1].Value.Trim(), StringComparison.OrdinalIgnoreCase))) return true;
-        if (Number().Matches(evidence).Any(m => Regex.IsMatch(input, @"(?<![\d.])" + Regex.Escape(m.Value) + @"(?![\d])"))) return true;
-        return CamelCase().Matches(evidence).Any(m => input.Contains(m.Value, StringComparison.Ordinal));
+        var keys = FactKey().Matches(userContent).Select(m => m.Groups[1].Value.Trim())
+            .Concat(UntrustedSource().Matches(userContent).Select(m => m.Groups[1].Value))
+            .Where(k => !AiFeaturePrompts.NonEvidenceKeys.Contains(k));
+        return keys.ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
+
+    /// <summary>At least one evidence_ref of the hypothesis points to an item that was sent.</summary>
+    public static bool Grounded(AiHypothesis h, IReadOnlySet<string> keys) =>
+        (h.EvidenceRefs ?? []).Any(r => AiInterpretationValidator.ResolveRef(r, keys) is not null);
 
     private static readonly string[] NoOutagePhrases =
     [
@@ -180,20 +177,24 @@ public static partial class EvalGrader
         }
         r.Summary = raw.Summary;
 
-        // ---- primary cause ----
+        // ---- primary cause: category of the validated output (what the customer sees) ----
         var slowdown = s.Feature == Domain.AiFeatures.SlowdownExplanation;
-        var top = (raw.Hypotheses ?? []).Where(h => h is not null).OrderByDescending(h => h.Confidence).FirstOrDefault();
+        var validated = decision?.Status == AiDecisionStatus.Succeeded ? AiInterpretation.TryParse(decision.OutputJson) : null;
+        var top = Primary(validated);
         r.TopCause = top?.Cause;
-        r.Categories = Classify(top?.Cause, slowdown);
-        r.PrimaryCauseOk = CauseMatches(top?.Cause, s.Expect.PrimaryCause, slowdown);
+        r.PrimaryCategory = top?.Category;
+        r.Categories = Classify(top?.Cause, slowdown); // diagnostic only
+        r.PrimaryCauseOk = PrimaryMatches(validated, s.Expect.PrimaryCause);
         var accepted = Labels.TryGetValue(s.Expect.PrimaryCause, out var a) ? a : [];
         if (!r.PrimaryCauseOk)
-            r.Notes.Add($"primary cause {PrimaryCategory(top?.Cause, slowdown) ?? "none"} (mentioned: [{string.Join(", ", r.Categories)}]), expected one of [{string.Join(", ", accepted)}]");
+            r.Notes.Add($"primary category {top?.Category ?? "none"}, expected one of [{string.Join(", ", accepted)}]");
 
-        // ---- evidence: present and grounded in the input ----
+        // ---- evidence: every raw hypothesis has a resolvable evidence_ref; something survives validation ----
+        var keys = EvidenceKeys(request.UserContent);
         var hypotheses = (raw.Hypotheses ?? []).Where(h => h is not null).ToList();
-        r.EvidenceOk = hypotheses.Count > 0 && hypotheses.All(h => (h.Evidence ?? []).Any(e => Grounded(e, request.UserContent)));
-        if (!r.EvidenceOk) r.Notes.Add("a hypothesis without evidence grounded in the input (or none at all)");
+        var ungrounded = hypotheses.Count(h => !Grounded(h, keys));
+        r.EvidenceOk = hypotheses.Count > 0 && ungrounded == 0 && (validated?.Hypotheses.Count ?? 0) > 0;
+        if (!r.EvidenceOk) r.Notes.Add($"{ungrounded} of {hypotheses.Count} hypotheses without a resolvable evidence_ref");
 
         // ---- language ----
         r.LanguageOk = requestLanguageOk && LooksTurkish(raw.Summary) == (expectedLanguage == "Turkish");
@@ -228,6 +229,9 @@ public sealed class EvalCaseResult
     public string Status { get; set; } = "";
     public string? Summary { get; set; }
     public string? TopCause { get; set; }
+    /// <summary>Category of the primary hypothesis (graded).</summary>
+    public string? PrimaryCategory { get; set; }
+    /// <summary>Diagnostic: keyword categories the primary cause text mentions (not graded).</summary>
     public List<string> Categories { get; set; } = [];
     public bool PrimaryCauseOk { get; set; }
     public bool EvidenceOk { get; set; }

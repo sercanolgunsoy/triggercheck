@@ -53,6 +53,10 @@
         "evidence": [
           "The last 6 checks failed with 'Name or service not known' and recorded no DNS, connect or TLS timing",
           "Checks before the incident resolved the name in 4 ms"
+        ],
+        "category": "dns",
+        "evidence_refs": [
+          "error E1"
         ]
       }
     ],

@@ -59,13 +59,18 @@ public sealed class AiEventScanner(AppDbContext db, IAiJobQueue queue, IOptions<
         public bool Initialized { get; set; }
         public int LastIncidentId { get; set; }
         public long LastSignalId { get; set; }
-        public DateTime? ResolvedWatermarkUtc { get; set; }
+        /// <summary>Keyset watermark (ResolvedAtUtc, Id) of resolved incidents older than <see cref="ResolvedOverlap"/>.</summary>
+        public (DateTime At, int Id)? ResolvedWatermark { get; set; }
         /// <summary>Resolve events already handled (queued or damped): incident id → resolved at.</summary>
         public Dictionary<int, DateTime> HandledResolves { get; } = new();
         /// <summary>Events not queued yet (over the per-customer cap or refused by the queue); retried next scan.</summary>
         public Dictionary<(EventKind, long), Event> Deferred { get; } = new();
         /// <summary>When an AI-2 job was last queued per monitor / per (customer, host).</summary>
         public Dictionary<int, DateTime> MonitorQueuedAt { get; } = new();
+        /// <summary>Normalised cause of the incident last queued per monitor (a different cause bypasses the cool-down).</summary>
+        public Dictionary<int, string> MonitorQueuedCause { get; } = new();
+        /// <summary>Same-host incidents waiting behind the incident chosen for their host (winner id → siblings).</summary>
+        public Dictionary<long, List<Event>> HostSiblings { get; } = new();
         public Dictionary<(int, string), DateTime> HostQueuedAt { get; } = new();
         /// <summary>Incidents with an AI-2 job queued (its resolution is interpreted even before the first job finished).</summary>
         public Dictionary<long, DateTime> QueuedIncidents { get; } = new();
@@ -83,8 +88,21 @@ public sealed class AiEventScanner(AppDbContext db, IAiJobQueue queue, IOptions<
         var hostWindow = TimeSpan.FromMinutes(Math.Max(0, o.HostWindowMinutes));
         Prune(state.HandledResolves, v => v < since);
         Prune(state.MonitorQueuedAt, v => v < now - cooldown);
+        foreach (var k in state.MonitorQueuedCause.Keys.Where(k => !state.MonitorQueuedAt.ContainsKey(k)).ToList()) state.MonitorQueuedCause.Remove(k);
         Prune(state.HostQueuedAt, v => v < now - hostWindow);
-        Prune(state.Deferred, e => e.FirstSeenUtc < since);
+        // A host's chosen incident that expires unqueued hands over to the next waiting sibling.
+        foreach (var expired in state.Deferred.Values.Where(e => e.FirstSeenUtc < since).ToList())
+        {
+            state.Deferred.Remove(expired.Key);
+            if (state.HostSiblings.Remove(expired.SubjectId, out var siblings) && siblings.Count > 0)
+            {
+                var next = siblings[0] with { FirstSeenUtc = now };
+                state.Deferred[next.Key] = next;
+                if (siblings.Count > 1) state.HostSiblings[next.SubjectId] = siblings.Skip(1).ToList();
+            }
+        }
+        foreach (var k in state.HostSiblings.Keys.Where(k => !state.Deferred.ContainsKey((EventKind.Opened, k)) && !state.Deferred.ContainsKey((EventKind.Resolved, k))).ToList())
+            state.HostSiblings.Remove(k); // winner queued or gone
         Prune(state.QueuedIncidents, v => v < now.AddHours(-1));
 
         // ---- new events ----
@@ -126,15 +144,23 @@ public sealed class AiEventScanner(AppDbContext db, IAiJobQueue queue, IOptions<
             if (signals.Count > 0) state.LastSignalId = signals[^1].Id;
         }
 
-        // Resolved after the watermark (indexed on ResolvedAtUtc), not handled yet.
-        var resolvedFrom = state.ResolvedWatermarkUtc is DateTime w && w - ResolvedOverlap > since ? w - ResolvedOverlap : since;
-        var resolvedRows = await db.Incidents.AsNoTracking()
-            .Where(i => i.ResolvedAtUtc != null && i.ResolvedAtUtc >= resolvedFrom)
-            .OrderBy(i => i.ResolvedAtUtc).Take(BatchSize)
+        // Resolved incidents (index on ResolvedAtUtc): a keyset watermark (ResolvedAtUtc, Id) over the settled part, plus
+        // the last ResolvedOverlap re-read every scan, because ResolvedAtUtc is the probe start and the row is written
+        // when the probe ends (a late commit can carry an earlier time). HandledResolves removes repeats.
+        var settled = now - ResolvedOverlap;
+        var (wAt, wId) = state.ResolvedWatermark is { } wm && wm.At >= since ? wm : (since, 0);
+        var settledRows = await db.Incidents.AsNoTracking()
+            .Where(i => i.ResolvedAtUtc != null && i.ResolvedAtUtc <= settled && (i.ResolvedAtUtc > wAt || (i.ResolvedAtUtc == wAt && i.Id > wId)))
+            .OrderBy(i => i.ResolvedAtUtc).ThenBy(i => i.Id).Take(BatchSize)
             .Select(i => new { i.Id, i.Monitor.CustomerId, i.MonitorId, ResolvedAtUtc = i.ResolvedAtUtc!.Value })
             .ToListAsync(ct);
-        state.ResolvedWatermarkUtc = resolvedRows.Count == BatchSize ? resolvedRows[^1].ResolvedAtUtc : now;
-        foreach (var r in resolvedRows.Where(r => !state.HandledResolves.ContainsKey(r.Id)))
+        if (settledRows.Count > 0) state.ResolvedWatermark = (settledRows[^1].ResolvedAtUtc, settledRows[^1].Id);
+        var recentRows = await db.Incidents.AsNoTracking()
+            .Where(i => i.ResolvedAtUtc != null && i.ResolvedAtUtc > settled)
+            .OrderBy(i => i.ResolvedAtUtc).ThenBy(i => i.Id).Take(BatchSize)
+            .Select(i => new { i.Id, i.Monitor.CustomerId, i.MonitorId, ResolvedAtUtc = i.ResolvedAtUtc!.Value })
+            .ToListAsync(ct);
+        foreach (var r in settledRows.Concat(recentRows).Where(r => !state.HandledResolves.ContainsKey(r.Id)))
             Add(new Event(EventKind.Resolved, r.Id, r.CustomerId, r.MonitorId, r.ResolvedAtUtc, now));
 
         // Decisions of the incidents involved: a resolve with a decision made after it is done; an opened event with
@@ -176,6 +202,7 @@ public sealed class AiEventScanner(AppDbContext db, IAiJobQueue queue, IOptions<
         // ---- damping of AI-2: per monitor (flapping) and per host (correlated outages) ----
         var aiTwo = events.Values.Where(e => e.Kind != EventKind.Slowdown).ToList();
         var hosts = new Dictionary<int, string?>();
+        var causes = new Dictionary<long, string>();
         if (aiTwo.Count > 0)
         {
             var monitorIds = aiTwo.Select(e => e.MonitorId).Distinct().ToList();
@@ -191,43 +218,70 @@ public sealed class AiEventScanner(AppDbContext db, IAiJobQueue queue, IOptions<
                 .Select(d => new { d.SubjectId, d.CreatedAtUtc }).ToListAsync(ct);
             var recentIds = recent.Select(r => int.TryParse(r.SubjectId, CultureInfo.InvariantCulture, out var id) ? id : 0).Where(id => id > 0).Distinct().ToList();
             var recentIncidents = recentIds.Count == 0 ? [] : await db.Incidents.AsNoTracking().Where(i => recentIds.Contains(i.Id))
-                .Select(i => new { i.Id, i.MonitorId, i.Monitor.CustomerId, i.Monitor.Type, i.Monitor.Target }).ToListAsync(ct);
+                .Select(i => new { i.Id, i.MonitorId, i.Monitor.CustomerId, i.Monitor.Type, i.Monitor.Target, i.Cause }).ToListAsync(ct);
             var monitorLast = new Dictionary<int, DateTime>(state.MonitorQueuedAt);
+            var monitorCause = new Dictionary<int, string>(state.MonitorQueuedCause);
             var hostLast = new Dictionary<(int, string), DateTime>(state.HostQueuedAt);
-            foreach (var r in recent)
+            foreach (var r in recent.OrderBy(r => r.CreatedAtUtc))
             {
                 var inc = recentIncidents.FirstOrDefault(i => i.Id.ToString(CultureInfo.InvariantCulture) == r.SubjectId);
                 if (inc is null) continue;
-                Max(monitorLast, inc.MonitorId, r.CreatedAtUtc);
+                if (!monitorLast.TryGetValue(inc.MonitorId, out var at) || at <= r.CreatedAtUtc)
+                {
+                    monitorLast[inc.MonitorId] = r.CreatedAtUtc;
+                    monitorCause[inc.MonitorId] = CauseKey(inc.Cause);
+                }
                 if (AiTenantData.HostOf(inc.Type, inc.Target) is { } h) Max(hostLast, (inc.CustomerId, h), r.CreatedAtUtc);
             }
+            var eventIds = aiTwo.Select(e => (int)e.SubjectId).Distinct().ToList();
+            causes = (await db.Incidents.AsNoTracking().Where(i => eventIds.Contains(i.Id)).Select(i => new { i.Id, i.Cause }).ToListAsync(ct))
+                .ToDictionary(i => (long)i.Id, i => CauseKey(i.Cause));
+            var scanWinner = new Dictionary<(int, string), Event>();
 
             foreach (var e in aiTwo.OrderBy(e => e.SubjectId))
             {
                 var ownDecision = incidentDecisions.ContainsKey(e.SubjectId) || state.QueuedIncidents.ContainsKey(e.SubjectId);
                 if (e.Kind == EventKind.Resolved && ownDecision) continue; // the summary of an interpreted incident is updated
                 var host = hosts.GetValueOrDefault(e.MonitorId);
-                var monitorRecent = monitorLast.TryGetValue(e.MonitorId, out var ml) && ml >= now - cooldown;
-                var hostRecent = host is not null && hostLast.TryGetValue((e.CustomerId, host), out var hl) && hl >= now - hostWindow;
+                var cause = causes.GetValueOrDefault(e.SubjectId, "");
+                // Same monitor, same (normalised) cause within the cool-down: flapping. A different cause is news.
+                var monitorWithinCooldown = monitorLast.TryGetValue(e.MonitorId, out var ml) && ml >= now - cooldown;
+                var causeChanged = monitorWithinCooldown && monitorCause.GetValueOrDefault(e.MonitorId, "") != cause;
+                var monitorRecent = monitorWithinCooldown && !causeChanged;
+                if (host is not null && !monitorRecent && scanWinner.TryGetValue((e.CustomerId, host), out var winner))
+                {
+                    // Waits behind the incident chosen for its host in this scan (promoted if that one expires unqueued).
+                    events.Remove(e.Key);
+                    state.Deferred.Remove(e.Key);
+                    if (!state.HostSiblings.TryGetValue(winner.SubjectId, out var list)) state.HostSiblings[winner.SubjectId] = list = [];
+                    if (list.All(x => x.Key != e.Key)) list.Add(e);
+                    continue;
+                }
+                // A changed cause on this monitor is interpreted even inside the host window (that window is for other monitors).
+                var hostRecent = !causeChanged && host is not null && hostLast.TryGetValue((e.CustomerId, host), out var hl) && hl >= now - hostWindow;
                 if (monitorRecent || hostRecent)
                 {
                     Drop(state, events, e);
                     continue;
                 }
-                // The first incident of this host in this scan wins; later ones see the host as recent.
+                // The first incident of this host in this scan wins; later ones wait behind it.
                 monitorLast[e.MonitorId] = now;
-                if (host is not null) hostLast[(e.CustomerId, host)] = now;
+                monitorCause[e.MonitorId] = cause;
+                if (host is not null) scanWinner[(e.CustomerId, host)] = e;
             }
         }
 
         // ---- fair scheduling: round-robin across customers, capped per customer ----
         var perCustomer = events.Values.GroupBy(e => e.CustomerId).OrderBy(g => g.Key)
             .Select(g => new Queue<Event>(g.OrderBy(e => e.AtUtc).ThenBy(e => e.SubjectId))).ToList();
-        return EnqueueFairly(state, perCustomer, customers, hosts, Math.Max(1, o.MaxJobsPerCustomerPerScan), now);
+        return EnqueueFairly(state, perCustomer, customers, hosts, causes, Math.Max(1, o.MaxJobsPerCustomerPerScan), now);
     }
 
+    /// <summary>Normalised incident cause (numbers, ids and masked values unified) for the cool-down comparison.</summary>
+    public static string CauseKey(string? cause) => string.IsNullOrWhiteSpace(cause) ? "" : IncidentInterpretationProvider.NormalizeError(cause);
+
     private int EnqueueFairly(State state, List<Queue<Event>> perCustomer, Dictionary<int, Eligible> customers,
-        Dictionary<int, string?> hosts, int cap, DateTime now)
+        Dictionary<int, string?> hosts, Dictionary<long, string> causes, int cap, DateTime now)
     {
         var queued = 0;
         var queueFull = false;
@@ -250,6 +304,8 @@ public sealed class AiEventScanner(AppDbContext db, IAiJobQueue queue, IOptions<
                 {
                     state.QueuedIncidents[e.SubjectId] = now;
                     state.MonitorQueuedAt[e.MonitorId] = now;
+                    state.MonitorQueuedCause[e.MonitorId] = causes.GetValueOrDefault(e.SubjectId, "");
+                    state.HostSiblings.Remove(e.SubjectId); // the host's outage is interpreted
                     if (hosts.GetValueOrDefault(e.MonitorId) is { } h) state.HostQueuedAt[(e.CustomerId, h)] = now;
                 }
             }

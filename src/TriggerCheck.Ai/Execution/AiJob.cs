@@ -15,7 +15,13 @@ public sealed record AiJob(string Feature, int CustomerId, string SubjectType, s
 /// <param name="FeatureInstructions">Static, feature-specific instructions appended to the cached system prompt.</param>
 /// <param name="UserContent">Per-call data built with <see cref="Context.AiContextBuilder"/> (masked, untrusted text delimited).</param>
 /// <param name="AllowedActions">Fixed allow-list of action codes the feature may suggest (may be empty).</param>
-public sealed record AiPrompt(string FeatureInstructions, string UserContent, IReadOnlyList<string> AllowedActions);
+/// <param name="Categories">
+/// Optional cause categories: when set, every hypothesis must carry one of them ("category", an enum in the schema) and
+/// cite "evidence_refs" that resolve to <paramref name="EvidenceKeys"/>; hypotheses that do not are dropped.
+/// </param>
+/// <param name="EvidenceKeys">Keys of the evidence items present in <paramref name="UserContent"/> ("check #1234", "ttfb", ...).</param>
+public sealed record AiPrompt(string FeatureInstructions, string UserContent, IReadOnlyList<string> AllowedActions,
+    IReadOnlyList<string>? Categories = null, IReadOnlySet<string>? EvidenceKeys = null);
 
 /// <summary>
 /// Builds the model input for one feature (registered per feature in DI). Must load data only through

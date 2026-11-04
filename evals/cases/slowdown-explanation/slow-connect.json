@@ -70,6 +70,11 @@
         "confidence": "high",
         "evidence": [
           "tcp_connect before=12 since=400 ratio=33"
+        ],
+        "category": "slow_connect",
+        "evidence_refs": [
+          "tcp_connect",
+          "point"
         ]
       }
     ],

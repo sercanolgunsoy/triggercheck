@@ -56,6 +56,10 @@
         "confidence": "high",
         "evidence": [
           "12 checks returned status 200 with 'Keyword not found in response'"
+        ],
+        "category": "keyword_missing",
+        "evidence_refs": [
+          "error E1"
         ]
       }
     ],

@@ -73,6 +73,11 @@
         "evidence": [
           "The maintenance period ended 20 minutes ago",
           "Checks during and after maintenance return status 503"
+        ],
+        "category": "maintenance_related",
+        "evidence_refs": [
+          "period",
+          "error E1"
         ]
       }
     ],

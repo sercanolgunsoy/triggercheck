@@ -48,6 +48,10 @@
         "confidence": "high",
         "evidence": [
           "4 checks failed with 'Connection refused' right after DNS resolved in 4 ms"
+        ],
+        "category": "connection_refused",
+        "evidence_refs": [
+          "error E1"
         ]
       }
     ],

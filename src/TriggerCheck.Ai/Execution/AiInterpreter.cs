@@ -90,7 +90,7 @@ public sealed class AiInterpreter(
         if (prompt is null) return null;
 
         var system = AiPrompts.For(prompt.FeatureInstructions);
-        var schema = AiInterpretationSchema.Build(prompt.AllowedActions);
+        var schema = AiInterpretationSchema.Build(prompt.AllowedActions, prompt.Categories);
         decision.InputHash = Hash(decision.Model, decision.Effort, system, JsonSerializer.Serialize(schema), prompt.UserContent);
 
         // Identical input: reuse the succeeded answer, or wait out the cool-down after a refusal / failure.
@@ -144,6 +144,8 @@ public sealed class AiInterpreter(
             {
                 case AiCallOutcome.Succeeded:
                     var parsed = AiInterpretation.TryParse(result.Json);
+                    // Category / evidence_refs contract first (drops ungrounded hypotheses), then the general L3 policy.
+                    if (parsed is not null) parsed = AiInterpretationValidator.ApplyContract(parsed, prompt.Categories, prompt.EvidenceKeys);
                     var valid = parsed is null ? null : validator.Validate(parsed, prompt.AllowedActions, feature.MaxAutonomy);
                     if (valid is null)
                     {

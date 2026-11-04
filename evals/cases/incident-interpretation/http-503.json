@@ -53,6 +53,10 @@
         "evidence": [
           "6 consecutive checks returned status 503",
           "Connection phases stayed normal (DNS 4 ms, connect 11 ms)"
+        ],
+        "category": "http_5xx",
+        "evidence_refs": [
+          "error E1"
         ]
       }
     ],

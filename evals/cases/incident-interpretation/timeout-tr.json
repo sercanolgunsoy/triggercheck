@@ -51,6 +51,10 @@
         "evidence": [
           "5 kontrol 'Timeout after 10 s' hatasıyla bitti",
           "TLS el sıkışması normal (26 ms)"
+        ],
+        "category": "timeout",
+        "evidence_refs": [
+          "error E1"
         ]
       }
     ],

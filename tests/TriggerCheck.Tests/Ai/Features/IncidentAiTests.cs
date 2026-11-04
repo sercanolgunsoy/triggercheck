@@ -141,6 +141,10 @@ public class IncidentAiTests
         Assert.Contains(AiFeaturePrompts.IncidentInstructions.Trim(), request.SystemPrompt);
         Assert.StartsWith("response_language: Turkish", request.UserContent);
         Assert.Equal("low", request.Effort);
+        // AI-2 contract: category enum and evidence_refs are required in the schema.
+        var hypothesis = request.OutputSchema["properties"].GetProperty("hypotheses").GetProperty("items");
+        Assert.Contains("evidence_refs", hypothesis.GetProperty("required").EnumerateArray().Select(e => e.GetString()));
+        Assert.Contains("http_5xx", hypothesis.GetProperty("properties").GetProperty("category").GetProperty("enum").EnumerateArray().Select(e => e.GetString()));
         Assert.Equal("claude-opus-5-5", request.Model);
     }
 
@@ -405,5 +409,102 @@ public class IncidentAiTests
         Assert.NotEqual(IncidentInterpretationProvider.NormalizeError("HTTP 503"), IncidentInterpretationProvider.NormalizeError("Connection refused"));
         Assert.Equal("", AiMasker.MaskTarget(MonitorType.Heartbeat, "/hb/abcd…"));
         Assert.Equal("https://api.example.test/…", AiMasker.MaskTarget(MonitorType.JsonApi, "https://api.example.test/v1/status?key=x"));
+    }
+
+    [Fact]
+    public async Task Interpreter_drops_hypotheses_whose_refs_point_to_nothing_sent()
+    {
+        await using var h = await HostAsync();
+        var c = await h.AddCustomerAsync();
+        var m = await h.AddMonitorAsync(c.Id);
+        await AddCheckAsync(h, m, h.Now.AddMinutes(-1), false, 503, "HTTP 503");
+        var incident = await AddIncidentAsync(h, m, h.Now.AddMinutes(-1));
+        h.Client.Responder = r =>
+        {
+            var checkKey = System.Text.RegularExpressions.Regex.Match(r.UserContent, @"check #\d+").Value;
+            return TriggerCheck.Ai.Client.FakeAiClient.Success($$"""
+                {"summary":"HTTP 503.","suggested_actions":[],"unknowns":[],"hypotheses":[
+                  {"cause":"Backend returns 503","confidence":"high","evidence":["503"],"category":"http_5xx","evidence_refs":["{{checkKey}}"]},
+                  {"cause":"Invented","confidence":"high","evidence":["check #999999"],"category":"dns","evidence_refs":["check #999999"]},
+                  {"cause":"Made-up category","confidence":"low","evidence":["x"],"category":"aliens","evidence_refs":["error E1"]}]}
+                """);
+        };
+
+        var d = await h.RunAsync(new AiJob(AiFeatures.IncidentInterpretation, c.Id, AiSubjects.Incident, incident.Id.ToString()));
+
+        var output = TriggerCheck.Ai.Interpretation.AiInterpretation.TryParse(d!.OutputJson)!;
+        var kept = Assert.Single(output.Hypotheses);
+        Assert.Equal("http_5xx", kept.Category);
+    }
+
+    [Fact]
+    public async Task A_different_cause_bypasses_the_monitor_cooldown()
+    {
+        var queue = new CapturingQueue();
+        await using var h = await HostAsync(queue);
+        var c = await h.AddCustomerAsync();
+        var m = await h.AddMonitorAsync(c.Id);
+        var state = new AiEventScanner.State();
+        await ScanAsync(h, state);
+
+        await AddIncidentAsync(h, m, h.Now, cause: "HTTP 503 (expected 200-299)");
+        Assert.Equal(1, await ScanAsync(h, state));
+        h.Time.Advance(TimeSpan.FromMinutes(2));
+        await AddIncidentAsync(h, m, h.Now, cause: "HTTP 503 (expected 200-299)"); // same cause: flapping
+        Assert.Equal(0, await ScanAsync(h, state));
+        h.Time.Advance(TimeSpan.FromMinutes(2));
+        await AddIncidentAsync(h, m, h.Now, cause: "Request 4711 timed out after 10 s"); // new cause: news
+        Assert.Equal(1, await ScanAsync(h, state));
+        h.Time.Advance(TimeSpan.FromMinutes(2));
+        await AddIncidentAsync(h, m, h.Now, cause: "Request 4712 timed out after 10 s"); // same after normalisation
+        Assert.Equal(0, await ScanAsync(h, state));
+    }
+
+    [Fact]
+    public async Task Resolved_watermark_is_a_keyset_and_late_commits_are_seen()
+    {
+        var queue = new CapturingQueue();
+        await using var h = await HostAsync(queue);
+        var c = await h.AddCustomerAsync();
+        var state = new AiEventScanner.State();
+        await ScanAsync(h, state);
+
+        // Two incidents resolved at the same instant (same timestamp, different ids) on different hosts.
+        var at = h.Now.AddMinutes(-5);
+        var a = await AddIncidentAsync(h, await h.AddMonitorAsync(c.Id, x => x.Target = "https://a.example.test/"), at.AddMinutes(-3), at);
+        var b = await AddIncidentAsync(h, await h.AddMonitorAsync(c.Id, x => x.Target = "https://b.example.test/"), at.AddMinutes(-3), at);
+        await ScanAsync(h, state);
+        Assert.Equal((at, Math.Max(a.Id, b.Id)), state.ResolvedWatermark);
+        Assert.Equal(2, queue.Jobs.Count(j => j.SubjectId == a.Id.ToString() || j.SubjectId == b.Id.ToString()));
+
+        // Written late with a resolve time just before "now": still within the re-read window.
+        var late = await AddIncidentAsync(h, await h.AddMonitorAsync(c.Id, x => x.Target = "https://late.example.test/"), h.Now.AddMinutes(-4), h.Now.AddSeconds(-30));
+        await ScanAsync(h, state);
+        Assert.Contains(queue.Jobs, j => j.SubjectId == late.Id.ToString());
+        var count = queue.Jobs.Count;
+        h.Time.Advance(TimeSpan.FromMinutes(3)); // now settled: picked up by the keyset, but already handled
+        await ScanAsync(h, state);
+        Assert.Equal(count, queue.Jobs.Count);
+    }
+
+    [Fact]
+    public async Task Next_same_host_incident_is_promoted_when_the_chosen_one_expires_unqueued()
+    {
+        var queue = new CapturingQueue { Accept = false };
+        await using var h = await HostAsync(queue);
+        var c = await h.AddCustomerAsync();
+        var state = new AiEventScanner.State();
+        await ScanAsync(h, state);
+        var first = await AddIncidentAsync(h, await h.AddMonitorAsync(c.Id, x => x.Target = "https://same.example.test/a"), h.Now);
+        var second = await AddIncidentAsync(h, await h.AddMonitorAsync(c.Id, x => x.Target = "https://same.example.test/b"), h.Now);
+
+        await ScanAsync(h, state); // first is chosen (refused: deferred), second waits behind it
+        Assert.True(state.Deferred.ContainsKey((AiEventScanner.EventKind.Opened, first.Id)));
+        Assert.Equal([second.Id], state.HostSiblings[first.Id].Select(e => (int)e.SubjectId));
+
+        h.Time.Advance(TimeSpan.FromMinutes(16)); // the chosen one expires unqueued
+        queue.Accept = true;
+        Assert.Equal(1, await ScanAsync(h, state));
+        Assert.Equal(second.Id.ToString(), Assert.Single(queue.Jobs).SubjectId);
     }
 }

@@ -69,6 +69,11 @@
         "evidence": [
           "Shop web and Shop admin on the same host are Down with open incidents",
           "6 checks returned status 502"
+        ],
+        "category": "host_outage",
+        "evidence_refs": [
+          "monitor B",
+          "error E1"
         ]
       }
     ],

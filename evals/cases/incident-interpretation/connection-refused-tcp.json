@@ -41,6 +41,10 @@
         "confidence": "high",
         "evidence": [
           "5 checks failed with 'Connection refused' within 3 ms"
+        ],
+        "category": "connection_refused",
+        "evidence_refs": [
+          "error E1"
         ]
       }
     ],

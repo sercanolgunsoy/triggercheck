@@ -57,11 +57,11 @@ public sealed class EvalReport
                 $"| {f.Feature} | {f.Cases} | {P(f.PrimaryCauseAccuracy)} | {P(f.EvidenceRate)} | {P(f.LanguageRate)} | {f.MaskingFailures} | {f.Passed} | {f.InputTokens} | {f.OutputTokens} | {f.CostUsd:0.0000} | {(f.GatePassed ? "passed" : "**failed**")} |");
         sb.AppendLine();
 
-        sb.AppendLine("| Case | Lang | Label | Top cause categories | Cause | Evidence | Masking | Language | Tokens in/out | Notes |");
-        sb.AppendLine("|---|---|---|---|---|---|---|---|---|---|");
+        sb.AppendLine("| Case | Lang | Label | Primary category | Cause | Evidence | Masking | Language | Text mentions (diagnostic) | Tokens in/out | Notes |");
+        sb.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|");
         foreach (var c in Cases)
             sb.AppendLine(CultureInfo.InvariantCulture,
-                $"| {c.Id} | {c.Language} | {c.Label} | {string.Join(", ", c.Categories)} | {Ok(c.PrimaryCauseOk)} | {Ok(c.EvidenceOk)} | {Ok(c.MaskingOk)} | {Ok(c.LanguageOk)} | {c.InputTokens + c.CacheReadTokens + c.CacheWriteTokens}/{c.OutputTokens} | {string.Join("; ", c.Notes).Replace("|", "/")} |");
+                $"| {c.Id} | {c.Language} | {c.Label} | {c.PrimaryCategory} | {Ok(c.PrimaryCauseOk)} | {Ok(c.EvidenceOk)} | {Ok(c.MaskingOk)} | {Ok(c.LanguageOk)} | {string.Join(", ", c.Categories)} | {c.InputTokens + c.CacheReadTokens + c.CacheWriteTokens}/{c.OutputTokens} | {string.Join("; ", c.Notes).Replace("|", "/")} |");
         return sb.ToString();
     }
 

@@ -88,6 +88,10 @@
         "evidence": [
           "4 checks failed with 'Timeout after 10 s'",
           "TTFB rose from 150 ms to 1500, 4000 and 8000 ms in the preceding checks"
+        ],
+        "category": "timeout",
+        "evidence_refs": [
+          "error E1"
         ]
       }
     ],

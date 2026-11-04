@@ -4,6 +4,7 @@ using TriggerCheck.Ai.Client;
 using TriggerCheck.Ai.Interpretation;
 using TriggerCheck.Domain;
 using TriggerCheck.Domain.Entities;
+using TriggerCheck.Ai.Features;
 using TriggerCheck.Evals;
 
 namespace TriggerCheck.Tests.Ai.Features;
@@ -69,7 +70,7 @@ public class EvalHarnessTests
     {
         var cases = EvalScenario.LoadAll(CasesDir).Where(c => c.Feature == AiFeatures.IncidentInterpretation).ToList();
         // Every case answers "DNS": only the DNS cases stay correct.
-        var wrong = JsonNode.Parse(Canned("Name resolution failed.", "The DNS lookup failed.", ["check #1: no DNS time"]))!;
+        var wrong = JsonNode.Parse(Canned("Name resolution failed.", "The DNS lookup failed.", ["error E1"], category: "dns", refs: ["error E1"]))!;
         foreach (var c in cases) c.Canned = wrong.DeepClone();
 
         var report = await EvalHarness.RunAsync(cases, new EvalOptions());
@@ -87,13 +88,14 @@ public class EvalHarnessTests
         Assert.Equal(["slow-ttfb", "slow-ttfb-tr"], report.Cases.Select(c => c.Id).Order().ToList());
     }
 
-    private static string Canned(string summary, string cause, string[] evidence, string confidence = "high") => JsonSerializer.Serialize(new
-    {
-        summary,
-        hypotheses = new[] { new { cause, confidence, evidence } },
-        suggested_actions = Array.Empty<object>(),
-        unknowns = Array.Empty<string>(),
-    });
+    private static string Canned(string summary, string cause, string[] evidence, string category = "http_5xx", string[]? refs = null, string confidence = "high") =>
+        JsonSerializer.Serialize(new
+        {
+            summary,
+            hypotheses = new[] { new { cause, confidence, evidence, category, evidence_refs = refs ?? ["check #1"] } },
+            suggested_actions = Array.Empty<object>(),
+            unknowns = Array.Empty<string>(),
+        });
 
     private static EvalScenario Scenario(string label = "http_5xx", string language = "en", params string[] secrets) => new()
     {
@@ -103,76 +105,115 @@ public class EvalHarnessTests
 
     private static AiCallRequest Request(string user, string language = "English") =>
         new(AiFeatures.IncidentInterpretation, "claude-opus-5-5", "low", 1000, "system", $"response_language: {language}\n{user}",
-            AiInterpretationSchema.Build([]));
+            AiInterpretationSchema.Build([], AiFeaturePrompts.IncidentCategories));
 
-    [Theory]
-    // Reviewer probes: substrings, "resolved", hedges, check ids and negated phrases must not pass.
-    [InlineData("The request timed out after 1500 ms.", "http_5xx")]
-    [InlineData("Timeouts until the incident was resolved.", "dns_failure")]
-    [InlineData("Something is wrong, maybe DNS or a timeout.", "dns_failure")]
-    [InlineData("Something is wrong, maybe DNS or a timeout.", "timeout")]
-    [InlineData("Check #5004 failed.", "http_5xx")]
-    [InlineData("The certificate chain is fine; the server returned 404", "tls_untrusted")]
-    [InlineData("Port 5432 is closed.", "http_5xx")]
-    public void Grader_rejects_false_positive_causes(string cause, string label) =>
-        Assert.False(EvalGrader.CauseMatches(cause, label, slowdown: false), $"'{cause}' must not pass {label}");
-
-    [Theory]
-    [InlineData("The request timed out after 1500 ms.", "timeout")]
-    [InlineData("The certificate chain is fine; the server returned 404", "http_4xx")]
-    [InlineData("Host-wide outage: all monitors on the same host fail with HTTP 502.", "host_outage")]
-    [InlineData("The DNS name could not be resolved.", "dns_failure")]
-    [InlineData("Sunucu HTTP 503 döndürüyor.", "http_5xx")]
-    public void Grader_accepts_clear_causes(string cause, string label) =>
-        Assert.True(EvalGrader.CauseMatches(cause, label, slowdown: false), $"'{cause}' should pass {label}");
-
-    [Fact]
-    public void Evidence_must_be_grounded_in_the_input()
+    /// <summary>The decision production would store: the contract and the L3 policy applied to the raw output.</summary>
+    private static AiDecision Decision(string json, string userContent)
     {
-        const string input = "check #42: 2026-03-10T11:59:00Z DOWN status=503 total_ms=1234\n<untrusted_data source=\"e\">\nName or service not known\n</untrusted_data>\nvalidation_error: RemoteCertificateNameMismatch";
-        Assert.True(EvalGrader.Grounded("check #42 returned 503", input));
-        Assert.True(EvalGrader.Grounded("errors say 'Name or service not known'", input));
-        Assert.True(EvalGrader.Grounded("total time 1234 ms", input));
-        Assert.True(EvalGrader.Grounded("RemoteCertificateNameMismatch", input));
-        Assert.False(EvalGrader.Grounded("check #7 failed", input));
-        Assert.False(EvalGrader.Grounded("response took 9999 ms", input));
-        Assert.False(EvalGrader.Grounded("the server seems overloaded", input));
+        var raw = AiInterpretation.TryParse(json)!;
+        var contract = AiInterpretationValidator.ApplyContract(raw, AiFeaturePrompts.IncidentCategories, EvalGrader.EvidenceKeys(userContent));
+        var valid = AiInterpretationValidator.Validate(contract, [], AiAutonomy.A0);
+        return new AiDecision { Status = valid is null ? AiDecisionStatus.Failed : AiDecisionStatus.Succeeded, OutputJson = valid?.Interpretation.ToJson() };
+    }
+
+    private static EvalCaseResult Grade(EvalScenario s, string user, string json, string language = "English")
+    {
+        var request = Request(user, language);
+        return EvalGrader.Grade(s, request, FakeAiClient.Success(json), Decision(json, request.UserContent));
+    }
+
+    [Theory]
+    // Reviewer probes: the cause text no longer decides; only the category does. Negations, "resolved", hedges and
+    // check ids in the text are irrelevant.
+    [InlineData("This is not a DNS problem; the server returned HTTP 503.", "http_5xx", "http_5xx", true)]
+    [InlineData("This is not a DNS problem; the server returned HTTP 503.", "http_5xx", "dns_failure", false)]
+    [InlineData("DNS sorunu değil; sunucu 503 döndürüyor.", "http_5xx", "dns_failure", false)]
+    [InlineData("After DNS resolution succeeded the server returned 500.", "http_5xx", "dns_failure", false)]
+    [InlineData("Unclear cause; DNS looked fine.", "unknown", "dns_failure", false)]
+    [InlineData("No timeout occurred; the TLS certificate expired.", "tls_expired", "timeout", false)]
+    [InlineData("No timeout occurred; the TLS certificate expired.", "tls_expired", "tls_expired", true)]
+    [InlineData("The certificate has not expired; the server returned 500 error", "http_5xx", "tls_expired", false)]
+    [InlineData("DNS failure and a timeout.", "timeout", "dns_failure", false)]
+    [InlineData("The request timed out after 1500 ms.", "timeout", "http_5xx", false)]
+    [InlineData("Check #5004 failed.", "unknown", "http_5xx", false)]
+    [InlineData("The certificate chain is fine; the server returned 404", "http_4xx", "tls_untrusted", false)]
+    [InlineData("Sunucuya ulaşılamıyor.", "network_unreachable", "network_unreachable", true)]
+    public void Primary_cause_is_graded_by_category_only(string cause, string category, string label, bool expected)
+    {
+        var result = Grade(Scenario(label), "check #1: 2026-03-10T11:59:00Z DOWN status=503",
+            Canned("Summary of the incident.", cause, ["check #1: status 503"], category));
+        Assert.Equal(expected, result.PrimaryCauseOk);
+        Assert.True(result.EvidenceOk, string.Join("; ", result.Notes));
     }
 
     [Fact]
-    public void Grader_classifies_causes_in_English_and_Turkish()
+    public void Highest_confidence_wins_and_ties_go_to_the_first()
+    {
+        var output = AiInterpretation.TryParse("""
+            {"summary":"s","suggested_actions":[],"unknowns":[],"hypotheses":[
+              {"cause":"a","confidence":"medium","evidence":["e"],"category":"dns","evidence_refs":["check #1"]},
+              {"cause":"b","confidence":"high","evidence":["e"],"category":"timeout","evidence_refs":["check #1"]},
+              {"cause":"c","confidence":"high","evidence":["e"],"category":"http_5xx","evidence_refs":["check #1"]}]}
+            """);
+        Assert.Equal("timeout", EvalGrader.Primary(output)!.Category);
+        Assert.True(EvalGrader.PrimaryMatches(output, "timeout"));
+        Assert.False(EvalGrader.PrimaryMatches(output, "http_5xx"));
+    }
+
+    [Fact]
+    public void Evidence_refs_must_resolve_to_items_that_were_sent()
+    {
+        const string user = "check #42: 2026-03-10T11:59:00Z DOWN status=503\nvalidation_error: none\n<untrusted_data source=\"error E1\">\nx\n</untrusted_data>\nevent: incident_opened";
+        var keys = EvalGrader.EvidenceKeys("response_language: English\n" + user);
+        Assert.Contains("check #42", keys);
+        Assert.Contains("error E1", keys);
+        Assert.DoesNotContain("event", keys); // describes the subject, not evidence
+        Assert.Equal("check #42", AiInterpretationValidator.ResolveRef("#42", keys));
+        Assert.Equal("check #42", AiInterpretationValidator.ResolveRef("42", keys));
+        Assert.Null(AiInterpretationValidator.ResolveRef("check #7", keys));
+        Assert.Null(AiInterpretationValidator.ResolveRef("event", keys));
+
+        // A hypothesis citing a check that was never sent fails the evidence check and is dropped in production.
+        var bogus = Grade(Scenario(), user, Canned("HTTP 503.", "HTTP 503", ["check #7: 503"], refs: ["check #7"]));
+        Assert.False(bogus.EvidenceOk);
+        Assert.False(bogus.PrimaryCauseOk); // nothing survives validation
+        var good = Grade(Scenario(), user, Canned("HTTP 503.", "HTTP 503", ["503 on check #42"], refs: ["#42", "error E1"]));
+        Assert.True(good.EvidenceOk && good.PrimaryCauseOk, string.Join("; ", good.Notes));
+
+        // The interpreter's contract step: unknown category or no resolvable ref → dropped; refs normalised.
+        var raw = AiInterpretation.TryParse(Canned("s", "c", ["e"], refs: ["42", "check #9"]))!;
+        var kept = Assert.Single(AiInterpretationValidator.ApplyContract(raw, AiFeaturePrompts.IncidentCategories, keys).Hypotheses);
+        Assert.Equal(["check #42"], kept.EvidenceRefs);
+        Assert.Empty(AiInterpretationValidator.ApplyContract(AiInterpretation.TryParse(Canned("s", "c", ["e"], category: "aliens", refs: ["42"]))!,
+            AiFeaturePrompts.IncidentCategories, keys).Hypotheses);
+    }
+
+    [Fact]
+    public void Text_mentions_are_a_diagnostic_only()
     {
         Assert.Equal(["dns"], EvalGrader.Classify("DNS resolution of the host fails", slowdown: false));
         Assert.Equal(["tls_expired"], EvalGrader.Classify("Sertifikanın süresi dolmuş", slowdown: false));
-        Assert.Equal(["timeout"], EvalGrader.Classify("İstekler zaman aşımına uğruyor", slowdown: false));
         Assert.Equal(["slow_ttfb"], EvalGrader.Classify("TTFB rose from 150 ms to 1200 ms", slowdown: true));
-        Assert.Empty(EvalGrader.Classify("Something went wrong", slowdown: false));
+        // A cause text that mentions DNS but is categorised as http_5xx still passes an http_5xx case.
+        var r = Grade(Scenario(), "check #1: x", Canned("s", "Not DNS: HTTP 503", ["check #1"]));
+        Assert.True(r.PrimaryCauseOk);
+        Assert.Contains("dns", r.Categories);
     }
 
     [Fact]
-    public void Grader_flags_leaks_vague_causes_missing_evidence_and_wrong_language()
+    public void Grader_flags_leaks_and_wrong_language()
     {
-        var ok = FakeAiClient.Success(Canned("The server returns HTTP 503.", "HTTP 503 from the backend", ["check #1: status 503"]));
-        var good = EvalGrader.Grade(Scenario(), Request("check #1: status=503"), ok, null);
+        var json = Canned("The server returns HTTP 503.", "HTTP 503 from the backend", ["check #1: status 503"]);
+        var good = Grade(Scenario(), "check #1: status=503", json);
         Assert.True(good.Passed, string.Join("; ", good.Notes));
 
         // A planted secret, the URL path or an e-mail address in the request fails masking.
-        var leak = EvalGrader.Grade(Scenario(secrets: "hunter2"), Request("error: password hunter2 at /private/path?x=1 by ops@corp.test"), ok, null);
+        var leak = Grade(Scenario(secrets: "hunter2"), "check #1: password hunter2 at /private/path?x=1 by ops@corp.test", json);
         Assert.False(leak.MaskingOk);
         Assert.Contains(leak.Notes, n => n.Contains("hunter2") && n.Contains("/private/path?x=1") && n.Contains("ops@corp.test"));
 
-        // "DNS, TLS or a timeout" names three categories: not a primary cause.
-        var vague = EvalGrader.Grade(Scenario("dns_failure"), Request("x"),
-            FakeAiClient.Success(Canned("Unclear.", "DNS, TLS certificate expired or a timeout", ["check #1"])), null);
-        Assert.False(vague.PrimaryCauseOk);
-
-        var noEvidence = EvalGrader.Grade(Scenario(), Request("x"), FakeAiClient.Success(Canned("HTTP 503.", "HTTP 503", [])), null);
-        Assert.False(noEvidence.EvidenceOk);
-
-        var english = EvalGrader.Grade(Scenario(language: "tr"), Request("x", "Turkish"), ok, null);
-        Assert.False(english.LanguageOk);
-        var turkish = EvalGrader.Grade(Scenario(language: "tr"), Request("x", "Turkish"),
-            FakeAiClient.Success(Canned("Sunucu HTTP 503 döndürüyor ve hizmet kullanılamıyor.", "HTTP 503", ["kontrol #1: 503"])), null);
-        Assert.True(turkish.LanguageOk);
+        Assert.False(Grade(Scenario(language: "tr"), "check #1: x", json, "Turkish").LanguageOk);
+        Assert.True(Grade(Scenario(language: "tr"), "check #1: x",
+            Canned("Sunucu HTTP 503 döndürüyor ve hizmet kullanılamıyor.", "HTTP 503", ["kontrol #1: 503"]), "Turkish").LanguageOk);
     }
 }

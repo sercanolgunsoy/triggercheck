@@ -71,6 +71,11 @@
         "evidence": [
           "ttfb before=150 since=1200 ratio=8",
           "dns, tcp_connect and tls unchanged"
+        ],
+        "category": "slow_ttfb",
+        "evidence_refs": [
+          "ttfb",
+          "point"
         ]
       }
     ],

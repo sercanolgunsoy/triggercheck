@@ -4,7 +4,7 @@
   "language": "tr",
   "description": "Ping target unreachable, Turkish output.",
   "expect": {
-    "primaryCause": "connection_refused"
+    "primaryCause": "network_unreachable"
   },
   "monitor": {
     "name": "Edge gateway",
@@ -41,6 +41,10 @@
         "evidence": [
           "6 kontrol 'DestinationHostUnreachable' hatası verdi",
           "Önceki ping süresi 18 ms"
+        ],
+        "category": "network_unreachable",
+        "evidence_refs": [
+          "error E1"
         ]
       }
     ],

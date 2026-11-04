@@ -51,6 +51,11 @@
         "evidence": [
           "Sertifikanın bitiş tarihi 1 gün önce",
           "Hatalı kontroller 'certificate has expired' hatası veriyor"
+        ],
+        "category": "tls_expired",
+        "evidence_refs": [
+          "validation_error",
+          "error E1"
         ]
       }
     ],

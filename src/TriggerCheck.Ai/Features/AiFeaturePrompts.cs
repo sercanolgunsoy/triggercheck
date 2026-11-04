@@ -17,9 +17,11 @@ public static class AiFeaturePrompts
         How to work:
         - Decide which layer failed first: DNS resolution, TCP connection (refused / unreachable), TLS (expired,
           untrusted or wrong-name certificate, handshake failure), timeout, HTTP status (4xx / 5xx) or response content
-          (expected keyword missing). Name that layer explicitly in the cause of the first hypothesis.
-        - The first hypothesis is the most likely primary cause. Cite the checks or metrics that show it in its
-          evidence, for example "check #1234: status 503" or "check #1240: DNS 2400 ms, 12 ms before the incident".
+          (expected keyword missing), and set "category" accordingly. Use "unknown" when the data does not show it.
+        - Give the most likely primary cause the highest confidence. In "evidence" describe what shows it, for example
+          "check #1234: status 503" or "check #1240: DNS 2400 ms, 12 ms before the incident"; in "evidence_refs" list
+          the keys of those input lines exactly as written before the colon ("check #1234", "validation_error",
+          "error E1", "monitor B", "median_ms"). A hypothesis without a valid reference is discarded.
         - Other monitors on the same host that are also down point to a host-wide outage; healthy ones point to a
           problem specific to this endpoint.
         - A slowdown signal shortly before the incident suggests overload or degradation; mention it only when the
@@ -42,13 +44,37 @@ public static class AiFeaturePrompts
 
         How to work:
         - Say which phase degraded the most, by how much (use the given milliseconds and ratios; do not compute new
-          numbers) and since when. Name that phase explicitly in the cause of the first hypothesis.
+          numbers) and since when, and set "category" to that phase ("unknown" when the data does not show it).
+        - In "evidence_refs" list the keys of the input lines you rely on, exactly as written before the colon
+          ("ttfb", "dns", "point", "peak_robust_z_score"). A hypothesis without a valid reference is discarded.
         - Unless the input shows an open incident, state clearly in the summary that there is no outage yet.
         - Growth in DNS, TCP connect or TLS points to the network, the name servers or the TLS termination; growth in
           TTFB with stable connection phases points to the server or the application.
         - When phase data is missing (for example because connections were reused), list it under unknowns.
         - Suggested actions are optional, only from the allowed list.
         """;
+
+    /// <summary>AI-2 cause categories (hypotheses[].category). Changing the list is a schema change: run the eval.</summary>
+    public static readonly IReadOnlyList<string> IncidentCategories =
+    [
+        "dns", "tls_expired", "tls_name_mismatch", "tls_untrusted", "http_5xx", "http_4xx", "timeout", "connection_refused",
+        "network_unreachable", "keyword_missing", "host_outage", "slow_response", "maintenance_related", "config_change",
+        "heartbeat_missed", "unknown",
+    ];
+
+    /// <summary>AI-3 categories: the phase that degraded.</summary>
+    public static readonly IReadOnlyList<string> SlowdownCategories = ["slow_dns", "slow_connect", "slow_tls", "slow_ttfb", "unknown"];
+
+    /// <summary>Context keys that describe the subject rather than evidence; not accepted as evidence_refs.</summary>
+    public static readonly IReadOnlySet<string> NonEvidenceKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "response_language", "event", "id", "type", "state", "acknowledged", "monitors", "checks", "metric",
+        "periods_near_incident", "configuration_change_history", "http_method", "port",
+    };
+
+    /// <summary>Evidence keys of a built context (everything the builder wrote minus <see cref="NonEvidenceKeys"/>).</summary>
+    public static IReadOnlySet<string> EvidenceKeys(Context.AiContextBuilder b) =>
+        b.Keys.Where(k => !NonEvidenceKeys.Contains(k)).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>A0 (information only): actions are suggestions to a human; nothing is ever executed.</summary>
     public static readonly IReadOnlyList<string> IncidentActions =

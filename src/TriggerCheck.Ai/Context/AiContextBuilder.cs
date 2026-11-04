@@ -16,6 +16,10 @@ public sealed partial class AiContextBuilder
     public const string TruncatedMarker = " …[truncated]";
 
     private readonly StringBuilder _sb = new();
+    private readonly HashSet<string> _keys = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Every fact key and untrusted-data source written so far (candidate evidence_refs).</summary>
+    public IReadOnlySet<string> Keys => _keys;
 
     /// <param name="language">UI language of the reader ("en", "tr"); the summary is written in it.</param>
     public AiContextBuilder(string language)
@@ -47,6 +51,7 @@ public sealed partial class AiContextBuilder
             IFormattable f => f.ToString(null, CultureInfo.InvariantCulture),
             _ => value.ToString() ?? "",
         };
+        _keys.Add(Clean(key));
         _sb.Append(Clean(key)).Append(": ").AppendLine(Clean(AiMasker.MaskText(text, longTokens: !identifier)));
         return this;
     }
@@ -54,6 +59,7 @@ public sealed partial class AiContextBuilder
     /// <summary>Adds external text as a delimited, masked, truncated data block.</summary>
     public AiContextBuilder Untrusted(string source, string? text, int maxChars = DefaultUntrustedChars)
     {
+        _keys.Add(Clean(source));
         _sb.Append("<untrusted_data source=\"").Append(Clean(source)).AppendLine("\">")
             .AppendLine(Neutralize(Truncate(AiMasker.MaskText(text), maxChars)))
             .AppendLine("</untrusted_data>");

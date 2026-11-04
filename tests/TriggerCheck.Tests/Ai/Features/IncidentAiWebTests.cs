@@ -78,6 +78,31 @@ public class IncidentAiWebTests(AiEnabledWebAppFactory f) : IClassFixture<AiEnab
     }
 
     [Fact]
+    public async Task Hypotheses_show_a_localized_category_label()
+    {
+        var cid = await f.DemoCustomerIdAsync();
+        await SetCustomerAsync(cid, true);
+        var id = await AddIncidentAsync(await f.AddMonitorAsync(cid, "AI category monitor"), DateTime.UtcNow.AddDays(-5));
+        await f.WithDbAsync(async db =>
+        {
+            db.AiDecisions.Add(new AiDecision
+            {
+                CustomerId = cid, Feature = AiFeatures.IncidentInterpretation, SubjectType = AiSubjects.Incident, SubjectId = id.ToString(),
+                Model = "claude-opus-5-5", Effort = "low", Status = AiDecisionStatus.Succeeded, CreatedAtUtc = DateTime.UtcNow,
+                OutputJson = """{"summary":"Expired.","hypotheses":[{"cause":"The certificate expired.","confidence":"high","evidence":["validation_error"],"category":"tls_expired","evidence_refs":["validation_error"]}],"suggested_actions":[],"unknowns":[]}"""
+            });
+            await db.SaveChangesAsync();
+        });
+        var admin = await AdminAsync();
+        var html = await admin.GetHtmlAsync($"/App/Incidents/Details/{id}");
+        Assert.Contains("data-category=\"tls_expired\"", html);
+        Assert.Contains("Certificate expired", html);
+        await admin.SetLanguageAsync("tr");
+        Assert.Contains("Sertifika süresi dolmuş", await admin.GetHtmlAsync($"/App/Incidents/Details/{id}"));
+        await admin.SetLanguageAsync("en");
+    }
+
+    [Fact]
     public async Task Incident_details_explain_why_there_is_no_summary()
     {
         var cid = await f.DemoCustomerIdAsync();

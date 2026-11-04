@@ -82,7 +82,9 @@ are byte-identical between runs.
   "checks": [ { "minutesAgo": 1, "repeat": 5, "everyMinutes": 1, "up": false, "ms": 30, "error": "..." } ],
   "sameHost": [], "anomaly": null, "maintenance": [], "baselineMedianMs": 180,
   "secrets": ["strings that must never reach the model"],
-  "canned": { "summary": "...", "hypotheses": [ ... ], "suggested_actions": [ ... ], "unknowns": [ ... ] }
+  "canned": { "summary": "...", "hypotheses": [ { "cause": "...", "confidence": "high", "evidence": ["..."],
+              "category": "tls_expired", "evidence_refs": ["validation_error", "error E1"] } ],
+              "suggested_actions": [ ... ], "unknowns": [ ... ] }
 }
 ```
 
@@ -92,22 +94,23 @@ correct `canned` answer (the fake run must stay at 100 %).
 
 ## Grading
 
-Code-graded, no LLM judge (`EvalGrader`):
+Code-graded, no LLM judge and no keyword matching in pass / fail (`EvalGrader`). AI-2 and AI-3 hypotheses carry a
+`category` (an enum in the output schema, `AiFeaturePrompts.IncidentCategories` / `SlowdownCategories`) and
+`evidence_refs` (keys of input lines such as `check #1234`, `ttfb`, `validation_error`, `error E1`). Production drops
+every hypothesis whose category is not in the enum or whose refs resolve to nothing that was sent
+(`AiInterpretationValidator.ApplyContract`).
 
-- **Primary cause**: the most confident hypothesis of the raw output is classified into cause categories by English
-  and Turkish word-boundary patterns (`dns`, `tls_expired`, `tls_name_mismatch`, `tls_untrusted`, `http_5xx`,
-  `http_4xx`, `timeout`, `connection_refused`, `keyword_missing`, `host_outage`, `maintenance`; for AI-3 `slow_dns`,
-  `slow_connect`, `slow_tls`, `slow_ttfb`). Status codes count only next to "HTTP" / "status" / "returned" or a reason
-  phrase (so "1500 ms" or "check #5004" are not 5xx), and "resolved" is not DNS. The category mentioned **first** is the
-  primary cause and must be accepted for the case's label; a hedge that names several categories ("maybe DNS or a
-  timeout") has no primary cause and fails. Negative probes are in `EvalHarnessTests`.
-- **Evidence**: every raw hypothesis (before validation drops any) cites at least one piece of evidence that is
-  grounded in the input: a check id that was sent ("check #1234"), a number of two or more digits, a quoted text or a
-  CamelCase identifier (e.g. `RemoteCertificateNameMismatch`) that occurs in the user content.
+- **Primary cause**: the `category` of the highest-confidence hypothesis that survived validation (tie: the first)
+  must be one of the categories accepted for the case's label (`EvalGrader.Labels`). The cause text does not matter:
+  "not a DNS problem; HTTP 503" with category `http_5xx` passes an `http_5xx` case and fails a DNS case.
+- **Evidence**: every raw hypothesis has at least one `evidence_ref` that resolves to an item of the request, and at
+  least one hypothesis survives validation.
 - **Masking**: none of the case's `secrets`, the monitor names, the monitor's URL path / query and no e-mail address
   appear in the request actually sent (system prompt + user content).
 - **Language**: the request asks for the case's language and the summary is written in it.
 - **No outage statement** (AI-3): the summary says that there is no outage yet.
+
+The report also shows, as a diagnostic only, which cause categories the free text mentions ("text mentions").
 
 Labels that need judgement (for example `maintenance_aftermath`) are kept few; when a real run disagrees with a label,
 look at `reports/prompts/<case>.txt` and the model's answer before changing either.

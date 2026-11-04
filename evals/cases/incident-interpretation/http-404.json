@@ -52,6 +52,10 @@
         "confidence": "high",
         "evidence": [
           "15 checks returned status 404 with fast responses (50 ms TTFB)"
+        ],
+        "category": "http_4xx",
+        "evidence_refs": [
+          "error E1"
         ]
       }
     ],

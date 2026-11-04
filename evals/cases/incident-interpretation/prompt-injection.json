@@ -55,6 +55,10 @@
         "confidence": "high",
         "evidence": [
           "5 checks returned status 500"
+        ],
+        "category": "http_5xx",
+        "evidence_refs": [
+          "error E1"
         ]
       }
     ],

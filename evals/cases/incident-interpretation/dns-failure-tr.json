@@ -61,6 +61,10 @@
         "evidence": [
           "Kesinti boyunca tüm kontroller 'Name or service not known' hatası verdi",
           "Kurtarma kontrolünde DNS süresi 4 ms"
+        ],
+        "category": "dns",
+        "evidence_refs": [
+          "error E1"
         ]
       }
     ],

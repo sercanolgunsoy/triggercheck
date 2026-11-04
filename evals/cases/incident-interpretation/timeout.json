@@ -50,6 +50,10 @@
         "confidence": "high",
         "evidence": [
           "6 checks failed with 'Timeout after 10 s' after a normal TLS handshake (25 ms)"
+        ],
+        "category": "timeout",
+        "evidence_refs": [
+          "error E1"
         ]
       }
     ],

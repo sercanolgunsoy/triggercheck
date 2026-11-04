@@ -73,6 +73,10 @@
         "evidence": [
           "7 checks failed with 'No such host is known'",
           "DNS time rose from 4 ms to 1800 ms in the checks before the incident"
+        ],
+        "category": "dns",
+        "evidence_refs": [
+          "error E1"
         ]
       }
     ],

@@ -53,6 +53,10 @@
         "evidence": [
           "7 kontrol üst üste 502 durum kodu döndürdü",
           "Bağlantı aşamaları normal (DNS 3 ms, TCP 10 ms)"
+        ],
+        "category": "http_5xx",
+        "evidence_refs": [
+          "error E1"
         ]
       }
     ],

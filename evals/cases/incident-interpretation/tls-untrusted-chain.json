@@ -51,6 +51,11 @@
         "evidence": [
           "Certificate validation_error is UntrustedRoot",
           "Failing checks report 'self-signed certificate in chain'"
+        ],
+        "category": "tls_untrusted",
+        "evidence_refs": [
+          "validation_error",
+          "error E1"
         ]
       }
     ],

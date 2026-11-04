@@ -51,6 +51,11 @@
         "evidence": [
           "Certificate validation_error is RemoteCertificateNameMismatch",
           "All failing checks report RemoteCertificateNameMismatch"
+        ],
+        "category": "tls_name_mismatch",
+        "evidence_refs": [
+          "validation_error",
+          "error E1"
         ]
       }
     ],

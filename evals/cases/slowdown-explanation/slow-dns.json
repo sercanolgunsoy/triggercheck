@@ -71,6 +71,11 @@
         "evidence": [
           "dns before=4 since=900",
           "ttfb unchanged at 150 ms"
+        ],
+        "category": "slow_dns",
+        "evidence_refs": [
+          "dns",
+          "point"
         ]
       }
     ],

@@ -71,6 +71,11 @@
         "evidence": [
           "ttfb önce=150 sonra=1100 oran=7.33",
           "DNS ve TLS süreleri değişmedi"
+        ],
+        "category": "slow_ttfb",
+        "evidence_refs": [
+          "ttfb",
+          "point"
         ]
       }
     ],

@@ -51,6 +51,11 @@
         "evidence": [
           "Certificate expires_at is 2 days in the past",
           "Every failing check reports 'the remote certificate has expired'"
+        ],
+        "category": "tls_expired",
+        "evidence_refs": [
+          "validation_error",
+          "error E1"
         ]
       }
     ],

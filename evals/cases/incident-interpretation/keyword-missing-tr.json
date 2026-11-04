@@ -56,6 +56,10 @@
         "confidence": "high",
         "evidence": [
           "9 kontrol 200 durum koduyla 'Keyword not found in response' hatası verdi"
+        ],
+        "category": "keyword_missing",
+        "evidence_refs": [
+          "error E1"
         ]
       }
     ],
