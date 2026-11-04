@@ -38,7 +38,6 @@ public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStat
     public List<ChartIncident> ChartIncidents { get; private set; } = [];
     public bool HasPhaseData => Chart.Any(p => p.Wait is not null);
     public bool IsHttps => MonitorStateMachine.IsHttpsMonitor(Monitor);
-    public bool P95Approximate { get; private set; }
 
     public MonitorEntity Monitor { get; private set; } = null!;
     public UptimeSummary? Stats24h { get; private set; }
@@ -81,7 +80,6 @@ public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStat
         Range = range is not null && Ranges.ContainsKey(range) ? range : "24h";
         var s = await series.GetRecentAsync(id, m.CustomerId, Ranges[Range], ct); // cached for a minute
         var from = s.FromUtc;
-        P95Approximate = s.P95Approximate;
         now = s.ToUtc;
         string Label(DateTime utc) => Range == "24h" ? Fmt.ShortTime(utc) : Fmt.ToLocal(utc).ToString("dd.MM HH:mm", System.Globalization.CultureInfo.InvariantCulture);
         Chart = s.Buckets.Select(b => new ChartPoint(Label(b.StartUtc), b.AvgMs, b.P95Ms, b.Checks, b.Failures,

@@ -39,20 +39,32 @@ public static class MonitorStateMachine
         && monitor.ConsecutiveFailures + 1 >= Math.Max(1, monitor.FailureThreshold);
 
     /// <summary>
-    /// First half of confirm-before-alert: records the failed probe without counting it, marks the monitor as waiting
-    /// for a confirmation (bound to the current Version) and schedules the confirmation probe after <paramref name="delay"/>.
+    /// First half of confirm-before-alert: records the failed probe (taken at <paramref name="failedAtUtc"/>) without
+    /// counting it, marks the monitor as waiting for a confirmation (bound to the current Version) and schedules the
+    /// confirmation probe at <paramref name="confirmAtUtc"/> (probe end + delay).
     /// </summary>
-    public static void BeginConfirmation(MonitorEntity monitor, CheckOutcome failure, DateTime failedAtUtc, TimeSpan delay)
+    public static void BeginConfirmation(MonitorEntity monitor, CheckOutcome failure, DateTime failedAtUtc, DateTime confirmAtUtc)
     {
         RecordProbe(monitor, failure, failedAtUtc);
         monitor.PendingConfirmationSinceUtc = failedAtUtc;
         monitor.PendingConfirmationVersion = monitor.Version;
-        monitor.NextCheckAtUtc = failedAtUtc + delay;
+        monitor.NextCheckAtUtc = confirmAtUtc;
     }
 
-    /// <summary>A confirmation is pending and nobody changed the monitor since it was recorded.</summary>
-    public static bool HasValidPendingConfirmation(MonitorEntity monitor) =>
-        monitor.PendingConfirmationSinceUtc is not null && monitor.PendingConfirmationVersion == monitor.Version;
+    /// <summary>Slack on top of delay + interval + timeout before a pending confirmation is considered stale.</summary>
+    public static readonly TimeSpan PendingConfirmationSlack = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// A confirmation is pending, nobody changed the monitor since it was recorded, and it is recent enough: a
+    /// confirmation run later than delay + interval + timeout (+ slack) after the failure (process down, backlog)
+    /// would backdate an outage to an old failure, so the probe is then evaluated from scratch.
+    /// </summary>
+    public static bool HasValidPendingConfirmation(MonitorEntity monitor, DateTime nowUtc, TimeSpan delay)
+    {
+        if (monitor.PendingConfirmationSinceUtc is not { } since || monitor.PendingConfirmationVersion != monitor.Version) return false;
+        var maxAge = delay + TimeSpan.FromSeconds(Math.Max(1, monitor.IntervalSeconds)) + TimeSpan.FromSeconds(Math.Max(1, monitor.TimeoutSeconds)) + PendingConfirmationSlack;
+        return nowUtc - since <= maxAge;
+    }
 
     public static void ClearPendingConfirmation(MonitorEntity monitor)
     {

@@ -14,7 +14,12 @@
 
 <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
     <div>
-        <h2 class="mb-1">@m.Name <partial name="_StatusBadge" model="m.Status" /></h2>
+        <h2 class="mb-1">@m.Name <partial name="_StatusBadge" model="m.Status" />
+            @if (m.PendingConfirmationSinceUtc is not null && !isPaused)
+            {
+                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle fs-6 align-middle" id="confirming-badge">@L["Confirming failure…"]</span>
+            }
+        </h2>
         <div class="text-muted">@Fmt.TypeName(m.Type) · <span class="font-monospace">@m.Target@(m.Port is int p ? ":" + p : "")</span></div>
     </div>
     @if (isAdmin)
@@ -115,8 +120,7 @@
         }
         else
         {
-            <div class="small text-muted mb-2">@L["Average and 95th percentile of successful checks; failed checks and incidents are marked in red."]
-                @if (Model.P95Approximate) { <span>@L["The 95th percentile is estimated from a sample of the checks."]</span> }</div>
+            <div class="small text-muted mb-2">@L["Average and 95th percentile of successful checks; failed checks and incidents are marked in red."]</div>
             <div class="tc-chart"><canvas id="rtChart" aria-label="@L["Response time chart"]" role="img"></canvas></div>
             @if (Model.HasPhaseData)
             {
@@ -144,7 +148,8 @@
                     {
                         <tr>
                             <td class="text-nowrap">@Fmt.Time(c.CheckedAtUtc)</td>
-                            <td>@if (c.IsUp) { <span class="badge bg-success">@Fmt.StatusName(MonitorStatus.Up)</span> } else { <span class="badge bg-danger">@Fmt.StatusName(MonitorStatus.Down)</span> }</td>
+                            <td>@if (c.IsUp) { <span class="badge bg-success">@Fmt.StatusName(MonitorStatus.Up)</span> } else { <span class="badge bg-danger">@Fmt.StatusName(MonitorStatus.Down)</span> }
+                                @if (c.IsConfirmation) { <span class="badge text-bg-light border">@L["Confirmation check"]</span> }</td>
                             <td>@(c.StatusCode?.ToString() ?? "—")</td>
                             <td class="text-end">@Fmt.Ms(c.ResponseTimeMs)</td>
                             <td class="small text-muted text-nowrap">@Model.PhaseText(c)</td>

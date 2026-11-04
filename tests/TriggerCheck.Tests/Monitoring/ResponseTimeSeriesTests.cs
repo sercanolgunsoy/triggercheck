@@ -87,32 +87,58 @@ public class ResponseTimeSeriesTests
     }
 
     [Fact]
-    public async Task Large_ranges_use_a_sampled_p95_and_exact_aggregates()
+    public async Task P95_is_exact_per_monitor_with_interleaved_monitors_and_many_rows()
     {
         await using var host = await MonitoringTestHost.CreateAsync();
         var customer = await host.AddCustomerAsync();
-        var monitor = await host.AddMonitorAsync(customer.Id);
+        var monitors = new[] { await host.AddMonitorAsync(customer.Id), await host.AddMonitorAsync(customer.Id), await host.AddMonitorAsync(customer.Id) };
         var from = host.Now.AddHours(-10);
-        const int rows = ResponseTimeSeriesService.ExactP95MaxRows + 10_000;
+        const int perMonitor = 12_000;
         await host.WithDbAsync(async db =>
         {
-            for (var i = 0; i < rows; i++) // response times cycle 1..100 ms within every bucket
-                db.CheckResults.Add(new CheckResult { MonitorId = monitor.Id, CheckedAtUtc = from.AddSeconds(i), IsUp = true, ResponseTimeMs = i % 100 + 1 });
+            // Rows of the three monitors are interleaved (consecutive Ids rotate between monitors).
+            for (var i = 0; i < perMonitor; i++)
+                for (var k = 0; k < monitors.Length; k++)
+                    db.CheckResults.Add(new CheckResult
+                    {
+                        MonitorId = monitors[k].Id, CheckedAtUtc = from.AddSeconds(i * 3), IsUp = true,
+                        ResponseTimeMs = (k + 1) * 1000 + i % 100 + 1 // monitor k: (k+1)*1000 + 1..100
+                    });
             await db.SaveChangesAsync();
         });
 
-        var s = await GetAsync(host, monitor.Id, customer.Id, from, host.Now, maxPoints: 10);
-        Assert.True(s.P95Approximate);
-        Assert.Equal(rows, s.Buckets.Sum(b => b.Checks));
-        Assert.All(s.Buckets.Where(b => b.Checks > 0), b =>
+        for (var k = 0; k < monitors.Length; k++)
         {
-            Assert.Equal(50.5, b.AvgMs!.Value, 0.5);  // exact (SQL)
-            Assert.InRange(b.P95Ms!.Value, 90, 100);   // exact would be 95
-        });
+            var s = await GetAsync(host, monitors[k].Id, customer.Id, from, host.Now, maxPoints: 10);
+            var filled = s.Buckets.Where(b => b.Checks > 0).ToList();
+            Assert.Equal(perMonitor, filled.Sum(b => b.Checks));
+            Assert.All(filled, b =>
+            {
+                Assert.Equal((k + 1) * 1000 + 50.5, b.AvgMs!.Value, 0.5);
+                Assert.Equal((k + 1) * 1000 + 95, b.P95Ms); // every bucket holds whole 1..100 cycles
+            });
+        }
+    }
 
-        var small = await GetAsync(host, monitor.Id, customer.Id, from, from.AddMinutes(30), maxPoints: 1);
-        Assert.False(small.P95Approximate);
-        Assert.Equal(95, small.Buckets[0].P95Ms);
+    [Fact]
+    public async Task Runner_evicts_the_cached_24h_series_after_a_check()
+    {
+        var checker = new ScriptedChecker(TriggerCheck.Domain.Entities.MonitorType.Http);
+        await using var host = await MonitoringTestHost.CreateAsync(s => s.ReplaceCheckers(checker));
+        var customer = await host.AddCustomerAsync();
+        var monitor = await host.AddMonitorAsync(customer.Id);
+        Task<ResponseTimeSeries> Recent(TimeSpan range) =>
+            host.InScopeAsync(sp => sp.GetRequiredService<IResponseTimeSeriesService>().GetRecentAsync(monitor.Id, customer.Id, range));
+
+        var day = await Recent(TimeSpan.FromHours(24));
+        var week = await Recent(TimeSpan.FromDays(7));
+        Assert.Equal(0, day.Buckets.Sum(b => b.Checks));
+
+        await host.RunCheckAsync(monitor.Id);
+        var dayAfter = await Recent(TimeSpan.FromHours(24));
+        Assert.NotSame(day, dayAfter);
+        Assert.Equal(1, dayAfter.Buckets.Sum(b => b.Checks));
+        Assert.Same(week, await Recent(TimeSpan.FromDays(7))); // longer ranges refresh within a minute
     }
 
     [Fact]

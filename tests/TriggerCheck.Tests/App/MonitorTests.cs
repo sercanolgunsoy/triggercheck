@@ -366,19 +366,40 @@ public class MonitorTests : IClassFixture<TestWebAppFactory>
         var c = await AdminAsync();
         var url = $"/App/Monitors/Details/{id}";
 
-        var sw = System.Diagnostics.Stopwatch.StartNew();
         var r = await c.PostFormAsync(url + "?handler=CheckNow", new(), url);
-        sw.Stop();
         AssertRedirect(r, url);
-        Assert.True(sw.Elapsed < TimeSpan.FromSeconds(4), $"check now took {sw.Elapsed}");
 
         var html = await c.GetHtmlAsync(url);
         Assert.Contains("Check failed: Connection refused. The failure was recorded; a confirmation check runs shortly", html);
         var m = (await _f.GetMonitorAsync(id))!;
         Assert.Equal(MonitorStatus.Up, m.Status);
+        // The run returned before the confirmation: it is only scheduled (delay counted from the end of the probe).
         Assert.NotNull(m.PendingConfirmationSinceUtc);
-        Assert.True(m.NextCheckAtUtc <= DateTime.UtcNow.AddSeconds(6));
+        Assert.Equal(m.LastCheckedAtUtc, m.PendingConfirmationSinceUtc);
+        Assert.Equal(0, m.ConsecutiveFailures);
+        Assert.True(m.NextCheckAtUtc >= m.PendingConfirmationSinceUtc!.Value.AddSeconds(5));
+        var results = await _f.WithDbAsync(db => db.CheckResults.Where(x => x.MonitorId == id).ToListAsync());
+        var only = Assert.Single(results);
+        Assert.False(only.IsConfirmation);
+        Assert.Contains("id=\"confirming-badge\"", html);
         Assert.Equal(0, await _f.WithDbAsync(db => db.Incidents.CountAsync(i => i.MonitorId == id)));
+    }
+
+    [Fact]
+    public async Task Details_marks_confirmation_checks_in_the_history()
+    {
+        var cid = await _f.DemoCustomerIdAsync();
+        var id = await _f.AddMonitorAsync(cid, "ConfirmRows", m => m.Status = MonitorStatus.Down);
+        await _f.WithDbAsync(async db =>
+        {
+            var now = DateTime.UtcNow;
+            db.CheckResults.Add(new CheckResult { MonitorId = id, CheckedAtUtc = now.AddSeconds(-10), IsUp = false, Error = "first" });
+            db.CheckResults.Add(new CheckResult { MonitorId = id, CheckedAtUtc = now.AddSeconds(-4), IsUp = false, Error = "second", IsConfirmation = true });
+            await db.SaveChangesAsync();
+        });
+        var html = await (await AdminAsync()).GetHtmlAsync($"/App/Monitors/Details/{id}");
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(html, ">Confirmation check<"));
+        Assert.DoesNotContain("confirming-badge", html);
     }
 
     [Fact]

@@ -1,10 +1,12 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Monitoring.Alerting;
 using TriggerCheck.Monitoring.Checks;
+using TriggerCheck.Monitoring.Stats;
 using MonitorEntity = TriggerCheck.Domain.Entities.Monitor;
 
 namespace TriggerCheck.Monitoring.Engine;
@@ -42,8 +44,10 @@ namespace TriggerCheck.Monitoring.Engine;
 /// the confirmation probe: <see cref="MonitorStateMachine.ApplyConfirmed"/> applies both probes (outage dated from
 /// the first failure; a successful confirmation is a transient blip). The confirmation's CheckResult is flagged
 /// <see cref="CheckResult.IsConfirmation"/> and excluded from uptime / chart statistics.
+/// The delay starts when the failed probe ended; the outage is still dated from when it started.
 /// A pending confirmation is bound to the monitor's Version when it was recorded: any user change meanwhile (edit,
-/// pause, resume, SuperAdmin clamp; delete removes the row) cancels it, and the next probe is evaluated from scratch.
+/// pause, resume, SuperAdmin clamp; delete removes the row) cancels it, and so does age (no run within delay +
+/// interval + timeout + slack, e.g. after downtime); the next probe is then evaluated from scratch.
 /// Worst-case DOWN detection: interval + delay + scheduler tick + probe timeout.
 /// </para>
 /// <para>
@@ -59,6 +63,7 @@ public sealed class MonitorCheckRunner(
     MonitorRunGate gate,
     TimeProvider time,
     IOptionsMonitor<MonitoringOptions> options,
+    IMemoryCache cache,
     ILogger<MonitorCheckRunner> logger) : IMonitorCheckRunner
 {
     private const int MaxSaveAttempts = 5;
@@ -80,6 +85,7 @@ public sealed class MonitorCheckRunner(
 
             var checkedAt = time.GetUtcNow().UtcDateTime;
             var outcome = await ProbeAsync(snapshot, ct);
+            var probeEndedAt = time.GetUtcNow().UtcDateTime;
 
             // State must be persisted even if shutdown was requested after the probe completed.
             for (var attempt = 1; ; attempt++)
@@ -87,7 +93,9 @@ public sealed class MonitorCheckRunner(
                 result = ToResult(monitorId, outcome, checkedAt);
                 try
                 {
-                    (alert, certAlert) = await PersistAsync(snapshot, outcome, result, checkedAt);
+                    (alert, certAlert) = await PersistAsync(snapshot, outcome, result, checkedAt, probeEndedAt);
+                    // The 24h chart should show this check right away (longer ranges refresh within a minute).
+                    ResponseTimeSeriesService.Evict(cache, monitorId, snapshot.CustomerId, TimeSpan.FromHours(24));
                     break;
                 }
                 catch (DbUpdateConcurrencyException) when (attempt < MaxSaveAttempts)
@@ -152,7 +160,7 @@ public sealed class MonitorCheckRunner(
     }
 
     /// <summary>Re-reads the monitor and applies the outcome to it. Returns the alerts to send, if any.</summary>
-    private async Task<(AlertMessage? Status, AlertMessage? Certificate)> PersistAsync(MonitorEntity snapshot, CheckOutcome outcome, CheckResult result, DateTime checkedAt)
+    private async Task<(AlertMessage? Status, AlertMessage? Certificate)> PersistAsync(MonitorEntity snapshot, CheckOutcome outcome, CheckResult result, DateTime checkedAt, DateTime probeEndedAt)
     {
         var ct = CancellationToken.None;
         await using var db = await dbFactory.CreateDbContextAsync(ct);
@@ -180,7 +188,8 @@ public sealed class MonitorCheckRunner(
             var o = options.CurrentValue;
             var transition = StatusTransition.None;
             var transitionAt = checkedAt;
-            if (MonitorStateMachine.HasValidPendingConfirmation(monitor))
+            var delay = TimeSpan.FromSeconds(Math.Clamp(o.ConfirmationDelaySeconds, 0, 300));
+            if (MonitorStateMachine.HasValidPendingConfirmation(monitor, checkedAt, delay))
             {
                 // This run is the confirmation probe of an earlier failure.
                 var failedAt = monitor.PendingConfirmationSinceUtc!.Value;
@@ -192,9 +201,9 @@ public sealed class MonitorCheckRunner(
             }
             else
             {
-                MonitorStateMachine.ClearPendingConfirmation(monitor); // stale (monitor changed since) or none
+                MonitorStateMachine.ClearPendingConfirmation(monitor); // stale (monitor changed since, or too old) or none
                 if (o.ConfirmBeforeDown && MonitorStateMachine.NeedsConfirmation(monitor, outcome))
-                    MonitorStateMachine.BeginConfirmation(monitor, outcome, checkedAt, TimeSpan.FromSeconds(Math.Clamp(o.ConfirmationDelaySeconds, 0, 300)));
+                    MonitorStateMachine.BeginConfirmation(monitor, outcome, checkedAt, probeEndedAt + delay);
                 else
                     transition = MonitorStateMachine.Apply(monitor, outcome, checkedAt);
             }

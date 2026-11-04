@@ -163,6 +163,7 @@ public class MonitorInput : IValidatableObject
             m.CertError = null;
             m.CertCheckedAtUtc = null;
             m.CertWarningSentForUtc = null;
+            m.CertWarningSentDays = null;
         }
         m.CertWarnDays = isHttp ? CertWarnDays : 0;
         m.Name = Name;

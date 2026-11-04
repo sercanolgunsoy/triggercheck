@@ -637,10 +637,13 @@
   <data name="reused connection, TTFB {0} ms" xml:space="preserve">
     <value>yeniden kullanılan bağlantı, TTFB {0} ms</value>
   </data>
-  <data name="The 95th percentile is estimated from a sample of the checks." xml:space="preserve">
-    <value>95. yüzdelik, kontrollerin bir örnekleminden tahmin edilir.</value>
-  </data>
   <data name="Check failed: {0}{1}. The failure was recorded; a confirmation check runs shortly before the monitor is marked down." xml:space="preserve">
     <value>Kontrol başarısız: {0}{1}. Hata kaydedildi; monitör kapalı olarak işaretlenmeden önce kısa süre içinde bir doğrulama kontrolü yapılacak.</value>
+  </data>
+  <data name="Confirming failure…" xml:space="preserve">
+    <value>Hata doğrulanıyor…</value>
+  </data>
+  <data name="Confirmation check" xml:space="preserve">
+    <value>Doğrulama kontrolü</value>
   </data>
 </root>

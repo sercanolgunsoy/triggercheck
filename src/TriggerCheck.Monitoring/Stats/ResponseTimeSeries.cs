@@ -16,8 +16,7 @@ public sealed record SeriesBucket(
     DateTime StartUtc, int Checks, int Failures, double? AvgMs, int? P95Ms,
     double? DnsMs, double? ConnectMs, double? TlsMs, double? WaitMs, double? TransferMs);
 
-/// <param name="P95Approximate">True when p95 was computed over a sample of the checks (large ranges).</param>
-public sealed record ResponseTimeSeries(DateTime FromUtc, DateTime ToUtc, TimeSpan BucketSize, IReadOnlyList<SeriesBucket> Buckets, bool P95Approximate = false)
+public sealed record ResponseTimeSeries(DateTime FromUtc, DateTime ToUtc, TimeSpan BucketSize, IReadOnlyList<SeriesBucket> Buckets)
 {
     /// <summary>Index of the bucket containing <paramref name="utc"/>, or null when outside the range.</summary>
     public int? BucketIndexOf(DateTime utc)
@@ -40,19 +39,23 @@ public interface IResponseTimeSeriesService
 }
 
 /// <summary>
-/// Aggregates in the database (one row per non-empty bucket); only p95 needs individual response times. Those are
-/// loaded exactly when the range holds at most <see cref="ExactP95MaxRows"/> successful checks, otherwise from an
-/// evenly spread sample of about that size (Id modulo N), and the series is flagged <see cref="ResponseTimeSeries.P95Approximate"/>.
+/// Aggregates entirely in the database: one row per non-empty bucket for the averages/counts and one for the exact
+/// nearest-rank p95 (window functions partitioned by bucket), so no individual check rows are loaded.
 /// </summary>
 public sealed class ResponseTimeSeriesService(AppDbContext db, IMemoryCache cache, TimeProvider time) : IResponseTimeSeriesService
 {
     public const int MaxPoints = 300;
-    public const int ExactP95MaxRows = 20_000;
     public static readonly TimeSpan CacheDuration = TimeSpan.FromSeconds(60);
+
+    private static (string, int, int, TimeSpan) CacheKey(int monitorId, int customerId, TimeSpan range) => ("tc:rts", monitorId, customerId, range);
+
+    /// <summary>Drops the cached series of one monitor (called by the check runner after it saved a check).</summary>
+    public static void Evict(IMemoryCache cache, int monitorId, int customerId, TimeSpan range) =>
+        cache.Remove(CacheKey(monitorId, customerId, range));
 
     public async Task<ResponseTimeSeries> GetRecentAsync(int monitorId, int customerId, TimeSpan range, CancellationToken ct = default)
     {
-        var key = ("tc:rts", monitorId, customerId, range);
+        var key = CacheKey(monitorId, customerId, range);
         if (cache.TryGetValue(key, out ResponseTimeSeries? cached) && cached is not null) return cached;
         var now = time.GetUtcNow().UtcDateTime;
         var series = await GetAsync(monitorId, customerId, now - range, now, MaxPoints, ct);
@@ -74,22 +77,17 @@ public sealed class ResponseTimeSeriesService(AppDbContext db, IMemoryCache cach
         var aggregates = new BucketRow?[count];
         foreach (var r in rows) aggregates[Index(r.Bucket)] = Merge(aggregates[Index(r.Bucket)], r);
 
-        // p95: exact for small ranges, sampled for large ones.
-        var upChecks = rows.Sum(r => r.Checks - r.Failures);
-        var sampleEvery = upChecks <= ExactP95MaxRows ? 1 : (int)Math.Ceiling(upChecks / (double)ExactP95MaxRows);
-        var timesQuery = db.CheckResults.AsNoTracking()
-            .Where(c => c.MonitorId == monitorId && c.Monitor.CustomerId == customerId && c.CheckedAtUtc >= fromUtc && c.CheckedAtUtc <= toUtc
-                        && c.IsUp && !c.IsConfirmation);
-        if (sampleEvery > 1) timesQuery = timesQuery.Where(c => c.Id % sampleEvery == 0);
-        var times = upChecks == 0 ? [] : await timesQuery.Select(c => new { c.CheckedAtUtc, c.ResponseTimeMs }).ToListAsync(ct);
-        var perBucket = new List<int>?[count];
-        foreach (var t in times)
-            (perBucket[Index((t.CheckedAtUtc - fromUtc).Ticks / bucket.Ticks)] ??= []).Add(t.ResponseTimeMs);
+        var p95 = new int?[count];
+        foreach (var r in await SeriesSql.P95Async(db, monitorId, customerId, fromUtc, toUtc, bucketSeconds, ct))
+        {
+            var i = Index(r.Bucket);
+            p95[i] = p95[i] is { } existing ? Math.Max(existing, r.P95Ms) : r.P95Ms; // float-rounding duplicate of the last bucket
+        }
 
         var buckets = new SeriesBucket[count];
         for (var i = 0; i < count; i++)
-            buckets[i] = ToBucket(fromUtc + bucket * i, aggregates[i], perBucket[i]);
-        return new ResponseTimeSeries(fromUtc, toUtc, bucket, buckets, sampleEvery > 1);
+            buckets[i] = ToBucket(fromUtc + bucket * i, aggregates[i], p95[i]);
+        return new ResponseTimeSeries(fromUtc, toUtc, bucket, buckets);
     }
 
     /// <summary>Two SQL rows can map to one bucket only through float rounding at the last bucket; merge them.</summary>
@@ -109,15 +107,9 @@ public sealed class ResponseTimeSeriesService(AppDbContext db, IMemoryCache cach
         };
     }
 
-    private static SeriesBucket ToBucket(DateTime start, BucketRow? r, List<int>? times)
+    private static SeriesBucket ToBucket(DateTime start, BucketRow? r, int? p95)
     {
         if (r is null) return new SeriesBucket(start, 0, 0, null, null, null, null, null, null, null);
-        int? p95 = null;
-        if (times is { Count: > 0 })
-        {
-            times.Sort();
-            p95 = times[(int)Math.Ceiling(0.95 * times.Count) - 1]; // nearest rank
-        }
         static double? R(double? v) => v is { } x ? Math.Round(x, 1) : null;
         var timed = r.Timed > 0;
         return new SeriesBucket(start, (int)r.Checks, (int)r.Failures, R(r.AvgMs), p95,
@@ -141,6 +133,13 @@ public sealed class BucketRow
     public double? TransferMs { get; set; }
 }
 
+/// <summary>Per-bucket p95 as returned by <see cref="SeriesSql.P95Async"/>.</summary>
+public sealed class BucketP95Row
+{
+    public long Bucket { get; set; }
+    public int P95Ms { get; set; }
+}
+
 /// <summary>
 /// The only provider-specific SQL of the chart. Everything is standard SQL except <see cref="BucketIndexSql"/>
 /// (SQLite <c>julianday</c>); a PostgreSQL port replaces it with
@@ -148,7 +147,9 @@ public sealed class BucketRow
 /// </summary>
 internal static class SeriesSql
 {
-    private const string BucketIndexSql = "CAST((julianday(c.\"CheckedAtUtc\") - julianday({2})) * 86400.0 / {4} AS INTEGER)";
+    // julianday() is a double with ~40 µs resolution at today's dates: + 1 ms keeps a check exactly on a bucket boundary
+    // in the bucket that starts there (as in ResponseTimeSeries.BucketIndexOf) instead of the one before.
+    private const string BucketIndexSql = "CAST(((julianday(c.\"CheckedAtUtc\") - julianday({2})) * 86400.0 + 0.001) / {4} AS INTEGER)";
 
     private const string Up = "c.\"IsUp\"";
     private const string Timed = "c.\"IsUp\" AND c.\"TtfbMs\" IS NOT NULL";
@@ -171,6 +172,25 @@ internal static class SeriesSql
               AND NOT c."IsConfirmation"
         GROUP BY {BucketIndexSql}
         """;
+
+    // Nearest-rank p95 per bucket: the smallest value whose rank (ascending) is >= 0.95 * count, in integer math.
+    private static readonly string P95Sql = $"""
+        SELECT t."Bucket" AS "Bucket", MIN(t."Ms") AS "P95Ms"
+        FROM (
+            SELECT {BucketIndexSql} AS "Bucket", c."ResponseTimeMs" AS "Ms",
+                   ROW_NUMBER() OVER (PARTITION BY {BucketIndexSql} ORDER BY c."ResponseTimeMs") AS "Rank",
+                   COUNT(*) OVER (PARTITION BY {BucketIndexSql}) AS "Total"
+            FROM "CheckResults" AS c
+            INNER JOIN "Monitors" AS m ON m."Id" = c."MonitorId"
+            WHERE c."MonitorId" = {"{0}"} AND m."CustomerId" = {"{1}"} AND c."CheckedAtUtc" >= {"{2}"} AND c."CheckedAtUtc" <= {"{3}"}
+                  AND c."IsUp" AND NOT c."IsConfirmation"
+        ) AS t
+        WHERE t."Rank" * 100 >= t."Total" * 95
+        GROUP BY t."Bucket"
+        """;
+
+    public static Task<List<BucketP95Row>> P95Async(AppDbContext db, int monitorId, int customerId, DateTime fromUtc, DateTime toUtc, long bucketSeconds, CancellationToken ct) =>
+        db.Database.SqlQueryRaw<BucketP95Row>(P95Sql, monitorId, customerId, fromUtc, toUtc, (double)bucketSeconds).ToListAsync(ct);
 
     public static Task<List<BucketRow>> AggregateAsync(AppDbContext db, int monitorId, int customerId, DateTime fromUtc, DateTime toUtc, long bucketSeconds, CancellationToken ct) =>
         db.Database.SqlQueryRaw<BucketRow>(Sql, monitorId, customerId, fromUtc, toUtc, (double)bucketSeconds).ToListAsync(ct);

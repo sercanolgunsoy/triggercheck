@@ -265,6 +265,57 @@ public class ConfirmBeforeAlertTests
     }
 
     [Fact]
+    public async Task Too_old_pending_confirmation_is_evaluated_from_scratch()
+    {
+        await using var host = await CreateHostAsync();
+        var customer = await host.AddCustomerAsync();
+        var monitor = await host.AddMonitorAsync(customer.Id, m => { m.FailureThreshold = 1; m.Status = MonitorStatus.Up; m.IntervalSeconds = 60; m.TimeoutSeconds = 10; });
+        _checker.Then(Refused);
+
+        await host.RunCheckAsync(monitor.Id);
+        // e.g. the process was down: the confirmation runs much later than delay + interval + timeout + slack.
+        host.Time.Advance(TimeSpan.FromSeconds(DelaySeconds + 60 + 10) + MonitorStateMachine.PendingConfirmationSlack + TimeSpan.FromSeconds(1));
+        var lateAt = host.Now;
+        await host.RunCheckAsync(monitor.Id);
+
+        var m = await host.GetMonitorAsync(monitor.Id);
+        Assert.Equal(MonitorStatus.Up, m.Status);          // no outage backdated to the old failure
+        Assert.Equal(lateAt, m.PendingConfirmationSinceUtc); // a fresh confirmation instead
+        Assert.Equal(0, await host.WithDbAsync(db => db.Incidents.CountAsync()));
+        Assert.DoesNotContain(await ResultsAsync(host, monitor.Id), r => r.IsConfirmation);
+
+        // Just inside the limit it still confirms.
+        host.Time.Advance(TimeSpan.FromSeconds(DelaySeconds + 60 + 10) + MonitorStateMachine.PendingConfirmationSlack);
+        await host.RunCheckAsync(monitor.Id);
+        Assert.Equal(MonitorStatus.Down, (await host.GetMonitorAsync(monitor.Id)).Status);
+        Assert.Equal(lateAt, (await host.WithDbAsync(db => db.Incidents.SingleAsync())).StartedAtUtc);
+    }
+
+    [Fact]
+    public async Task Confirmation_delay_starts_after_the_probe_ends()
+    {
+        MonitoringTestHost? hostRef = null;
+        var slow = new SlowChecker(() => hostRef!.Time.Advance(TimeSpan.FromSeconds(8))); // an 8 s timeout-like probe
+        await using var host = await MonitoringTestHost.CreateAsync(s => s.ReplaceCheckers(slow).ReplaceNotifiers(_email),
+            new() { ["Monitoring:ConfirmBeforeDown"] = "true", ["Monitoring:ConfirmationDelaySeconds"] = DelaySeconds.ToString() });
+        hostRef = host;
+        var customer = await host.AddCustomerAsync();
+        var monitor = await host.AddMonitorAsync(customer.Id, m => { m.FailureThreshold = 1; m.Status = MonitorStatus.Up; });
+
+        var startedAt = host.Now;
+        await host.RunCheckAsync(monitor.Id);
+        var m = await host.GetMonitorAsync(monitor.Id);
+        Assert.Equal(startedAt, m.PendingConfirmationSinceUtc);
+        Assert.Equal(startedAt.AddSeconds(8 + DelaySeconds), m.NextCheckAtUtc);
+
+        host.Time.Advance(TimeSpan.FromSeconds(DelaySeconds));
+        await host.RunCheckAsync(monitor.Id);
+        m = await host.GetMonitorAsync(monitor.Id);
+        Assert.Equal(MonitorStatus.Down, m.Status);
+        Assert.Equal(startedAt, m.StatusChangedAtUtc); // still dated from the start of the first failure
+    }
+
+    [Fact]
     public async Task Disabled_option_goes_down_without_confirmation()
     {
         await using var host = await CreateHostAsync(settings: new() { ["Monitoring:ConfirmBeforeDown"] = "false" });
@@ -296,17 +347,21 @@ public class ConfirmBeforeAlertTests
     }
 
     [Fact]
-    public void Pending_confirmation_is_bound_to_the_version()
+    public void Pending_confirmation_is_bound_to_the_version_and_its_age()
     {
         var m = Active(MonitorStatus.Up, 0, 1);
         m.Version = 4;
         var t0 = new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
-        MonitorStateMachine.BeginConfirmation(m, Refused, t0, TimeSpan.FromSeconds(5));
-        Assert.True(MonitorStateMachine.HasValidPendingConfirmation(m));
-        Assert.Equal(t0.AddSeconds(5), m.NextCheckAtUtc);
+        var delay = TimeSpan.FromSeconds(5);
+        MonitorStateMachine.BeginConfirmation(m, Refused, t0, t0.AddSeconds(1) + delay);
+        Assert.True(MonitorStateMachine.HasValidPendingConfirmation(m, t0.AddSeconds(6), delay));
+        Assert.Equal(t0.AddSeconds(6), m.NextCheckAtUtc);
         Assert.Equal(0, m.ConsecutiveFailures);
+        // delay 5 + interval 60 + timeout (default 10) + slack 30 = 105 s
+        Assert.True(MonitorStateMachine.HasValidPendingConfirmation(m, t0.AddSeconds(105), delay));
+        Assert.False(MonitorStateMachine.HasValidPendingConfirmation(m, t0.AddSeconds(106), delay));
         m.Version++;
-        Assert.False(MonitorStateMachine.HasValidPendingConfirmation(m));
+        Assert.False(MonitorStateMachine.HasValidPendingConfirmation(m, t0.AddSeconds(6), delay));
     }
 
     [Fact]
@@ -332,6 +387,17 @@ public class ConfirmBeforeAlertTests
         Assert.Equal(0, m.ConsecutiveFailures);
         Assert.Equal(MonitorStatus.Up, m.Status);
         Assert.Null(m.LastError);
+    }
+
+    /// <summary>Always fails; runs <paramref name="duringProbe"/> to simulate the probe taking time.</summary>
+    private sealed class SlowChecker(Action duringProbe) : IMonitorChecker
+    {
+        public MonitorType Type => MonitorType.Http;
+        public Task<CheckOutcome> CheckAsync(MonitorEntity monitor, CancellationToken ct)
+        {
+            duringProbe();
+            return Task.FromResult(Timeout);
+        }
     }
 
     /// <summary>Fails for targets containing "bad", succeeds otherwise.</summary>
