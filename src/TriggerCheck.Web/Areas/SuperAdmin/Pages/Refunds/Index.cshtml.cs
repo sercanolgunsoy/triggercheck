@@ -22,12 +22,15 @@ public class IndexModel(AppDbContext db, TimeProvider time, Text<AdminResource> 
 
     public async Task OnGetAsync()
     {
-        var rows = await db.Subscriptions.AsNoTracking().Where(s => s.RefundNeededAtUtc != null)
-            .OrderByDescending(s => s.RefundNeededAtUtc)
+        // Every open refund is listed (no cap); only the history of handled ones is limited.
+        Open = await db.Subscriptions.AsNoTracking().Where(s => s.RefundNeededAtUtc != null && s.RefundHandledAtUtc == null)
+            .OrderBy(s => s.RefundNeededAtUtc)
             .Select(s => new Row(s.Id, s.CustomerId, s.Customer.Name, s.Plan.Name, s.ProviderReference, s.RefundNeededAtUtc!.Value, s.RefundHandledAtUtc, s.RefundHandledBy))
-            .Take(200).ToListAsync();
-        Open = rows.Where(r => r.HandledAtUtc is null).ToList();
-        Handled = rows.Where(r => r.HandledAtUtc is not null).Take(50).ToList();
+            .ToListAsync();
+        Handled = await db.Subscriptions.AsNoTracking().Where(s => s.RefundNeededAtUtc != null && s.RefundHandledAtUtc != null)
+            .OrderByDescending(s => s.RefundHandledAtUtc)
+            .Select(s => new Row(s.Id, s.CustomerId, s.Customer.Name, s.Plan.Name, s.ProviderReference, s.RefundNeededAtUtc!.Value, s.RefundHandledAtUtc, s.RefundHandledBy))
+            .Take(50).ToListAsync();
     }
 
     public async Task<IActionResult> OnPostMarkRefundedAsync(int id)

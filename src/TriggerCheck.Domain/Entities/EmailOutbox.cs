@@ -9,8 +9,11 @@ public class EmailOutbox
     public long Id { get; set; }
     public string To { get; set; } = "";
     public string Subject { get; set; } = "";
-    /// <summary>Plain text; may contain account tokens (never logged).</summary>
-    public string Body { get; set; } = "";
+    /// <summary>
+    /// Plain text; may contain account tokens (never logged). Cleared once the e-mail was sent or given up, so stored
+    /// tokens do not outlive their purpose; To / Subject stay for the audit trail until the row is purged.
+    /// </summary>
+    public string? Body { get; set; }
     public DateTime CreatedAtUtc { get; set; }
     public int Attempts { get; set; }
     /// <summary>Earliest time of the next attempt (retry back-off).</summary>

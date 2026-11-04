@@ -257,10 +257,12 @@ plan.
   page shows "refused", never "success". The refund also appears on **SuperAdmin > Refunds**, and the overview shows a
   badge until an operator marks it as refunded. The page records who marked it and when, and the action is logged.
   **Refunds are done by hand in the iyzico panel** until the subscription refund API is verified (see the checklist).
-- Checkout starts are limited to `Billing__CheckoutsPerHourPerCustomer` (5) per customer. A customer can have at most
+- Checkout POSTs are limited to `Billing__CheckoutsPerHourPerCustomer` (10) per customer. The limit is counted before
+  form validation, so it is generous on purpose. A customer can have at most
   `Billing__MaxOpenCheckouts` (3) unfinished checkouts.
 - All e-mails (confirmation, password reset, "already registered", billing notices, operator "Refund needed" notices)
-  go to a durable outbox table (`EmailOutbox`). A background sender delivers them, so requests never wait for SMTP, and
+  go to a durable outbox table (`EmailOutbox`). The body is cleared as soon as an e-mail is sent or abandoned, and an
+  e-mail still unsent after one day is abandoned, so stored account tokens do not outlive their purpose. A background sender delivers them, so requests never wait for SMTP, and
   response times do not reveal whether an account exists. Queued e-mails survive restarts. Failures are retried after
   1, 5, 15 and 60 minutes, and the sender gives up after 5 attempts (logged as an Error). Rows are claimed before
   sending, so several instances never send the same e-mail twice. Sent and abandoned rows are deleted after 7 days.
