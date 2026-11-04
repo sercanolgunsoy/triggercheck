@@ -11,7 +11,7 @@
 </div>
 
 <div class="card"><div class="card-body">
-    <p>@L["The main region always checks this monitor. Additional regions check it too; with two or more regions reporting, the monitor goes down only when the majority of them fail, and a single region's network problem does not open an incident."]</p>
+    <p>@L["The main region always checks this monitor. Additional regions check it too: with three or more regions reporting, the monitor goes down only when the majority of them fail, so a single region's network problem does not open an incident. With fewer, the main region decides and the other regions confirm its failures."]</p>
     @if (Model.MaxRemote == 0)
     {
         <div class="alert alert-info">@L["Your plan ({0}) checks monitors from the main region only.", Model.PlanName]</div>

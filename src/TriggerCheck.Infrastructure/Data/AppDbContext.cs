@@ -72,6 +72,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
             e.Property(x => x.ExpectedValue).HasMaxLength(500);
             e.Property(x => x.HeartbeatTokenHash).HasMaxLength(64);
             e.Property(x => x.HeartbeatTokenPrefix).HasMaxLength(16);
+            e.Property(x => x.LastProbeFingerprint).HasMaxLength(64);
             e.Property(x => x.LastHeartbeatMessage).HasMaxLength(200);
             e.HasIndex(x => x.HeartbeatTokenHash).IsUnique(); // ping lookup; NULLs (non-heartbeat monitors) do not collide
             e.HasOne(x => x.Customer).WithMany(c => c.Monitors).HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Cascade);
@@ -257,6 +258,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
             e.Property(x => x.LastResultItemId).HasMaxLength(64);
             e.Property(x => x.LastResultFingerprint).HasMaxLength(64);
             e.HasIndex(x => x.LeaseItemId);
+            e.HasIndex(x => new { x.RegionId, x.LastResultItemId });
         });
 
         b.Entity<CheckResult>(e =>

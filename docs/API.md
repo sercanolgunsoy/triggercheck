@@ -88,7 +88,7 @@ Errors use [RFC 7807](https://www.rfc-editor.org/rfc/rfc7807) `application/probl
 | POST | `/monitors/{id}/pause` | write | Pause (closes an open incident); idempotent |
 | POST | `/monitors/{id}/resume` | write | Resume (status `Unknown`, checked right away; a heartbeat gets a full interval + grace for its first ping); idempotent |
 | POST | `/monitors/{id}/heartbeat-token` | write | Heartbeat only: new ping token, the old URL stops working; the response has the new `pingUrl` |
-| GET | `/monitors/{id}/checks?from&to&limit` | read | Check results, newest first. Default: last 24 h, `limit` 100 (max 1000). Times in ISO 8601 |
+| GET | `/monitors/{id}/checks?from&to&limit&region` | read | Check results, newest first. Default: last 24 h, `limit` 100 (max 1000). Times in ISO 8601. Central checks only; `region=all` adds remote probe regions' results (multi-region monitors), each labelled by `regionCode` |
 | GET | `/incidents?status=open\|resolved&monitorId&limit` | read | Incidents, newest first. `limit` 100 (max 500) |
 | POST | `/incidents/{id}/acknowledge` | read-write | Acknowledges an open incident (stops further escalation steps; the monitor status is not changed). Optional body `{ "note": "..." }` (max 500 chars). 409 if already acknowledged or resolved |
 | GET | `/status` | read | Counts by status, open incidents, 24 h uptime, plan limits |

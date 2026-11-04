@@ -14,7 +14,7 @@ namespace TriggerCheck.ProbeAgent;
 /// (<see cref="AgentOptions.MaxConcurrency"/>), runs each with the shared checkers (same TargetGuard SSRF rules as the
 /// main app; Monitoring:AllowPrivateTargets is off unless explicitly set) and buffers the outcomes; a flusher posts them
 /// in batches about twice a second, so every result arrives well within its lease. Results that could not be posted
-/// are retried until they are older than <see cref="MaxResultAge"/> (the central side rejects expired leases anyway).
+/// are retried until their lease expires (the central side would reject them) or they are older than <see cref="MaxResultAge"/>.
 /// Errors back off exponentially (max 60 s); a rejected credential is logged without the credential.
 /// </summary>
 public sealed class ProbeAgentWorker(
@@ -28,7 +28,8 @@ public sealed class ProbeAgentWorker(
     public static readonly TimeSpan MaxResultAge = TimeSpan.FromMinutes(5);
 
     private readonly Dictionary<MonitorType, IMonitorChecker> _checkers = checkers.GroupBy(c => c.Type).ToDictionary(g => g.Key, g => g.First());
-    private readonly Channel<ProbeResult> _results = Channel.CreateUnbounded<ProbeResult>();
+    /// <summary>Outcomes waiting to be posted, with the expiry of their lease (later they would only be rejected).</summary>
+    private readonly Channel<(ProbeResult Result, DateTime ExpiresAtUtc)> _results = Channel.CreateUnbounded<(ProbeResult, DateTime)>();
     private readonly ConcurrentDictionary<Task, byte> _running = new();
     private readonly SemaphoreSlim _flushLock = new(1, 1);
     private int _inFlight;
@@ -101,7 +102,7 @@ public sealed class ProbeAgentWorker(
         {
             var checkedAt = time.GetUtcNow().UtcDateTime;
             var outcome = await ProbeAsync(item, ct);
-            _results.Writer.TryWrite(AgentProtocol.ToResult(item.ItemId, outcome, checkedAt));
+            _results.Writer.TryWrite((AgentProtocol.ToResult(item.ItemId, outcome, checkedAt), item.ExpiresAtUtc));
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -133,14 +134,16 @@ public sealed class ProbeAgentWorker(
         await _flushLock.WaitAsync(ct);
         try
         {
-            var buffered = new List<ProbeResult>();
+            var buffered = new List<(ProbeResult Result, DateTime ExpiresAtUtc)>();
             while (_results.Reader.TryRead(out var r)) buffered.Add(r);
-            var cutoff = time.GetUtcNow().UtcDateTime - MaxResultAge;
-            buffered.RemoveAll(r => r.CheckedAtUtc < cutoff);
+            // Expired leases are rejected by the main app anyway (the probe is leased again): drop them here.
+            var now = time.GetUtcNow().UtcDateTime;
+            var dropped = buffered.RemoveAll(r => r.ExpiresAtUtc <= now || r.Result.CheckedAtUtc < now - MaxResultAge);
+            if (dropped > 0) logger.LogInformation("Dropped {Count} result(s) whose lease expired before they could be posted", dropped);
             var posted = 0;
             for (var i = 0; i < buffered.Count; i += AgentProtocol.MaxResultsPerRequest)
             {
-                var batch = buffered.Skip(i).Take(AgentProtocol.MaxResultsPerRequest).ToList();
+                var batch = buffered.Skip(i).Take(AgentProtocol.MaxResultsPerRequest).Select(r => r.Result).ToList();
                 try
                 {
                     var response = await api.PostResultsAsync(batch, ct);

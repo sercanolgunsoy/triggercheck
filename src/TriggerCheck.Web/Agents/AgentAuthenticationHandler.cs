@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Authentication;
@@ -73,10 +74,20 @@ public sealed class AgentAuthenticationHandler(
         return AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(identity), Scheme.Name));
     }
 
+    private static readonly ConcurrentDictionary<string, DateTime> LastWarning = new();
+    private static readonly TimeSpan WarningInterval = TimeSpan.FromMinutes(1);
+    private const int MaxTrackedClients = 10_000;
+
     private AuthenticateResult Fail(string message)
     {
         Context.Items[FailureKey] = message;
-        Logger.LogWarning("Probe agent request rejected from {RemoteIp}: {Reason}", Context.Connection.RemoteIpAddress, message);
+        // One warning per client (IPv4 / IPv6 /64) and minute; the rest at debug level, so a flood cannot fill the log.
+        var client = ApiSetup.ClientPartition(Context.Connection.RemoteIpAddress);
+        var now = time.GetUtcNow().UtcDateTime;
+        if (LastWarning.Count > MaxTrackedClients) LastWarning.Clear();
+        var warn = !LastWarning.TryGetValue(client, out var last) || now - last >= WarningInterval;
+        if (warn) LastWarning[client] = now;
+        Logger.Log(warn ? LogLevel.Warning : LogLevel.Debug, "Probe agent request rejected from {Client}: {Reason}", client, message);
         return AuthenticateResult.Fail(message);
     }
 

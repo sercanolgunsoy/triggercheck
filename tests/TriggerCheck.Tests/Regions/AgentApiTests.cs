@@ -215,6 +215,35 @@ public class AgentApiTests(TestWebAppFactory f) : IClassFixture<TestWebAppFactor
     }
 
     [Fact]
+    public async Task Public_api_and_ai_context_use_central_checks_unless_asked()
+    {
+        var x = await ArrangeAsync();
+        var now = DateTime.UtcNow;
+        await f.WithDbAsync(async db =>
+        {
+            db.CheckResults.Add(new CheckResult { MonitorId = x.MonitorA, CheckedAtUtc = now.AddMinutes(-2), IsUp = true, ResponseTimeMs = 10 });
+            db.CheckResults.Add(new CheckResult { MonitorId = x.MonitorA, CheckedAtUtc = now.AddMinutes(-1), IsUp = false, ResponseTimeMs = 3, RegionId = x.A.Id, Error = "x" });
+            await db.SaveChangesAsync();
+        });
+        var api = f.ApiClient(await f.AddApiKeyAsync(x.CustomerId, ApiKeyScope.ReadOnly));
+
+        var central = await (await api.GetAsync($"/api/v1/monitors/{x.MonitorA}/checks")).JsonAsync();
+        var only = Assert.Single(central.EnumerateArray());
+        Assert.Equal("central", only.GetProperty("regionCode").GetString());
+
+        var all = (await (await api.GetAsync($"/api/v1/monitors/{x.MonitorA}/checks?region=all")).JsonAsync()).EnumerateArray().ToList();
+        Assert.Equal(2, all.Count);
+        Assert.Equal(x.A.Code, all[0].GetProperty("regionCode").GetString());
+        ApiTestHelpers.AssertProblem(await api.GetAsync($"/api/v1/monitors/{x.MonitorA}/checks?region=mars"), HttpStatusCode.BadRequest);
+
+        using var scope = f.Services.CreateScope();
+        var ai = scope.ServiceProvider.GetRequiredService<TriggerCheck.Ai.Context.AiTenantData>();
+        var recent = await ai.RecentChecksAsync(x.CustomerId, x.MonitorA, 10);
+        Assert.All(recent, c => Assert.Null(c.RegionId));
+        Assert.Single(recent);
+    }
+
+    [Fact]
     public async Task Agent_api_is_not_in_the_public_openapi_document()
     {
         var doc = await f.CreateClient().GetStringAsync("/api/v1/openapi.json");

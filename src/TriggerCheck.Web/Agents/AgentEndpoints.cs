@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Globalization;
 using System.Security.Claims;
 using System.Text.Json;
@@ -84,27 +85,34 @@ public static class AgentEndpoints
         if (http.Request.ContentLength > maxBytes) return (null, TooLarge(maxBytes));
         if (http.Features.Get<IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } limit) limit.MaxRequestBodySize = maxBytes;
 
-        var buffer = new byte[maxBytes + 1];
-        var total = 0;
+        var buffer = ArrayPool<byte>.Shared.Rent(maxBytes + 1);
         try
         {
-            int read;
-            while (total <= maxBytes && (read = await http.Request.Body.ReadAsync(buffer.AsMemory(total, maxBytes + 1 - total), ct)) > 0)
-                total += read;
+            var total = 0;
+            try
+            {
+                int read;
+                while (total <= maxBytes && (read = await http.Request.Body.ReadAsync(buffer.AsMemory(total, maxBytes + 1 - total), ct)) > 0)
+                    total += read;
+            }
+            catch (BadHttpRequestException ex) when (ex.StatusCode == StatusCodes.Status413PayloadTooLarge)
+            {
+                return (null, TooLarge(maxBytes));
+            }
+            if (total > maxBytes) return (null, TooLarge(maxBytes));
+            try
+            {
+                var value = JsonSerializer.Deserialize<T>(buffer.AsSpan(0, total), AgentProtocol.Json);
+                return value is null ? (null, ApiProblems.Invalid("", "A JSON object is required.")) : (value, null);
+            }
+            catch (JsonException)
+            {
+                return (null, ApiProblems.Invalid("", "The JSON body is malformed or has a value of the wrong type."));
+            }
         }
-        catch (BadHttpRequestException ex) when (ex.StatusCode == StatusCodes.Status413PayloadTooLarge)
+        finally
         {
-            return (null, TooLarge(maxBytes));
-        }
-        if (total > maxBytes) return (null, TooLarge(maxBytes));
-        try
-        {
-            var value = JsonSerializer.Deserialize<T>(buffer.AsSpan(0, total), AgentProtocol.Json);
-            return value is null ? (null, ApiProblems.Invalid("", "A JSON object is required.")) : (value, null);
-        }
-        catch (JsonException)
-        {
-            return (null, ApiProblems.Invalid("", "The JSON body is malformed or has a value of the wrong type."));
+            ArrayPool<byte>.Shared.Return(buffer);
         }
     }
 

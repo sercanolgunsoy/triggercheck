@@ -36,7 +36,9 @@ public sealed record MonitorDto(
 }
 
 /// <param name="InMaintenance">Taken during a maintenance window; not counted in uptime (FEAT-3).</param>
-public sealed record CheckDto(long Id, DateTime CheckedAtUtc, bool IsUp, int? StatusCode, int ResponseTimeMs, string? Error, bool InMaintenance = false);
+/// <param name="RegionCode">FEAT-6: region that took the probe ("central" = the main app).</param>
+public sealed record CheckDto(long Id, DateTime CheckedAtUtc, bool IsUp, int? StatusCode, int ResponseTimeMs, string? Error, bool InMaintenance = false,
+    string RegionCode = TriggerCheck.Domain.RegionRules.CentralCode);
 
 /// <param name="AcknowledgedAtUtc">When the incident was acknowledged (FEAT-5), null if not.</param>
 /// <param name="EscalationLevel">Escalation level last sent (0 = only the DOWN alert).</param>

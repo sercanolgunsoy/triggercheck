@@ -214,6 +214,8 @@ public sealed class MonitorCheckRunner(
         AlertMessage? alert = null;
         AlertMessage? certAlert = null;
         MonitorStateMachine.RecordCertificate(monitor, outcome.Certificate, checkedAt);
+        // FEAT-6: central's vote counts only for the probe settings it was taken with.
+        if (RegionRules.SupportsRegions(monitor.Type)) monitor.LastProbeFingerprint = RegionQuorum.Fingerprint(monitor);
         var unchangedLifecycle = monitor.Status == snapshot.Status && monitor.IsEnabled == snapshot.IsEnabled;
         if (unchangedLifecycle && MonitorStateMachine.IsActivelyMonitored(snapshot) && MonitorStateMachine.IsActivelyMonitored(monitor))
         {
@@ -221,29 +223,32 @@ public sealed class MonitorCheckRunner(
             var transition = StatusTransition.None;
             var transitionAt = checkedAt;
             var delay = TimeSpan.FromSeconds(Math.Clamp(o.ConfirmationDelaySeconds, 0, 300));
-            // FEAT-6: monitors with remote regions are decided by quorum while two or more regions vote.
+            // FEAT-6: monitors with remote regions are decided by quorum when three or more regions vote decisively.
+            var ro = regionOptions.CurrentValue;
             QuorumDecision? quorum = null;
             List<MonitorRegionState> regionStates = [];
+            var remoteConfirms = false;
             if (RegionRules.SupportsRegions(monitor.Type))
             {
-                regionStates = await RegionQuorum.LoadStatesAsync(db, monitor.Id, ct);
-                if (regionStates.Count > 0)
+                var all = await RegionQuorum.LoadStatesAsync(db, monitor.Id, ct);
+                if (all.Count > 0)
                 {
-                    var votes = RegionQuorum.RemoteVotes(regionStates, monitor, checkedAt, regionOptions.CurrentValue);
-                    votes.Add(new RegionVote(RegionRules.CentralCode, outcome.IsUp, checkedAt, outcome.Error));
-                    var tally = RegionQuorum.Tally(votes);
+                    regionStates = RegionQuorum.WithinPlan(all, await RegionQuorum.PlanMaxRegionsAsync(db, monitor.CustomerId, ct));
+                    var votes = RegionQuorum.RemoteVotes(regionStates, monitor, checkedAt, ro);
+                    remoteConfirms = votes.Any(v => !v.IsUp);
+                    if (RegionQuorum.CentralVote(monitor, outcome.IsUp, MonitorStateMachine.CentralStreakAfter(monitor, outcome.IsUp, inMaintenance),
+                            checkedAt, outcome.Error, inMaintenance) is { } central) votes.Add(central);
+                    var tally = RegionQuorum.Tally(votes, checkedAt - RegionQuorum.VoteWindow(monitor, ro));
                     if (tally.UsesQuorum) quorum = tally;
                 }
             }
             if (quorum is not null)
             {
                 MonitorStateMachine.ClearPendingConfirmation(monitor);
-                var wasFailing = monitor.ConsecutiveFailures > 0;
-                transition = MonitorStateMachine.ApplyQuorumProbe(monitor, outcome, checkedAt, quorum, inMaintenance);
+                transition = MonitorStateMachine.ApplyQuorumProbe(monitor, outcome, checkedAt, quorum, inMaintenance,
+                    TimeSpan.FromSeconds(Math.Max(0, ro.MinTransitionSeconds)));
                 if (transition == StatusTransition.WentDown) transitionAt = monitor.StatusChangedAtUtc ?? checkedAt;
                 result.VotedUp = monitor.Status != MonitorStatus.Down;
-                if (!outcome.IsUp && !wasFailing && !inMaintenance && monitor.Status != MonitorStatus.Down)
-                    RegionQuorum.Expedite(regionStates, probeEndedAt + delay);
             }
             else if (inMaintenance)
             {
@@ -274,11 +279,15 @@ public sealed class MonitorCheckRunner(
             {
                 MonitorStateMachine.ClearPendingConfirmation(monitor); // monitor changed since, too old and up now, or none
                 // Heartbeats are not confirmed: the grace period already is the tolerance (see HeartbeatMonitorChecker).
-                if (o.ConfirmBeforeDown && monitor.Type != MonitorType.Heartbeat && MonitorStateMachine.NeedsConfirmation(monitor, outcome))
+                // FEAT-6: a failing remote region is the confirmation (another vantage point saw it too).
+                if (o.ConfirmBeforeDown && monitor.Type != MonitorType.Heartbeat && MonitorStateMachine.NeedsConfirmation(monitor, outcome) && !remoteConfirms)
                     MonitorStateMachine.BeginConfirmation(monitor, outcome, checkedAt, probeEndedAt + delay);
                 else
                     transition = MonitorStateMachine.Apply(monitor, outcome, checkedAt);
             }
+            // FEAT-6: a central failure asks the regions to confirm soon (at most once per interval).
+            if (regionStates.Count > 0 && !outcome.IsUp && !inMaintenance && monitor.Status != MonitorStatus.Down)
+                RegionQuorum.TryExpedite(monitor, regionStates, checkedAt, probeEndedAt + delay, checkedAt);
             // Heartbeats are scheduled by their deadlines, also inside a maintenance window (after the branches above).
             if (monitor.Type == MonitorType.Heartbeat) monitor.NextCheckAtUtc = HeartbeatSchedule.NextEvaluation(monitor, checkedAt);
             if (inMaintenance)

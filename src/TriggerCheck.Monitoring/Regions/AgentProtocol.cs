@@ -93,7 +93,6 @@ public sealed record LeaseRequest
 
 public sealed record LeaseResponse
 {
-    public string LeaseId { get; init; } = "";
     public DateTime ServerTimeUtc { get; init; }
     public IReadOnlyList<LeaseItem> Items { get; init; } = [];
 }

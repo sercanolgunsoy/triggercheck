@@ -1489,14 +1489,14 @@
   <data name="Regions" xml:space="preserve">
     <value>Bölgeler</value>
   </data>
-  <data name="The main region always checks this monitor. Additional regions check it too; with two or more regions reporting, the monitor goes down only when the majority of them fail, and a single region's network problem does not open an incident." xml:space="preserve">
-    <value>Ana bölge bu monitörü her zaman kontrol eder. Ek bölgeler de kontrol eder; iki veya daha fazla bölge sonuç bildirdiğinde monitör yalnızca çoğunluk hata verirse kapalı sayılır ve tek bir bölgenin ağ sorunu incident açmaz.</value>
+  <data name="The main region always checks this monitor. Additional regions check it too: with three or more regions reporting, the monitor goes down only when the majority of them fail, so a single region's network problem does not open an incident. With fewer, the main region decides and the other regions confirm its failures." xml:space="preserve">
+    <value>Ana bölge bu monitörü her zaman kontrol eder. Ek bölgeler de kontrol eder: üç veya daha fazla bölge sonuç bildirdiğinde monitör yalnızca çoğunluk hata verirse kapalı sayılır, böylece tek bir bölgenin ağ sorunu incident açmaz. Daha azında ana bölge karar verir, diğer bölgeler onun hatalarını doğrular.</value>
   </data>
   <data name="The regions were changed in the meantime. Review them and try again." xml:space="preserve">
     <value>Bölgeler bu arada değiştirildi. Gözden geçirip tekrar deneyin.</value>
   </data>
-  <data name="The status is decided by majority of the regions with a recent result; stale regions are left out. Uptime follows the voted status." xml:space="preserve">
-    <value>Durum, yakın zamanda sonuç bildiren bölgelerin çoğunluğuyla belirlenir; yanıt vermeyen bölgeler dışarıda kalır. Çalışma süresi oylanan durumu izler.</value>
+  <data name="With three or more regions voting, the status is decided by majority; otherwise the main region decides. Stale regions and results from maintenance windows or older settings do not vote. Uptime follows the voted status." xml:space="preserve">
+    <value>Üç veya daha fazla bölge oy verdiğinde durum çoğunlukla belirlenir; aksi halde ana bölge karar verir. Yanıt vermeyen bölgeler ile bakım penceresinde veya eski ayarlarla alınan sonuçlar oy vermez. Çalışma süresi oylanan durumu izler.</value>
   </data>
   <data name="Your plan ({0}) allows at most {1} additional region(s) per monitor." xml:space="preserve">
     <value>Planınız ({0}) monitör başına en fazla {1} ek bölgeye izin veriyor.</value>

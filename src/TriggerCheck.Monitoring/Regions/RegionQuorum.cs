@@ -9,44 +9,65 @@ using MonitorEntity = TriggerCheck.Domain.Entities.Monitor;
 
 namespace TriggerCheck.Monitoring.Regions;
 
-/// <summary>Latest result of one region for one monitor, as it counts in the quorum.</summary>
-public sealed record RegionVote(string RegionCode, bool IsUp, DateTime CheckedAtUtc, string? Error);
-
 /// <summary>
-/// Tally of the votes of a monitor's active regions. Active = central plus every enabled remote region whose agent is
-/// not stale and whose last result is inside the vote window (see <see cref="RegionQuorum"/>).
+/// Latest result of one region for one monitor. <see cref="Decisive"/>: a success, or a failure whose streak reached the
+/// monitor's FailureThreshold; a failure below the threshold abstains (it can still confirm, see
+/// <see cref="RegionQuorum.RemoteFailures"/>).
 /// </summary>
-public sealed record QuorumDecision(int Active, int Up, int Down, IReadOnlyList<RegionVote> Failing)
+public sealed record RegionVote(string RegionCode, bool IsUp, bool Decisive, DateTime CheckedAtUtc, DateTime FailingSinceUtc, string? Error);
+
+/// <summary>Tally of the decisive votes of a monitor's regions (see <see cref="RegionQuorum"/>).</summary>
+public sealed record QuorumDecision(int Active, int Up, int Down, IReadOnlyList<RegionVote> Failing, DateTime WindowStartUtc)
 {
-    /// <summary>Quorum voting applies with two or more active regions; with one the classic single-region rules apply.</summary>
-    public bool UsesQuorum => Active >= 2;
+    /// <summary>
+    /// The quorum decides only with at least <see cref="RegionQuorum.MinVoters"/> decisive votes and a strict majority;
+    /// otherwise (two voters, a split, abstentions) central's single-region rules decide.
+    /// </summary>
+    public bool UsesQuorum => Active >= RegionQuorum.MinVoters && (UpMajority || DownMajority);
     public bool UpMajority => Up * 2 > Active;
     public bool DownMajority => Down * 2 > Active;
 
     /// <summary>Codes of the failing regions, e.g. "central,eu-central" (stored on the incident).</summary>
     public string FailedRegions => string.Join(",", Failing.Select(v => v.RegionCode));
 
-    /// <summary>Outage start: the earliest of the failing votes.</summary>
-    public DateTime? FailingSinceUtc => Failing.Count == 0 ? null : Failing.Min(v => v.CheckedAtUtc);
+    /// <summary>Outage start: the earliest start of the failing streaks, never before the vote window.</summary>
+    public DateTime? FailingSinceUtc => Failing.Count == 0 ? null : Max(Failing.Min(v => v.FailingSinceUtc), WindowStartUtc);
 
     /// <summary>Customer-visible cause, e.g. "central: Connection refused; eu-central: Timeout after 10s".</summary>
     public string? Cause => Failing.Count == 0
         ? null
         : RegionQuorum.Cut(string.Join("; ", Failing.Select(v => $"{v.RegionCode}: {v.Error ?? "failed"}")), AgentProtocol.MaxErrorLength);
+
+    private static DateTime Max(DateTime a, DateTime b) => a > b ? a : b;
 }
 
 /// <summary>
-/// FEAT-6 voting rules (pure; the DB helpers only load the inputs). A monitor's status is decided by the majority of its
-/// active regions: DOWN only when more than half report a failure, UP when more than half report success; otherwise the
-/// status is kept. The agreement of a second region replaces the confirmation probe and FailureThreshold of the
-/// single-region rules (ENG-9): the confirmation comes from another region. When fewer than two regions are active
-/// (stale agents, disabled regions, no fresh results) the monitor falls back to the single-region rules, so it is never
-/// left unmonitored. Heartbeat monitors are never voted on.
+/// FEAT-6 voting rules (pure; the DB helpers only load the inputs).
+/// <list type="bullet">
+/// <item>Votes: central and every remote region within the plan's limit (<see cref="WithinPlan"/>) whose region is enabled,
+/// whose agent is not stale, and whose last result is inside the vote window, not taken in maintenance and taken with the
+/// monitor's current probe settings. A success votes UP; a failure votes DOWN once the region's streak reaches the
+/// monitor's FailureThreshold (a single blip in one region is not a DOWN vote).</item>
+/// <item>The quorum decides only with three or more decisive votes and a strict majority: DOWN when more than half fail,
+/// UP when more than half succeed; a DOWN lasts at least <see cref="RegionOptions.MinTransitionSeconds"/> (hysteresis).</item>
+/// <item>Otherwise - one or two voters, a split, abstentions, stale agents - central's single-region rules decide
+/// (FailureThreshold, confirm before DOWN). Remote results then only serve as the confirmation of a central failure,
+/// so a single lying or geo-blocked agent can neither take a monitor down nor keep it down or hide an outage.</item>
+/// <item>A failure (while not DOWN) pulls the next probe of the regions and central forward to the confirmation delay,
+/// at most once per interval (<see cref="TryExpedite"/>).</item>
+/// </list>
+/// Heartbeat monitors are never voted on.
 /// </summary>
 public static class RegionQuorum
 {
-    public static QuorumDecision Tally(IReadOnlyCollection<RegionVote> votes) =>
-        new(votes.Count, votes.Count(v => v.IsUp), votes.Count(v => !v.IsUp), votes.Where(v => !v.IsUp).OrderBy(v => v.CheckedAtUtc).ToList());
+    public const int MinVoters = 3;
+
+    public static QuorumDecision Tally(IReadOnlyCollection<RegionVote> votes, DateTime windowStartUtc)
+    {
+        var decisive = votes.Where(v => v.Decisive).ToList();
+        return new(decisive.Count, decisive.Count(v => v.IsUp), decisive.Count(v => !v.IsUp),
+            decisive.Where(v => !v.IsUp).OrderBy(v => v.CheckedAtUtc).ToList(), windowStartUtc);
+    }
 
     /// <summary>How old a region's last result may be and still vote.</summary>
     public static TimeSpan VoteWindow(MonitorEntity monitor, RegionOptions o) =>
@@ -56,51 +77,91 @@ public static class RegionQuorum
     public static bool IsAgentStale(Region region, DateTime nowUtc, RegionOptions o) =>
         region.LastSeenAtUtc is not { } seen || nowUtc - seen > TimeSpan.FromSeconds(Math.Max(1, o.AgentStaleAfterSeconds));
 
-    /// <summary>Votes of the remote regions in <paramref name="states"/> (Region loaded) that currently count.</summary>
-    public static List<RegionVote> RemoteVotes(IEnumerable<MonitorRegionState> states, MonitorEntity monitor, DateTime nowUtc, RegionOptions o)
+    private static int Threshold(MonitorEntity monitor) => Math.Max(1, monitor.FailureThreshold);
+
+    /// <summary>
+    /// The assignments the plan allows: the first <c>MaxRegions - 1</c> by region id (all when MaxRegions is 0). Others
+    /// are neither leased nor counted, e.g. after a downgrade.
+    /// </summary>
+    public static List<MonitorRegionState> WithinPlan(IEnumerable<MonitorRegionState> states, int planMaxRegions) =>
+        states.OrderBy(s => s.RegionId).Take(planMaxRegions <= 0 ? int.MaxValue : Math.Max(0, planMaxRegions - 1)).ToList();
+
+    /// <summary>
+    /// The region's last result is eligible: region enabled, agent not stale, result inside the vote window, not taken in
+    /// maintenance and taken with the monitor's current probe settings.
+    /// </summary>
+    public static bool IsEligible(MonitorRegionState s, MonitorEntity monitor, string fingerprint, DateTime nowUtc, RegionOptions o) =>
+        s.Region.IsEnabled && !IsAgentStale(s.Region, nowUtc, o)
+        && s.LastIsUp is not null && s.LastCheckedAtUtc is { } at && nowUtc - at <= VoteWindow(monitor, o)
+        && !s.LastInMaintenance && s.LastResultFingerprint == fingerprint;
+
+    /// <summary>Votes of the eligible remote regions in <paramref name="allowed"/> (Region loaded, already limited by the plan).</summary>
+    public static List<RegionVote> RemoteVotes(IEnumerable<MonitorRegionState> allowed, MonitorEntity monitor, DateTime nowUtc, RegionOptions o)
     {
         var fingerprint = Fingerprint(monitor);
-        return states
-            .Where(s => IsVoting(s, monitor, fingerprint, nowUtc, o))
-            .Select(s => new RegionVote(s.Region.Code, s.LastIsUp!.Value, s.LastCheckedAtUtc!.Value, s.LastError))
+        return allowed
+            .Where(s => IsEligible(s, monitor, fingerprint, nowUtc, o))
+            .Select(s => new RegionVote(s.Region.Code, s.LastIsUp!.Value, s.LastIsUp!.Value || s.ConsecutiveFailures >= Threshold(monitor),
+                s.LastCheckedAtUtc!.Value, s.FailingSinceUtc ?? s.LastCheckedAtUtc!.Value, s.LastError))
             .ToList();
     }
 
+    /// <summary>Eligible remote failures (any streak): the confirmation signal for central's single-region rules.</summary>
+    public static bool RemoteFailures(IEnumerable<MonitorRegionState> allowed, MonitorEntity monitor, DateTime nowUtc, RegionOptions o) =>
+        RemoteVotes(allowed, monitor, nowUtc, o).Any(v => !v.IsUp);
+
     /// <summary>
-    /// The region's last result counts: region enabled, agent not stale, result inside the vote window and taken with the
-    /// monitor's current probe settings.
+    /// Central's vote for a probe taken at <paramref name="checkedAtUtc"/> with central streak <paramref name="streak"/>
+    /// (failures including this one). None in maintenance.
     /// </summary>
-    public static bool IsVoting(MonitorRegionState s, MonitorEntity monitor, string fingerprint, DateTime nowUtc, RegionOptions o) =>
-        s.Region.IsEnabled && !IsAgentStale(s.Region, nowUtc, o)
-        && s.LastIsUp is not null && s.LastCheckedAtUtc is { } at && nowUtc - at <= VoteWindow(monitor, o)
-        && s.LastResultFingerprint == fingerprint;
+    public static RegionVote? CentralVote(MonitorEntity monitor, bool isUp, int streak, DateTime checkedAtUtc, string? error, bool inMaintenance)
+    {
+        if (inMaintenance) return null;
+        var since = isUp ? checkedAtUtc : checkedAtUtc.AddSeconds(-(double)Math.Max(0, streak - 1) * Math.Max(1, monitor.IntervalSeconds));
+        return new RegionVote(RegionRules.CentralCode, isUp, isUp || streak >= Threshold(monitor), checkedAtUtc, since, error);
+    }
 
     /// <summary>Region states of a monitor with their regions (tracked, so callers can update them).</summary>
     public static Task<List<MonitorRegionState>> LoadStatesAsync(AppDbContext db, int monitorId, CancellationToken ct) =>
         db.MonitorRegionStates.Include(s => s.Region).Where(s => s.MonitorId == monitorId).ToListAsync(ct);
 
-    /// <summary>The central scheduler's latest probe of the monitor, if inside the vote window.</summary>
+    public static Task<int> PlanMaxRegionsAsync(AppDbContext db, int customerId, CancellationToken ct) =>
+        db.Customers.Where(c => c.Id == customerId).Select(c => c.Plan.MaxRegions).FirstOrDefaultAsync(ct);
+
+    /// <summary>
+    /// The central scheduler's current vote, from its latest probe (if inside the vote window, not in maintenance and of
+    /// the current probe settings) and its streak on the monitor.
+    /// </summary>
     public static async Task<RegionVote?> CentralVoteAsync(AppDbContext db, MonitorEntity monitor, DateTime nowUtc, RegionOptions o, CancellationToken ct)
     {
+        if (monitor.LastProbeFingerprint != Fingerprint(monitor)) return null;
         var since = nowUtc - VoteWindow(monitor, o);
         var last = await db.CheckResults.AsNoTracking()
             .Where(c => c.MonitorId == monitor.Id && c.RegionId == null && c.CheckedAtUtc >= since)
             .OrderByDescending(c => c.CheckedAtUtc)
-            .Select(c => new { c.IsUp, c.CheckedAtUtc, c.Error })
+            .Select(c => new { c.IsUp, c.CheckedAtUtc, c.Error, c.InMaintenance })
             .FirstOrDefaultAsync(ct);
-        return last is null ? null : new RegionVote(RegionRules.CentralCode, last.IsUp, last.CheckedAtUtc, last.Error);
+        return last is null ? null : CentralVote(monitor, last.IsUp, last.IsUp ? 0 : monitor.ConsecutiveFailures, last.CheckedAtUtc, last.Error, last.InMaintenance);
     }
 
     /// <summary>
-    /// "Confirmation from another region": a region that starts failing pulls the next probe of the monitor's other
-    /// regions forward to <paramref name="confirmAtUtc"/>, so a real outage is confirmed within seconds instead of an
-    /// interval. Only the first failure of a streak expedites (a region failing alone does not multiply the check rate).
+    /// "Confirmation from another region": a failure seen at <paramref name="failedAtUtc"/> pulls the next probe of the
+    /// monitor's regions (the reporting one included: its re-check is its own confirmation) and of central forward to
+    /// <paramref name="confirmAtUtc"/>. At most once per interval per monitor (bounded extra probe rate); regions that
+    /// already reported after the failure or have a probe in flight are left alone. Returns whether it expedited.
     /// </summary>
-    public static void Expedite(IEnumerable<MonitorRegionState> otherRegions, DateTime confirmAtUtc)
+    public static bool TryExpedite(MonitorEntity monitor, IEnumerable<MonitorRegionState> allowed, DateTime failedAtUtc, DateTime confirmAtUtc, DateTime nowUtc)
     {
-        foreach (var s in otherRegions)
-            if (s.Region.IsEnabled && (s.NextCheckAtUtc is null || s.NextCheckAtUtc > confirmAtUtc))
-                s.NextCheckAtUtc = confirmAtUtc;
+        if (monitor.RegionsExpeditedAtUtc is { } last && nowUtc - last < TimeSpan.FromSeconds(Math.Max(1, monitor.IntervalSeconds))) return false;
+        monitor.RegionsExpeditedAtUtc = nowUtc;
+        foreach (var s in allowed)
+        {
+            if (!s.Region.IsEnabled || s.LastCheckedAtUtc > failedAtUtc || s.LeasedUntilUtc > nowUtc) continue;
+            if (s.NextCheckAtUtc is null || s.NextCheckAtUtc > confirmAtUtc) s.NextCheckAtUtc = confirmAtUtc;
+        }
+        if (!(monitor.LastCheckedAtUtc > failedAtUtc) && (monitor.NextCheckAtUtc is null || monitor.NextCheckAtUtc > confirmAtUtc))
+            monitor.NextCheckAtUtc = confirmAtUtc;
+        return true;
     }
 
     internal static string Cut(string s, int max) => s.Length <= max ? s : s[..(max - 1)] + "…";

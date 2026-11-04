@@ -68,7 +68,7 @@ public sealed class BaselineJob(AppDbContext db, IOptions<AiOptions> options, Ti
                 var groupIds = group.Select(m => m.Id).ToList();
                 var since = now.AddSeconds(-Math.Max(15 * 60, 3 * o.N * group.Key));
                 var rows = await db.CheckResults.AsNoTracking()
-                    .Where(r => groupIds.Contains(r.MonitorId) && r.IsUp && r.CheckedAtUtc >= since)
+                    .Where(r => groupIds.Contains(r.MonitorId) && r.IsUp && r.CheckedAtUtc >= since && r.RegionId == null) // FEAT-6: central only
                     .Select(r => new { r.MonitorId, r.CheckedAtUtc, r.ResponseTimeMs })
                     .ToListAsync(ct);
                 foreach (var g in rows.GroupBy(r => r.MonitorId))
@@ -137,7 +137,7 @@ public sealed class BaselineJob(AppDbContext db, IOptions<AiOptions> options, Ti
     {
         var since = now.AddDays(-Math.Max(1, o.WindowDays));
         var samples = (await db.CheckResults.AsNoTracking()
-                .Where(r => r.MonitorId == monitorId && r.IsUp && r.CheckedAtUtc >= since)
+                .Where(r => r.MonitorId == monitorId && r.IsUp && r.CheckedAtUtc >= since && r.RegionId == null) // FEAT-6: central only
                 .OrderByDescending(r => r.CheckedAtUtc)
                 .Take(Math.Max(1, o.MaxSamples))
                 .Select(r => new { r.CheckedAtUtc, r.ResponseTimeMs })

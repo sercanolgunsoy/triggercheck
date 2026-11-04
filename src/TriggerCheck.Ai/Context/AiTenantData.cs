@@ -23,7 +23,7 @@ public sealed class AiTenantData(AppDbContext db)
     /// <summary>Newest first.</summary>
     public Task<List<CheckResult>> RecentChecksAsync(int customerId, int monitorId, int take, DateTime? beforeUtc = null, CancellationToken ct = default) =>
         db.CheckResults.AsNoTracking()
-            .Where(r => r.MonitorId == monitorId && r.Monitor.CustomerId == customerId && (beforeUtc == null || r.CheckedAtUtc <= beforeUtc))
+            .Where(r => r.MonitorId == monitorId && r.Monitor.CustomerId == customerId && r.RegionId == null && (beforeUtc == null || r.CheckedAtUtc <= beforeUtc))
             .OrderByDescending(r => r.CheckedAtUtc)
             .Take(take)
             .ToListAsync(ct);
@@ -56,7 +56,7 @@ public sealed class AiTenantData(AppDbContext db)
     /// <summary>Successful checks outside maintenance in [fromUtc, toUtc), newest first, at most <paramref name="take"/>.</summary>
     public Task<List<CheckResult>> SuccessfulChecksAsync(int customerId, int monitorId, DateTime fromUtc, DateTime toUtc, int take, CancellationToken ct = default) =>
         db.CheckResults.AsNoTracking()
-            .Where(r => r.MonitorId == monitorId && r.Monitor.CustomerId == customerId && r.IsUp && !r.InMaintenance
+            .Where(r => r.MonitorId == monitorId && r.Monitor.CustomerId == customerId && r.IsUp && !r.InMaintenance && r.RegionId == null
                         && r.CheckedAtUtc >= fromUtc && r.CheckedAtUtc < toUtc)
             .OrderByDescending(r => r.CheckedAtUtc)
             .Take(take)

@@ -56,6 +56,9 @@ public sealed class ProbeLeaseService(
             .Where(s => s.RegionId == regionId && s.Region.IsEnabled
                         && s.Monitor.IsEnabled && s.Monitor.Status != MonitorStatus.Paused && s.Monitor.Customer.IsActive
                         && s.Monitor.Type != MonitorType.Heartbeat && s.Monitor.Customer.Plan.MaxRegions != 1
+                        // Plan limit: only the first MaxRegions - 1 assignments by region id (see RegionQuorum.WithinPlan).
+                        && (s.Monitor.Customer.Plan.MaxRegions <= 0
+                            || db.MonitorRegionStates.Count(o => o.MonitorId == s.MonitorId && o.RegionId < s.RegionId) < s.Monitor.Customer.Plan.MaxRegions - 1)
                         && (s.NextCheckAtUtc == null || s.NextCheckAtUtc <= now)
                         && (s.LeasedUntilUtc == null || s.LeasedUntilUtc <= now))
             .OrderBy(s => s.NextCheckAtUtc)
@@ -80,7 +83,7 @@ public sealed class ProbeLeaseService(
             if (updated == 1) items.Add(AgentProtocol.ToLeaseItem(monitor, itemId, until));
         }
         if (items.Count > 0) logger.LogDebug("Region {RegionId} leased {Count} probe(s)", regionId, items.Count);
-        return new LeaseResponse { LeaseId = NewItemId(), ServerTimeUtc = now, Items = items };
+        return new LeaseResponse { ServerTimeUtc = now, Items = items };
     }
 
     private static string NewItemId() => Convert.ToHexString(RandomNumberGenerator.GetBytes(16)).ToLowerInvariant();
@@ -123,11 +126,13 @@ public sealed class ProbeLeaseService(
         {
             // Only this region's rows are searched: an item id of another region is simply unknown here.
             var row = await db.MonitorRegionStates.AsNoTracking()
-                .Where(s => s.RegionId == regionId && (s.LeaseItemId == r.ItemId || s.LastResultItemId == r.ItemId))
-                .Select(s => new { s.MonitorId, s.LeaseItemId, s.LeasedUntilUtc })
+                .Where(s => s.RegionId == regionId && s.LeaseItemId == r.ItemId)
+                .Select(s => new { s.MonitorId, s.LeasedUntilUtc })
                 .FirstOrDefaultAsync(ct);
-            if (row is null) return ResultStatus.Rejected;
-            if (row.LeaseItemId != r.ItemId) return ResultStatus.Duplicate;
+            if (row is null)
+                return await db.MonitorRegionStates.AnyAsync(s => s.RegionId == regionId && s.LastResultItemId == r.ItemId, ct)
+                    ? ResultStatus.Duplicate
+                    : ResultStatus.Rejected;
             if (row.LeasedUntilUtc is not { } until || until < now)
             {
                 await ClearLeaseAsync(db, row.MonitorId, regionId, r.ItemId, ct);
@@ -207,37 +212,38 @@ public sealed class ProbeLeaseService(
             DnsMs = r.DnsMs, ConnectMs = r.ConnectMs, TlsMs = r.TlsMs, TtfbMs = r.TtfbMs
         });
 
-        var wasFailing = state.ConsecutiveFailures > 0;
         state.LastCheckedAtUtc = checkedAt;
         state.LastIsUp = r.IsUp;
         state.LastError = error;
         state.LastResponseTimeMs = r.ResponseTimeMs;
+        state.FailingSinceUtc = r.IsUp ? null : state.ConsecutiveFailures > 0 ? state.FailingSinceUtc ?? checkedAt : checkedAt;
         state.ConsecutiveFailures = r.IsUp ? 0 : state.ConsecutiveFailures + 1;
+        state.LastInMaintenance = inMaintenance;
         state.LastResultItemId = r.ItemId;
         state.LastResultFingerprint = fingerprint;
         state.NextCheckAtUtc = MonitorStateMachine.NextCheckAfter(state.NextCheckAtUtc, monitor.IntervalSeconds, checkedAt);
 
         AlertMessage? alert = null;
-        var votes = RegionQuorum.RemoteVotes(states, monitor, now, o);
+        // Plan limit (e.g. after a downgrade): results of regions beyond it are recorded but never vote.
+        var allowed = RegionQuorum.WithinPlan(states, await RegionQuorum.PlanMaxRegionsAsync(db, monitor.CustomerId, ct));
+        var votes = RegionQuorum.RemoteVotes(allowed, monitor, now, o);
         if (await RegionQuorum.CentralVoteAsync(db, monitor, now, o, ct) is { } central) votes.Add(central);
-        var quorum = RegionQuorum.Tally(votes);
+        var quorum = RegionQuorum.Tally(votes, now - RegionQuorum.VoteWindow(monitor, o));
+        // Without a quorum nothing is decided here: central's single-region rules decide on its next probe, which a
+        // failure pulls forward below (and for which this failure is the confirmation).
         if (quorum.UsesQuorum)
         {
-            var transition = MonitorStateMachine.ApplyVote(monitor, quorum, checkedAt, inMaintenance);
+            var transition = MonitorStateMachine.ApplyVote(monitor, quorum, checkedAt, inMaintenance, TimeSpan.FromSeconds(Math.Max(0, o.MinTransitionSeconds)));
             alert = inMaintenance
                 ? await MonitorCheckRunner.RecoverInMaintenanceAsync(db, monitor, transition, checkedAt, logger, ct)
                 : await MonitorCheckRunner.ApplyTransitionAsync(db, monitor, transition,
                     transition == StatusTransition.WentDown ? monitor.StatusChangedAtUtc ?? checkedAt : checkedAt, logger, ct, quorum);
             if (transition != StatusTransition.None) monitor.Version++;
         }
-        // A new failure asks the other regions (and central) to confirm soon. Without a quorum this also lets central's
-        // single-region rules see the outage quickly.
-        if (!r.IsUp && !wasFailing && !inMaintenance && monitor.Status != MonitorStatus.Down)
-        {
-            var confirmAt = now.AddSeconds(Math.Clamp(monitoringOptions.CurrentValue.ConfirmationDelaySeconds, 0, 300));
-            RegionQuorum.Expedite(states.Where(s => s.RegionId != regionId), confirmAt);
-            if (monitor.NextCheckAtUtc is null || monitor.NextCheckAtUtc > confirmAt) monitor.NextCheckAtUtc = confirmAt;
-        }
+        // A failure asks the regions (this one included) and central to confirm soon, at most once per interval.
+        if (!r.IsUp && !inMaintenance && monitor.Status != MonitorStatus.Down && allowed.Contains(state))
+            RegionQuorum.TryExpedite(monitor, allowed, checkedAt,
+                now.AddSeconds(Math.Clamp(monitoringOptions.CurrentValue.ConfirmationDelaySeconds, 0, 300)), now);
 
         await db.SaveChangesAsync(ct);
         return (ResultStatus.Accepted, await MonitorCheckRunner.WithIncidentAsync(db, alert, ct));

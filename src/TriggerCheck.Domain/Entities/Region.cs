@@ -46,6 +46,10 @@ public class MonitorRegionState
     public int? LastResponseTimeMs { get; set; }
     /// <summary>Consecutive failed results in this region.</summary>
     public int ConsecutiveFailures { get; set; }
+    /// <summary>Probe time of the first failure of the current streak; null while up.</summary>
+    public DateTime? FailingSinceUtc { get; set; }
+    /// <summary>The last result was taken in a maintenance window (it does not vote).</summary>
+    public bool LastInMaintenance { get; set; }
 
     // ---- current lease (one outstanding probe per monitor and region) ----
     /// <summary>Random id of the leased probe; results must quote it. Null = not leased.</summary>

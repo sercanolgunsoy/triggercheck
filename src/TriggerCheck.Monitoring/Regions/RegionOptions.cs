@@ -23,6 +23,9 @@ public sealed class RegionOptions
     /// <summary>Tolerated clock difference of an agent: a reported probe time outside the lease (± this) is replaced by the server's time.</summary>
     public int ClockSkewSeconds { get; set; } = 30;
 
+    /// <summary>Hysteresis: a DOWN decided by quorum lasts at least this many seconds before a quorum recovery ends it.</summary>
+    public int MinTransitionSeconds { get; set; } = 60;
+
     /// <summary>Agent API requests per region and minute (lease + results).</summary>
     public int AgentRequestsPerMinute { get; set; } = 300;
 }

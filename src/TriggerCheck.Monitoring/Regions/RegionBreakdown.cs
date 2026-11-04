@@ -38,6 +38,7 @@ public static class RegionBreakdown
         bool Fresh(DateTime? at) => at is { } t && nowUtc - t <= window;
         var central = stats.FirstOrDefault(s => s.RegionId == null);
         var fingerprint = RegionQuorum.Fingerprint(monitor);
+        var allowed = RegionQuorum.WithinPlan(states, await RegionQuorum.PlanMaxRegionsAsync(db, monitor.CustomerId, ct)).Select(s => s.RegionId).ToHashSet();
         var rows = new List<RegionRow>
         {
             new(RegionRules.CentralCode, "Central", true, true, false, Fresh(monitor.LastCheckedAtUtc),
@@ -49,7 +50,7 @@ public static class RegionBreakdown
             var st = stats.FirstOrDefault(x => x.RegionId == s.RegionId);
             var stale = RegionQuorum.IsAgentStale(s.Region, nowUtc, o);
             rows.Add(new RegionRow(s.Region.Code, s.Region.Name, false, s.Region.IsEnabled, stale,
-                RegionQuorum.IsVoting(s, monitor, fingerprint, nowUtc, o),
+                allowed.Contains(s.RegionId) && RegionQuorum.IsEligible(s, monitor, fingerprint, nowUtc, o),
                 s.LastIsUp, s.LastCheckedAtUtc, s.LastResponseTimeMs, s.LastError,
                 st?.Checks ?? 0, st?.Failures ?? 0, st?.Avg is double avg ? Math.Round(avg, 1) : null));
         }

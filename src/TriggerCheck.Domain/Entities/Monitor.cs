@@ -93,6 +93,12 @@ public class Monitor
     /// <summary><see cref="Version"/> when the confirmation was scheduled; a different Version means the monitor was changed and the confirmation is void.</summary>
     public int? PendingConfirmationVersion { get; set; }
 
+    // ---- FEAT-6: multi-region checks (see RegionQuorum) ----
+    /// <summary>Probe settings fingerprint of the last central probe; a probe of older settings does not vote.</summary>
+    public string? LastProbeFingerprint { get; set; }
+    /// <summary>When a failure last pulled the regions' next probes forward (at most once per interval).</summary>
+    public DateTime? RegionsExpeditedAtUtc { get; set; }
+
     /// <summary>
     /// Application-managed optimistic concurrency token (SQLite has no rowversion). Bumped by user changes (edit,
     /// pause, resume, SuperAdmin interval clamp / reactivation) and by the check runner whenever it changes Status or

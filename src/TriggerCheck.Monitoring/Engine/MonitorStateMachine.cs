@@ -138,23 +138,31 @@ public static class MonitorStateMachine
     /// as usual; ConsecutiveFailures tracks central's own streak (reset in maintenance unless DOWN, as in
     /// <see cref="ApplyInMaintenance"/>), and the status follows <see cref="ApplyVote"/>.
     /// </summary>
-    public static StatusTransition ApplyQuorumProbe(MonitorEntity monitor, CheckOutcome outcome, DateTime checkedAtUtc, Regions.QuorumDecision vote, bool inMaintenance)
+    public static StatusTransition ApplyQuorumProbe(MonitorEntity monitor, CheckOutcome outcome, DateTime checkedAtUtc, Regions.QuorumDecision vote,
+        bool inMaintenance, TimeSpan minTransitionGap)
     {
         RecordProbe(monitor, outcome, checkedAtUtc);
         monitor.NextCheckAtUtc = NextCheckAfter(monitor.NextCheckAtUtc, monitor.IntervalSeconds, checkedAtUtc);
-        if (outcome.IsUp) monitor.ConsecutiveFailures = 0;
-        else if (inMaintenance && monitor.Status != MonitorStatus.Down) monitor.ConsecutiveFailures = 0;
-        else monitor.ConsecutiveFailures++;
-        return ApplyVote(monitor, vote, checkedAtUtc, inMaintenance);
+        monitor.ConsecutiveFailures = CentralStreakAfter(monitor, outcome.IsUp, inMaintenance);
+        return ApplyVote(monitor, vote, checkedAtUtc, inMaintenance, minTransitionGap);
     }
 
+    /// <summary>Central's failure streak after a probe (reset in maintenance unless DOWN, as in <see cref="ApplyInMaintenance"/>).</summary>
+    public static int CentralStreakAfter(MonitorEntity monitor, bool isUp, bool inMaintenance) =>
+        isUp || (inMaintenance && monitor.Status != MonitorStatus.Down) ? 0 : monitor.ConsecutiveFailures + 1;
+
     /// <summary>
-    /// FEAT-6: status by majority of the active regions (see <see cref="Regions.RegionQuorum"/>). Majority up: UP (a
-    /// recovery when it was DOWN). Majority failing: DOWN, dated from the earliest failing vote - never in maintenance.
-    /// Otherwise the status is kept.
+    /// FEAT-6: status by majority of the decisive votes (see <see cref="Regions.RegionQuorum"/>; callers apply it only when
+    /// <see cref="Regions.QuorumDecision.UsesQuorum"/>). Majority up: UP (a recovery when it was DOWN). Majority failing:
+    /// DOWN, dated from the start of the failing streaks - never in maintenance. Hysteresis: a DOWN lasts at least
+    /// <paramref name="minTransitionGap"/> before the quorum ends it (a new DOWN already needs failure streaks that reach
+    /// the threshold in a majority of regions, so the status cannot flap faster than that).
     /// </summary>
-    public static StatusTransition ApplyVote(MonitorEntity monitor, Regions.QuorumDecision vote, DateTime nowUtc, bool inMaintenance)
+    public static StatusTransition ApplyVote(MonitorEntity monitor, Regions.QuorumDecision vote, DateTime nowUtc, bool inMaintenance, TimeSpan minTransitionGap)
     {
+        if (!vote.UsesQuorum) return StatusTransition.None;
+        if (vote.UpMajority && monitor.Status == MonitorStatus.Down && monitor.StatusChangedAtUtc is { } downSince && nowUtc - downSince < minTransitionGap)
+            return StatusTransition.None;
         if (vote.UpMajority)
         {
             if (monitor.Status == MonitorStatus.Up) return StatusTransition.None;

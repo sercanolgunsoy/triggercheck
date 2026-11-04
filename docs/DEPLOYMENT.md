@@ -82,7 +82,7 @@ secret store, never in the image or in `appsettings.json`.
 | `Escalation__CheckIntervalSeconds` (30), `Escalation__AckLinkValidHours` (72) | no | How often the escalation job runs; lifetime of acknowledge links. |
 | `Monitoring__DnsResolvers__0`, `__1`, ... | no (1.1.1.1, 8.8.8.8) | Resolvers for DNS monitors, tried in order: `ip`, `ip:port` or `[ipv6]:port`. Operator configuration (not subject to the SSRF guard). |
 | `Heartbeat__PingsPerMinutePerToken` (10), `Heartbeat__PingsPerMinutePerClient` (6000), `Heartbeat__PingsPerSecondGlobal` (1000) | no | Limits of the `/hb/{token}` ping endpoint. The per-client limit is per IPv4 address / IPv6 /64 and deliberately high (many hosts behind one NAT). **Behind a reverse proxy enable ForwardedHeaders**, otherwise all pings share the proxy's address. |
-| `Regions__AgentStaleAfterSeconds` (90), `Regions__VoteWindowFactor` (2), `Regions__LeaseGraceSeconds` (30), `Regions__ClockSkewSeconds` (30), `Regions__AgentRequestsPerMinute` (300) | no | Multi-region checks, see [Probe agents](#probe-agents-multi-region-checks). |
+| `Regions__AgentStaleAfterSeconds` (90), `Regions__VoteWindowFactor` (2), `Regions__LeaseGraceSeconds` (30), `Regions__ClockSkewSeconds` (30), `Regions__MinTransitionSeconds` (60), `Regions__AgentRequestsPerMinute` (300) | no | Multi-region checks, see [Probe agents](#probe-agents-multi-region-checks). |
 | `Seed__DemoData` | no | Ignored outside Development. |
 
 Acknowledge links are protected with ASP.NET Core Data Protection (purpose `IncidentAck.v1`), the same key ring as
@@ -413,22 +413,28 @@ How it works:
 - **Same probe code and SSRF rules.** The agent uses the main app's checkers and `TargetGuard`, with
   `Monitoring__AllowPrivateTargets=false` (the image sets it explicitly). Do not enable it in production: probes could
   then reach the agent network's internal addresses.
-- **Majority vote.** A monitor with regions is decided by the regions that currently vote (central + every enabled
-  region whose agent called in within `Regions__AgentStaleAfterSeconds` and whose last result for the monitor is
-  younger than `VoteWindowFactor` x interval + timeout + `LeaseGraceSeconds`). It goes DOWN only when **more than
-  half** fail and comes back UP when more than half succeed; otherwise the status is kept (with two regions both must
-  agree). The second region replaces the confirmation probe of the single-region rules: a region that starts failing
-  makes the other regions (and central) check again within `Monitoring__ConfirmationDelaySeconds`. The incident
-  records the failing regions. When fewer than two regions vote (agents down, region disabled), the monitor falls
-  back to the single-region rules (FailureThreshold + confirmation probe), so it is never left unmonitored.
+- **Majority vote.** A region's last result votes when the region is enabled and within the plan's limit, its agent
+  called in within `Regions__AgentStaleAfterSeconds`, and the result is younger than `VoteWindowFactor` x interval +
+  timeout + `LeaseGraceSeconds`, was not taken in a maintenance window and was taken with the monitor's current
+  settings. A success votes UP; a failure votes DOWN only once that region's failure streak reaches the monitor's
+  FailureThreshold (single blips abstain). With **three or more** such votes and a strict majority the vote decides:
+  DOWN when more than half fail, UP when more than half succeed; a DOWN decided this way lasts at least
+  `Regions__MinTransitionSeconds` (hysteresis). In every other case (one or two votes, a split, abstentions) the
+  monitor follows central's single-region rules (FailureThreshold + confirm before DOWN), and remote failures only
+  serve as the confirmation of a central failure. So with central + one region, a geo-blocked or lying agent can
+  neither take a monitor down, keep it down, nor hide an outage central sees. A failure pulls the next probe of the
+  regions and central forward to `Monitoring__ConfirmationDelaySeconds`, at most once per interval per monitor (at
+  most two probes per region and interval). The incident records the failing regions when the vote decided.
 - **Uptime** of a multi-region monitor follows the central check timeline, each check counting as up unless the voted
-  status after it was DOWN. Remote results are stored per region (shown in the monitor's "Regions" card: latest
+  status after it was DOWN (the chart's failure marks use the same rule). Remote results are stored per region (shown in the monitor's "Regions" card: latest
   result, 24 h average response time and failures) and are not counted in uptime or the main response-time chart.
 - **Plans.** `Plan.MaxRegions` (SuperAdmin > Plans) limits the regions per monitor, central included: 1 = central only
   (Basic, Standard), Pro 3, Enterprise 0 = all. Customers choose regions per monitor (monitor page > Regions > Manage
-  regions, CustomerAdmin). Heartbeat monitors are push based and have no regions; DNS monitors can use them (each
-  agent uses its own `Monitoring__DnsResolvers`). A plan downgrade to 1 region stops remote checks at once; regions
-  beyond a lowered limit (>1) stay assigned until the customer changes them.
+  regions, CustomerAdmin). Heartbeat monitors are push based and have no regions (changing a monitor to Heartbeat
+  removes its regions); DNS monitors can use them (each agent uses its own `Monitoring__DnsResolvers`). After a plan
+  downgrade only the first `MaxRegions - 1` assigned regions (by region id) are leased and counted, immediately;
+  the others stay assigned (and come back on an upgrade) but are ignored. The public API returns central checks only
+  unless `?region=all`; AI baselines and context use central checks only.
 - **Not shared:** TLS certificate tracking and expiry alerts use the central probe only.
 
 ### Setting up a region
@@ -487,4 +493,10 @@ only for the region's own, unexpired lease item, once; foreign, replayed or late
 a monitor that was edited, paused or deleted after the lease is discarded.
 
 **Scaling note:** results are applied in the main app process (single instance on SQLite, like the scheduler).
+
+**Upgrading an existing installation:** FEAT-6 adds tables (`Regions`, `MonitorRegionStates`) and columns
+(`CheckResults.RegionId`/`VotedUp`, `Incidents.FailedRegions`, `Plans.MaxRegions`, `Monitors.LastProbeFingerprint`/
+`RegionsExpeditedAtUtc`). Until the EF migrations (OPS-1) exist, the schema is created by `EnsureCreated` only on an
+empty database: back up and recreate the database, or apply the migration once OPS-1 lands (`Plans.MaxRegions` must
+default to 1, so existing plans keep central-only checks). Agents are optional: without regions nothing changes.
 

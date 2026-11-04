@@ -102,6 +102,8 @@ public sealed class MonitorCommands(AppDbContext db, HeartbeatRateLimiter? heart
             try
             {
                 await db.SaveChangesAsync(ct);
+                // FEAT-6: heartbeat (push) monitors have no probe regions.
+                if (m.Type == MonitorType.Heartbeat) await db.MonitorRegionStates.Where(s => s.MonitorId == m.Id).ExecuteDeleteAsync(ct);
                 // ApplyTo issues a token on every attempt that switches to Heartbeat: the saved one is the last.
                 return new(m, MonitorCommandError.None) { IssuedHeartbeatToken = Known(input.IssuedHeartbeatToken) };
             }
