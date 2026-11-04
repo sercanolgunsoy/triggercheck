@@ -172,4 +172,25 @@ public class DeveloperExceptionPageTests
         Assert.False(r.Headers.Contains("Content-Security-Policy")); // ...so no CSP here
         Assert.Equal("nosniff", r.Headers.GetValues("X-Content-Type-Options").Single());
     }
+
+    [Fact]
+    public async Task Production_error_page_keeps_the_csp()
+    {
+        await using var f = new TestWebAppFactory();
+        using var prod = f.WithWebHostBuilder(b =>
+        {
+            b.UseEnvironment("Production");
+            b.ConfigureServices(s => s.AddTransient<IStartupFilter, ThrowAtEndFilter>());
+        });
+
+        // https: production redirects plain http.
+        var client = prod.CreateClient(new() { BaseAddress = new Uri("https://localhost"), AllowAutoRedirect = false });
+        var r = await client.GetAsync("/__throw");
+
+        Assert.Equal(HttpStatusCode.InternalServerError, r.StatusCode);
+        var csp = r.Headers.GetValues("Content-Security-Policy").Single();
+        Assert.Contains("default-src 'self'", csp);
+        Assert.Contains("'nonce-", csp);
+        Assert.DoesNotContain("boom", await r.Content.ReadAsStringAsync());
+    }
 }

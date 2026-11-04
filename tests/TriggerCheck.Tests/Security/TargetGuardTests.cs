@@ -1,4 +1,5 @@
 using System.Net;
+using Microsoft.Extensions.Logging;
 using TriggerCheck.Monitoring.Security;
 
 namespace TriggerCheck.Tests.Security;
@@ -84,6 +85,26 @@ public class TargetGuardTests
     {
         var ex = await Assert.ThrowsAsync<BlockedTargetException>(() => TargetGuard.ResolveAsync(host, allowPrivate: false, CancellationToken.None));
         Assert.StartsWith("Blocked target", ex.Message);
+    }
+
+    [Fact]
+    public async Task Repeated_blocks_of_a_host_warn_once_then_log_at_debug()
+    {
+        var logger = new LevelLogger();
+        const string host = "10.201.202.203"; // used by no other test (the throttle is process-wide)
+        for (var i = 0; i < 3; i++)
+            await Assert.ThrowsAsync<BlockedTargetException>(() => TargetGuard.ResolveAsync(host, false, CancellationToken.None, logger));
+
+        Assert.Equal([LogLevel.Warning, LogLevel.Debug, LogLevel.Debug], logger.Levels);
+    }
+
+    private sealed class LevelLogger : ILogger
+    {
+        public List<LogLevel> Levels { get; } = [];
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+            Levels.Add(logLevel);
     }
 
     [Fact]

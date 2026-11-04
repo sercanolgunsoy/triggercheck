@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
 using Microsoft.Extensions.Logging;
@@ -98,10 +99,32 @@ public static class TargetGuard
         var blocked = addresses.FirstOrDefault(IsBlocked);
         if (blocked is not null)
         {
-            logger?.LogWarning("Blocked outbound connection to {Host} (resolved to {Address}): private or internal address", h, blocked);
+            if (logger is not null) LogBlocked(logger, h, blocked);
             throw new BlockedTargetException();
         }
         return addresses;
+    }
+
+    /// <summary>Warnings are throttled per host (a blocked monitor retries every few seconds); Debug logs every attempt.</summary>
+    public static readonly TimeSpan WarningInterval = TimeSpan.FromMinutes(10);
+    private const int MaxThrottledHosts = 10_000;
+    private static readonly ConcurrentDictionary<string, long> LastWarningTicks = new(StringComparer.OrdinalIgnoreCase);
+
+    private static void LogBlocked(ILogger logger, string host, IPAddress address)
+    {
+        var now = Environment.TickCount64;
+        var last = LastWarningTicks.GetValueOrDefault(host, long.MinValue);
+        if (last == long.MinValue || now - last >= WarningInterval.TotalMilliseconds)
+        {
+            if (LastWarningTicks.Count >= MaxThrottledHosts) LastWarningTicks.Clear(); // keep memory bounded
+            LastWarningTicks[host] = now;
+            logger.LogWarning("Blocked outbound connection to {Host} (resolved to {Address}): private or internal address. " +
+                              "Further blocks for this host are logged at Debug for {Minutes} minutes.", host, address, WarningInterval.TotalMinutes);
+        }
+        else
+        {
+            logger.LogDebug("Blocked outbound connection to {Host} (resolved to {Address})", host, address);
+        }
     }
 
     /// <summary>Opens a TCP connection to a validated address of <paramref name="host"/> (used by probes, webhooks and the TCP checker).</summary>

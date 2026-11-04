@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Monitoring;
@@ -85,6 +86,8 @@ public class SsrfProbeTests : IAsyncLifetime
         {
             s.AddSingleton<IOptionsMonitor<MonitoringOptions>>(options);
             s.AddSingleton<Microsoft.Extensions.Logging.ILoggerProvider>(logs);
+            // Repeated blocks of the same host are logged at Debug (warning throttle), so capture Debug too.
+            s.AddLogging(b => b.SetMinimumLevel(Microsoft.Extensions.Logging.LogLevel.Debug));
         });
 
         var o = await Checker(sp, MonitorType.Keyword).CheckAsync(
