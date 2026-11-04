@@ -1,3 +1,125 @@
 @page
-@{ ViewData["Title"] = "SuperAdmin"; }
-<h2>SuperAdmin panel (yapım aşamasında)</h2>
+@model IndexModel
+@{ ViewData["Title"] = L["Overview"]; }
+
+<div class="page-head">
+    <div>
+        <h2>@L["Platform overview"]</h2>
+        <div class="sub">@L["Times: {0} (Europe/Istanbul)", Fmt.TimeZoneLabel]</div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-sm-6 col-lg-3">
+        <div class="card stat stat-brand h-100"><div class="card-body">
+            <div class="stat-label"><span class="stat-icon">@Icons.Get("building", 16)</span> @L["Customers"]</div>
+            <div class="stat-value">@Fmt.Number(Model.CustomersTotal)</div>
+            <div class="small"><span class="text-success">@L["{0} active", Fmt.Number(Model.CustomersActive)]</span> · <span class="text-danger">@L["{0} suspended", Fmt.Number(Model.CustomersSuspended)]</span></div>
+        </div></div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="card stat stat-up h-100"><div class="card-body">
+            <div class="stat-label"><span class="stat-icon">@Icons.Get("activity", 16)</span> @L["Monitors"]</div>
+            <div class="stat-value">@Fmt.Number(Model.MonitorsTotal)</div>
+            <div class="small d-flex flex-wrap gap-1 mt-1">
+                <span class="badge bg-success">@Fmt.StatusName(MonitorStatus.Up) @Model.MonitorsByStatus[MonitorStatus.Up]</span>
+                <span class="badge bg-danger">@Fmt.StatusName(MonitorStatus.Down) @Model.MonitorsByStatus[MonitorStatus.Down]</span>
+                <span class="badge bg-secondary">@Fmt.StatusName(MonitorStatus.Paused) @Model.MonitorsByStatus[MonitorStatus.Paused]</span>
+                <span class="badge bg-warning text-dark">@Fmt.StatusName(MonitorStatus.Unknown) @Model.MonitorsByStatus[MonitorStatus.Unknown]</span>
+            </div>
+        </div></div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="card stat stat-pending h-100"><div class="card-body">
+            <div class="stat-label"><span class="stat-icon">@Icons.Get("zap", 16)</span> @L["Checks performed"]</div>
+            <div class="stat-value">@Fmt.Number(Model.ChecksLastHour)</div>
+            <div class="small text-muted">@L["last hour"] · @L["last 24 hours:"] <strong>@Fmt.Number(Model.ChecksLast24h)</strong></div>
+        </div></div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="card stat stat-brand h-100"><div class="card-body">
+            <div class="stat-label"><span class="stat-icon">@Icons.Get("card", 16)</span> @L["Estimated monthly revenue (MRR)"]</div>
+            <div class="stat-value">@Fmt.Money(Model.EstimatedMrr)</div>
+            <div class="small text-muted">@L["sum of the plan prices of active customers"]</div>
+        </div></div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header fw-semibold">@L["Breakdown by plan"]</div>
+            <div class="table-responsive">
+            <table class="table table-sm mb-0 align-middle">
+                <thead><tr><th>@L["Plan"]</th><th class="text-end">@L["Customers (active)"]</th><th class="text-end">@L["Monitors"]</th><th class="text-end">@L["Price"]</th></tr></thead>
+                <tbody>
+                @foreach (var p in Model.MonitorsPerPlan)
+                {
+                    <tr>
+                        <td>@p.PlanName @if (!p.PlanActive) { <span class="badge bg-light text-dark border">@L["inactive"]</span> }</td>
+                        <td class="text-end">@Fmt.Number(p.Customers) (@Fmt.Number(p.ActiveCustomers))</td>
+                        <td class="text-end">@Fmt.Number(p.Monitors)</td>
+                        <td class="text-end">@Fmt.Money(p.Price)</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card h-100 @(Model.OverdueMonitors > 0 ? "border-warning" : "border-success")">
+            <div class="card-header fw-semibold">@L["Scheduler health"]</div>
+            <div class="card-body">
+                @if (Model.OverdueMonitors == 0)
+                {
+                    <p class="text-success fw-semibold mb-2" id="scheduler-ok">@L["The monitoring engine is running on time."]</p>
+                }
+                else
+                {
+                    <p class="text-warning fw-semibold mb-2" id="scheduler-overdue">@L["Overdue monitors: {0}", Fmt.Number(Model.OverdueMonitors)]</p>
+                    <p class="small mb-2">@L["Oldest pending check:"] @Fmt.Time(Model.OldestOverdueNextCheckUtc) @Fmt.TimeZoneLabel</p>
+                }
+                <p class="small text-muted mb-0">
+                    @L["Enabled monitors (active customers):"] <strong>@Fmt.Number(Model.EnabledMonitors)</strong>.
+                    @L["A monitor counts as overdue when its next check time is more than twice its interval in the past."]
+                    @L["If the backlog keeps growing, the monitoring engine cannot keep up or may be down."]
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header fw-semibold d-flex justify-content-between">
+        <span>@L["Open incidents"]</span>
+        <span class="badge @(Model.OpenIncidentCount > 0 ? "bg-danger" : "bg-success")">@Fmt.Number(Model.OpenIncidentCount)</span>
+    </div>
+    @if (Model.OpenIncidents.Count == 0)
+    {
+        <div class="card-body text-muted">@L["No open incidents."]</div>
+    }
+    else
+    {
+        <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0 align-middle">
+            <thead><tr><th>@L["Started ({0})", Fmt.TimeZoneLabel]</th><th>@L["Customer"]</th><th>@L["Monitor"]</th><th>@L["Cause"]</th></tr></thead>
+            <tbody>
+            @foreach (var i in Model.OpenIncidents)
+            {
+                <tr>
+                    <td class="text-nowrap">@Fmt.Time(i.StartedAtUtc)</td>
+                    <td><a asp-page="/Customers/Details" asp-route-id="@i.CustomerId">@i.CustomerName</a></td>
+                    <td>@i.MonitorName<div class="small text-muted text-break">@i.Target</div></td>
+                    <td class="small">@i.Cause</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+        </div>
+        @if (Model.OpenIncidentCount > Model.OpenIncidents.Count)
+        {
+            <div class="card-footer small text-muted">@L["Showing the newest {0} incidents.", Model.OpenIncidents.Count]</div>
+        }
+    }
+</div>

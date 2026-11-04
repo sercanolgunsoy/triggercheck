@@ -1,0 +1,73 @@
+@page
+@model TriggerCheck.Web.Areas.App.Pages.Account.IndexModel
+@{
+    ViewData["Title"] = L["Account & plan"].Value;
+    var plan = Model.Customer.Plan;
+    var usage = plan.MaxMonitors > 0 ? Math.Min(100, 100.0 * Model.MonitorCount / plan.MaxMonitors) : 100;
+}
+
+<h2 class="mb-3">@L["Account & plan"]</h2>
+
+<div class="row g-3">
+    <div class="col-lg-7">
+        <div class="card mb-3">
+            <div class="card-header">@L["Account"]</div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-4">@L["Customer"]</dt><dd class="col-sm-8">@Model.Customer.Name</dd>
+                    <dt class="col-sm-4">@L["Contact e-mail"]</dt><dd class="col-sm-8">@Model.Customer.ContactEmail</dd>
+                    <dt class="col-sm-4">@L["User"]</dt><dd class="col-sm-8">@Model.Email (@Model.RoleName)</dd>
+                    <dt class="col-sm-4">@L["Registered"]</dt><dd class="col-sm-8">@Fmt.Time(Model.Customer.CreatedAtUtc) @Fmt.TimeZoneLabel</dd>
+                </dl>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">@L["Plan"]: <strong>@plan.Name</strong></div>
+            <div class="card-body">
+                <dl class="row">
+                    <dt class="col-sm-4">@L["Shortest check interval"]</dt><dd class="col-sm-8">@Fmt.Interval(plan.MinIntervalSeconds)</dd>
+                    <dt class="col-sm-4">@L["Available intervals"]</dt>
+                    <dd class="col-sm-8">
+                        @foreach (var i in Model.AllowedIntervals) { <span class="badge bg-primary me-1">@Fmt.Interval(i)</span> }
+                    </dd>
+                    <dt class="col-sm-4">@L["Monitors"]</dt>
+                    <dd class="col-sm-8">
+                        @Model.MonitorCount / @plan.MaxMonitors
+                        <div class="progress mt-1" style="height: 6px">
+                            <div class="progress-bar @(usage >= 90 ? "bg-danger" : usage >= 70 ? "bg-warning" : "bg-success")" style="width: @usage.ToString("0", System.Globalization.CultureInfo.InvariantCulture)%"></div>
+                        </div>
+                    </dd>
+                    <dt class="col-sm-4">@L["Data retention"]</dt><dd class="col-sm-8">@L["{0} days", plan.RetentionDays]</dd>
+                    <dt class="col-sm-4">@L["Monthly price"]</dt><dd class="col-sm-8">@(plan.MonthlyPrice == 0 ? L["Free"].Value : Fmt.Money(plan.MonthlyPrice))</dd>
+                </dl>
+                <div class="alert alert-info mb-0">@L["Contact support to change your plan."]</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-5">
+        <div class="card">
+            <div class="card-header">@L["Change password"]</div>
+            <div class="card-body">
+                <form method="post" asp-page-handler="ChangePassword">
+                    <div asp-validation-summary="All" class="text-danger small"></div>
+                    <div class="mb-3">
+                        <label asp-for="Password.CurrentPassword" class="form-label"></label>
+                        <input asp-for="Password.CurrentPassword" class="form-control" autocomplete="current-password" />
+                    </div>
+                    <div class="mb-3">
+                        <label asp-for="Password.NewPassword" class="form-label"></label>
+                        <input asp-for="Password.NewPassword" class="form-control" autocomplete="new-password" />
+                        <div class="form-text">@L["At least 8 characters, with an uppercase letter, a lowercase letter and a digit."]</div>
+                    </div>
+                    <div class="mb-3">
+                        <label asp-for="Password.ConfirmPassword" class="form-label"></label>
+                        <input asp-for="Password.ConfirmPassword" class="form-control" autocomplete="new-password" />
+                    </div>
+                    <button type="submit" class="btn btn-primary">@L["Change password"]</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>

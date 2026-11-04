@@ -1,0 +1,535 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="&quot;{0}&quot; is being monitored again." xml:space="preserve">
+    <value>"{0}" yeniden izleniyor.</value>
+  </data>
+  <data name="&quot;{0}&quot; was paused. It will not be checked until it is resumed." xml:space="preserve">
+    <value>"{0}" duraklatıldı. Devam ettirilene kadar kontrol edilmeyecek.</value>
+  </data>
+  <data name="(ongoing)" xml:space="preserve">
+    <value>(sürüyor)</value>
+  </data>
+  <data name="24 h uptime" xml:space="preserve">
+    <value>24 sa uptime</value>
+  </data>
+  <data name="A keyword monitor needs the text to search for." xml:space="preserve">
+    <value>Anahtar kelime monitörü için aranacak metin zorunludur.</value>
+  </data>
+  <data name="A paused monitor cannot be checked. Resume it first." xml:space="preserve">
+    <value>Duraklatılmış monitör kontrol edilemez. Önce devam ettirin.</value>
+  </data>
+  <data name="A TCP monitor needs a port between 1 and 65535." xml:space="preserve">
+    <value>TCP monitörü için 1-65535 arasında bir port zorunludur.</value>
+  </data>
+  <data name="A user with this e-mail address already exists." xml:space="preserve">
+    <value>Bu e-posta adresiyle kayıtlı bir kullanıcı zaten var.</value>
+  </data>
+  <data name="Account" xml:space="preserve">
+    <value>Hesap</value>
+  </data>
+  <data name="Activate" xml:space="preserve">
+    <value>Aktifleştir</value>
+  </data>
+  <data name="Add" xml:space="preserve">
+    <value>Ekle</value>
+  </data>
+  <data name="Add your first monitor." xml:space="preserve">
+    <value>İlk monitörünüzü ekleyin.</value>
+  </data>
+  <data name="Admins can manage everything; viewers can only read." xml:space="preserve">
+    <value>Yöneticiler her şeyi yönetebilir; görüntüleyiciler yalnızca okuyabilir.</value>
+  </data>
+  <data name="Alert channel &quot;{0}&quot; was added." xml:space="preserve">
+    <value>"{0}" bildirim kanalı eklendi.</value>
+  </data>
+  <data name="Alert channel &quot;{0}&quot; was deleted." xml:space="preserve">
+    <value>"{0}" bildirim kanalı silindi.</value>
+  </data>
+  <data name="Alert channel &quot;{0}&quot; was updated." xml:space="preserve">
+    <value>"{0}" bildirim kanalı güncellendi.</value>
+  </data>
+  <data name="An error occurred while running the check." xml:space="preserve">
+    <value>Kontrol çalıştırılırken bir hata oluştu.</value>
+  </data>
+  <data name="an unknown error" xml:space="preserve">
+    <value>bilinmeyen hata</value>
+  </data>
+  <data name="Are you sure you want to delete the channel {0} ({1}: {2})?" xml:space="preserve">
+    <value>{0} ({1}: {2}) kanalını silmek istediğinize emin misiniz?</value>
+  </data>
+  <data name="Are you sure you want to delete the monitor {0} ({1})?" xml:space="preserve">
+    <value>{0} ({1}) monitörünü silmek istediğinize emin misiniz?</value>
+  </data>
+  <data name="At least 8 characters, with an uppercase letter, a lowercase letter and a digit." xml:space="preserve">
+    <value>En az 8 karakter; büyük harf, küçük harf ve rakam içermeli.</value>
+  </data>
+  <data name="Available intervals" xml:space="preserve">
+    <value>Kullanılabilir aralıklar</value>
+  </data>
+  <data name="avg. {0}" xml:space="preserve">
+    <value>ort. {0}</value>
+  </data>
+  <data name="Cause" xml:space="preserve">
+    <value>Neden</value>
+  </data>
+  <data name="Change password" xml:space="preserve">
+    <value>Şifre değiştir</value>
+  </data>
+  <data name="Channel &quot;{0}&quot; was disabled." xml:space="preserve">
+    <value>"{0}" kanalı devre dışı bırakıldı.</value>
+  </data>
+  <data name="Channel &quot;{0}&quot; was enabled." xml:space="preserve">
+    <value>"{0}" kanalı etkinleştirildi.</value>
+  </data>
+  <data name="Check failed: {0}{1}." xml:space="preserve">
+    <value>Kontrol başarısız: {0}{1}.</value>
+  </data>
+  <data name="Check interval" xml:space="preserve">
+    <value>Kontrol aralığı</value>
+  </data>
+  <data name="Check now" xml:space="preserve">
+    <value>Şimdi kontrol et</value>
+  </data>
+  <data name="Check succeeded: {0}{1}." xml:space="preserve">
+    <value>Kontrol başarılı: {0}{1}.</value>
+  </data>
+  <data name="Code" xml:space="preserve">
+    <value>Kod</value>
+  </data>
+  <data name="Comma-separated codes or ranges, e.g. 200-299,301" xml:space="preserve">
+    <value>Virgülle ayrılmış kodlar veya aralıklar, örn. 200-299,301</value>
+  </data>
+  <data name="Confirm new password" xml:space="preserve">
+    <value>Yeni şifre (tekrar)</value>
+  </data>
+  <data name="Confirm password" xml:space="preserve">
+    <value>Şifre (tekrar)</value>
+  </data>
+  <data name="Contact e-mail" xml:space="preserve">
+    <value>İletişim e-postası</value>
+  </data>
+  <data name="Contact support to change your plan." xml:space="preserve">
+    <value>Plan değişikliği için destek ile iletişime geçin.</value>
+  </data>
+  <data name="Created ({0})" xml:space="preserve">
+    <value>Oluşturulma ({0})</value>
+  </data>
+  <data name="Current password" xml:space="preserve">
+    <value>Mevcut şifre</value>
+  </data>
+  <data name="Current password is required." xml:space="preserve">
+    <value>Mevcut şifre zorunludur</value>
+  </data>
+  <data name="Data retention" xml:space="preserve">
+    <value>Veri saklama</value>
+  </data>
+  <data name="Deactivate" xml:space="preserve">
+    <value>Pasifleştir</value>
+  </data>
+  <data name="Delete alert channel" xml:space="preserve">
+    <value>Bildirim kanalını sil</value>
+  </data>
+  <data name="Delete monitor" xml:space="preserve">
+    <value>Monitörü sil</value>
+  </data>
+  <data name="Delete user {0}? This cannot be undone." xml:space="preserve">
+    <value>{0} kullanıcısı silinsin mi? Bu işlem geri alınamaz.</value>
+  </data>
+  <data name="Details" xml:space="preserve">
+    <value>Detay</value>
+  </data>
+  <data name="Disable" xml:space="preserve">
+    <value>Devre dışı bırak</value>
+  </data>
+  <data name="Down" xml:space="preserve">
+    <value>Down</value>
+  </data>
+  <data name="Downtime records of your monitors" xml:space="preserve">
+    <value>Monitörlerinizin kesinti kayıtları</value>
+  </data>
+  <data name="Duration" xml:space="preserve">
+    <value>Süre</value>
+  </data>
+  <data name="E-mail can be at most 256 characters." xml:space="preserve">
+    <value>E-posta en fazla 256 karakter olabilir</value>
+  </data>
+  <data name="e.g. Operations team" xml:space="preserve">
+    <value>Örn. Operasyon ekibi</value>
+  </data>
+  <data name="e.g. Website" xml:space="preserve">
+    <value>Örn. Web sitesi</value>
+  </data>
+  <data name="Edit alert channel" xml:space="preserve">
+    <value>Bildirim kanalını düzenle</value>
+  </data>
+  <data name="Edit monitor" xml:space="preserve">
+    <value>Monitörü düzenle</value>
+  </data>
+  <data name="Enable" xml:space="preserve">
+    <value>Etkinleştir</value>
+  </data>
+  <data name="Ended" xml:space="preserve">
+    <value>Bitiş</value>
+  </data>
+  <data name="Error" xml:space="preserve">
+    <value>Hata</value>
+  </data>
+  <data name="Expected status codes" xml:space="preserve">
+    <value>Beklenen durum kodları</value>
+  </data>
+  <data name="Expected status codes can be at most 100 characters." xml:space="preserve">
+    <value>Beklenen durum kodları en fazla 100 karakter olabilir</value>
+  </data>
+  <data name="Expected status codes must look like &quot;200-299,301&quot;." xml:space="preserve">
+    <value>Beklenen durum kodları "200-299,301" biçiminde olmalıdır.</value>
+  </data>
+  <data name="expected {0}" xml:space="preserve">
+    <value>beklenen {0}</value>
+  </data>
+  <data name="Failure threshold" xml:space="preserve">
+    <value>Hata eşiği</value>
+  </data>
+  <data name="Failure threshold must be between 1 and 5." xml:space="preserve">
+    <value>Hata eşiği 1-5 arasında olmalıdır</value>
+  </data>
+  <data name="Full name can be at most 200 characters." xml:space="preserve">
+    <value>Ad soyad en fazla 200 karakter olabilir</value>
+  </data>
+  <data name="Full name is required." xml:space="preserve">
+    <value>Ad soyad zorunludur</value>
+  </data>
+  <data name="Full URL starting with http:// or https://." xml:space="preserve">
+    <value>http:// veya https:// ile başlayan tam URL.</value>
+  </data>
+  <data name="GET" xml:space="preserve">
+    <value>GET</value>
+  </data>
+  <data name="HEAD" xml:space="preserve">
+    <value>HEAD</value>
+  </data>
+  <data name="Host name or IP address (without a scheme), e.g. example.com" xml:space="preserve">
+    <value>Alan adı veya IP adresi (şema olmadan), örn. example.com</value>
+  </data>
+  <data name="HTTP method" xml:space="preserve">
+    <value>HTTP metodu</value>
+  </data>
+  <data name="Incident details are POSTed to this address as JSON (http/https)." xml:space="preserve">
+    <value>Olay bilgisi bu adrese JSON olarak POST edilir (http/https).</value>
+  </data>
+  <data name="Invalid channel type." xml:space="preserve">
+    <value>Geçersiz kanal tipi.</value>
+  </data>
+  <data name="Invalid e-mail address." xml:space="preserve">
+    <value>Geçersiz e-posta adresi.</value>
+  </data>
+  <data name="Invalid monitor type." xml:space="preserve">
+    <value>Geçersiz monitör tipi.</value>
+  </data>
+  <data name="Invalid role." xml:space="preserve">
+    <value>Geçersiz rol.</value>
+  </data>
+  <data name="Keyword can be at most 500 characters." xml:space="preserve">
+    <value>Anahtar kelime en fazla 500 karakter olabilir</value>
+  </data>
+  <data name="Last 50 checks" xml:space="preserve">
+    <value>Son 50 kontrol</value>
+  </data>
+  <data name="Last check" xml:space="preserve">
+    <value>Son kontrol</value>
+  </data>
+  <data name="Last error" xml:space="preserve">
+    <value>Son hata</value>
+  </data>
+  <data name="Last response" xml:space="preserve">
+    <value>Son yanıt</value>
+  </data>
+  <data name="Last response time" xml:space="preserve">
+    <value>Son yanıt süresi</value>
+  </data>
+  <data name="Monitor &quot;{0}&quot; was created. The first check will run shortly." xml:space="preserve">
+    <value>"{0}" monitörü oluşturuldu. İlk kontrol birazdan yapılacak.</value>
+  </data>
+  <data name="Monitor &quot;{0}&quot; was deleted." xml:space="preserve">
+    <value>"{0}" monitörü silindi.</value>
+  </data>
+  <data name="Monitor &quot;{0}&quot; was updated." xml:space="preserve">
+    <value>"{0}" monitörü güncellendi.</value>
+  </data>
+  <data name="Monthly price" xml:space="preserve">
+    <value>Aylık ücret</value>
+  </data>
+  <data name="Name can be at most 200 characters." xml:space="preserve">
+    <value>Ad en fazla 200 karakter olabilir</value>
+  </data>
+  <data name="Name is required." xml:space="preserve">
+    <value>Ad zorunludur</value>
+  </data>
+  <data name="New" xml:space="preserve">
+    <value>Yeni</value>
+  </data>
+  <data name="New alert channel" xml:space="preserve">
+    <value>Yeni bildirim kanalı</value>
+  </data>
+  <data name="New channel" xml:space="preserve">
+    <value>Yeni kanal</value>
+  </data>
+  <data name="New monitor" xml:space="preserve">
+    <value>Yeni monitör</value>
+  </data>
+  <data name="New password" xml:space="preserve">
+    <value>Yeni şifre</value>
+  </data>
+  <data name="New password is required." xml:space="preserve">
+    <value>Yeni şifre zorunludur</value>
+  </data>
+  <data name="New user" xml:space="preserve">
+    <value>Yeni kullanıcı</value>
+  </data>
+  <data name="Next check" xml:space="preserve">
+    <value>Sonraki kontrol</value>
+  </data>
+  <data name="No alert channels yet. Add an e-mail or webhook channel to hear about downtime." xml:space="preserve">
+    <value>Henüz bildirim kanalı yok. Kesintilerden haberdar olmak için bir e-posta veya webhook kanalı ekleyin.</value>
+  </data>
+  <data name="No check results in the last 24 hours." xml:space="preserve">
+    <value>Son 24 saatte kontrol sonucu yok.</value>
+  </data>
+  <data name="No checks yet." xml:space="preserve">
+    <value>Henüz kontrol yapılmadı.</value>
+  </data>
+  <data name="No incidents recorded." xml:space="preserve">
+    <value>Kayıtlı olay yok.</value>
+  </data>
+  <data name="No monitors match this filter." xml:space="preserve">
+    <value>Bu filtreye uyan monitör yok.</value>
+  </data>
+  <data name="No monitors yet." xml:space="preserve">
+    <value>Henüz monitör yok.</value>
+  </data>
+  <data name="Open" xml:space="preserve">
+    <value>Açık</value>
+  </data>
+  <data name="Open ({0})" xml:space="preserve">
+    <value>Açık ({0})</value>
+  </data>
+  <data name="Open incidents ({0})" xml:space="preserve">
+    <value>Açık olaylar ({0})</value>
+  </data>
+  <data name="Page {0} / {1} ({2} records)" xml:space="preserve">
+    <value>Sayfa {0} / {1} ({2} kayıt)</value>
+  </data>
+  <data name="Pause" xml:space="preserve">
+    <value>Duraklat</value>
+  </data>
+  <data name="Paused" xml:space="preserve">
+    <value>Duraklatıldı</value>
+  </data>
+  <data name="Pending" xml:space="preserve">
+    <value>Bekliyor</value>
+  </data>
+  <data name="Port" xml:space="preserve">
+    <value>Port</value>
+  </data>
+  <data name="POST" xml:space="preserve">
+    <value>POST</value>
+  </data>
+  <data name="refreshes every 30 sec" xml:space="preserve">
+    <value>sayfa 30 sn'de bir yenilenir</value>
+  </data>
+  <data name="Registered" xml:space="preserve">
+    <value>Kayıt tarihi</value>
+  </data>
+  <data name="Resolved" xml:space="preserve">
+    <value>Çözüldü</value>
+  </data>
+  <data name="Response time (ms)" xml:space="preserve">
+    <value>Yanıt süresi (ms)</value>
+  </data>
+  <data name="Response time — last 24 hours ({0})" xml:space="preserve">
+    <value>Yanıt süresi — son 24 saat ({0})</value>
+  </data>
+  <data name="Result" xml:space="preserve">
+    <value>Sonuç</value>
+  </data>
+  <data name="Resume" xml:space="preserve">
+    <value>Devam et</value>
+  </data>
+  <data name="Shortest check interval" xml:space="preserve">
+    <value>En kısa kontrol aralığı</value>
+  </data>
+  <data name="Started" xml:space="preserve">
+    <value>Başlangıç</value>
+  </data>
+  <data name="Target can be at most 2048 characters." xml:space="preserve">
+    <value>Hedef en fazla 2048 karakter olabilir</value>
+  </data>
+  <data name="Target is required." xml:space="preserve">
+    <value>Hedef zorunludur</value>
+  </data>
+  <data name="Text to look for in the response body" xml:space="preserve">
+    <value>Yanıt gövdesinde aranacak metin</value>
+  </data>
+  <data name="The account must keep at least one active admin." xml:space="preserve">
+    <value>Hesapta en az bir aktif yönetici kalmalıdır.</value>
+  </data>
+  <data name="The current password is incorrect." xml:space="preserve">
+    <value>Mevcut şifre hatalı.</value>
+  </data>
+  <data name="The e-mail address that alerts are sent to." xml:space="preserve">
+    <value>Bildirimlerin gönderileceği e-posta adresi.</value>
+  </data>
+  <data name="The HTTP method must be GET, HEAD or POST." xml:space="preserve">
+    <value>HTTP metodu GET, HEAD veya POST olmalıdır.</value>
+  </data>
+  <data name="The monitor goes DOWN after this many consecutive failed checks." xml:space="preserve">
+    <value>Art arda bu kadar hatalı kontrol sonrası DOWN olur.</value>
+  </data>
+  <data name="The on-demand check service is currently unavailable." xml:space="preserve">
+    <value>Anlık kontrol servisi şu anda kullanılamıyor.</value>
+  </data>
+  <data name="The password must be at least 8 characters long." xml:space="preserve">
+    <value>Şifre en az 8 karakter olmalıdır.</value>
+  </data>
+  <data name="The password must contain at least one digit." xml:space="preserve">
+    <value>Şifre en az bir rakam içermelidir.</value>
+  </data>
+  <data name="The password must contain at least one lowercase letter." xml:space="preserve">
+    <value>Şifre en az bir küçük harf içermelidir.</value>
+  </data>
+  <data name="The password must contain at least one uppercase letter." xml:space="preserve">
+    <value>Şifre en az bir büyük harf içermelidir.</value>
+  </data>
+  <data name="The password must contain more distinct characters." xml:space="preserve">
+    <value>Şifre daha fazla farklı karakter içermelidir.</value>
+  </data>
+  <data name="The passwords do not match." xml:space="preserve">
+    <value>Şifreler eşleşmiyor</value>
+  </data>
+  <data name="The role of {0} was changed to &quot;{1}&quot;." xml:space="preserve">
+    <value>{0} kullanıcısının rolü "{1}" olarak değiştirildi.</value>
+  </data>
+  <data name="The target must be a host name or IP address without a scheme (e.g. example.com)." xml:space="preserve">
+    <value>Hedef, şema içermeyen bir alan adı veya IP adresi olmalıdır (örn. example.com).</value>
+  </data>
+  <data name="The target must be a valid URL starting with http:// or https://." xml:space="preserve">
+    <value>Hedef, http:// veya https:// ile başlayan geçerli bir URL olmalıdır.</value>
+  </data>
+  <data name="The timeout must be shorter than the check interval." xml:space="preserve">
+    <value>Zaman aşımı, kontrol aralığından kısa olmalıdır.</value>
+  </data>
+  <data name="The webhook address must be a valid URL starting with http:// or https://." xml:space="preserve">
+    <value>Webhook adresi http:// veya https:// ile başlayan geçerli bir URL olmalıdır.</value>
+  </data>
+  <data name="This cannot be undone. {0} check results and {1} incident records will also be deleted." xml:space="preserve">
+    <value>Bu işlem geri alınamaz. {0} kontrol sonucu ve {1} olay kaydı da silinecek.</value>
+  </data>
+  <data name="This check interval is not available on your plan ({0}). Allowed: {1}." xml:space="preserve">
+    <value>Bu kontrol aralığı planınızda ({0}) kullanılamaz. İzin verilen: {1}.</value>
+  </data>
+  <data name="Time ({0})" xml:space="preserve">
+    <value>Zaman ({0})</value>
+  </data>
+  <data name="Timeout" xml:space="preserve">
+    <value>Zaman aşımı</value>
+  </data>
+  <data name="Timeout (sec)" xml:space="preserve">
+    <value>Zaman aşımı (sn)</value>
+  </data>
+  <data name="Timeout must be between 1 and 60 seconds." xml:space="preserve">
+    <value>Zaman aşımı 1-60 saniye arasında olmalıdır</value>
+  </data>
+  <data name="times in {0}" xml:space="preserve">
+    <value>saatler {0}</value>
+  </data>
+  <data name="To add a new monitor, {0} or delete an existing monitor." xml:space="preserve">
+    <value>Yeni monitör eklemek için {0} veya mevcut bir monitörü silin.</value>
+  </data>
+  <data name="Unknown error" xml:space="preserve">
+    <value>Bilinmeyen hata</value>
+  </data>
+  <data name="Up" xml:space="preserve">
+    <value>Up</value>
+  </data>
+  <data name="upgrade your plan" xml:space="preserve">
+    <value>planınızı yükseltin</value>
+  </data>
+  <data name="Uptime, last 24 hours" xml:space="preserve">
+    <value>Son 24 saat uptime</value>
+  </data>
+  <data name="Uptime, last 30 days" xml:space="preserve">
+    <value>Son 30 gün uptime</value>
+  </data>
+  <data name="Uptime, last 7 days" xml:space="preserve">
+    <value>Son 7 gün uptime</value>
+  </data>
+  <data name="User" xml:space="preserve">
+    <value>Kullanıcı</value>
+  </data>
+  <data name="User {0} was created ({1})." xml:space="preserve">
+    <value>{0} kullanıcısı oluşturuldu ({1}).</value>
+  </data>
+  <data name="Webhook" xml:space="preserve">
+    <value>Webhook</value>
+  </data>
+  <data name="When your monitors go DOWN / UP, the enabled channels are notified." xml:space="preserve">
+    <value>Monitörleriniz DOWN / UP olduğunda etkin kanallara bildirim gönderilir.</value>
+  </data>
+  <data name="Yes, delete" xml:space="preserve">
+    <value>Evet, sil</value>
+  </data>
+  <data name="You" xml:space="preserve">
+    <value>Siz</value>
+  </data>
+  <data name="You cannot change your own role." xml:space="preserve">
+    <value>Kendi rolünüzü değiştiremezsiniz.</value>
+  </data>
+  <data name="You cannot deactivate your own account." xml:space="preserve">
+    <value>Kendi hesabınızı pasifleştiremezsiniz.</value>
+  </data>
+  <data name="You cannot delete your own account." xml:space="preserve">
+    <value>Kendi hesabınızı silemezsiniz.</value>
+  </data>
+  <data name="You have reached the monitor limit of your plan ({0} / {1})." xml:space="preserve">
+    <value>Planınızın monitör limitine ulaştınız ({0} / {1}).</value>
+  </data>
+  <data name="You have reached the monitor limit of your plan ({0}). Upgrade your plan to add a new monitor." xml:space="preserve">
+    <value>Planınızın monitör limitine ulaştınız ({0}). Yeni monitör eklemek için planınızı yükseltin.</value>
+  </data>
+  <data name="Your password was changed." xml:space="preserve">
+    <value>Şifreniz değiştirildi.</value>
+  </data>
+  <data name="Your plan ({0}) allows intervals down to {1}." xml:space="preserve">
+    <value>Planınız ({0}) en hızlı {1} aralığa izin verir.</value>
+  </data>
+  <data name="{0} (currently {1} consecutive failures)" xml:space="preserve">
+    <value>{0} (şu an {1} art arda hata)</value>
+  </data>
+  <data name="{0} (full access)" xml:space="preserve">
+    <value>{0} (tam yetki)</value>
+  </data>
+  <data name="{0} (read-only)" xml:space="preserve">
+    <value>{0} (salt okunur)</value>
+  </data>
+  <data name="{0} / {1} monitors used" xml:space="preserve">
+    <value>{0} / {1} monitör kullanılıyor</value>
+  </data>
+  <data name="{0} ago" xml:space="preserve">
+    <value>{0} önce</value>
+  </data>
+  <data name="{0} days" xml:space="preserve">
+    <value>{0} gün</value>
+  </data>
+  <data name="{0} was activated." xml:space="preserve">
+    <value>{0} aktifleştirildi.</value>
+  </data>
+  <data name="{0} was deactivated." xml:space="preserve">
+    <value>{0} pasifleştirildi.</value>
+  </data>
+  <data name="{0} was deleted." xml:space="preserve">
+    <value>{0} silindi.</value>
+  </data>
+</root>

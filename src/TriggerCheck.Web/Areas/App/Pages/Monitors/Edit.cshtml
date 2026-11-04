@@ -1,0 +1,21 @@
+@page "{id:int}"
+@model TriggerCheck.Web.Areas.App.Pages.Monitors.EditModel
+@{ ViewData["Title"] = L["Edit monitor"].Value; }
+
+<nav aria-label="breadcrumb"><ol class="breadcrumb">
+    <li class="breadcrumb-item"><a asp-page="Index">@L["Monitors"]</a></li>
+    <li class="breadcrumb-item"><a asp-page="Details" asp-route-id="@Model.Id">@Model.Input.Name</a></li>
+    <li class="breadcrumb-item active">@L["Edit"]</li>
+</ol></nav>
+
+<h2 class="mb-3">@L["Edit monitor"]</h2>
+
+<div class="card"><div class="card-body">
+    <form method="post" asp-route-id="@Model.Id">
+        <partial name="_MonitorForm" model="Model" />
+        <div class="mt-4">
+            <button type="submit" class="btn btn-primary">@L["Save"]</button>
+            <a asp-page="Details" asp-route-id="@Model.Id" class="btn btn-link">@L["Cancel"]</a>
+        </div>
+    </form>
+</div></div>

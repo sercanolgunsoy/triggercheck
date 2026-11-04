@@ -51,7 +51,7 @@ public static class DbSeeder
         if (config.GetValue("Seed:DemoData", true) && !await db.Customers.AnyAsync())
         {
             var standard = await db.Plans.FirstAsync(p => p.Name == "Standard");
-            var demo = new Customer { Name = "Demo Şirketi", ContactEmail = "admin@demo.local", PlanId = standard.Id };
+            var demo = new Customer { Name = "Demo Company", ContactEmail = "admin@demo.local", PlanId = standard.Id };
             db.Customers.Add(demo);
             await db.SaveChangesAsync();
 

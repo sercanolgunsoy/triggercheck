@@ -1,0 +1,29 @@
+@page
+@model TriggerCheck.Web.Areas.App.Pages.Monitors.CreateModel
+@{ ViewData["Title"] = L["New monitor"].Value; }
+
+<nav aria-label="breadcrumb"><ol class="breadcrumb">
+    <li class="breadcrumb-item"><a asp-page="Index">@L["Monitors"]</a></li>
+    <li class="breadcrumb-item active">@L["New"]</li>
+</ol></nav>
+
+<h2 class="mb-3">@L["New monitor"]</h2>
+
+@if (Model.QuotaReached)
+{
+    var upgradeLink = $"<a href=\"{Html.Encode(Url.Page("/Account/Index"))}\">{Html.Encode(L["upgrade your plan"].Value)}</a>";
+    <div class="alert alert-warning">
+        @L["You have reached the monitor limit of your plan ({0} / {1}).", Model.CurrentCount, Model.Plan.MaxMonitors]
+        @Html.Raw(string.Format(Html.Encode(L["To add a new monitor, {0} or delete an existing monitor."].Value), upgradeLink))
+    </div>
+}
+
+<div class="card"><div class="card-body">
+    <form method="post">
+        <partial name="_MonitorForm" model="Model" />
+        <div class="mt-4">
+            <button type="submit" class="btn btn-primary" disabled="@Model.QuotaReached">@L["Create"]</button>
+            <a asp-page="Index" class="btn btn-link">@L["Cancel"]</a>
+        </div>
+    </form>
+</div></div>

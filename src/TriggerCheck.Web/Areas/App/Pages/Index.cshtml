@@ -1,3 +1,85 @@
 @page
-@{ ViewData["Title"] = "App"; }
-<h2>App panel (yapım aşamasında)</h2>
+@model TriggerCheck.Web.Areas.App.Pages.IndexModel
+@{
+    ViewData["Title"] = L["Dashboard"].Value;
+    var isAdmin = User.IsInRole(Roles.CustomerAdmin);
+}
+@section Head { <meta http-equiv="refresh" content="30" /> }
+
+<div class="page-head">
+    <div>
+        <h2>@L["Dashboard"]</h2>
+        <div class="sub">@Model.CustomerName · @L["refreshes every 30 sec"] · @L["times in {0}", Fmt.TimeZoneLabel]</div>
+    </div>
+    @if (isAdmin)
+    {
+        <a class="btn btn-primary" asp-page="/Monitors/Create">@Icons.Get("plus", 16) @L["New monitor"]</a>
+    }
+</div>
+
+<div class="row g-3 mb-4">
+    @foreach (var (tone, icon, value, label, testId) in new[] {
+        ("up", "check", Model.UpCount.ToString(), L["Up"].Value, "count-up"),
+        ("down", "alert", Model.DownCount.ToString(), L["Down"].Value, "count-down"),
+        ("paused", "clock", Model.PausedCount.ToString(), L["Paused"].Value, ""),
+        ("pending", "activity", Model.UnknownCount.ToString(), L["Pending"].Value, ""),
+        ("brand", "chart", Fmt.Percent(Model.OverallUptime24h), L["24 h uptime"].Value, "") })
+    {
+        <div class="@(tone == "brand" ? "col-12" : "col-6") col-md">
+            <div class="card stat stat-@tone h-100 @(tone == "down" && Model.DownCount > 0 ? "is-alert" : "")"><div class="card-body">
+                <div class="stat-label"><span class="stat-icon">@Icons.Get(icon, 16)</span> @label</div>
+                <div class="stat-value" @(testId.Length > 0 ? Html.Raw($"data-testid=\"{testId}\"") : null)>@value</div>
+            </div></div>
+        </div>
+    }
+</div>
+
+@if (Model.OpenIncidents.Count > 0)
+{
+    <div class="card border-danger mb-4">
+        <div class="card-header bg-danger text-white">@L["Open incidents ({0})", Model.OpenIncidents.Count]</div>
+        <ul class="list-group list-group-flush">
+            @foreach (var i in Model.OpenIncidents)
+            {
+                <li class="list-group-item d-flex justify-content-between">
+                    <span><a asp-page="/Monitors/Details" asp-route-id="@i.MonitorId">@i.MonitorName</a> — @(i.Cause ?? L["Unknown error"].Value)</span>
+                    <span class="text-muted">@Fmt.Time(i.StartedAtUtc) · @Fmt.Duration(DateTime.UtcNow - i.StartedAtUtc)</span>
+                </li>
+            }
+        </ul>
+    </div>
+}
+
+<div class="card">
+    <div class="card-header">@L["Monitors"]</div>
+    @if (Model.Monitors.Count == 0)
+    {
+        <div class="card-body empty-state">
+            <span class="icon-wrap">@Icons.Get("activity", 22)</span>
+            <div class="mb-2">@L["No monitors yet."]</div>
+            @if (isAdmin) { <a class="btn btn-primary btn-sm" asp-page="/Monitors/Create">@Icons.Get("plus", 15) @L["Add your first monitor."]</a> }
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-hover mb-0 align-middle">
+                <thead><tr><th>@L["Status"]</th><th>@L["Name"]</th><th>@L["Type"]</th><th>@L["Target"]</th><th class="text-end">@L["Last response"]</th><th class="text-end">@L["24 h uptime"]</th><th>@L["Last check"]</th></tr></thead>
+                <tbody>
+                @foreach (var m in Model.Monitors)
+                {
+                    <tr>
+                        <td><partial name="_StatusBadge" model="m.Status" /></td>
+                        <td><a asp-page="/Monitors/Details" asp-route-id="@m.Id">@m.Name</a></td>
+                        <td>@Fmt.TypeName(m.Type)</td>
+                        <td class="text-truncate" style="max-width: 280px">@m.Target</td>
+                        <td class="text-end">@Fmt.Ms(m.LastResponseTimeMs)</td>
+                        <td class="text-end">@Fmt.Percent(m.Uptime24h)</td>
+                        <td class="small text-muted">@Fmt.Time(m.LastCheckedAtUtc)</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

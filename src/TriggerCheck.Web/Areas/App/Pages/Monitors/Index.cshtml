@@ -1,0 +1,70 @@
+@page
+@model TriggerCheck.Web.Areas.App.Pages.Monitors.IndexModel
+@{
+    ViewData["Title"] = L["Monitors"].Value;
+    var isAdmin = User.IsInRole(Roles.CustomerAdmin);
+    var filters = new (MonitorStatus? Value, string Label)[]
+    {
+        (null, L["All"]), (MonitorStatus.Up, L["Up"]), (MonitorStatus.Down, L["Down"]), (MonitorStatus.Paused, L["Paused"]), (MonitorStatus.Unknown, L["Pending"])
+    };
+}
+
+<div class="page-head">
+    <div>
+        <h2 class="mb-0">@L["Monitors"]</h2>
+        <div class="text-muted small">@L["{0} / {1} monitors used", Model.TotalCount, Model.MaxMonitors] · @L["times in {0}", Fmt.TimeZoneLabel]</div>
+    </div>
+    @if (isAdmin)
+    {
+        <a class="btn btn-primary" asp-page="Create">@Icons.Get("plus", 16) @L["New monitor"]</a>
+    }
+</div>
+
+<ul class="nav nav-pills mb-3">
+    @foreach (var f in filters)
+    {
+        <li class="nav-item">
+            <a class="nav-link @(Model.Status == f.Value ? "active" : "")" asp-page="Index" asp-route-status="@f.Value">@f.Label</a>
+        </li>
+    }
+</ul>
+
+@if (Model.Monitors.Count == 0)
+{
+    <div class="alert alert-light border">@L["No monitors match this filter."]</div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead><tr><th>@L["Status"]</th><th>@L["Name"]</th><th>@L["Type"]</th><th>@L["Target"]</th><th>@L["Interval"]</th><th class="text-end">@L["Last response"]</th><th class="text-end">@L["24 h uptime"]</th><th>@L["Last check"]</th><th></th></tr></thead>
+            <tbody>
+            @foreach (var m in Model.Monitors)
+            {
+                <tr>
+                    <td><partial name="_StatusBadge" model="m.Status" /></td>
+                    <td><a asp-page="Details" asp-route-id="@m.Id">@m.Name</a></td>
+                    <td>@Fmt.TypeName(m.Type)</td>
+                    <td class="text-truncate" style="max-width: 260px">@m.Target@(m.Port is int p ? ":" + p : "")</td>
+                    <td>@Fmt.Interval(m.IntervalSeconds)</td>
+                    <td class="text-end">@Fmt.Ms(m.LastResponseTimeMs)</td>
+                    <td class="text-end">@Fmt.Percent(m.Uptime24h)</td>
+                    <td class="small text-muted">@Fmt.Time(m.LastCheckedAtUtc)</td>
+                    <td class="text-end text-nowrap">
+                        <a class="btn btn-sm btn-outline-secondary" asp-page="Details" asp-route-id="@m.Id">@L["Details"]</a>
+                        @if (isAdmin)
+                        {
+                            <form method="post" asp-page="Details" asp-page-handler="@(m.Status == MonitorStatus.Paused ? "Resume" : "Pause")" asp-route-id="@m.Id" class="d-inline">
+                                <input type="hidden" name="returnTo" value="list" />
+                                <button class="btn btn-sm btn-outline-warning" type="submit">@(m.Status == MonitorStatus.Paused ? L["Resume"] : L["Pause"])</button>
+                            </form>
+                            <a class="btn btn-sm btn-outline-primary" asp-page="Edit" asp-route-id="@m.Id">@L["Edit"]</a>
+                            <a class="btn btn-sm btn-outline-danger" asp-page="Delete" asp-route-id="@m.Id">@L["Delete"]</a>
+                        }
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+}

@@ -1,0 +1,17 @@
+@* Language switcher + light/dark toggle, used by every layout. *@
+@{
+    var here = Context.Request.Path + Context.Request.QueryString;
+    var lang = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
+}
+<div class="dropdown">
+    <button class="tool-btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="@L["Language"]">
+        @Icons.Get("globe", 15) @lang.ToUpperInvariant()
+    </button>
+    <ul class="dropdown-menu dropdown-menu-end">
+        <li><a class="dropdown-item @(lang == "en" ? "active" : "")" href="/set-language?culture=en&returnUrl=@Uri.EscapeDataString(here)" lang="en">English</a></li>
+        <li><a class="dropdown-item @(lang == "tr" ? "active" : "")" href="/set-language?culture=tr&returnUrl=@Uri.EscapeDataString(here)" lang="tr">Türkçe</a></li>
+    </ul>
+</div>
+<button class="tool-btn" type="button" data-theme-toggle aria-label="@L["Toggle dark mode"]" title="@L["Toggle dark mode"]">
+    <span class="theme-icon-light">@Icons.Get("moon", 15)</span><span class="theme-icon-dark">@Icons.Get("sun", 15)</span>
+</button>

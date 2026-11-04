@@ -1,8 +1,149 @@
 @page
 @model IndexModel
-@{ ViewData["Title"] = "Uptime Monitoring"; }
-<div class="py-5 text-center">
-    <h1 class="display-5 fw-bold">TriggerCheck</h1>
-    <p class="lead">Web sitelerinizi ve servislerinizi 15 saniyeye kadar inen aralıklarla izleyin. Kesinti anında haberdar olun.</p>
-    <a class="btn btn-primary btn-lg" asp-page="/Account/Login">Giriş yap</a>
-</div>
+@{
+    ViewData["Title"] = L["Uptime monitoring"].Value;
+    Layout = "_MarketingLayout";
+    var mailto = $"mailto:{Model.ContactEmail}?subject={Uri.EscapeDataString("TriggerCheck")}";
+    // Deterministic "last 30 checks" strips for the product preview: 1 = up, 2 = slow, 3 = down.
+    int[] web = [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1];
+    int[] api = [1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,3,3,1,1,1,1,1,1];
+    int[] db  = [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,3];
+}
+
+<section class="hero">
+    <div class="container">
+        <div class="row align-items-center g-5">
+            <div class="col-lg-6">
+                <span class="eyebrow"><span class="pill">@L["New"]</span> @L["Checks as often as every {0}", Fmt.Interval(Model.FastestInterval)]</span>
+                <h1 class="display-title mt-4 mb-4">@L["Know it's down"]<br /><span class="gradient-text">@L["before your customers do."]</span></h1>
+                <p class="lead-lg mb-4">@L["TriggerCheck watches your websites, APIs and servers around the clock and alerts your team the moment something breaks, with a clear record of every incident."]</p>
+                <div class="d-flex flex-wrap gap-2 mb-4">
+                    <a class="btn btn-primary btn-lg" href="@mailto">@L["Request access"] @Icons.Get("arrow-right", 18)</a>
+                    <a class="btn btn-outline-secondary btn-lg" href="/Pricing">@L["See pricing"]</a>
+                </div>
+                <div class="trust-line">
+                    @if (Model.Plans.Any(p => p.MonthlyPrice == 0)) { <span>@Icons.Get("check", 16) @L["Free plan available"]</span> }
+                    <span>@Icons.Get("check", 16) @L["Set up in under a minute"]</span>
+                    <span>@Icons.Get("check", 16) @L["No agent to install"]</span>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="mock-wrap">
+                    <div class="mock" aria-hidden="true">
+                        <div class="mock-bar"><i></i><i></i><i></i><span class="url">app.triggercheck.io</span></div>
+                        <div class="mock-body">
+                            <div class="mock-stats">
+                                <div class="mock-stat"><small>@Fmt.StatusName(MonitorStatus.Up)</small><b class="text-success">11</b></div>
+                                <div class="mock-stat"><small>@Fmt.StatusName(MonitorStatus.Down)</small><b class="text-danger">1</b></div>
+                                <div class="mock-stat"><small>@L["24 h uptime"]</small><b>@Fmt.Percent(99.93)</b></div>
+                            </div>
+                            @foreach (var (name, target, status, ms, bars) in new[] {
+                                ("Website", "https://shop.example.com", MonitorStatus.Up, "182 ms", web),
+                                ("Checkout API", "https://api.example.com/health", MonitorStatus.Up, "96 ms", api),
+                                ("Database", "db.example.com:5432", MonitorStatus.Down, "—", db) })
+                            {
+                                <div class="mock-row">
+                                    <div class="nm"><partial name="_StatusBadge" model="status" /> <span>@name</span> <small>@target</small></div>
+                                    <div class="meta">@ms</div>
+                                    <div class="bars">@foreach (var b in bars) { <i class="@(b == 3 ? "d" : b == 2 ? "w" : "")"></i> }</div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                    <div class="float-card fc-1" aria-hidden="true">
+                        <span class="ico" style="background: var(--tc-down-soft); color: var(--tc-down)">@Icons.Get("bell")</span>
+                        <div><b>@L["Database is DOWN"]</b><small>@L["Connection refused · on-call alerted by e-mail"]</small></div>
+                    </div>
+                    <div class="float-card fc-2" aria-hidden="true">
+                        <span class="ico" style="background: var(--tc-up-soft); color: var(--tc-up)">@Icons.Get("check")</span>
+                        <div><b>@L["Checkout API recovered"]</b><small>@L["Down for {0}", Fmt.Duration(TimeSpan.FromMinutes(2))]</small></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="stats-strip mt-5">
+            <div><b>@Fmt.Interval(Model.FastestInterval)</b><span>@L["shortest interval"]</span></div>
+            <div><b>4</b><span>@L["check types"]</span></div>
+            <div><b>@L["{0} days", Model.LongestRetention]</b><span>@L["of check history"]</span></div>
+            <div><b>24/7</b><span>@L["monitoring, no agents"]</span></div>
+        </div>
+    </div>
+</section>
+
+<section class="section section-alt">
+    <div class="container">
+        <div class="section-head">
+            <div class="kicker">@L["Why TriggerCheck"]</div>
+            <h2>@L["Everything you need to stay up"]</h2>
+            <p>@L["One place to watch every endpoint, get the right people alerted and understand what happened."]</p>
+        </div>
+        <div class="row g-4">
+            @foreach (var (icon, tone, title, text) in new[] {
+                ("zap", "", L["Fast, frequent checks"].Value, L["Check every 5 minutes or as often as every 15 seconds, depending on your plan. Short outages don't slip through."].Value),
+                ("activity", "cyan", L["Four kinds of checks"].Value, L["HTTP(S) status codes, keyword matching in the response body, TCP ports and ping. Cover sites, APIs, databases and hosts."].Value),
+                ("bell", "rose", L["Alerts without the noise"].Value, L["A failure threshold filters out blips. You get one alert when a monitor goes down and one when it recovers, by e-mail or webhook."].Value),
+                ("alert", "amber", L["Automatic incident log"].Value, L["Every outage becomes an incident with its start, end, duration and cause, so post-mortems take minutes, not hours."].Value),
+                ("chart", "green", L["Uptime and response times"].Value, L["24-hour, 7-day and 30-day uptime per monitor, plus a response-time chart and the last 50 checks."].Value),
+                ("users", "", L["Built for teams"].Value, L["Invite your team as admins or read-only viewers. Each company's data is fully isolated."].Value) })
+            {
+                <div class="col-md-6 col-lg-4">
+                    <div class="feature">
+                        <span class="feature-icon @tone">@Icons.Get(icon, 22)</span>
+                        <h3>@title</h3>
+                        <p>@text</p>
+                    </div>
+                </div>
+            }
+        </div>
+        <div class="text-center mt-5"><a class="btn btn-outline-primary" href="/Features">@L["Explore all features"] @Icons.Get("arrow-right", 16)</a></div>
+    </div>
+</section>
+
+<section class="section">
+    <div class="container">
+        <div class="section-head">
+            <div class="kicker">@L["How it works"]</div>
+            <h2>@L["Up and running in three steps"]</h2>
+        </div>
+        <div class="row g-5 steps">
+            <div class="col-md-4 step">
+                <h3>@L["Add a monitor"]</h3>
+                <p>@L["Enter a URL, host or port, choose the check type and how often to check. No code, no agent."]</p>
+            </div>
+            <div class="col-md-4 step">
+                <h3>@L["Connect your alerts"]</h3>
+                <p>@L["Add e-mail addresses, or a webhook that receives a JSON event for your own tooling."]</p>
+            </div>
+            <div class="col-md-4 step">
+                <h3>@L["Relax, we're watching"]</h3>
+                <p>@L["We check around the clock, open an incident when something fails and tell you when it's back."]</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="section section-alt">
+    <div class="container">
+        <div class="section-head">
+            <div class="kicker">@L["Pricing"]</div>
+            <h2>@L["Simple plans that grow with you"]</h2>
+            <p>@L["Upgrade any time for faster checks, more monitors and longer history."]</p>
+        </div>
+        <partial name="_PlanCards" model="new PlanCardsModel(Model.Plans, Model.ContactEmail)" />
+        <div class="text-center mt-5"><a class="btn btn-link" href="/Pricing#compare">@L["Compare all plan features"] @Icons.Get("arrow-right", 16)</a></div>
+    </div>
+</section>
+
+<section class="section">
+    <div class="container">
+        <div class="cta-band">
+            <h2>@L["Stop finding out about downtime from your customers."]</h2>
+            <p>@L["Set up your first monitor in under a minute. Your team will thank you at 3 a.m."]</p>
+            <div class="d-flex flex-wrap justify-content-center gap-2">
+                <a class="btn btn-light btn-lg" href="@mailto">@L["Request access"]</a>
+                <a class="btn btn-outline-light btn-lg" href="/Account/Login">@L["Sign in"]</a>
+            </div>
+        </div>
+    </div>
+</section>

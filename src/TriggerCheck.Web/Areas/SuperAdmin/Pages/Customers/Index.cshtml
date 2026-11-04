@@ -1,0 +1,62 @@
+@page
+@model TriggerCheck.Web.Areas.SuperAdmin.Pages.Customers.IndexModel
+@{ ViewData["Title"] = L["Customers"]; }
+
+<div class="page-head">
+    <h2 class="mb-0">@L["Customers"]</h2>
+    <a asp-page="Create" class="btn btn-primary">@Icons.Get("plus", 16) @L["New customer"]</a>
+</div>
+
+<form method="get" class="row g-2 mb-3">
+    <div class="col-md-5">
+        <input asp-for="Q" class="form-control" placeholder="@L["Search by name or e-mail"]" />
+    </div>
+    <div class="col-md-3">
+        <select asp-for="State" class="form-select">
+            <option value="">@L["All statuses"]</option>
+            <option value="active">@L["Active"]</option>
+            <option value="suspended">@L["Suspended"]</option>
+        </select>
+    </div>
+    <div class="col-md-2">
+        <select asp-for="PlanId" class="form-select">
+            <option value="">@L["All plans"]</option>
+            @foreach (var p in Model.Plans) { <option value="@p.Id">@p.Name</option> }
+        </select>
+    </div>
+    <div class="col-md-2 d-grid">
+        <button class="btn btn-outline-secondary" type="submit">@L["Filter"]</button>
+    </div>
+</form>
+
+<div class="card">
+<div class="table-responsive">
+<table class="table table-hover align-middle mb-0">
+    <thead class="table-light">
+        <tr><th>@L["Customer"]</th><th>@L["Plan"]</th><th>@L["Status"]</th><th class="text-end">@L["Monitors"]</th><th class="text-end">@L["Users"]</th><th>@L["Created"]</th><th></th></tr>
+    </thead>
+    <tbody>
+    @if (Model.Rows.Count == 0)
+    {
+        <tr><td colspan="7" class="text-center text-muted py-4">@L["No records found."]</td></tr>
+    }
+    @foreach (var c in Model.Rows)
+    {
+        <tr>
+            <td><a asp-page="Details" asp-route-id="@c.Id" class="fw-semibold">@c.Name</a><div class="small text-muted">@c.ContactEmail</div></td>
+            <td>@c.PlanName</td>
+            <td>@if (c.IsActive) { <span class="badge bg-success">@L["Active"]</span> } else { <span class="badge bg-danger">@L["Suspended"]</span> }</td>
+            <td class="text-end @(c.Monitors > c.MaxMonitors ? "text-danger fw-semibold" : "")">@c.Monitors / @c.MaxMonitors</td>
+            <td class="text-end">@c.Users</td>
+            <td>@Fmt.Date(c.CreatedAtUtc)</td>
+            <td class="text-end text-nowrap">
+                <a asp-page="Details" asp-route-id="@c.Id" class="btn btn-sm btn-outline-primary">@L["Details"]</a>
+                <a asp-page="Edit" asp-route-id="@c.Id" class="btn btn-sm btn-outline-secondary">@L["Edit"]</a>
+            </td>
+        </tr>
+    }
+    </tbody>
+</table>
+</div>
+</div>
+<p class="small text-muted mt-2">@L["Customers listed: {0}", Model.Rows.Count]</p>

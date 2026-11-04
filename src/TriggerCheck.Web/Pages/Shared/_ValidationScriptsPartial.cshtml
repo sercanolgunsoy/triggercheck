@@ -1,2 +1,14 @@
-﻿<script src="~/lib/jquery-validation/dist/jquery.validate.min.js"></script>
+<script src="~/lib/jquery-validation/dist/jquery.validate.min.js"></script>
 <script src="~/lib/jquery-validation-unobtrusive/dist/jquery.validate.unobtrusive.min.js"></script>
+@if (Fmt.IsTurkish)
+{
+    @* Built-in jQuery Validate messages; attribute messages come localized from the server. *@
+    <script>
+        $.extend($.validator.messages, {
+            required: "Bu alan zorunludur.", email: "Geçerli bir e-posta adresi girin.", url: "Geçerli bir URL girin.",
+            number: "Geçerli bir sayı girin.", digits: "Yalnızca rakam girin.", maxlength: $.validator.format("En fazla {0} karakter girin."),
+            minlength: $.validator.format("En az {0} karakter girin."), range: $.validator.format("{0} ile {1} arasında bir değer girin."),
+            max: $.validator.format("{0} veya daha küçük bir değer girin."), min: $.validator.format("{0} veya daha büyük bir değer girin.")
+        });
+    </script>
+}

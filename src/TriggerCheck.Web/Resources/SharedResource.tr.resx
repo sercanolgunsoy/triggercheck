@@ -1,0 +1,889 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="'{0}' is already taken." xml:space="preserve">
+    <value>'{0}' zaten kullanılıyor.</value>
+  </data>
+  <data name="'{0}' is not a valid e-mail address." xml:space="preserve">
+    <value>'{0}' geçersiz bir e-posta adresi.</value>
+  </data>
+  <data name="'{0}' is not a valid role name." xml:space="preserve">
+    <value>'{0}' geçersiz bir rol adı.</value>
+  </data>
+  <data name="'{0}' is not a valid user name." xml:space="preserve">
+    <value>'{0}' geçersiz bir kullanıcı adı.</value>
+  </data>
+  <data name="A non-empty request body is required." xml:space="preserve">
+    <value>İstek gövdesi boş olamaz.</value>
+  </data>
+  <data name="A value for '{0}' was not provided." xml:space="preserve">
+    <value>'{0}' için bir değer girilmedi.</value>
+  </data>
+  <data name="A value is required." xml:space="preserve">
+    <value>Bir değer girilmelidir.</value>
+  </data>
+  <data name="Access denied" xml:space="preserve">
+    <value>Erişim reddedildi</value>
+  </data>
+  <data name="Account &amp; plan" xml:space="preserve">
+    <value>Hesap &amp; Plan</value>
+  </data>
+  <data name="Actions" xml:space="preserve">
+    <value>İşlemler</value>
+  </data>
+  <data name="Active" xml:space="preserve">
+    <value>Aktif</value>
+  </data>
+  <data name="Admin" xml:space="preserve">
+    <value>Yönetici</value>
+  </data>
+  <data name="Alert channels" xml:space="preserve">
+    <value>Bildirim Kanalları</value>
+  </data>
+  <data name="All" xml:space="preserve">
+    <value>Tümü</value>
+  </data>
+  <data name="All monitors" xml:space="preserve">
+    <value>Tüm Monitörler</value>
+  </data>
+  <data name="An unknown error occurred." xml:space="preserve">
+    <value>Bilinmeyen bir hata oluştu.</value>
+  </data>
+  <data name="Back" xml:space="preserve">
+    <value>Geri</value>
+  </data>
+  <data name="Cancel" xml:space="preserve">
+    <value>Vazgeç</value>
+  </data>
+  <data name="Create" xml:space="preserve">
+    <value>Oluştur</value>
+  </data>
+  <data name="Created" xml:space="preserve">
+    <value>Oluşturulma</value>
+  </data>
+  <data name="Customer" xml:space="preserve">
+    <value>Müşteri</value>
+  </data>
+  <data name="Customers" xml:space="preserve">
+    <value>Müşteriler</value>
+  </data>
+  <data name="Dashboard" xml:space="preserve">
+    <value>Panel</value>
+  </data>
+  <data name="Delete" xml:space="preserve">
+    <value>Sil</value>
+  </data>
+  <data name="Disabled" xml:space="preserve">
+    <value>Devre dışı</value>
+  </data>
+  <data name="DOWN" xml:space="preserve">
+    <value>DOWN</value>
+  </data>
+  <data name="E-mail" xml:space="preserve">
+    <value>E-posta</value>
+  </data>
+  <data name="E-mail is required." xml:space="preserve">
+    <value>E-posta zorunludur.</value>
+  </data>
+  <data name="Edit" xml:space="preserve">
+    <value>Düzenle</value>
+  </data>
+  <data name="Enabled" xml:space="preserve">
+    <value>Etkin</value>
+  </data>
+  <data name="Enter a valid e-mail address." xml:space="preserve">
+    <value>Geçerli bir e-posta adresi girin.</value>
+  </data>
+  <data name="Filter" xml:space="preserve">
+    <value>Filtrele</value>
+  </data>
+  <data name="Free" xml:space="preserve">
+    <value>Ücretsiz</value>
+  </data>
+  <data name="Full name" xml:space="preserve">
+    <value>Ad soyad</value>
+  </data>
+  <data name="Inactive" xml:space="preserve">
+    <value>Pasif</value>
+  </data>
+  <data name="Incidents" xml:space="preserve">
+    <value>Olaylar</value>
+  </data>
+  <data name="Incorrect password." xml:space="preserve">
+    <value>Şifre hatalı.</value>
+  </data>
+  <data name="Interval" xml:space="preserve">
+    <value>Aralık</value>
+  </data>
+  <data name="Invalid login attempt." xml:space="preserve">
+    <value>Geçersiz giriş denemesi.</value>
+  </data>
+  <data name="Invalid token." xml:space="preserve">
+    <value>Geçersiz token.</value>
+  </data>
+  <data name="Keyword" xml:space="preserve">
+    <value>Anahtar kelime</value>
+  </data>
+  <data name="Language" xml:space="preserve">
+    <value>Dil</value>
+  </data>
+  <data name="Lockout is not enabled for this user." xml:space="preserve">
+    <value>Bu kullanıcı için hesap kilitleme etkin değil.</value>
+  </data>
+  <data name="Monitor" xml:space="preserve">
+    <value>Monitör</value>
+  </data>
+  <data name="Monitor your websites and services at intervals down to 15 seconds. Know the moment something goes down." xml:space="preserve">
+    <value>Web sitelerinizi ve servislerinizi 15 saniyeye kadar inen aralıklarla izleyin. Kesinti anında haberdar olun.</value>
+  </data>
+  <data name="Monitors" xml:space="preserve">
+    <value>Monitörler</value>
+  </data>
+  <data name="Name" xml:space="preserve">
+    <value>Ad</value>
+  </data>
+  <data name="Next" xml:space="preserve">
+    <value>Sonraki</value>
+  </data>
+  <data name="No" xml:space="preserve">
+    <value>Hayır</value>
+  </data>
+  <data name="No records found." xml:space="preserve">
+    <value>Kayıt bulunamadı.</value>
+  </data>
+  <data name="Overview" xml:space="preserve">
+    <value>Genel Bakış</value>
+  </data>
+  <data name="Password" xml:space="preserve">
+    <value>Şifre</value>
+  </data>
+  <data name="Password is required." xml:space="preserve">
+    <value>Şifre zorunludur.</value>
+  </data>
+  <data name="PAUSED" xml:space="preserve">
+    <value>DURAKLATILDI</value>
+  </data>
+  <data name="PENDING" xml:space="preserve">
+    <value>BEKLİYOR</value>
+  </data>
+  <data name="Plan" xml:space="preserve">
+    <value>Plan</value>
+  </data>
+  <data name="Plans" xml:space="preserve">
+    <value>Planlar</value>
+  </data>
+  <data name="Previous" xml:space="preserve">
+    <value>Önceki</value>
+  </data>
+  <data name="Remember me" xml:space="preserve">
+    <value>Beni hatırla</value>
+  </data>
+  <data name="Role" xml:space="preserve">
+    <value>Rol</value>
+  </data>
+  <data name="Save" xml:space="preserve">
+    <value>Kaydet</value>
+  </data>
+  <data name="Search" xml:space="preserve">
+    <value>Ara</value>
+  </data>
+  <data name="Sign in" xml:space="preserve">
+    <value>Giriş yap</value>
+  </data>
+  <data name="Sign out" xml:space="preserve">
+    <value>Çıkış</value>
+  </data>
+  <data name="Status" xml:space="preserve">
+    <value>Durum</value>
+  </data>
+  <data name="Target" xml:space="preserve">
+    <value>Hedef</value>
+  </data>
+  <data name="TCP port" xml:space="preserve">
+    <value>TCP port</value>
+  </data>
+  <data name="The account is temporarily locked. Try again in a few minutes." xml:space="preserve">
+    <value>Hesap geçici olarak kilitlendi. Birkaç dakika sonra tekrar deneyin.</value>
+  </data>
+  <data name="The e-mail address '{0}' is already in use." xml:space="preserve">
+    <value>'{0}' e-posta adresi zaten kullanılıyor.</value>
+  </data>
+  <data name="The field must be a number." xml:space="preserve">
+    <value>Bu alan bir sayı olmalıdır.</value>
+  </data>
+  <data name="The field {0} must be a number." xml:space="preserve">
+    <value>{0} alanı bir sayı olmalıdır.</value>
+  </data>
+  <data name="The password must be at least {0} characters long." xml:space="preserve">
+    <value>Şifre en az {0} karakter olmalıdır.</value>
+  </data>
+  <data name="The password must contain at least one digit ('0'-'9')." xml:space="preserve">
+    <value>Şifre en az bir rakam ('0'-'9') içermelidir.</value>
+  </data>
+  <data name="The password must contain at least one lowercase letter ('a'-'z')." xml:space="preserve">
+    <value>Şifre en az bir küçük harf ('a'-'z') içermelidir.</value>
+  </data>
+  <data name="The password must contain at least one special character." xml:space="preserve">
+    <value>Şifre en az bir özel karakter içermelidir.</value>
+  </data>
+  <data name="The password must contain at least one uppercase letter ('A'-'Z')." xml:space="preserve">
+    <value>Şifre en az bir büyük harf ('A'-'Z') içermelidir.</value>
+  </data>
+  <data name="The password must contain at least {0} different characters." xml:space="preserve">
+    <value>Şifre en az {0} farklı karakter içermelidir.</value>
+  </data>
+  <data name="The record was changed by someone else. Please try again." xml:space="preserve">
+    <value>Kayıt başka biri tarafından değiştirildi, lütfen tekrar deneyin.</value>
+  </data>
+  <data name="The recovery code could not be redeemed." xml:space="preserve">
+    <value>Kurtarma kodu kullanılamadı.</value>
+  </data>
+  <data name="The role '{0}' already exists." xml:space="preserve">
+    <value>'{0}' rolü zaten mevcut.</value>
+  </data>
+  <data name="The supplied value is invalid for {0}." xml:space="preserve">
+    <value>{0} için girilen değer geçersiz.</value>
+  </data>
+  <data name="The supplied value is invalid." xml:space="preserve">
+    <value>Girilen değer geçersiz.</value>
+  </data>
+  <data name="The user already has a password." xml:space="preserve">
+    <value>Kullanıcının zaten bir şifresi var.</value>
+  </data>
+  <data name="The user is already in the '{0}' role." xml:space="preserve">
+    <value>Kullanıcı zaten '{0}' rolünde.</value>
+  </data>
+  <data name="The user is not in the '{0}' role." xml:space="preserve">
+    <value>Kullanıcı '{0}' rolünde değil.</value>
+  </data>
+  <data name="The value '{0}' is not valid for {1}." xml:space="preserve">
+    <value>'{0}' değeri {1} için geçerli değil.</value>
+  </data>
+  <data name="The value '{0}' is not valid." xml:space="preserve">
+    <value>'{0}' değeri geçerli değil.</value>
+  </data>
+  <data name="This login is already linked to another user." xml:space="preserve">
+    <value>Bu giriş zaten başka bir kullanıcıya bağlı.</value>
+  </data>
+  <data name="TRT" xml:space="preserve">
+    <value>TSİ</value>
+  </data>
+  <data name="Type" xml:space="preserve">
+    <value>Tip</value>
+  </data>
+  <data name="UP" xml:space="preserve">
+    <value>UP</value>
+  </data>
+  <data name="Users" xml:space="preserve">
+    <value>Kullanıcılar</value>
+  </data>
+  <data name="Viewer" xml:space="preserve">
+    <value>Görüntüleyici</value>
+  </data>
+  <data name="Yes" xml:space="preserve">
+    <value>Evet</value>
+  </data>
+  <data name="You do not have permission to view this page." xml:space="preserve">
+    <value>Bu sayfayı görüntüleme yetkiniz yok.</value>
+  </data>
+  <data name="Your account is inactive. Please contact your administrator." xml:space="preserve">
+    <value>Hesabınız pasif durumda. Lütfen yöneticinizle iletişime geçin.</value>
+  </data>
+  <data name="{0} d" xml:space="preserve">
+    <value>{0} gün</value>
+  </data>
+  <data name="{0} d {1} h" xml:space="preserve">
+    <value>{0} gün {1} sa</value>
+  </data>
+  <data name="{0} h" xml:space="preserve">
+    <value>{0} sa</value>
+  </data>
+  <data name="{0} h {1} min" xml:space="preserve">
+    <value>{0} sa {1} dk</value>
+  </data>
+  <data name="{0} min" xml:space="preserve">
+    <value>{0} dk</value>
+  </data>
+  <data name="{0} sec" xml:space="preserve">
+    <value>{0} sn</value>
+  </data>
+  <data name="/ month" xml:space="preserve">
+    <value>/ ay</value>
+  </data>
+  <data name="24 h uptime" xml:space="preserve">
+    <value>24 sa uptime</value>
+  </data>
+  <data name="24 h, 7 day and 30 day uptime" xml:space="preserve">
+    <value>24 saatlik, 7 ve 30 günlük erişilebilirlik</value>
+  </data>
+  <data name="24 hours" xml:space="preserve">
+    <value>24 saat</value>
+  </data>
+  <data name="24-hour, 7-day and 30-day uptime per monitor, plus a response-time chart and the last 50 checks." xml:space="preserve">
+    <value>Her monitör için 24 saatlik, 7 ve 30 günlük erişilebilirlik; ayrıca yanıt süresi grafiği ve son 50 kontrol.</value>
+  </data>
+  <data name="30 days" xml:space="preserve">
+    <value>30 gün</value>
+  </data>
+  <data name="7 days" xml:space="preserve">
+    <value>7 gün</value>
+  </data>
+  <data name="A failure threshold filters out blips. You get one alert when a monitor goes down and one when it recovers, by e-mail or webhook." xml:space="preserve">
+    <value>Hata eşiği anlık dalgalanmaları eler. Monitör çöktüğünde bir, düzeldiğinde bir bildirim alırsınız; e-posta ya da webhook ile.</value>
+  </data>
+  <data name="Add a monitor" xml:space="preserve">
+    <value>Monitör ekleyin</value>
+  </data>
+  <data name="Add e-mail addresses, or a webhook that receives a JSON event for your own tooling." xml:space="preserve">
+    <value>E-posta adresleri ya da kendi araçlarınız için JSON olay alan bir webhook ekleyin.</value>
+  </data>
+  <data name="Admin and viewer roles" xml:space="preserve">
+    <value>Yönetici ve görüntüleyici rolleri</value>
+  </data>
+  <data name="Admins and viewers" xml:space="preserve">
+    <value>Yöneticiler ve görüntüleyiciler</value>
+  </data>
+  <data name="Admins manage monitors, alerts and users. Viewers can see everything but change nothing." xml:space="preserve">
+    <value>Yöneticiler monitörleri, bildirimleri ve kullanıcıları yönetir. Görüntüleyiciler her şeyi görür ama hiçbir şeyi değiştiremez.</value>
+  </data>
+  <data name="Alert only after N consecutive failures" xml:space="preserve">
+    <value>Yalnızca art arda N hatadan sonra bildirim</value>
+  </data>
+  <data name="Alerts" xml:space="preserve">
+    <value>Bildirimler</value>
+  </data>
+  <data name="Alerts and incidents" xml:space="preserve">
+    <value>Bildirimler ve olaylar</value>
+  </data>
+  <data name="Alerts without the noise" xml:space="preserve">
+    <value>Gürültüsüz bildirimler</value>
+  </data>
+  <data name="An error occurred while processing your request. Please try again." xml:space="preserve">
+    <value>İsteğiniz işlenirken bir hata oluştu. Lütfen tekrar deneyin.</value>
+  </data>
+  <data name="Automatic incident log" xml:space="preserve">
+    <value>Otomatik olay kaydı</value>
+  </data>
+  <data name="Back to website" xml:space="preserve">
+    <value>Web sitesine dön</value>
+  </data>
+  <data name="Built for teams" xml:space="preserve">
+    <value>Ekipler için tasarlandı</value>
+  </data>
+  <data name="Can I change plans later?" xml:space="preserve">
+    <value>Planımı sonradan değiştirebilir miyim?</value>
+  </data>
+  <data name="Check every 5 minutes or as often as every 15 seconds, depending on your plan. Short outages don&#x27;t slip through." xml:space="preserve">
+    <value>Planınıza göre 5 dakikada bir ya da 15 saniyeye kadar sık kontrol edin. Kısa kesintiler gözden kaçmaz.</value>
+  </data>
+  <data name="Check history" xml:space="preserve">
+    <value>Kontrol geçmişi</value>
+  </data>
+  <data name="Check results are kept for the number of days in your plan and deleted automatically after that. Incidents stay in your history." xml:space="preserve">
+    <value>Kontrol sonuçları planınızdaki gün sayısı kadar saklanır, sonra otomatik silinir. Olaylar geçmişinizde kalır.</value>
+  </data>
+  <data name="Check that a host answers ICMP ping." xml:space="preserve">
+    <value>Bir sunucunun ICMP ping'e yanıt verdiğini doğrulayın.</value>
+  </data>
+  <data name="Checkout API recovered" xml:space="preserve">
+    <value>Checkout API düzeldi</value>
+  </data>
+  <data name="Checks" xml:space="preserve">
+    <value>Kontroller</value>
+  </data>
+  <data name="Checks as often as every {0}" xml:space="preserve">
+    <value>{0} sıklığında kontrol</value>
+  </data>
+  <data name="Checks every {0}" xml:space="preserve">
+    <value>{0} aralıkla kontrol</value>
+  </data>
+  <data name="Close" xml:space="preserve">
+    <value>Kapat</value>
+  </data>
+  <data name="Company" xml:space="preserve">
+    <value>Şirket</value>
+  </data>
+  <data name="Compare all plan features" xml:space="preserve">
+    <value>Tüm plan özelliklerini karşılaştırın</value>
+  </data>
+  <data name="Compare plans" xml:space="preserve">
+    <value>Planları karşılaştırın</value>
+  </data>
+  <data name="Confirm databases, mail servers and other services accept connections." xml:space="preserve">
+    <value>Veritabanlarının, e-posta sunucularının ve diğer servislerin bağlantı kabul ettiğini doğrulayın.</value>
+  </data>
+  <data name="Connect your alerts" xml:space="preserve">
+    <value>Bildirimlerinizi bağlayın</value>
+  </data>
+  <data name="Connection refused · on-call alerted by e-mail" xml:space="preserve">
+    <value>Bağlantı reddedildi · nöbetçiye e-posta gitti</value>
+  </data>
+  <data name="Contact us" xml:space="preserve">
+    <value>Bize ulaşın</value>
+  </data>
+  <data name="Custom HTTP method and expected status codes, such as 200-299 or 301" xml:space="preserve">
+    <value>Özel HTTP metodu ve beklenen durum kodları (ör. 200-299 veya 301)</value>
+  </data>
+  <data name="Custom timeout and failure threshold" xml:space="preserve">
+    <value>Özel zaman aşımı ve hata eşiği</value>
+  </data>
+  <data name="Database is DOWN" xml:space="preserve">
+    <value>Veritabanı ÇÖKTÜ</value>
+  </data>
+  <data name="Do I need to install anything?" xml:space="preserve">
+    <value>Bir şey kurmam gerekiyor mu?</value>
+  </data>
+  <data name="Don&#x27;t have an account?" xml:space="preserve">
+    <value>Hesabınız yok mu?</value>
+  </data>
+  <data name="Down and recovery notifications for every channel" xml:space="preserve">
+    <value>Her kanal için çökme ve düzelme bildirimleri</value>
+  </data>
+  <data name="Down for {0}" xml:space="preserve">
+    <value>{0} kapalı kaldı</value>
+  </data>
+  <data name="E-mail alerts" xml:space="preserve">
+    <value>E-posta bildirimleri</value>
+  </data>
+  <data name="E-mail alerts to any address" xml:space="preserve">
+    <value>Herhangi bir adrese e-posta bildirimi</value>
+  </data>
+  <data name="E-mail and webhook alerts" xml:space="preserve">
+    <value>E-posta ve webhook bildirimleri</value>
+  </data>
+  <data name="Each company has its own workspace. Monitors, incidents and users are never visible to anyone else." xml:space="preserve">
+    <value>Her şirketin kendi çalışma alanı vardır. Monitörler, olaylar ve kullanıcılar başka kimseye görünmez.</value>
+  </data>
+  <data name="Easy on the eyes during a late-night incident. Follows your system setting by default." xml:space="preserve">
+    <value>Gece yarısı bir olayda gözlerinizi yormaz. Varsayılan olarak sistem ayarınızı izler.</value>
+  </data>
+  <data name="English and Turkish" xml:space="preserve">
+    <value>İngilizce ve Türkçe</value>
+  </data>
+  <data name="English and Turkish interface" xml:space="preserve">
+    <value>İngilizce ve Türkçe arayüz</value>
+  </data>
+  <data name="Enter a URL, host or port, choose the check type and how often to check. No code, no agent." xml:space="preserve">
+    <value>Bir URL, sunucu veya port girin; kontrol türünü ve sıklığını seçin. Kod yok, ajan yok.</value>
+  </data>
+  <data name="Error" xml:space="preserve">
+    <value>Hata</value>
+  </data>
+  <data name="Every check type and alert channel on every plan" xml:space="preserve">
+    <value>Her planda tüm kontrol türleri ve bildirim kanalları</value>
+  </data>
+  <data name="Every outage becomes an incident with its start, end, duration and cause, so post-mortems take minutes, not hours." xml:space="preserve">
+    <value>Her kesinti başlangıcı, bitişi, süresi ve nedeniyle bir olay olarak kaydedilir; kesinti analizleri saatler değil dakikalar sürer.</value>
+  </data>
+  <data name="Every outage is recorded as an incident automatically. Uptime and response times are always one click away." xml:space="preserve">
+    <value>Her kesinti otomatik olarak olay kaydına dönüşür. Erişilebilirlik ve yanıt süreleri her zaman bir tık uzağınızda.</value>
+  </data>
+  <data name="Every plan includes every check type and alert channel. Pick the one that matches how fast and how much you need to monitor." xml:space="preserve">
+    <value>Her plan tüm kontrol türlerini ve bildirim kanallarını içerir. Ne kadar sık ve ne kadar çok izlemeniz gerektiğine göre seçin.</value>
+  </data>
+  <data name="Everything you need" xml:space="preserve">
+    <value>İhtiyacınız olan her şey</value>
+  </data>
+  <data name="Everything you need to get started." xml:space="preserve">
+    <value>Başlamak için gereken her şey.</value>
+  </data>
+  <data name="Everything you need to stay up" xml:space="preserve">
+    <value>Ayakta kalmak için gereken her şey</value>
+  </data>
+  <data name="Example webhook body" xml:space="preserve">
+    <value>Örnek webhook gövdesi</value>
+  </data>
+  <data name="Existing monitors keep running. To add more, remove one you no longer need or move to a larger plan." xml:space="preserve">
+    <value>Mevcut monitörler çalışmaya devam eder. Yenisini eklemek için kullanmadığınız birini silin ya da daha büyük bir plana geçin.</value>
+  </data>
+  <data name="Expect a status code from a web page or API endpoint." xml:space="preserve">
+    <value>Bir web sayfasından veya API ucundan beklenen durum kodunu doğrulayın.</value>
+  </data>
+  <data name="Explore all features" xml:space="preserve">
+    <value>Tüm özellikleri keşfedin</value>
+  </data>
+  <data name="Explore features" xml:space="preserve">
+    <value>Özellikleri keşfedin</value>
+  </data>
+  <data name="FAQ" xml:space="preserve">
+    <value>SSS</value>
+  </data>
+  <data name="Fast, frequent checks" xml:space="preserve">
+    <value>Hızlı ve sık kontroller</value>
+  </data>
+  <data name="Fastest check interval" xml:space="preserve">
+    <value>En kısa kontrol aralığı</value>
+  </data>
+  <data name="Features" xml:space="preserve">
+    <value>Özellikler</value>
+  </data>
+  <data name="Find the right fit" xml:space="preserve">
+    <value>Size uygun planı bulun</value>
+  </data>
+  <data name="For businesses where every minute counts." xml:space="preserve">
+    <value>Her dakikanın önemli olduğu işletmeler için.</value>
+  </data>
+  <data name="For growing teams and production sites." xml:space="preserve">
+    <value>Büyüyen ekipler ve canlı siteler için.</value>
+  </data>
+  <data name="For large fleets and strict uptime targets." xml:space="preserve">
+    <value>Büyük altyapılar ve sıkı erişilebilirlik hedefleri için.</value>
+  </data>
+  <data name="Four kinds of checks" xml:space="preserve">
+    <value>Dört tür kontrol</value>
+  </data>
+  <data name="Free plan available" xml:space="preserve">
+    <value>Ücretsiz plan mevcut</value>
+  </data>
+  <data name="Frequently asked questions" xml:space="preserve">
+    <value>Sıkça sorulan sorular</value>
+  </data>
+  <data name="From a single landing page to hundreds of endpoints: check them often, hear about failures fast and keep a clean history of what happened." xml:space="preserve">
+    <value>Tek bir sayfadan yüzlerce uç noktaya kadar: sık kontrol edin, hataları hemen öğrenin, olup biteni düzenli bir geçmişte tutun.</value>
+  </data>
+  <data name="Get {0}" xml:space="preserve">
+    <value>{0} planını seçin</value>
+  </data>
+  <data name="Give everyone the access they need, nothing more." xml:space="preserve">
+    <value>Herkese ihtiyacı kadar erişim verin, fazlasını değil.</value>
+  </data>
+  <data name="Go to home page" xml:space="preserve">
+    <value>Ana sayfaya git</value>
+  </data>
+  <data name="HTTP(S) status checks" xml:space="preserve">
+    <value>HTTP(S) durum kontrolleri</value>
+  </data>
+  <data name="HTTP(S) status codes, keyword matching in the response body, TCP ports and ping. Cover sites, APIs, databases and hosts." xml:space="preserve">
+    <value>HTTP(S) durum kodları, yanıt gövdesinde anahtar kelime, TCP portları ve ping. Siteleri, API'leri, veritabanlarını ve sunucuları kapsayın.</value>
+  </data>
+  <data name="HTTP, keyword, TCP and ping checks" xml:space="preserve">
+    <value>HTTP, anahtar kelime, TCP ve ping kontrolleri</value>
+  </data>
+  <data name="How does the check interval work?" xml:space="preserve">
+    <value>Kontrol aralığı nasıl işler?</value>
+  </data>
+  <data name="How it works" xml:space="preserve">
+    <value>Nasıl çalışır</value>
+  </data>
+  <data name="How long do you keep check results?" xml:space="preserve">
+    <value>Kontrol sonuçlarını ne kadar saklıyorsunuz?</value>
+  </data>
+  <data name="Incident history with start, end, duration and cause" xml:space="preserve">
+    <value>Başlangıç, bitiş, süre ve nedeniyle olay geçmişi</value>
+  </data>
+  <data name="Incidents and reports" xml:space="preserve">
+    <value>Olaylar ve raporlar</value>
+  </data>
+  <data name="Included" xml:space="preserve">
+    <value>Dahil</value>
+  </data>
+  <data name="Intervals from 5 minutes down to {0}" xml:space="preserve">
+    <value>5 dakikadan {0} aralığa kadar</value>
+  </data>
+  <data name="Invite your team as admins or read-only viewers. Each company&#x27;s data is fully isolated." xml:space="preserve">
+    <value>Ekibinizi yönetici ya da salt okunur görüntüleyici olarak davet edin. Her şirketin verisi tamamen ayrıdır.</value>
+  </data>
+  <data name="Isolated workspaces" xml:space="preserve">
+    <value>Ayrı çalışma alanları</value>
+  </data>
+  <data name="Keyword checks" xml:space="preserve">
+    <value>Anahtar kelime kontrolleri</value>
+  </data>
+  <data name="Know it&#x27;s down" xml:space="preserve">
+    <value>Siteniz çöktüğünde</value>
+  </data>
+  <data name="Know it&#x27;s down before your customers do." xml:space="preserve">
+    <value>Siteniz çöktüğünde müşterilerinizden önce haberiniz olsun.</value>
+  </data>
+  <data name="Know what happened, and for how long" xml:space="preserve">
+    <value>Ne olduğunu ve ne kadar sürdüğünü bilin</value>
+  </data>
+  <data name="Light and dark mode" xml:space="preserve">
+    <value>Açık ve koyu tema</value>
+  </data>
+  <data name="Limits" xml:space="preserve">
+    <value>Limitler</value>
+  </data>
+  <data name="Made for teams that care about uptime." xml:space="preserve">
+    <value>Erişilebilirliği önemseyen ekipler için.</value>
+  </data>
+  <data name="Made for the whole team" xml:space="preserve">
+    <value>Tüm ekip için</value>
+  </data>
+  <data name="Main navigation" xml:space="preserve">
+    <value>Ana menü</value>
+  </data>
+  <data name="Make sure the response body contains the text you expect." xml:space="preserve">
+    <value>Yanıt gövdesinin beklediğiniz metni içerdiğinden emin olun.</value>
+  </data>
+  <data name="Menu" xml:space="preserve">
+    <value>Menü</value>
+  </data>
+  <data name="Monitoring" xml:space="preserve">
+    <value>İzleme</value>
+  </data>
+  <data name="Monitoring, alerting and reporting in one place" xml:space="preserve">
+    <value>İzleme, bildirim ve raporlama tek yerde</value>
+  </data>
+  <data name="New" xml:space="preserve">
+    <value>Yeni</value>
+  </data>
+  <data name="No agent to install" xml:space="preserve">
+    <value>Ajan kurulumu yok</value>
+  </data>
+  <data name="No. A monitor is marked down only after the number of consecutive failures you choose. You get one alert when it goes down and one when it recovers." xml:space="preserve">
+    <value>Hayır. Monitör ancak seçtiğiniz sayıda art arda hatadan sonra çökmüş sayılır. Çöktüğünde bir, düzeldiğinde bir bildirim alırsınız.</value>
+  </data>
+  <data name="No. All checks run from our servers against your public addresses. There is no agent or code to install." xml:space="preserve">
+    <value>Hayır. Tüm kontroller sunucularımızdan, herkese açık adreslerinize yapılır. Kurulacak bir ajan ya da kod yoktur.</value>
+  </data>
+  <data name="Not sure which plan fits?" xml:space="preserve">
+    <value>Hangi plan size uygun, emin değil misiniz?</value>
+  </data>
+  <data name="One place to watch every endpoint, get the right people alerted and understand what happened." xml:space="preserve">
+    <value>Tüm uç noktaları izlemek, doğru kişileri uyarmak ve olanı anlamak için tek bir yer.</value>
+  </data>
+  <data name="Open dashboard" xml:space="preserve">
+    <value>Panele git</value>
+  </data>
+  <data name="Pause and resume" xml:space="preserve">
+    <value>Duraklatma ve sürdürme</value>
+  </data>
+  <data name="Pause and resume monitors during maintenance" xml:space="preserve">
+    <value>Bakım sırasında monitörleri duraklatın ve sürdürün</value>
+  </data>
+  <data name="Pick the check that fits the service. Each monitor has its own interval, timeout and failure threshold, so a flaky network never wakes you up for nothing." xml:space="preserve">
+    <value>Servise uygun kontrolü seçin. Her monitörün kendi aralığı, zaman aşımı ve hata eşiği vardır; dalgalı bir ağ sizi boşuna uyandırmaz.</value>
+  </data>
+  <data name="Ping checks" xml:space="preserve">
+    <value>Ping kontrolleri</value>
+  </data>
+  <data name="Plan limits you can see" xml:space="preserve">
+    <value>Görünür plan limitleri</value>
+  </data>
+  <data name="Plans are being updated. Contact us for current pricing." xml:space="preserve">
+    <value>Planlar güncelleniyor. Güncel fiyatlar için bize ulaşın.</value>
+  </data>
+  <data name="Platform" xml:space="preserve">
+    <value>Platform</value>
+  </data>
+  <data name="Prices in US dollars, excluding taxes." xml:space="preserve">
+    <value>Fiyatlar ABD doları cinsindendir, vergiler hariçtir.</value>
+  </data>
+  <data name="Pricing" xml:space="preserve">
+    <value>Fiyatlandırma</value>
+  </data>
+  <data name="Product" xml:space="preserve">
+    <value>Ürün</value>
+  </data>
+  <data name="Ready to see it in action?" xml:space="preserve">
+    <value>Çalışırken görmeye hazır mısınız?</value>
+  </data>
+  <data name="Recommended" xml:space="preserve">
+    <value>Önerilen</value>
+  </data>
+  <data name="Recovery notifications" xml:space="preserve">
+    <value>Düzelme bildirimleri</value>
+  </data>
+  <data name="Relax, we&#x27;re watching" xml:space="preserve">
+    <value>Rahat olun, biz izliyoruz</value>
+  </data>
+  <data name="Reports" xml:space="preserve">
+    <value>Raporlar</value>
+  </data>
+  <data name="Request ID:" xml:space="preserve">
+    <value>İstek kimliği:</value>
+  </data>
+  <data name="Request access" xml:space="preserve">
+    <value>Erişim talep edin</value>
+  </data>
+  <data name="Resolved" xml:space="preserve">
+    <value>Çözüldü</value>
+  </data>
+  <data name="Resources" xml:space="preserve">
+    <value>Kaynaklar</value>
+  </data>
+  <data name="Response-time chart" xml:space="preserve">
+    <value>Yanıt süresi grafiği</value>
+  </data>
+  <data name="Response-time chart for the last 24 hours" xml:space="preserve">
+    <value>Son 24 saatin yanıt süresi grafiği</value>
+  </data>
+  <data name="Secure sign-in" xml:space="preserve">
+    <value>Güvenli giriş</value>
+  </data>
+  <data name="See plans and request access" xml:space="preserve">
+    <value>Planları görün ve erişim talep edin</value>
+  </data>
+  <data name="See pricing" xml:space="preserve">
+    <value>Fiyatları görün</value>
+  </data>
+  <data name="Set up in under a minute" xml:space="preserve">
+    <value>Bir dakikadan kısa sürede kurulum</value>
+  </data>
+  <data name="Set up your first monitor in under a minute. Your team will thank you at 3 a.m." xml:space="preserve">
+    <value>İlk monitörünüzü bir dakikadan kısa sürede kurun. Ekibiniz gece 3'te size teşekkür edecek.</value>
+  </data>
+  <data name="Settings" xml:space="preserve">
+    <value>Ayarlar</value>
+  </data>
+  <data name="Sign in to your TriggerCheck workspace." xml:space="preserve">
+    <value>TriggerCheck çalışma alanınıza giriş yapın.</value>
+  </data>
+  <data name="Simple plans that grow with you" xml:space="preserve">
+    <value>Sizinle büyüyen basit planlar</value>
+  </data>
+  <data name="simple and transparent." xml:space="preserve">
+    <value>basit ve şeffaf.</value>
+  </data>
+  <data name="Something went wrong" xml:space="preserve">
+    <value>Bir şeyler ters gitti</value>
+  </data>
+  <data name="Start for free" xml:space="preserve">
+    <value>Ücretsiz başlayın</value>
+  </data>
+  <data name="Stop finding out about downtime from your customers." xml:space="preserve">
+    <value>Kesintileri müşterilerinizden öğrenmeyi bırakın.</value>
+  </data>
+  <data name="Strong password rules and automatic lock-out after repeated failed sign-in attempts." xml:space="preserve">
+    <value>Güçlü parola kuralları ve tekrarlanan başarısız girişlerden sonra otomatik hesap kilitleme.</value>
+  </data>
+  <data name="System status" xml:space="preserve">
+    <value>Sistem durumu</value>
+  </data>
+  <data name="TCP port checks" xml:space="preserve">
+    <value>TCP port kontrolleri</value>
+  </data>
+  <data name="Team" xml:space="preserve">
+    <value>Ekip</value>
+  </data>
+  <data name="Team members" xml:space="preserve">
+    <value>Ekip üyeleri</value>
+  </data>
+  <data name="Teams and security" xml:space="preserve">
+    <value>Ekipler ve güvenlik</value>
+  </data>
+  <data name="Tell us about your services and we&#x27;ll set up your workspace." xml:space="preserve">
+    <value>Servislerinizden bahsedin, çalışma alanınızı biz kuralım.</value>
+  </data>
+  <data name="Tell us what you need to monitor and we&#x27;ll recommend a plan." xml:space="preserve">
+    <value>Neyi izlemeniz gerektiğini anlatın, size bir plan önerelim.</value>
+  </data>
+  <data name="The right alert, once" xml:space="preserve">
+    <value>Doğru bildirim, tek seferde</value>
+  </data>
+  <data name="The whole interface is available in English and Turkish. Each user picks their own language." xml:space="preserve">
+    <value>Arayüzün tamamı İngilizce ve Türkçe olarak sunulur. Her kullanıcı kendi dilini seçer.</value>
+  </data>
+  <data name="Toggle dark mode" xml:space="preserve">
+    <value>Koyu temayı aç/kapat</value>
+  </data>
+  <data name="TriggerCheck watches your websites, APIs and servers around the clock and alerts your team the moment something breaks, with a clear record of every incident." xml:space="preserve">
+    <value>TriggerCheck web sitelerinizi, API'lerinizi ve sunucularınızı günün her saati izler; bir şey bozulduğu anda ekibinizi uyarır ve her olayın net kaydını tutar.</value>
+  </data>
+  <data name="Turn channels on and off without deleting them" xml:space="preserve">
+    <value>Kanalları silmeden açıp kapatın</value>
+  </data>
+  <data name="Unlimited" xml:space="preserve">
+    <value>Sınırsız</value>
+  </data>
+  <data name="Up and running in three steps" xml:space="preserve">
+    <value>Üç adımda hazır</value>
+  </data>
+  <data name="Up to {0} days of check history" xml:space="preserve">
+    <value>{0} güne kadar kontrol geçmişi</value>
+  </data>
+  <data name="Up to {0} monitors" xml:space="preserve">
+    <value>{0} monitöre kadar</value>
+  </data>
+  <data name="Upgrade any time for faster checks, more monitors and longer history." xml:space="preserve">
+    <value>Daha sık kontrol, daha fazla monitör ve daha uzun geçmiş için istediğiniz zaman yükseltin.</value>
+  </data>
+  <data name="Uptime and response times" xml:space="preserve">
+    <value>Erişilebilirlik ve yanıt süreleri</value>
+  </data>
+  <data name="Uptime for the last 24 hours, 7 days and 30 days" xml:space="preserve">
+    <value>Son 24 saat, 7 gün ve 30 günün erişilebilirliği</value>
+  </data>
+  <data name="Uptime monitoring" xml:space="preserve">
+    <value>Erişilebilirlik izleme</value>
+  </data>
+  <data name="Uptime monitoring for websites, APIs and servers, with instant alerts and a clear incident history." xml:space="preserve">
+    <value>Web siteleri, API'ler ve sunucular için erişilebilirlik izleme; anında bildirim ve net olay geçmişiyle.</value>
+  </data>
+  <data name="Uptime monitoring for websites, APIs and servers. Checks every 15 seconds, instant alerts, clear incident history." xml:space="preserve">
+    <value>Web siteleri, API'ler ve sunucular için erişilebilirlik izleme. 15 saniyede bir kontrol, anında bildirim, net olay geçmişi.</value>
+  </data>
+  <data name="Uptime monitoring for websites, APIs and servers. Know about downtime before your customers do." xml:space="preserve">
+    <value>Web siteleri, API'ler ve sunucular için erişilebilirlik izleme. Kesintileri müşterilerinizden önce öğrenin.</value>
+  </data>
+  <data name="Watch anything with an address" xml:space="preserve">
+    <value>Adresi olan her şeyi izleyin</value>
+  </data>
+  <data name="We check around the clock, open an incident when something fails and tell you when it&#x27;s back." xml:space="preserve">
+    <value>Günün her saati kontrol eder, bir şey bozulunca olay açar, düzeldiğinde size haber veririz.</value>
+  </data>
+  <data name="Webhook alerts" xml:space="preserve">
+    <value>Webhook bildirimleri</value>
+  </data>
+  <data name="Webhook format" xml:space="preserve">
+    <value>Webhook formatı</value>
+  </data>
+  <data name="Webhooks with a simple JSON body for your own automation" xml:space="preserve">
+    <value>Kendi otomasyonunuz için sade JSON gövdeli webhook'lar</value>
+  </data>
+  <data name="Welcome back" xml:space="preserve">
+    <value>Tekrar hoş geldiniz</value>
+  </data>
+  <data name="What happens when I reach my monitor limit?" xml:space="preserve">
+    <value>Monitör limitime ulaşınca ne olur?</value>
+  </data>
+  <data name="When a monitor goes down you get one notification with the cause. When it recovers you get another. No alert storms, no silence." xml:space="preserve">
+    <value>Monitör çöktüğünde nedeniyle birlikte tek bir bildirim alırsınız. Düzeldiğinde bir tane daha. Bildirim yağmuru yok, sessizlik de yok.</value>
+  </data>
+  <data name="Why TriggerCheck" xml:space="preserve">
+    <value>Neden TriggerCheck</value>
+  </data>
+  <data name="Will I get an alert for every failed check?" xml:space="preserve">
+    <value>Her başarısız kontrol için bildirim alır mıyım?</value>
+  </data>
+  <data name="Yes. Contact us and we&#x27;ll move your workspace to the new plan; your monitors and history stay as they are." xml:space="preserve">
+    <value>Evet. Bize ulaşın, çalışma alanınızı yeni plana taşıyalım; monitörleriniz ve geçmişiniz olduğu gibi kalır.</value>
+  </data>
+  <data name="Your plan sets the fastest interval you can use. Each monitor can be checked at that interval or any slower one, for example every 1 or 5 minutes." xml:space="preserve">
+    <value>Planınız kullanabileceğiniz en kısa aralığı belirler. Her monitör bu aralıkta ya da daha seyrek kontrol edilebilir; örneğin 1 veya 5 dakikada bir.</value>
+  </data>
+  <data name="Your plan, monitor usage and allowed intervals are always visible on the account page." xml:space="preserve">
+    <value>Planınız, monitör kullanımınız ve izin verilen aralıklar hesap sayfasında her zaman görünür.</value>
+  </data>
+  <data name="before your customers do." xml:space="preserve">
+    <value>müşterilerinizden önce haberiniz olsun.</value>
+  </data>
+  <data name="check types" xml:space="preserve">
+    <value>kontrol türü</value>
+  </data>
+  <data name="shortest interval" xml:space="preserve">
+    <value>en kısa kontrol aralığı</value>
+  </data>
+  <data name="monitoring, no agents" xml:space="preserve">
+    <value>izleme, ajan gerektirmez</value>
+  </data>
+  <data name="of check history" xml:space="preserve">
+    <value>kontrol geçmişi</value>
+  </data>
+  <data name="Pricing that is" xml:space="preserve">
+    <value>Fiyatlandırma</value>
+  </data>
+  <data name="to keep the lights on." xml:space="preserve">
+    <value>tek bir yerde.</value>
+  </data>
+  <data name="{0} days" xml:space="preserve">
+    <value>{0} gün</value>
+  </data>
+  <data name="{0} days of check history" xml:space="preserve">
+    <value>{0} günlük kontrol geçmişi</value>
+  </data>
+</root>

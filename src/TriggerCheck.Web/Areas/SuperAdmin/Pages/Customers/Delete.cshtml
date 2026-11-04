@@ -1,0 +1,33 @@
+@page "{id:int}"
+@model TriggerCheck.Web.Areas.SuperAdmin.Pages.Customers.DeleteModel
+@{ ViewData["Title"] = L["Delete customer"]; }
+
+<nav aria-label="breadcrumb"><ol class="breadcrumb">
+    <li class="breadcrumb-item"><a asp-page="Index">@L["Customers"]</a></li>
+    <li class="breadcrumb-item"><a asp-page="Details" asp-route-id="@Model.Customer.Id">@Model.Customer.Name</a></li>
+    <li class="breadcrumb-item active">@L["Delete"]</li>
+</ol></nav>
+
+<div class="row justify-content-center">
+    <div class="col-lg-7">
+        <div class="card border-danger">
+            <div class="card-header bg-danger text-white fw-semibold">@L["Delete customer permanently"]</div>
+            <div class="card-body">
+                <p>@L["This cannot be undone. The following data will be deleted permanently:"]</p>
+                <ul>
+                    <li>@Html.Raw(L["{0} monitors, their incidents and {1} check results", $"<strong>{Fmt.Number(Model.MonitorCount)}</strong>", $"<strong>{Fmt.Number(Model.CheckResultCount)}</strong>"].Value)</li>
+                    <li>@Html.Raw(L["{0} user accounts", $"<strong>{Fmt.Number(Model.UserCount)}</strong>"].Value)</li>
+                    <li>@L["Alert channels and alert history"]</li>
+                </ul>
+                <p class="mb-2">@L["To stop the customer temporarily, suspend it instead of deleting it."]</p>
+                <form method="post">
+                    <label asp-for="ConfirmName" class="form-label">@L["Type the customer name to confirm:"] <code>@Model.Customer.Name</code></label>
+                    <input asp-for="ConfirmName" class="form-control mb-1" autocomplete="off" />
+                    <span asp-validation-for="ConfirmName" class="text-danger small d-block mb-3"></span>
+                    <button type="submit" class="btn btn-danger">@L["Delete permanently"]</button>
+                    <a asp-page="Details" asp-route-id="@Model.Customer.Id" class="btn btn-link">@L["Cancel"]</a>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>

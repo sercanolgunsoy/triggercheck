@@ -6,11 +6,13 @@ using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Infrastructure.Identity;
 using TriggerCheck.Monitoring;
 using TriggerCheck.Web.Infrastructure;
+using TriggerCheck.Web.Localization;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddMonitoringEngine(builder.Configuration);
+builder.Services.AddAppLocalization();
 
 builder.Services
     .AddIdentity<ApplicationUser, IdentityRole>(o =>
@@ -23,6 +25,7 @@ builder.Services
     })
     .AddEntityFrameworkStores<AppDbContext>()
     .AddDefaultTokenProviders()
+    .AddErrorDescriber<LocalizedIdentityErrorDescriber>()
     .AddClaimsPrincipalFactory<AppClaimsPrincipalFactory>();
 
 builder.Services.Configure<SecurityStampValidatorOptions>(o => o.ValidationInterval = TimeSpan.FromMinutes(1));
@@ -53,7 +56,7 @@ builder.Services.AddRazorPages(o =>
     o.Conventions.AddAreaFolderApplicationModelConvention("App", "/", m => m.Filters.Add(new ServiceFilterAttribute(typeof(ActiveAccountFilter))));
     // Platform administration: /SuperAdmin/...
     o.Conventions.AuthorizeAreaFolder("SuperAdmin", "/", Policies.SuperAdmin);
-});
+}).AddAppDataAnnotationsLocalization();
 
 var app = builder.Build();
 
@@ -64,6 +67,9 @@ if (!app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
 }
 
+// English (default) / Turkish UI; parsing stays culture-invariant (see LocalizationSetup).
+app.UseAppLocalization();
+
 app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
@@ -71,6 +77,7 @@ app.UseAuthorization();
 app.MapStaticAssets();
 app.MapRazorPages().WithStaticAssets();
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+app.MapSetLanguage();
 
 await DbSeeder.SeedAsync(app.Services);
 

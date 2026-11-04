@@ -1,0 +1,98 @@
+@page
+@model TriggerCheck.Web.Areas.SuperAdmin.Pages.Monitors.IndexModel
+@{
+    ViewData["Title"] = L["All monitors"];
+    var from = Model.Total == 0 ? 0 : (Model.PageNo - 1) * IndexModel.PageSize + 1;
+    var to = Math.Min(Model.Total, Model.PageNo * IndexModel.PageSize);
+    Dictionary<string, string> RouteFor(int page)
+    {
+        var d = new Dictionary<string, string> { ["p"] = page.ToString() };
+        if (Model.CustomerId is int cid) d["customerId"] = cid.ToString();
+        if (Model.Status is MonitorStatus st) d["status"] = st.ToString();
+        if (Model.Type is MonitorType ty) d["type"] = ty.ToString();
+        if (!string.IsNullOrWhiteSpace(Model.Q)) d["q"] = Model.Q;
+        return d;
+    }
+}
+
+<h2 class="mb-3">@L["All monitors"]</h2>
+
+<form method="get" class="row g-2 mb-3">
+    <div class="col-md-3">
+        <select asp-for="CustomerId" class="form-select">
+            <option value="">@L["All customers"]</option>
+            @foreach (var c in Model.Customers) { <option value="@c.Id">@c.Name</option> }
+        </select>
+    </div>
+    <div class="col-md-2">
+        <select asp-for="Status" class="form-select">
+            <option value="">@L["All statuses"]</option>
+            <option value="Up">@Fmt.StatusName(MonitorStatus.Up)</option>
+            <option value="Down">@Fmt.StatusName(MonitorStatus.Down)</option>
+            <option value="Paused">@L["Paused"]</option>
+            <option value="Unknown">@L["Pending"]</option>
+        </select>
+    </div>
+    <div class="col-md-2">
+        <select asp-for="Type" class="form-select">
+            <option value="">@L["All types"]</option>
+            @foreach (var t in Enum.GetValues<MonitorType>()) { <option value="@t">@Fmt.TypeName(t)</option> }
+        </select>
+    </div>
+    <div class="col-md-3">
+        <input asp-for="Q" class="form-control" placeholder="@L["Search target / name"]" />
+    </div>
+    <div class="col-md-2 d-grid">
+        <button type="submit" class="btn btn-outline-secondary">@L["Filter"]</button>
+    </div>
+</form>
+
+<div class="card">
+<div class="table-responsive">
+<table class="table table-sm table-hover align-middle mb-0">
+    <thead class="table-light">
+        <tr><th>@L["Customer"]</th><th>@L["Monitor"]</th><th>@L["Type"]</th><th>@L["Interval"]</th><th>@L["Last check ({0})", Fmt.TimeZoneLabel]</th><th class="text-end">@L["Response"]</th><th>@L["Status"]</th><th></th></tr>
+    </thead>
+    <tbody>
+    @if (Model.Rows.Count == 0) { <tr><td colspan="8" class="text-center text-muted py-4">@L["No monitors found."]</td></tr> }
+    @foreach (var m in Model.Rows)
+    {
+        <tr>
+            <td>
+                <a asp-page="/Customers/Details" asp-route-id="@m.CustomerId">@m.CustomerName</a>
+                @if (!m.CustomerActive) { <span class="badge bg-danger">@L["Suspended"]</span> }
+            </td>
+            <td>@m.Name<div class="small text-muted text-break">@m.Target@(m.Port is int port ? ":" + port : "")</div></td>
+            <td>@Fmt.TypeName(m.Type)</td>
+            <td>@Fmt.Interval(m.IntervalSeconds)</td>
+            <td class="text-nowrap">@Fmt.Time(m.LastCheckedAtUtc)</td>
+            <td class="text-end">@Fmt.Ms(m.LastResponseTimeMs)</td>
+            <td><span title="@m.LastError"><partial name="_StatusBadge" model="m.Status" /></span></td>
+            <td class="text-end">
+                <form method="post" class="d-inline" asp-route-id="@m.Id" asp-page-handler="@(m.IsEnabled ? "Pause" : "Resume")"
+                      asp-route-customerId="@Model.CustomerId" asp-route-status="@Model.Status" asp-route-type="@Model.Type" asp-route-q="@Model.Q" asp-route-p="@Model.PageNo">
+                    @if (m.IsEnabled) { <button class="btn btn-sm btn-outline-secondary">@L["Pause"]</button> }
+                    else { <button class="btn btn-sm btn-outline-success">@L["Resume"]</button> }
+                </form>
+            </td>
+        </tr>
+    }
+    </tbody>
+</table>
+</div>
+</div>
+
+<div class="d-flex justify-content-between align-items-center mt-3">
+    <small class="text-muted">@L["{0}–{1} / {2} monitors", from, to, Model.Total]</small>
+    @if (Model.PageCount > 1)
+    {
+        <nav><ul class="pagination pagination-sm mb-0">
+            <li class="page-item @(Model.PageNo <= 1 ? "disabled" : "")"><a class="page-link" asp-all-route-data="RouteFor(Model.PageNo - 1)">‹ @L["Previous"]</a></li>
+            @for (var i = Math.Max(1, Model.PageNo - 3); i <= Math.Min(Model.PageCount, Model.PageNo + 3); i++)
+            {
+                <li class="page-item @(i == Model.PageNo ? "active" : "")"><a class="page-link" asp-all-route-data="RouteFor(i)">@i</a></li>
+            }
+            <li class="page-item @(Model.PageNo >= Model.PageCount ? "disabled" : "")"><a class="page-link" asp-all-route-data="RouteFor(Model.PageNo + 1)">@L["Next"] ›</a></li>
+        </ul></nav>
+    }
+</div>

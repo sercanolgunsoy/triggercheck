@@ -63,6 +63,13 @@ public class TestWebAppFactory : WebApplicationFactory<Program>
 
 public static class HttpClientFormExtensions
 {
+    /// <summary>Switches the UI language of this cookie-enabled client ("en" is the default, "tr" for Turkish).</summary>
+    public static async Task SetLanguageAsync(this HttpClient client, string culture)
+    {
+        var r = await client.GetAsync($"/set-language?culture={culture}&returnUrl=%2F");
+        if (r.StatusCode != HttpStatusCode.Redirect) throw new InvalidOperationException($"set-language failed: {(int)r.StatusCode}");
+    }
+
     private static readonly Regex TokenRx = new("name=\"__RequestVerificationToken\" type=\"hidden\" value=\"([^\"]+)\"", RegexOptions.Compiled);
 
     /// <summary>GETs <paramref name="url"/> (or <paramref name="formPageUrl"/>) to obtain the antiforgery token, then POSTs the form.</summary>

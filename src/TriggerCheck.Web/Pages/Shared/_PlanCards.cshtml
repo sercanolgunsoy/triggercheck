@@ -1,0 +1,44 @@
+@model PlanCardsModel
+@{
+    var plans = Model.Plans;
+    var featured = Marketing.FeaturedIndex(plans.Count);
+    var col = plans.Count switch { 1 => "col-md-6 col-lg-4", 2 => "col-md-6", 3 => "col-md-6 col-lg-4", _ => "col-md-6 col-xl-3" };
+}
+@if (plans.Count == 0)
+{
+    <p class="text-center text-muted">@L["Plans are being updated. Contact us for current pricing."]</p>
+}
+else
+{
+<div class="row g-4 justify-content-center">
+    @for (var i = 0; i < plans.Count; i++)
+    {
+        var p = plans[i];
+        var isFeatured = i == featured;
+        var tagline = p.MonthlyPrice == 0 ? L["Everything you need to get started."]
+            : p.MinIntervalSeconds <= 15 ? L["For large fleets and strict uptime targets."]
+            : p.MinIntervalSeconds <= 30 ? L["For businesses where every minute counts."]
+            : L["For growing teams and production sites."];
+        <div class="@col">
+            <div class="price-card @(isFeatured ? "featured" : "")" data-plan="@p.Name">
+                @if (isFeatured) { <span class="ribbon">@L["Recommended"]</span> }
+                <h3>@p.Name</h3>
+                <p class="tagline">@tagline</p>
+                <div class="price">
+                    @if (p.MonthlyPrice == 0) { <b>@L["Free"]</b> }
+                    else { <b>@Fmt.Price(p.MonthlyPrice)</b><span>@L["/ month"]</span> }
+                </div>
+                <a class="btn @(isFeatured ? "btn-primary" : "btn-outline-secondary") w-100"
+                   href="mailto:@Model.ContactEmail?subject=@Uri.EscapeDataString("TriggerCheck " + p.Name)">@(p.MonthlyPrice == 0 ? L["Start for free"] : L["Get {0}", p.Name])</a>
+                <ul>
+                    <li>@Icons.Get("check", 16) <span>@L["Up to {0} monitors", Fmt.Number(p.MaxMonitors)]</span></li>
+                    <li>@Icons.Get("check", 16) <span>@L["Checks every {0}", Fmt.Interval(p.MinIntervalSeconds)]</span></li>
+                    <li>@Icons.Get("check", 16) <span>@L["{0} days of check history", Fmt.Number(p.RetentionDays)]</span></li>
+                    <li>@Icons.Get("check", 16) <span>@L["E-mail and webhook alerts"]</span></li>
+                    <li>@Icons.Get("check", 16) <span>@L["HTTP, keyword, TCP and ping checks"]</span></li>
+                </ul>
+            </div>
+        </div>
+    }
+</div>
+}

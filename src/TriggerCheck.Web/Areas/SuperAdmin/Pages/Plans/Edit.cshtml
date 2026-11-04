@@ -1,0 +1,33 @@
+@page "{id:int}"
+@model TriggerCheck.Web.Areas.SuperAdmin.Pages.Plans.EditModel
+@{ ViewData["Title"] = L["Edit plan"]; }
+
+<nav aria-label="breadcrumb"><ol class="breadcrumb">
+    <li class="breadcrumb-item"><a asp-page="Index">@L["Plans"]</a></li>
+    <li class="breadcrumb-item active">@Model.Plan.Name</li>
+</ol></nav>
+
+<div class="row g-4">
+<div class="col-lg-7">
+<h2 class="mb-3">@L["Edit plan"]</h2>
+<form method="post" class="card"><div class="card-body">
+    <partial name="_PlanForm" for="Input" />
+    <button type="submit" class="btn btn-primary">@L["Save"]</button>
+    <a asp-page="Index" class="btn btn-link">@L["Cancel"]</a>
+</div></form>
+</div>
+<div class="col-lg-5">
+    <div class="card mt-lg-5">
+        <div class="card-header fw-semibold">@L["Impact"]</div>
+        <div class="card-body small">
+            @* Numbers only in the arguments, so the translated sentence can be emitted raw with the <strong> markup. *@
+            <p>@Html.Raw(L["Customers on this plan: {0} ({1} monitors in total).", $"<strong>{Fmt.Number(Model.CustomerCount)}</strong>", $"<strong>{Fmt.Number(Model.MonitorCount)}</strong>"].Value)</p>
+            <p class="mb-0 text-muted">@L["If the minimum interval is raised, faster monitors of these customers are automatically slowed down to the new minimum."]
+            @L["If max monitors is lowered, existing monitors are not deleted; customers over the limit cannot add new monitors."]
+            @L["If the plan is deactivated, existing customers keep it, but it is no longer offered to new customers."]</p>
+        </div>
+    </div>
+</div>
+</div>
+
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

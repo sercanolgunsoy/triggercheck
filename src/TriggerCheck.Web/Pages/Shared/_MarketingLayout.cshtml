@@ -1,0 +1,96 @@
+@inject IConfiguration Config
+@{
+    var signedIn = User.Identity?.IsAuthenticated == true;
+    var panelUrl = User.IsInRole(Roles.SuperAdmin) ? "/SuperAdmin" : "/App";
+    var path = Context.Request.Path.Value?.TrimEnd('/') ?? "";
+    string Active(string href) => path.Equals(href, StringComparison.OrdinalIgnoreCase) ? "active" : "";
+    var mailto = Marketing.MailTo(Config, "TriggerCheck");
+}
+<!DOCTYPE html>
+<html lang="@System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - TriggerCheck</title>
+    <meta name="description" content="@L["Uptime monitoring for websites, APIs and servers. Checks every 15 seconds, instant alerts, clear incident history."]" />
+    <partial name="_ThemeScript" />
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    @await RenderSectionAsync("Head", required: false)
+</head>
+<body class="site">
+<header class="site-nav">
+    <nav class="navbar navbar-expand-lg">
+        <div class="container">
+            <a class="navbar-brand" href="/">@Icons.Logo(30) TriggerCheck</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#siteNav" aria-controls="siteNav" aria-expanded="false" aria-label="@L["Menu"]">@Icons.Get("menu", 22)</button>
+            <div class="collapse navbar-collapse" id="siteNav">
+                <ul class="navbar-nav mx-lg-auto my-2 my-lg-0">
+                    <li class="nav-item"><a class="nav-link @Active("/Features")" href="/Features">@L["Features"]</a></li>
+                    <li class="nav-item"><a class="nav-link @Active("/Pricing")" href="/Pricing">@L["Pricing"]</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/Pricing#faq">@L["FAQ"]</a></li>
+                </ul>
+                <div class="d-flex align-items-center gap-2 pb-3 pb-lg-0">
+                    <partial name="_Toolbar" />
+                    @if (signedIn)
+                    {
+                        <a class="btn btn-primary btn-sm" href="@panelUrl">@L["Open dashboard"] @Icons.Get("arrow-right", 15)</a>
+                    }
+                    else
+                    {
+                        <a class="btn btn-ghost btn-sm" href="/Account/Login">@L["Sign in"]</a>
+                        <a class="btn btn-primary btn-sm" href="@mailto">@L["Request access"]</a>
+                    }
+                </div>
+            </div>
+        </div>
+    </nav>
+</header>
+
+<main role="main">
+    @RenderBody()
+</main>
+
+<footer class="site-footer">
+    <div class="container">
+        <div class="row g-4">
+            <div class="col-lg-5">
+                <a class="d-inline-flex align-items-center gap-2 fw-bold fs-5 text-body text-decoration-none" href="/">@Icons.Logo(28) TriggerCheck</a>
+                <p class="text-muted mt-3 mb-0" style="max-width: 24rem">@L["Uptime monitoring for websites, APIs and servers. Know about downtime before your customers do."]</p>
+            </div>
+            <div class="col-6 col-lg-2">
+                <h4>@L["Product"]</h4>
+                <ul>
+                    <li><a href="/Features">@L["Features"]</a></li>
+                    <li><a href="/Pricing">@L["Pricing"]</a></li>
+                    <li><a href="/Pricing#compare">@L["Compare plans"]</a></li>
+                </ul>
+            </div>
+            <div class="col-6 col-lg-2">
+                <h4>@L["Resources"]</h4>
+                <ul>
+                    <li><a href="/Pricing#faq">@L["FAQ"]</a></li>
+                    <li><a href="/Features#alerts">@L["Webhook format"]</a></li>
+                    <li><a href="/health">@L["System status"]</a></li>
+                </ul>
+            </div>
+            <div class="col-6 col-lg-3">
+                <h4>@L["Company"]</h4>
+                <ul>
+                    <li><a href="@mailto">@Marketing.ContactEmail(Config)</a></li>
+                    <li><a href="/Account/Login">@L["Sign in"]</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="legal d-flex flex-wrap justify-content-between gap-2">
+            <span>&copy; @DateTime.UtcNow.Year TriggerCheck</span>
+            <span>@L["Made for teams that care about uptime."]</span>
+        </div>
+    </div>
+</footer>
+<script src="~/lib/jquery/dist/jquery.min.js"></script>
+<script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+<script src="~/js/site.js" asp-append-version="true"></script>
+@await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>
