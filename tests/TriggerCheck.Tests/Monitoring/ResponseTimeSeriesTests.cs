@@ -87,6 +87,49 @@ public class ResponseTimeSeriesTests
     }
 
     [Fact]
+    public async Task Large_ranges_use_a_sampled_p95_and_exact_aggregates()
+    {
+        await using var host = await MonitoringTestHost.CreateAsync();
+        var customer = await host.AddCustomerAsync();
+        var monitor = await host.AddMonitorAsync(customer.Id);
+        var from = host.Now.AddHours(-10);
+        const int rows = ResponseTimeSeriesService.ExactP95MaxRows + 10_000;
+        await host.WithDbAsync(async db =>
+        {
+            for (var i = 0; i < rows; i++) // response times cycle 1..100 ms within every bucket
+                db.CheckResults.Add(new CheckResult { MonitorId = monitor.Id, CheckedAtUtc = from.AddSeconds(i), IsUp = true, ResponseTimeMs = i % 100 + 1 });
+            await db.SaveChangesAsync();
+        });
+
+        var s = await GetAsync(host, monitor.Id, customer.Id, from, host.Now, maxPoints: 10);
+        Assert.True(s.P95Approximate);
+        Assert.Equal(rows, s.Buckets.Sum(b => b.Checks));
+        Assert.All(s.Buckets.Where(b => b.Checks > 0), b =>
+        {
+            Assert.Equal(50.5, b.AvgMs!.Value, 0.5);  // exact (SQL)
+            Assert.InRange(b.P95Ms!.Value, 90, 100);   // exact would be 95
+        });
+
+        var small = await GetAsync(host, monitor.Id, customer.Id, from, from.AddMinutes(30), maxPoints: 1);
+        Assert.False(small.P95Approximate);
+        Assert.Equal(95, small.Buckets[0].P95Ms);
+    }
+
+    [Fact]
+    public async Task Recent_series_is_cached_per_monitor_and_range()
+    {
+        await using var host = await MonitoringTestHost.CreateAsync();
+        var customer = await host.AddCustomerAsync();
+        var monitor = await host.AddMonitorAsync(customer.Id);
+        Task<ResponseTimeSeries> Recent(TimeSpan range) =>
+            host.InScopeAsync(sp => sp.GetRequiredService<IResponseTimeSeriesService>().GetRecentAsync(monitor.Id, customer.Id, range));
+
+        var first = await Recent(TimeSpan.FromHours(24));
+        Assert.Same(first, await Recent(TimeSpan.FromHours(24)));
+        Assert.NotSame(first, await Recent(TimeSpan.FromDays(7)));
+    }
+
+    [Fact]
     public async Task Another_customers_monitor_yields_no_data()
     {
         await using var host = await MonitoringTestHost.CreateAsync();

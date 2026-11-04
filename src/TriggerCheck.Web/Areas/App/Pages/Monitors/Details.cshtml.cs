@@ -37,8 +37,8 @@ public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStat
     public string Range { get; private set; } = "24h";
     public List<ChartIncident> ChartIncidents { get; private set; } = [];
     public bool HasPhaseData => Chart.Any(p => p.Wait is not null);
-    public bool IsHttps => Monitor.Type is MonitorType.Http or MonitorType.Keyword
-        && Monitor.Target.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
+    public bool IsHttps => MonitorStateMachine.IsHttpsMonitor(Monitor);
+    public bool P95Approximate { get; private set; }
 
     public MonitorEntity Monitor { get; private set; } = null!;
     public UptimeSummary? Stats24h { get; private set; }
@@ -79,8 +79,10 @@ public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStat
         Stats30d = (await stats.GetSummariesAsync(ids, now.AddDays(-30), now, ct))[id];
 
         Range = range is not null && Ranges.ContainsKey(range) ? range : "24h";
-        var from = now - Ranges[Range];
-        var s = await series.GetAsync(id, m.CustomerId, from, now, MaxChartPoints, ct);
+        var s = await series.GetRecentAsync(id, m.CustomerId, Ranges[Range], ct); // cached for a minute
+        var from = s.FromUtc;
+        P95Approximate = s.P95Approximate;
+        now = s.ToUtc;
         string Label(DateTime utc) => Range == "24h" ? Fmt.ShortTime(utc) : Fmt.ToLocal(utc).ToString("dd.MM HH:mm", System.Globalization.CultureInfo.InvariantCulture);
         Chart = s.Buckets.Select(b => new ChartPoint(Label(b.StartUtc), b.AvgMs, b.P95Ms, b.Checks, b.Failures,
             b.DnsMs, b.ConnectMs, b.TlsMs, b.WaitMs, b.TransferMs)).ToList();
@@ -88,9 +90,10 @@ public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStat
 
         var rangeIncidents = await db.Incidents.AsNoTracking()
             .Where(i => i.MonitorId == id && i.Monitor.CustomerId == m.CustomerId && i.StartedAtUtc <= now && (i.ResolvedAtUtc == null || i.ResolvedAtUtc >= from))
-            .OrderBy(i => i.StartedAtUtc)
-            .Take(200)
+            .OrderByDescending(i => i.StartedAtUtc)
+            .Take(200) // newest
             .ToListAsync(ct);
+        rangeIncidents.Reverse();
         ChartIncidents = rangeIncidents.Select(i => new ChartIncident(
             s.BucketIndexOf(i.StartedAtUtc < from ? from : i.StartedAtUtc) ?? 0,
             i.ResolvedAtUtc is DateTime r ? s.BucketIndexOf(r) : null,
@@ -179,7 +182,10 @@ public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStat
         {
             var r = await runner.RunAsync(m.Id, ct);
             var http = r.StatusCode is int sc ? $" (HTTP {sc})" : "";
+            var confirming = !r.IsUp && await db.Monitors.AsNoTracking().AnyAsync(x => x.Id == m.Id && x.PendingConfirmationSinceUtc != null, ct);
             if (r.IsUp) TempData["Success"] = L["Check succeeded: {0}{1}.", Fmt.Ms(r.ResponseTimeMs), http].Value;
+            else if (confirming)
+                TempData["Error"] = L["Check failed: {0}{1}. The failure was recorded; a confirmation check runs shortly before the monitor is marked down.", r.Error ?? L["an unknown error"].Value, http].Value;
             else TempData["Error"] = L["Check failed: {0}{1}.", r.Error ?? L["an unknown error"].Value, http].Value;
         }
         catch (MonitorCheckDiscardedException ex) when (ex.MonitorDeleted)

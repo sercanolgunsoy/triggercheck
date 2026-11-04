@@ -73,7 +73,7 @@ public class ProbeTimingTests
     }
 
     [Fact]
-    public async Task Connection_failure_keeps_dns_but_has_no_ttfb()
+    public async Task Refused_connection_has_no_ttfb()
     {
         await using var host = await MonitoringTestHost.CreateAsync();
         var port = FreePort();
@@ -123,6 +123,57 @@ public class ProbeTimingTests
     }
 
     [Fact]
+    public async Task Trusted_https_target_gets_tls_timing_and_a_valid_certificate()
+    {
+        using var cert = SelfSignedCertificate(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(40));
+        await using var server = await HttpsServer.StartAsync(cert);
+        // Test-only trust of exactly this certificate; everything else is the production callback.
+        using var handler = new SocketsHttpHandler
+        {
+            UseProxy = false,
+            ConnectCallback = ProbeConnection.ConnectCallback(() => true, null,
+                (_, c, _, _) => c is not null && c.GetCertHashString() == cert.GetCertHashString())
+        };
+        using var client = new HttpClient(handler);
+        var probe = new ProbeContext("127.0.0.1");
+        using var request = new HttpRequestMessage(HttpMethod.Get, server.Url);
+        request.Options.Set(ProbeContext.Key, probe);
+
+        using var response = await client.SendAsync(request);
+        Assert.Equal("secure", await response.Content.ReadAsStringAsync());
+        var t = probe.Timings(1);
+        Assert.NotNull(t.DnsMs);
+        Assert.NotNull(t.ConnectMs);
+        Assert.NotNull(t.TlsMs);
+        Assert.NotNull(probe.Certificate);
+        Assert.Null(probe.Certificate!.Error);
+        Assert.Equal(cert.NotAfter.ToUniversalTime(), probe.Certificate.NotAfterUtc, TimeSpan.FromSeconds(1));
+    }
+
+    [Fact]
+    public async Task Ipv6_literal_target_is_validated_and_captured_without_brackets()
+    {
+        using var cert = SelfSignedCertificate(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(10));
+        await using var server = await HttpsServer.StartAsync(cert, IPAddress.IPv6Loopback);
+        await using var host = await MonitoringTestHost.CreateAsync();
+        var outcome = await Checker(host, MonitorType.Http).CheckAsync(
+            new MonitorEntity { Type = MonitorType.Http, Target = server.Url, TimeoutSeconds = 5 }, CancellationToken.None);
+
+        Assert.False(outcome.IsUp); // untrusted, but the name (::1 in the SAN) matches
+        Assert.NotNull(outcome.Certificate);
+        Assert.Contains("untrusted root", outcome.Error);
+        Assert.DoesNotContain("name does not match", outcome.Error);
+    }
+
+    [Theory]
+    [InlineData("[::1]", "::1")]
+    [InlineData("::1", "::1")]
+    [InlineData("example.com", "example.com")]
+    [InlineData("[", "[")]
+    public void BareHost_strips_ipv6_brackets(string host, string expected) =>
+        Assert.Equal(expected, ProbeConnection.BareHost(host));
+
+    [Fact]
     public void DescribeErrors_is_readable_and_null_for_valid_certificates()
     {
         var now = new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc);
@@ -135,9 +186,9 @@ public class ProbeTimingTests
             ProbeConnection.DescribeErrors(SslPolicyErrors.RemoteCertificateChainErrors, null, now.AddDays(-1), now.AddDays(1), now));
     }
 
-    private static int FreePort()
+    private static int FreePort(IPAddress? address = null)
     {
-        using var l = new TcpListener(IPAddress.Loopback, 0);
+        using var l = new TcpListener(address ?? IPAddress.Loopback, 0);
         l.Start();
         return ((IPEndPoint)l.LocalEndpoint).Port;
     }
@@ -149,6 +200,7 @@ public class ProbeTimingTests
         var san = new SubjectAlternativeNameBuilder();
         san.AddDnsName("probe.test");
         san.AddIpAddress(IPAddress.Loopback);
+        san.AddIpAddress(IPAddress.IPv6Loopback);
         req.CertificateExtensions.Add(san.Build());
         req.CertificateExtensions.Add(new X509EnhancedKeyUsageExtension([new Oid("1.3.6.1.5.5.7.3.1")], false));
         using var cert = req.CreateSelfSigned(notBefore, notAfter);
@@ -163,16 +215,18 @@ public class ProbeTimingTests
 
         private HttpsServer(WebApplication app, string url) { _app = app; Url = url; }
 
-        public static async Task<HttpsServer> StartAsync(X509Certificate2 cert)
+        public static async Task<HttpsServer> StartAsync(X509Certificate2 cert, IPAddress? address = null)
         {
-            var port = FreePort();
+            address ??= IPAddress.Loopback;
+            var port = FreePort(address);
             var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = "Testing" });
             builder.Logging.ClearProviders();
-            builder.WebHost.ConfigureKestrel(k => k.Listen(IPAddress.Loopback, port, l => l.UseHttps(cert)));
+            builder.WebHost.ConfigureKestrel(k => k.Listen(address, port, l => l.UseHttps(cert)));
             var app = builder.Build();
             app.MapGet("/", () => "secure");
             await app.StartAsync();
-            return new HttpsServer(app, $"https://127.0.0.1:{port}/");
+            var host = address.AddressFamily == AddressFamily.InterNetworkV6 ? $"[{address}]" : address.ToString();
+            return new HttpsServer(app, $"https://{host}:{port}/");
         }
 
         public async ValueTask DisposeAsync()

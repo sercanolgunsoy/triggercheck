@@ -295,9 +295,6 @@
   <data name="No alert channels yet. Add an e-mail or webhook channel to hear about downtime." xml:space="preserve">
     <value>Henüz bildirim kanalı yok. Kesintilerden haberdar olmak için bir e-posta veya webhook kanalı ekleyin.</value>
   </data>
-  <data name="No check results in the last 24 hours." xml:space="preserve">
-    <value>Son 24 saatte kontrol sonucu yok.</value>
-  </data>
   <data name="No checks yet." xml:space="preserve">
     <value>Henüz kontrol yapılmadı.</value>
   </data>
@@ -345,12 +342,6 @@
   </data>
   <data name="Resolved" xml:space="preserve">
     <value>Çözüldü</value>
-  </data>
-  <data name="Response time (ms)" xml:space="preserve">
-    <value>Yanıt süresi (ms)</value>
-  </data>
-  <data name="Response time — last 24 hours ({0})" xml:space="preserve">
-    <value>Yanıt süresi — son 24 saat ({0})</value>
   </data>
   <data name="Result" xml:space="preserve">
     <value>Sonuç</value>
@@ -645,5 +636,11 @@
   </data>
   <data name="reused connection, TTFB {0} ms" xml:space="preserve">
     <value>yeniden kullanılan bağlantı, TTFB {0} ms</value>
+  </data>
+  <data name="The 95th percentile is estimated from a sample of the checks." xml:space="preserve">
+    <value>95. yüzdelik, kontrollerin bir örnekleminden tahmin edilir.</value>
+  </data>
+  <data name="Check failed: {0}{1}. The failure was recorded; a confirmation check runs shortly before the monitor is marked down." xml:space="preserve">
+    <value>Kontrol başarısız: {0}{1}. Hata kaydedildi; monitör kapalı olarak işaretlenmeden önce kısa süre içinde bir doğrulama kontrolü yapılacak.</value>
   </data>
 </root>

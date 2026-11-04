@@ -39,10 +39,33 @@ public static class MonitorStateMachine
         && monitor.ConsecutiveFailures + 1 >= Math.Max(1, monitor.FailureThreshold);
 
     /// <summary>
-    /// Applies a failed probe (<paramref name="failure"/> at <paramref name="failedAtUtc"/>) together with its
-    /// confirmation probe. Rules:
+    /// First half of confirm-before-alert: records the failed probe without counting it, marks the monitor as waiting
+    /// for a confirmation (bound to the current Version) and schedules the confirmation probe after <paramref name="delay"/>.
+    /// </summary>
+    public static void BeginConfirmation(MonitorEntity monitor, CheckOutcome failure, DateTime failedAtUtc, TimeSpan delay)
+    {
+        RecordProbe(monitor, failure, failedAtUtc);
+        monitor.PendingConfirmationSinceUtc = failedAtUtc;
+        monitor.PendingConfirmationVersion = monitor.Version;
+        monitor.NextCheckAtUtc = failedAtUtc + delay;
+    }
+
+    /// <summary>A confirmation is pending and nobody changed the monitor since it was recorded.</summary>
+    public static bool HasValidPendingConfirmation(MonitorEntity monitor) =>
+        monitor.PendingConfirmationSinceUtc is not null && monitor.PendingConfirmationVersion == monitor.Version;
+
+    public static void ClearPendingConfirmation(MonitorEntity monitor)
+    {
+        monitor.PendingConfirmationSinceUtc = null;
+        monitor.PendingConfirmationVersion = null;
+    }
+
+    /// <summary>
+    /// Second half of confirm-before-alert: applies the confirmation probe of a failure recorded at
+    /// <paramref name="failedAtUtc"/>. Rules:
     /// <list type="bullet">
-    /// <item>The schedule continues from the original probe time (the confirmation does not shift the interval).</item>
+    /// <item>The schedule continues from the original failure (as if it had been the scheduled run), not from the
+    /// confirmation.</item>
     /// <item>Confirmation failed: both probes count as consecutive failures; the monitor goes DOWN with
     /// StatusChangedAtUtc = <paramref name="failedAtUtc"/> (the outage started at the first failed probe).</item>
     /// <item>Confirmation succeeded: the failure is treated as transient. The confirmation counts as a successful
@@ -51,11 +74,11 @@ public static class MonitorStateMachine
     /// </list>
     /// Last* fields describe the confirmation, the most recent probe.
     /// </summary>
-    public static StatusTransition ApplyConfirmed(MonitorEntity monitor, CheckOutcome failure, DateTime failedAtUtc, CheckOutcome confirmation, DateTime confirmedAtUtc)
+    public static StatusTransition ApplyConfirmed(MonitorEntity monitor, DateTime failedAtUtc, CheckOutcome confirmation, DateTime confirmedAtUtc)
     {
-        monitor.NextCheckAtUtc = NextCheckAfter(monitor.NextCheckAtUtc, monitor.IntervalSeconds, failedAtUtc);
+        monitor.NextCheckAtUtc = NextCheckAfter(failedAtUtc, monitor.IntervalSeconds, confirmedAtUtc);
         StatusTransition transition;
-        if (confirmation.IsUp || failure.IsUp)
+        if (confirmation.IsUp)
         {
             transition = Transition(monitor, true, confirmedAtUtc);
         }
@@ -133,20 +156,43 @@ public static class MonitorStateMachine
     /// <summary>Choices offered for <see cref="MonitorEntity.CertWarnDays"/> (0 = off).</summary>
     public static readonly int[] CertWarnDayChoices = [30, 14, 7, 0];
 
+    /// <summary>Days before expiry of the final reminder sent when the configured warning window is larger.</summary>
+    public const int FinalCertReminderDays = 7;
+
+    /// <summary>True for https Http/Keyword monitors, the only ones whose certificate is tracked.</summary>
+    public static bool IsHttpsMonitor(MonitorEntity monitor) =>
+        monitor.Type is MonitorType.Http or MonitorType.Keyword
+        && monitor.Target.TrimStart().StartsWith("https://", StringComparison.OrdinalIgnoreCase);
+
     /// <summary>
-    /// True once per certificate when it is still valid but expires within CertWarnDays; marks it as warned
-    /// (<see cref="MonitorEntity.CertWarningSentForUtc"/>). An already expired or otherwise invalid certificate makes
-    /// the probe itself fail, so it is reported through the normal DOWN alert instead. A renewed certificate (new
-    /// NotAfter) can warn again. Changing CertWarnDays does not re-warn for the same certificate.
+    /// The warning level (days) the certificate of <paramref name="monitor"/> has reached at <paramref name="nowUtc"/>,
+    /// or null when no warning is due: CertWarnDays when it enters the configured window, and
+    /// <see cref="FinalCertReminderDays"/> as a final reminder when the window is larger. Only for https monitors with
+    /// a valid, not yet expired certificate (an expired or otherwise invalid certificate makes the probe itself fail,
+    /// so it is reported through the normal DOWN alert).
+    /// </summary>
+    public static int? CertificateWarningLevel(MonitorEntity monitor, DateTime nowUtc)
+    {
+        if (monitor.CertWarnDays <= 0 || !IsHttpsMonitor(monitor)) return null;
+        if (monitor.CertExpiresAtUtc is not { } expires || monitor.CertError is not null) return null;
+        var remaining = expires - nowUtc;
+        if (remaining <= TimeSpan.Zero) return null;
+        if (monitor.CertWarnDays > FinalCertReminderDays && remaining <= TimeSpan.FromDays(FinalCertReminderDays)) return FinalCertReminderDays;
+        return remaining <= TimeSpan.FromDays(monitor.CertWarnDays) ? monitor.CertWarnDays : null;
+    }
+
+    /// <summary>
+    /// True when a "certificate expiring" alert is due, and marks it as sent: at most one alert per certificate and
+    /// level (see <see cref="CertificateWarningLevel"/>), i.e. one when entering the window and one final reminder.
+    /// A renewed certificate (new NotAfter) starts over. Changing CertWarnDays does not repeat a level already sent.
     /// </summary>
     public static bool TryMarkCertificateWarning(MonitorEntity monitor, DateTime nowUtc)
     {
-        if (monitor.CertWarnDays <= 0 || monitor.Type is not (MonitorType.Http or MonitorType.Keyword)) return false;
-        if (monitor.CertExpiresAtUtc is not { } expires || monitor.CertError is not null) return false;
-        var remaining = expires - nowUtc;
-        if (remaining <= TimeSpan.Zero || remaining > TimeSpan.FromDays(monitor.CertWarnDays)) return false;
-        if (monitor.CertWarningSentForUtc == expires) return false;
+        if (CertificateWarningLevel(monitor, nowUtc) is not { } level) return false;
+        var expires = monitor.CertExpiresAtUtc!.Value;
+        if (monitor.CertWarningSentForUtc == expires && monitor.CertWarningSentDays is { } sent && sent <= level) return false;
         monitor.CertWarningSentForUtc = expires;
+        monitor.CertWarningSentDays = level;
         return true;
     }
 

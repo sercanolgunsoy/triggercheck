@@ -33,18 +33,22 @@ namespace TriggerCheck.Monitoring.Engine;
 /// pause/resume/edit that read the old state fails on the token and retries on the new state.
 /// Alert delivery happens after the state is saved and its failures are only logged.
 /// <para>
-/// Confirm before alert (<see cref="MonitoringOptions.ConfirmBeforeDown"/>): when a failed probe would take an
-/// actively monitored monitor DOWN (<see cref="MonitorStateMachine.NeedsConfirmation"/>), the runner waits
-/// <see cref="MonitoringOptions.ConfirmationDelaySeconds"/> (via <see cref="TimeProvider"/>) and probes once more,
-/// still holding the per-monitor gate. Before the confirmation probe the monitor is re-read: deleted or probe
-/// settings edited =&gt; the result is discarded as above; paused/disabled/resumed meanwhile =&gt; no confirmation and
-/// the failure is only recorded (no transition, incident or alert). Both probes are then saved together under the
-/// same Version rules; see <see cref="MonitorStateMachine.ApplyConfirmed"/> for how they are counted. Shutdown during
-/// the delay drops the pending result like an interrupted probe. Worst-case DOWN detection: interval + delay + timeout.
+/// Confirm before alert (<see cref="MonitoringOptions.ConfirmBeforeDown"/>): a failed probe that would take an
+/// actively monitored monitor DOWN (<see cref="MonitorStateMachine.NeedsConfirmation"/>) is only recorded: the
+/// CheckResult and Last* fields are saved, the failure is not counted yet, and the monitor is marked
+/// <see cref="MonitorEntity.PendingConfirmationSinceUtc"/> with its next check moved to now +
+/// <see cref="MonitoringOptions.ConfirmationDelaySeconds"/>. The run then returns, so neither a scheduler slot nor a
+/// "check now" request waits for the delay. The next run (normally the scheduler picking the monitor up as due) is
+/// the confirmation probe: <see cref="MonitorStateMachine.ApplyConfirmed"/> applies both probes (outage dated from
+/// the first failure; a successful confirmation is a transient blip). The confirmation's CheckResult is flagged
+/// <see cref="CheckResult.IsConfirmation"/> and excluded from uptime / chart statistics.
+/// A pending confirmation is bound to the monitor's Version when it was recorded: any user change meanwhile (edit,
+/// pause, resume, SuperAdmin clamp; delete removes the row) cancels it, and the next probe is evaluated from scratch.
+/// Worst-case DOWN detection: interval + delay + scheduler tick + probe timeout.
 /// </para>
 /// <para>
 /// TLS certificates (https Http/Keyword): the certificate captured by the probe is stored on the monitor, and a
-/// one-time "certificate expiring" alert is sent when it is within <see cref="MonitorEntity.CertWarnDays"/> of expiry
+/// "certificate expiring" alert is sent once when it enters <see cref="MonitorEntity.CertWarnDays"/> and once more at 7 days
 /// (<see cref="MonitorStateMachine.TryMarkCertificateWarning"/>), for actively monitored monitors only.
 /// </para>
 /// </summary>
@@ -76,19 +80,14 @@ public sealed class MonitorCheckRunner(
 
             var checkedAt = time.GetUtcNow().UtcDateTime;
             var outcome = await ProbeAsync(snapshot, ct);
-            var confirmation = options.CurrentValue.ConfirmBeforeDown && MonitorStateMachine.NeedsConfirmation(snapshot, outcome)
-                ? await ConfirmAsync(snapshot, ct)
-                : null;
 
             // State must be persisted even if shutdown was requested after the probe completed.
             for (var attempt = 1; ; attempt++)
             {
-                var first = ToResult(monitorId, outcome, checkedAt);
-                var confirmed = confirmation is { } c ? ToResult(monitorId, c.Outcome, c.At) : null;
-                result = confirmed ?? first;
+                result = ToResult(monitorId, outcome, checkedAt);
                 try
                 {
-                    (alert, certAlert) = await PersistAsync(snapshot, outcome, first, checkedAt, confirmation, confirmed);
+                    (alert, certAlert) = await PersistAsync(snapshot, outcome, result, checkedAt);
                     break;
                 }
                 catch (DbUpdateConcurrencyException) when (attempt < MaxSaveAttempts)
@@ -146,54 +145,14 @@ public sealed class MonitorCheckRunner(
         TtfbMs = outcome.Timings?.TtfbMs
     };
 
-    private sealed record Confirmation(CheckOutcome Outcome, DateTime At);
-
-    /// <summary>
-    /// Waits the confirmation delay and probes again. Returns null (no confirmation; the failure is then only
-    /// recorded by <see cref="PersistAsync"/>) when the monitor was paused/disabled/resumed meanwhile; throws
-    /// <see cref="MonitorCheckDiscardedException"/> when it was deleted or its probe settings were edited.
-    /// </summary>
-    private async Task<Confirmation?> ConfirmAsync(MonitorEntity snapshot, CancellationToken ct)
-    {
-        var delay = TimeSpan.FromSeconds(Math.Clamp(options.CurrentValue.ConfirmationDelaySeconds, 0, 60));
-        if (delay > TimeSpan.Zero) await Task.Delay(delay, time, ct);
-
-        MonitorEntity? current;
-        await using (var db = await dbFactory.CreateDbContextAsync(ct))
-        {
-            current = await db.Monitors.AsNoTracking().Include(m => m.Customer).SingleOrDefaultAsync(m => m.Id == snapshot.Id, ct);
-        }
-        if (current is null)
-        {
-            logger.LogDebug("Monitor {MonitorId} was deleted before its confirmation probe; result discarded", snapshot.Id);
-            throw new MonitorCheckDiscardedException(snapshot.Id, monitorDeleted: true);
-        }
-        if (ProbeSettings.Of(current) != ProbeSettings.Of(snapshot))
-        {
-            logger.LogDebug("Monitor {MonitorId} was edited before its confirmation probe; stale result discarded", snapshot.Id);
-            throw new MonitorCheckDiscardedException(snapshot.Id, monitorDeleted: false);
-        }
-        if (current.Status != snapshot.Status || current.IsEnabled != snapshot.IsEnabled || !MonitorStateMachine.IsActivelyMonitored(current))
-        {
-            logger.LogDebug("Monitor {MonitorId} was paused or changed before its confirmation probe; no confirmation", snapshot.Id);
-            return null;
-        }
-
-        var at = time.GetUtcNow().UtcDateTime;
-        var outcome = await ProbeAsync(snapshot, ct);
-        logger.LogInformation("Monitor {MonitorId} confirmation probe: {Result}", snapshot.Id, outcome.IsUp ? "up (transient failure)" : "failed");
-        return new Confirmation(outcome, at);
-    }
-
     private async Task<bool> MonitorExistsAsync(int monitorId)
     {
         await using var db = await dbFactory.CreateDbContextAsync(CancellationToken.None);
         return await db.Monitors.AnyAsync(m => m.Id == monitorId);
     }
 
-    /// <summary>Re-reads the monitor and applies the outcome (and its confirmation) to it. Returns the alerts to send, if any.</summary>
-    private async Task<(AlertMessage? Status, AlertMessage? Certificate)> PersistAsync(MonitorEntity snapshot, CheckOutcome outcome, CheckResult result,
-        DateTime checkedAt, Confirmation? confirmation, CheckResult? confirmationResult)
+    /// <summary>Re-reads the monitor and applies the outcome to it. Returns the alerts to send, if any.</summary>
+    private async Task<(AlertMessage? Status, AlertMessage? Certificate)> PersistAsync(MonitorEntity snapshot, CheckOutcome outcome, CheckResult result, DateTime checkedAt)
     {
         var ct = CancellationToken.None;
         await using var db = await dbFactory.CreateDbContextAsync(ct);
@@ -209,32 +168,46 @@ public sealed class MonitorCheckRunner(
             throw new MonitorCheckDiscardedException(snapshot.Id, monitorDeleted: false);
         }
 
+        // Retries start from a fresh row: reset what an earlier attempt may have set on the (new) result object.
+        result.IsConfirmation = false;
         db.CheckResults.Add(result);
-        if (confirmationResult is not null) db.CheckResults.Add(confirmationResult);
         AlertMessage? alert = null;
         AlertMessage? certAlert = null;
-        var latest = confirmation?.Outcome ?? outcome;
-        var latestAt = confirmation?.At ?? checkedAt;
-        MonitorStateMachine.RecordCertificate(monitor, latest.Certificate ?? outcome.Certificate, latestAt);
+        MonitorStateMachine.RecordCertificate(monitor, outcome.Certificate, checkedAt);
         var unchangedLifecycle = monitor.Status == snapshot.Status && monitor.IsEnabled == snapshot.IsEnabled;
         if (unchangedLifecycle && MonitorStateMachine.IsActivelyMonitored(snapshot) && MonitorStateMachine.IsActivelyMonitored(monitor))
         {
-            var transition = confirmation is null
-                ? MonitorStateMachine.Apply(monitor, outcome, checkedAt)
-                : MonitorStateMachine.ApplyConfirmed(monitor, outcome, checkedAt, confirmation.Outcome, confirmation.At);
-            // A confirmed outage started at the first failed probe.
-            var transitionAt = transition == StatusTransition.WentDown ? checkedAt : latestAt;
+            var o = options.CurrentValue;
+            var transition = StatusTransition.None;
+            var transitionAt = checkedAt;
+            if (MonitorStateMachine.HasValidPendingConfirmation(monitor))
+            {
+                // This run is the confirmation probe of an earlier failure.
+                var failedAt = monitor.PendingConfirmationSinceUtc!.Value;
+                result.IsConfirmation = true;
+                MonitorStateMachine.ClearPendingConfirmation(monitor);
+                transition = MonitorStateMachine.ApplyConfirmed(monitor, failedAt, outcome, checkedAt);
+                if (transition == StatusTransition.WentDown) transitionAt = failedAt; // the outage started at the first failure
+                logger.LogInformation("Monitor {MonitorId} confirmation probe: {Result}", monitor.Id, outcome.IsUp ? "up (transient failure)" : "failed");
+            }
+            else
+            {
+                MonitorStateMachine.ClearPendingConfirmation(monitor); // stale (monitor changed since) or none
+                if (o.ConfirmBeforeDown && MonitorStateMachine.NeedsConfirmation(monitor, outcome))
+                    MonitorStateMachine.BeginConfirmation(monitor, outcome, checkedAt, TimeSpan.FromSeconds(Math.Clamp(o.ConfirmationDelaySeconds, 0, 300)));
+                else
+                    transition = MonitorStateMachine.Apply(monitor, outcome, checkedAt);
+            }
             alert = await ApplyTransitionAsync(db, monitor, transition, transitionAt, ct);
             // Status changed (and possibly an incident opened/closed): make concurrent user writers retry.
             if (transition != StatusTransition.None) monitor.Version++;
-            if (MonitorStateMachine.TryMarkCertificateWarning(monitor, latestAt))
-                certAlert = AlertMessage.CertificateExpiring(monitor, latestAt);
+            if (MonitorStateMachine.TryMarkCertificateWarning(monitor, checkedAt))
+                certAlert = AlertMessage.CertificateExpiring(monitor, checkedAt);
         }
         else
         {
             MonitorStateMachine.RecordProbe(monitor, outcome, checkedAt);
-            if (confirmation is not null) MonitorStateMachine.RecordProbe(monitor, confirmation.Outcome, confirmation.At);
-            logger.LogDebug("Check of inactive monitor {MonitorId} recorded without state change: {IsUp}", monitor.Id, latest.IsUp);
+            logger.LogDebug("Check of inactive monitor {MonitorId} recorded without state change: {IsUp}", monitor.Id, outcome.IsUp);
         }
 
         await db.SaveChangesAsync(ct);

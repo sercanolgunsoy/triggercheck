@@ -11,6 +11,8 @@ public class CheckResult
     public int? StatusCode { get; set; }
     public int ResponseTimeMs { get; set; }
     public string? Error { get; set; }
+    /// <summary>Confirmation probe of an earlier failure (confirm before alert). Excluded from uptime and chart statistics.</summary>
+    public bool IsConfirmation { get; set; }
 
     // ---- HTTP/Keyword phase breakdown (ms). All null for Tcp/Ping and for probes that failed before the phase. ----
     // A probe that reused a pooled connection has no DNS/connect/TLS phase: DnsMs, ConnectMs and TlsMs are null

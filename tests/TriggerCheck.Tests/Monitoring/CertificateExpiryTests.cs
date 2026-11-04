@@ -29,26 +29,50 @@ public class CertificateExpiryTests
         Assert.Equal(expected, MonitorStateMachine.TryMarkCertificateWarning(Https(warnDays, Now.AddDays(daysLeft)), Now));
 
     [Fact]
-    public void Warns_once_per_certificate_and_again_after_renewal()
+    public void Warns_once_when_entering_the_window_once_more_at_7_days_and_again_after_renewal()
     {
-        var m = Https(14, Now.AddDays(10));
-        Assert.True(MonitorStateMachine.TryMarkCertificateWarning(m, Now));
+        var m = Https(30, Now.AddDays(20));
+        Assert.True(MonitorStateMachine.TryMarkCertificateWarning(m, Now));            // entered the 30 day window
         Assert.Equal(m.CertExpiresAtUtc, m.CertWarningSentForUtc);
+        Assert.Equal(30, m.CertWarningSentDays);
         Assert.False(MonitorStateMachine.TryMarkCertificateWarning(m, Now.AddDays(1)));
-        Assert.False(MonitorStateMachine.TryMarkCertificateWarning(m, Now.AddDays(5)));
+        Assert.False(MonitorStateMachine.TryMarkCertificateWarning(m, Now.AddDays(12)));  // 8 days left
+        Assert.True(MonitorStateMachine.TryMarkCertificateWarning(m, Now.AddDays(13)));   // 7 days left: final reminder
+        Assert.Equal(7, m.CertWarningSentDays);
+        Assert.False(MonitorStateMachine.TryMarkCertificateWarning(m, Now.AddDays(19)));  // nothing after the final reminder
 
-        m.CertExpiresAtUtc = Now.AddDays(90); // renewed
-        Assert.False(MonitorStateMachine.TryMarkCertificateWarning(m, Now.AddDays(5)));
-        Assert.True(MonitorStateMachine.TryMarkCertificateWarning(m, Now.AddDays(80)));
+        m.CertExpiresAtUtc = Now.AddDays(110); // renewed
+        Assert.False(MonitorStateMachine.TryMarkCertificateWarning(m, Now.AddDays(19)));
+        Assert.True(MonitorStateMachine.TryMarkCertificateWarning(m, Now.AddDays(85)));
     }
 
     [Fact]
-    public void Invalid_certificates_and_non_http_monitors_do_not_warn()
+    public void Window_of_7_days_or_less_sends_a_single_warning()
+    {
+        var m = Https(7, Now.AddDays(6));
+        Assert.True(MonitorStateMachine.TryMarkCertificateWarning(m, Now));
+        Assert.False(MonitorStateMachine.TryMarkCertificateWarning(m, Now.AddDays(5)));
+    }
+
+    [Fact]
+    public void Entering_late_sends_only_the_most_urgent_level()
+    {
+        var m = Https(30, Now.AddDays(5)); // monitor created when only 5 days are left
+        Assert.True(MonitorStateMachine.TryMarkCertificateWarning(m, Now));
+        Assert.Equal(7, m.CertWarningSentDays);
+        Assert.False(MonitorStateMachine.TryMarkCertificateWarning(m, Now.AddDays(1)));
+    }
+
+    [Fact]
+    public void Invalid_certificates_and_non_https_monitors_do_not_warn()
     {
         Assert.False(MonitorStateMachine.TryMarkCertificateWarning(Https(14, Now.AddDays(3), "certificate name does not match the host"), Now));
         var tcp = Https(14, Now.AddDays(3));
         tcp.Type = MonitorType.Tcp;
         Assert.False(MonitorStateMachine.TryMarkCertificateWarning(tcp, Now));
+        var http = Https(14, Now.AddDays(3));
+        http.Target = "http://example.com/"; // stale data from an earlier https target
+        Assert.False(MonitorStateMachine.TryMarkCertificateWarning(http, Now));
         Assert.False(MonitorStateMachine.TryMarkCertificateWarning(Https(14, null), Now));
     }
 

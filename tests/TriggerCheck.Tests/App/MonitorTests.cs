@@ -351,6 +351,37 @@ public class MonitorTests : IClassFixture<TestWebAppFactory>
     }
 
     [Fact]
+    public async Task Failing_check_now_does_not_wait_for_the_confirmation_probe()
+    {
+        // ConfirmBeforeDown is on (default) with the default 5 s delay; the manual check must not wait for it.
+        int port;
+        using (var l = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0)) { l.Start(); port = ((IPEndPoint)l.LocalEndpoint).Port; }
+        var cid = await _f.DemoCustomerIdAsync();
+        var id = await _f.AddMonitorAsync(cid, "ConfirmLater", m =>
+        {
+            m.Target = $"http://127.0.0.1:{port}/";
+            m.Status = MonitorStatus.Up;
+            m.FailureThreshold = 1;
+        });
+        var c = await AdminAsync();
+        var url = $"/App/Monitors/Details/{id}";
+
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var r = await c.PostFormAsync(url + "?handler=CheckNow", new(), url);
+        sw.Stop();
+        AssertRedirect(r, url);
+        Assert.True(sw.Elapsed < TimeSpan.FromSeconds(4), $"check now took {sw.Elapsed}");
+
+        var html = await c.GetHtmlAsync(url);
+        Assert.Contains("Check failed: Connection refused. The failure was recorded; a confirmation check runs shortly", html);
+        var m = (await _f.GetMonitorAsync(id))!;
+        Assert.Equal(MonitorStatus.Up, m.Status);
+        Assert.NotNull(m.PendingConfirmationSinceUtc);
+        Assert.True(m.NextCheckAtUtc <= DateTime.UtcNow.AddSeconds(6));
+        Assert.Equal(0, await _f.WithDbAsync(db => db.Incidents.CountAsync(i => i.MonitorId == id)));
+    }
+
+    [Fact]
     public async Task Cert_warning_days_are_saved_validated_and_reset_with_the_target()
     {
         var c = await AdminAsync();

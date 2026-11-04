@@ -38,7 +38,7 @@ public sealed class ProbeContext(string host)
     private CertificateInfo? _certificate;
 
     /// <summary>Host of the monitored URL; only certificates presented for this host are recorded.</summary>
-    public string Host { get; } = host;
+    public string Host { get; } = ProbeConnection.BareHost(host);
 
     public CertificateInfo? Certificate { get { lock (_lock) return _certificate; } }
 
@@ -54,7 +54,7 @@ public sealed class ProbeContext(string host)
 
     internal void SetCertificate(string host, CertificateInfo info)
     {
-        if (!string.Equals(host, Host, StringComparison.OrdinalIgnoreCase)) return; // a redirect hop to another host
+        if (!string.Equals(ProbeConnection.BareHost(host), Host, StringComparison.OrdinalIgnoreCase)) return; // a redirect hop to another host
         lock (_lock) _certificate ??= info;
     }
 
@@ -75,16 +75,22 @@ public sealed class ProbeContext(string host)
 /// <item>for https the TLS handshake is done here (SocketsHttpHandler skips its own handshake when the callback
 /// returns an <see cref="SslStream"/>), so it can be timed exactly and the server certificate captured. Validation
 /// is the handler's default: any <see cref="SslPolicyErrors"/> fails the connection, revocation is not checked.
-/// Only HTTP/1.1 is negotiated (ALPN), which is what the probe requests anyway.</item>
+/// Only HTTP/1.1 is negotiated (ALPN), which is what the probe requests anyway. TLS is only done here when the
+/// request is https and its host/port match the endpoint being connected; otherwise the plain stream is returned
+/// and the handler does its own handshake (no timing/certificate then).</item>
 /// </list>
 /// </summary>
 public static class ProbeConnection
 {
+    /// <param name="trustOverride">
+    /// Tests only: may accept a certificate the OS rejects (e.g. a self-signed test certificate). Never set in production;
+    /// the certificate is then recorded as valid.
+    /// </param>
     public static Func<SocketsHttpConnectionContext, CancellationToken, ValueTask<Stream>> ConnectCallback(
-        Func<bool> allowPrivate, ILogger? logger = null) =>
+        Func<bool> allowPrivate, ILogger? logger = null, RemoteCertificateValidationCallback? trustOverride = null) =>
         async (context, ct) =>
         {
-            var host = context.DnsEndPoint.Host;
+            var host = BareHost(context.DnsEndPoint.Host);
             context.InitialRequestMessage.Options.TryGetValue(ProbeContext.Key, out var probe);
 
             var start = Stopwatch.GetTimestamp();
@@ -94,7 +100,10 @@ public static class ProbeConnection
             var connected = Stopwatch.GetTimestamp();
             var stream = new NetworkStream(socket, ownsSocket: true);
 
-            if (context.InitialRequestMessage.RequestUri?.Scheme != Uri.UriSchemeHttps)
+            var uri = context.InitialRequestMessage.RequestUri;
+            var ownTls = uri is not null && uri.Scheme == Uri.UriSchemeHttps
+                && string.Equals(BareHost(uri.IdnHost), host, StringComparison.OrdinalIgnoreCase) && uri.Port == context.DnsEndPoint.Port;
+            if (!ownTls)
             {
                 probe?.AddConnection(resolved - start, connected - resolved, null);
                 return stream;
@@ -109,8 +118,10 @@ public static class ProbeConnection
                     TargetHost = host,
                     ApplicationProtocols = [SslApplicationProtocol.Http11],
                     CertificateRevocationCheckMode = X509RevocationMode.NoCheck,
-                    RemoteCertificateValidationCallback = (_, cert, chain, errors) =>
+                    RemoteCertificateValidationCallback = (sender, cert, chain, errors) =>
                     {
+                        if (errors != SslPolicyErrors.None && trustOverride?.Invoke(sender, cert, chain, errors) == true)
+                            errors = SslPolicyErrors.None;
                         // Wall clock on purpose: the OS validated the chain against it, so the message must agree.
                         certificate = Describe(cert, chain, errors, DateTime.UtcNow);
                         return errors == SslPolicyErrors.None;
@@ -127,6 +138,10 @@ public static class ProbeConnection
             if (certificate is not null) probe?.SetCertificate(host, certificate);
             return ssl;
         };
+
+    /// <summary>Host without IPv6 brackets ("[::1]" -> "::1"), as used for SNI/validation and host comparisons.</summary>
+    public static string BareHost(string host) =>
+        host.Length > 1 && host[0] == '[' && host[^1] == ']' ? host[1..^1] : host;
 
     /// <summary>Summarizes a server certificate and its validation result. The error text is customer-visible and contains no secrets.</summary>
     public static CertificateInfo? Describe(X509Certificate? certificate, X509Chain? chain, SslPolicyErrors errors, DateTime nowUtc)

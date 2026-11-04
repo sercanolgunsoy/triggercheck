@@ -63,7 +63,8 @@
                         @if (m.CertExpiresAtUtc is DateTime exp)
                         {
                             var daysLeft = (int)Math.Floor((exp - DateTime.UtcNow).TotalDays);
-                            var expiring = m.CertWarnDays > 0 && daysLeft < m.CertWarnDays;
+                            // Same rule as the alert: within the configured window.
+                            var expiring = m.CertWarnDays > 0 && exp - DateTime.UtcNow <= TimeSpan.FromDays(m.CertWarnDays);
                             <span class="@(m.CertError is not null || daysLeft < 0 ? "text-danger" : expiring ? "text-warning" : "")">
                                 @(daysLeft < 0 ? L["expired on {0}", Fmt.Date(exp)] : L["expires {0} ({1} days left)", Fmt.Date(exp), daysLeft])
                             </span>
@@ -114,7 +115,8 @@
         }
         else
         {
-            <div class="small text-muted mb-2">@L["Average and 95th percentile of successful checks; failed checks and incidents are marked in red."]</div>
+            <div class="small text-muted mb-2">@L["Average and 95th percentile of successful checks; failed checks and incidents are marked in red."]
+                @if (Model.P95Approximate) { <span>@L["The 95th percentile is estimated from a sample of the checks."]</span> }</div>
             <div class="tc-chart"><canvas id="rtChart" aria-label="@L["Response time chart"]" role="img"></canvas></div>
             @if (Model.HasPhaseData)
             {

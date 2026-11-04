@@ -29,6 +29,7 @@ public static class DependencyInjection
         services.TryAddSingleton(TimeProvider.System);
 
         services.AddScoped<IUptimeStatsService, UptimeStatsService>();
+        services.AddMemoryCache();
         services.AddScoped<IResponseTimeSeriesService, ResponseTimeSeriesService>();
 
         // ---- HTTP clients ----

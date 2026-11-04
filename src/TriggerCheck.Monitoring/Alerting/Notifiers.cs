@@ -64,7 +64,8 @@ public sealed class EmailNotifier(IOptionsMonitor<SmtpOptions> options, ILogger<
 }
 
 /// <summary>
-/// Webhook: POST application/json <c>{ monitorId, monitorName, target, status: "down"|"up", error, occurredAtUtc }</c>.
+/// Webhook: POST application/json <c>{ monitorId, monitorName, target, status: "down"|"up"|"certificate_expiring", error,
+/// occurredAtUtc, certificateExpiresAtUtc }</c> (certificateExpiresAtUtc is set for "certificate_expiring" only).
 /// Any 2xx response is success. Redirects are not followed; timeout 10s (configured on the named client).
 /// </summary>
 public sealed class WebhookNotifier(IHttpClientFactory httpClientFactory) : INotifier
@@ -77,7 +78,7 @@ public sealed class WebhookNotifier(IHttpClientFactory httpClientFactory) : INot
             return NotifyResult.Fail($"Invalid webhook URL '{SecretMasker.MaskWebhookUrl(target)}'");
 
         var payload = new WebhookPayload(message.MonitorId, message.MonitorName, message.Target, message.StatusText,
-            message.Error, message.OccurredAtUtc);
+            message.Error, message.OccurredAtUtc, message.CertificateExpiresAtUtc);
         var client = httpClientFactory.CreateClient(MonitoringHttpClients.Webhook);
         try
         {
@@ -94,4 +95,5 @@ public sealed class WebhookNotifier(IHttpClientFactory httpClientFactory) : INot
 }
 
 /// <summary>Webhook body; serialized with web (camelCase) defaults.</summary>
-public sealed record WebhookPayload(int MonitorId, string MonitorName, string Target, string Status, string? Error, DateTime OccurredAtUtc);
+public sealed record WebhookPayload(int MonitorId, string MonitorName, string Target, string Status, string? Error, DateTime OccurredAtUtc,
+    DateTime? CertificateExpiresAtUtc = null);
