@@ -14,7 +14,7 @@ namespace TriggerCheck.Monitoring.Diagnostics;
 /// <item><c>triggercheck.monitoring.checks</c> (counter): probes executed, tags <c>monitor.type</c>, <c>result</c> (up/down/error).</item>
 /// <item><c>triggercheck.monitoring.check.duration</c> (histogram, s): probe wall time, same tags.</item>
 /// <item><c>triggercheck.monitoring.scheduler.tick_lag</c> (histogram, s): how much later than its interval a scheduler tick started.</item>
-/// <item><c>triggercheck.monitoring.scheduler.due_monitors</c> (gauge): monitors due at the last tick (the backlog).</item>
+/// <item><c>triggercheck.monitoring.scheduler.due_monitors</c> (gauge): due monitors found at the last tick, including ones still in flight (capped by the per-tick limit).</item>
 /// <item><c>triggercheck.monitoring.scheduler.in_flight</c> (gauge): checks running at the end of the last tick.</item>
 /// <item><c>triggercheck.monitoring.scheduler.heartbeat</c> (gauge, s): unix time of the last completed scheduler tick.</item>
 /// <item><c>triggercheck.monitoring.alerts</c> (counter): alert deliveries, tags <c>channel.type</c>, <c>result</c> (sent/failed).</item>
@@ -52,7 +52,7 @@ public sealed class MonitoringMetrics
             "Delay of a scheduler tick beyond its configured interval");
         _alerts = meter.CreateCounter<long>("triggercheck.monitoring.alerts", "{alert}", "Alert deliveries by channel type and result");
         meter.CreateObservableGauge("triggercheck.monitoring.scheduler.due_monitors", () => Volatile.Read(ref _dueMonitors),
-            "{monitor}", "Monitors due at the last scheduler tick");
+            "{monitor}", "Due monitors found at the last scheduler tick, including ones whose check is still in flight (capped by the per-tick limit)");
         meter.CreateObservableGauge("triggercheck.monitoring.scheduler.in_flight", () => Volatile.Read(ref _inFlight),
             "{check}", "Checks running at the end of the last scheduler tick");
         meter.CreateObservableGauge("triggercheck.monitoring.scheduler.heartbeat", ObserveHeartbeat,

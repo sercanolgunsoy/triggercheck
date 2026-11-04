@@ -6,8 +6,15 @@ SQLite. Postgres notes come with OPS-2.
 
 ## Container image
 
-CI (`.github/workflows/ci.yml`) builds the image on every push and pull request. It pushes the image to GHCR only on
-pushes to `main`:
+CI (`.github/workflows/ci.yml`) builds the image on every push and pull request:
+
+- The `docker-build` job handles pull requests and other branches. It has a read-only token and pushes nothing.
+- The `docker-publish` job runs only on pushes to `main`. It is the only job with `packages: write`, and it pushes to
+  GHCR with the workflow's `GITHUB_TOKEN`.
+
+Third-party actions are pinned to commit SHAs, with the tag in a comment.
+
+The published tags:
 
 - `ghcr.io/sercanolgunsoy/triggercheck:latest` is the head of `main`
 - `ghcr.io/sercanolgunsoy/triggercheck:sha-<short sha>` is an immutable tag for that commit. Deploy this one.
@@ -34,6 +41,12 @@ docker run -d --name triggercheck -p 8080:8080 \
 
 To build locally, run `docker build -t triggercheck .` from the repository root.
 
+> **Bind mount instead of a named volume:** the image creates `/data` owned by the `app` user, but a bind-mounted
+> host directory keeps the host's ownership. The app then cannot create the database and fails at startup. Give
+> the directory to UID 1654 first: `sudo mkdir -p /srv/triggercheck && sudo chown 1654:1654 /srv/triggercheck`, then
+> `-v /srv/triggercheck:/data`. Do the same after restoring files into it. On SELinux hosts, also add `:Z` to the
+> mount.
+
 > **Reverse proxy:** the app does not process `X-Forwarded-*` headers yet. Behind a TLS-terminating proxy it sees
 > plain HTTP, so `UseHttpsRedirection` logs "Failed to determine the https port" and the auth cookie is not marked
 > `Secure`. Follow-up: enable `ForwardedHeaders` for the proxy's network.
@@ -51,8 +64,9 @@ secret store, never in the image or in `appsettings.json`.
 | `Smtp__Host`, `Smtp__Port` (587), `Smtp__UseSsl` (true), `Smtp__User`, `Smtp__Password`, `Smtp__From`, `Smtp__TimeoutSeconds` | for email alerts | If `Smtp__Host` is empty, alert emails are only written to the log. |
 | `Twilio__*` | coming (SMS/voice, FEAT-7) | Twilio account SID / auth token / sender. Names are fixed when the feature lands. |
 | `ANTHROPIC_API_KEY` | coming (AI features) | API key for the AI features. CI uses a fake client and needs no key. |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | no | Enables OTLP export of traces, metrics and logs, e.g. `http://otel-collector:4317`. The standard `OTEL_*` variables apply too (`OTEL_EXPORTER_OTLP_PROTOCOL`, `OTEL_EXPORTER_OTLP_HEADERS`, `OTEL_SERVICE_NAME`, `OTEL_RESOURCE_ATTRIBUTES`). |
-| `Telemetry__OtlpEndpoint`, `Telemetry__OtlpProtocol` (`grpc` \| `http/protobuf`) | no | Same as above, set through configuration. Used only when `OTEL_EXPORTER_OTLP_ENDPOINT` is not set. |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` (or a per-signal `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` / `_METRICS_ENDPOINT` / `_LOGS_ENDPOINT`) | no | Turns on OpenTelemetry with OTLP export, e.g. `http://otel-collector:4317`. The standard `OTEL_*` variables apply too (`OTEL_EXPORTER_OTLP_PROTOCOL`, `OTEL_EXPORTER_OTLP_HEADERS`, `OTEL_SERVICE_NAME`, `OTEL_RESOURCE_ATTRIBUTES`). |
+| `Telemetry__OtlpEndpoint`, `Telemetry__OtlpProtocol` (`grpc` \| `http/protobuf`) | no | Same as above, set through configuration. Used only when none of the `OTEL_EXPORTER_OTLP_*ENDPOINT` variables is set. |
+| `Telemetry__ExportLogs` | no (false) | Also exports logs through OTLP. **Off by default because logs contain personal data**: alert recipient addresses, monitor names and targets (masked where they hold secrets), error texts. Turn it on only if the collector and its storage are approved for that data. |
 | `Monitoring__Enabled` | no (true) | Runs the scheduler in this process. |
 | `Monitoring__SchedulerTickMilliseconds` (1000), `Monitoring__MaxConcurrency` (50), `Monitoring__RetentionCleanupMinutes` (60) | no | Engine tuning. |
 | `Monitoring__AllowPrivateTargets` | **never in production** | Turns SSRF protection off. |
@@ -70,17 +84,25 @@ The endpoints are anonymous and return only `{"status":"Healthy|Degraded|Unhealt
 in Development only, and exception texts are never returned. The `aspnet` image has no `curl`, so use the
 orchestrator's HTTP probes (Kubernetes `httpGet`, Compose with a sidecar, etc.).
 
-Metrics (Meter `TriggerCheck.Monitoring`) and traces (ActivitySource `TriggerCheck.Monitoring`, one `monitor.check`
-span per probe) are exported through OTLP together with the ASP.NET Core, HttpClient and .NET runtime
-instrumentation:
+When an OTLP endpoint is configured, the app exports:
 
-- `triggercheck.monitoring.checks`, `triggercheck.monitoring.check.duration`: tagged by `monitor.type` and `result`
-  (up/down/error)
-- `triggercheck.monitoring.scheduler.tick_lag`, `.due_monitors`, `.in_flight`, `.heartbeat` (unix seconds of the last
-  completed tick). Alert when `time() - heartbeat > 120`.
-- `triggercheck.monitoring.alerts`: tagged by `channel.type` and `result` (sent/failed)
+- **Traces:** incoming ASP.NET Core requests (except `/health*`) and one `monitor.check` span per probe
+  (ActivitySource `TriggerCheck.Monitoring`). The probe span carries the monitor id, customer id and type, never the
+  target. Outgoing HttpClient calls are **not traced**, because their URLs carry secrets: webhook tokens live in the
+  path, and probe targets may contain keys.
+- **Metrics:** ASP.NET Core, .NET runtime, and Meter `TriggerCheck.Monitoring`. `System.Net.Http` metrics are not
+  collected: their `server.address` tag would create one series per customer target.
+  - `triggercheck.monitoring.checks`, `triggercheck.monitoring.check.duration`: tagged by `monitor.type` and
+    `result` (up/down/error)
+  - `triggercheck.monitoring.scheduler.tick_lag`
+  - `.due_monitors`: due monitors at the last tick, including ones still in flight
+  - `.in_flight`
+  - `.heartbeat`: unix seconds of the last completed tick. Alert when `time() - heartbeat > 120`.
+  - `triggercheck.monitoring.alerts`: tagged by `channel.type` and `result` (sent/failed). The alerting code has to
+    call `MonitoringMetrics.RecordAlert`; until it does, this counter stays at zero.
+- **Logs:** only with `Telemetry__ExportLogs=true` (see the PII note above).
 
-If no endpoint is configured, nothing is exported.
+If no endpoint is configured, OpenTelemetry is not registered at all and nothing is exported.
 
 ## Backup (SQLite, safe with WAL)
 
@@ -90,11 +112,15 @@ consistent snapshot and work while the app keeps running.
 
 `scripts/backup-sqlite.sh [DB_PATH] [BACKUP_DIR] [KEEP]` does the following:
 
-1. runs `VACUUM INTO` to write `BACKUP_DIR/triggercheck-<UTC yyyyMMddTHHmmssZ>.db` (a compact, self-contained
+1. takes a `flock` on `BACKUP_DIR/.backup-sqlite.lock`, so overlapping runs fail fast instead of colliding. It also
+   removes `.partial` leftovers of killed runs. Where `flock` is unavailable (macOS), it prints a warning and runs
+   without the lock, so do not schedule overlapping runs there.
+2. runs `VACUUM INTO` to write `BACKUP_DIR/triggercheck-<UTC yyyyMMddTHHmmssZ>.db` (a compact, self-contained
    file; it waits up to 30 s if the database is busy)
-2. runs `PRAGMA integrity_check` on the copy and keeps it only if the result is `ok`
-3. deletes all but the newest `KEEP` backups (default 14)
-4. exits non-zero on any failure, so your cron or alerting can catch it
+3. runs `PRAGMA integrity_check` on the copy and keeps it only if the result is `ok`
+4. deletes all but the newest `KEEP` backups (default 14). Only files matching its own
+   `triggercheck-YYYYMMDDTHHMMSSZ.db` name are affected, so manual copies in the same directory are kept.
+5. exits non-zero on any failure, so your cron or alerting can catch it
 
 It needs the `sqlite3` CLI (>= 3.27). The runtime image does not include it, so run the script from the host or a
 sidecar that mounts the same volume:

@@ -159,7 +159,7 @@ public sealed class MonitorCheckRunner(
         catch (Exception ex) when (!ct.IsCancellationRequested)
         {
             // Checkers should not throw; this is a safety net against bugs.
-            logger.LogError(ex, "Checker {Checker} threw for monitor {MonitorId}", checker.GetType().Name, monitor.Id);
+            logger.LogError(ex, "Checker for {MonitorType} threw for monitor {MonitorId}", monitor.Type, monitor.Id);
             // The message is customer-visible: keep exception details in the log only.
             return CheckOutcome.Down("Internal checker error");
         }

@@ -23,6 +23,21 @@ command -v sqlite3 >/dev/null 2>&1 || fail "sqlite3 not found (install the sqlit
 [[ "$KEEP" =~ ^[1-9][0-9]*$ ]] || fail "KEEP must be a positive integer (got '$KEEP')"
 mkdir -p "$DIR"
 
+# One backup at a time per directory (cron overlap, manual run during a scheduled one). flock is part of util-linux
+# (Linux, Alpine's util-linux / busybox flock); where it is missing (e.g. macOS) the script runs without the lock.
+if command -v flock >/dev/null 2>&1; then
+  exec 9>"$DIR/.backup-sqlite.lock"
+  flock -n 9 || fail "another backup is running in $DIR"
+else
+  echo "backup-sqlite: flock not available; running without a lock" >&2
+fi
+
+# Only names this script produces: triggercheck-YYYYMMDDTHHMMSSZ.db
+NAME_GLOB='triggercheck-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T[0-9][0-9][0-9][0-9][0-9][0-9]Z.db'
+
+# Leftovers of runs that were killed mid-copy (we hold the lock, so none is in progress).
+find "$DIR" -maxdepth 1 -type f -name "$NAME_GLOB.partial" -exec rm -f -- {} +
+
 stamp="$(date -u +%Y%m%dT%H%M%SZ)"
 out="$DIR/triggercheck-$stamp.db"
 tmp="$out.partial"
@@ -49,4 +64,4 @@ while IFS= read -r old; do
     rm -f -- "$old"
     echo "backup-sqlite: removed old backup $old"
   fi
-done < <(find "$DIR" -maxdepth 1 -type f -name 'triggercheck-*.db' | sort -r)
+done < <(find "$DIR" -maxdepth 1 -type f -name "$NAME_GLOB" | sort -r)
