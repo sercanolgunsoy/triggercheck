@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TriggerCheck.Monitoring.Alerting;
 using TriggerCheck.Monitoring.Checks;
+using TriggerCheck.Monitoring.Diagnostics;
 using TriggerCheck.Monitoring.Engine;
 using TriggerCheck.Monitoring.Retention;
 using TriggerCheck.Monitoring.Scheduling;
@@ -27,6 +28,8 @@ public static class DependencyInjection
         services.Configure<MonitoringOptions>(config.GetSection(MonitoringOptions.Section));
         services.Configure<SmtpOptions>(config.GetSection(SmtpOptions.Section));
         services.TryAddSingleton(TimeProvider.System);
+        services.AddMetrics();
+        services.TryAddSingleton<MonitoringMetrics>();
 
         services.AddScoped<IUptimeStatsService, UptimeStatsService>();
 
@@ -58,7 +61,9 @@ public static class DependencyInjection
 
         // ---- engine ----
         services.AddSingleton<MonitorRunGate>();
-        services.AddScoped<IMonitorCheckRunner, MonitorCheckRunner>();
+        // Checkers are wrapped at resolve time so every probe is traced and measured (OPS-4, see MonitoringMetrics).
+        services.AddScoped<IMonitorCheckRunner>(sp => ActivatorUtilities.CreateInstance<MonitorCheckRunner>(sp, InstrumentedMonitorChecker.Wrap(
+            sp.GetServices<IMonitorChecker>(), sp.GetRequiredService<MonitoringMetrics>(), sp.GetRequiredService<TimeProvider>())));
         services.AddScoped<MonitorLifecycle>();
 
         // ---- alerting ----

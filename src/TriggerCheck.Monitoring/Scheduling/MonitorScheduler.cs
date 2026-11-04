@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Infrastructure.Data;
+using TriggerCheck.Monitoring.Diagnostics;
 using MonitorEntity = TriggerCheck.Domain.Entities.Monitor;
 
 namespace TriggerCheck.Monitoring.Scheduling;
@@ -46,8 +47,12 @@ public sealed class MonitorScheduler : BackgroundService
     private readonly ConcurrentDictionary<int, byte> _inFlight = new();
     private readonly ConcurrentDictionary<Task, byte> _running = new();
 
-    public MonitorScheduler(IServiceScopeFactory scopes, IOptions<MonitoringOptions> options, TimeProvider time, ILogger<MonitorScheduler> logger)
+    private readonly MonitoringMetrics _metrics;
+
+    public MonitorScheduler(IServiceScopeFactory scopes, IOptions<MonitoringOptions> options, TimeProvider time, ILogger<MonitorScheduler> logger,
+        MonitoringMetrics metrics)
     {
+        _metrics = metrics;
         _scopes = scopes;
         _options = options.Value;
         _time = time;
@@ -104,6 +109,7 @@ public sealed class MonitorScheduler : BackgroundService
     /// <summary>One scheduler tick: selects due monitors and starts a check for each one not already in flight. Returns the dispatched ids.</summary>
     public async Task<IReadOnlyList<int>> DispatchDueAsync(CancellationToken ct)
     {
+        _metrics.SchedulerTickStarted();
         var now = _time.GetUtcNow().UtcDateTime;
         List<int> due;
         using (var scope = _scopes.CreateScope())
@@ -125,6 +131,7 @@ public sealed class MonitorScheduler : BackgroundService
 
         if (dispatched.Count > 0)
             _logger.LogDebug("Dispatched {Count} due monitor(s); {InFlight} in flight", dispatched.Count, _inFlight.Count);
+        _metrics.SchedulerTickCompleted(due.Count, _inFlight.Count); // heartbeat for /health/ready
         return dispatched;
     }
 

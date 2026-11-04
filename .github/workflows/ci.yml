@@ -1,0 +1,139 @@
+name: CI
+
+on:
+  push:
+    branches: [main, backlog-impl]
+  pull_request:
+    branches: [main, backlog-impl]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Superseded PR runs are cancelled. Every push gets its own group (by commit), so each main commit runs to
+# completion and publishes its image.
+concurrency:
+  group: ci-${{ github.ref }}-${{ github.event_name == 'push' && github.sha || github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  IMAGE: ghcr.io/sercanolgunsoy/triggercheck
+
+# Third-party actions are pinned to full commit SHAs (tag in the comment); update both together.
+jobs:
+  build-test:
+    name: Build, format check and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore
+
+      # Rules come from .editorconfig (describes the existing compact style). The excluded files predate the check
+      # and have whitespace that no editorconfig option accepts (nested brace-less foreach, column alignment); they
+      # are excluded instead of being reformatted while other branches still edit them. Remove the excludes once
+      # they have been formatted (`dotnet format` on those files, whitespace-only commit).
+      - name: Verify formatting
+        run: >
+          dotnet format --verify-no-changes --no-restore --verbosity minimal
+          --exclude src/TriggerCheck.Infrastructure/Data/DbSeeder.cs
+          tests/TriggerCheck.Tests/Infrastructure/LocalizationTests.cs
+          tests/TriggerCheck.Tests/SuperAdmin/OverviewAndMonitorsTests.cs
+
+      - name: Build (warnings as errors)
+        run: dotnet build --no-restore --configuration Release -warnaserror
+
+      # No secrets are needed: tests use local fakes (SMTP/webhook notifiers, loopback probe targets) and the
+      # upcoming AI features use a fake client in CI.
+      - name: Test
+        run: >
+          dotnet test --no-build --configuration Release
+          --logger "trx;LogFileName=test-results.trx"
+          --results-directory TestResults
+          --collect "XPlat Code Coverage"
+
+      - name: Upload test results and coverage
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: test-results
+          path: TestResults/
+          if-no-files-found: warn
+          retention-days: 14
+
+  # Pull requests and branches: verify that the image builds. Read-only token, nothing is pushed.
+  docker-build:
+    name: Container image (build only)
+    if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+    runs-on: ubuntu-latest
+    needs: build-test
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      - name: Build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          push: false
+          tags: ${{ env.IMAGE }}:ci
+          cache-from: type=gha
+
+  # Pushes to main only: build and publish to GHCR with the workflow's GITHUB_TOKEN.
+  docker-publish:
+    name: Container image (publish)
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    needs: build-test
+    timeout-minutes: 30
+    # Publishes run one at a time in commit order (a newer pending run replaces an older pending one), so :latest
+    # can never be overwritten by an older commit that finished later.
+    concurrency:
+      group: docker-publish-main
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      - name: Log in to GHCR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image metadata
+        id: meta
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=raw,value=latest
+            type=sha,format=short
+
+      - name: Build and push
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
