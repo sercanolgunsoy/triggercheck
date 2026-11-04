@@ -556,4 +556,100 @@
   <data name="Too many manual checks for your account. Try again in {0} seconds." xml:space="preserve">
     <value>Hesabınız için çok fazla manuel kontrol yapıldı. {0} saniye sonra tekrar deneyin.</value>
   </data>
+  <data name="Slack" xml:space="preserve">
+    <value>Slack</value>
+  </data>
+  <data name="Microsoft Teams" xml:space="preserve">
+    <value>Microsoft Teams</value>
+  </data>
+  <data name="Telegram" xml:space="preserve">
+    <value>Telegram</value>
+  </data>
+  <data name="SMS" xml:space="preserve">
+    <value>SMS</value>
+  </data>
+  <data name="Voice call" xml:space="preserve">
+    <value>Sesli arama</value>
+  </data>
+  <data name="Bot token" xml:space="preserve">
+    <value>Bot token'ı</value>
+  </data>
+  <data name="The bot token can be at most 200 characters." xml:space="preserve">
+    <value>Bot token'ı en fazla 200 karakter olabilir.</value>
+  </data>
+  <data name="Enter the Slack incoming webhook URL (https://hooks.slack.com/services/...)." xml:space="preserve">
+    <value>Slack Incoming Webhook adresini girin (https://hooks.slack.com/services/...).</value>
+  </data>
+  <data name="Enter the Teams workflow webhook URL (it starts with https://)." xml:space="preserve">
+    <value>Teams iş akışı (workflow) webhook adresini girin (https:// ile başlar).</value>
+  </data>
+  <data name="Enter a numeric Telegram chat id (e.g. -1001234567890) or a @channelname." xml:space="preserve">
+    <value>Sayısal bir Telegram sohbet kimliği (ör. -1001234567890) veya @kanaladi girin.</value>
+  </data>
+  <data name="Enter the bot token from @BotFather (e.g. 123456789:AA...)." xml:space="preserve">
+    <value>@BotFather'dan aldığınız bot token'ını girin (ör. 123456789:AA...).</value>
+  </data>
+  <data name="SMS and voice call alerts are not available for your plan." xml:space="preserve">
+    <value>SMS ve sesli arama bildirimleri planınızda bulunmuyor.</value>
+  </data>
+  <data name="Enter the phone number in international E.164 format, e.g. +905551234567." xml:space="preserve">
+    <value>Telefon numarasını uluslararası E.164 biçiminde girin, ör. +905551234567.</value>
+  </data>
+  <data name="In Slack, add an Incoming Webhook to a channel and paste its URL (https://hooks.slack.com/services/...). Alerts arrive as formatted messages." xml:space="preserve">
+    <value>Slack'te bir kanala Incoming Webhook ekleyin ve adresini yapıştırın (https://hooks.slack.com/services/...). Bildirimler biçimlendirilmiş mesaj olarak gelir.</value>
+  </data>
+  <data name="In Teams, create a workflow from the template &quot;Post to a channel when a webhook request is received&quot; and paste its URL. Alerts arrive as Adaptive Cards." xml:space="preserve">
+    <value>Teams'te "Post to a channel when a webhook request is received" şablonuyla bir iş akışı oluşturun ve adresini yapıştırın. Bildirimler Adaptive Card olarak gelir.</value>
+  </data>
+  <data name="Create a bot with @BotFather, add it to your group or channel, and enter the chat id here. The bot token is never shown again after saving." xml:space="preserve">
+    <value>@BotFather ile bir bot oluşturun, grubunuza veya kanalınıza ekleyin ve sohbet kimliğini buraya girin. Bot token'ı kaydedildikten sonra bir daha gösterilmez.</value>
+  </data>
+  <data name="Mobile phone number in international E.164 format, e.g. +905551234567. Messages are kept short." xml:space="preserve">
+    <value>Uluslararası E.164 biçiminde cep telefonu numarası, ör. +905551234567. Mesajlar kısa tutulur.</value>
+  </data>
+  <data name="Phone number in international E.164 format, e.g. +905551234567. The alert is read out in English." xml:space="preserve">
+    <value>Uluslararası E.164 biçiminde telefon numarası, ör. +905551234567. Bildirim İngilizce okunur.</value>
+  </data>
+  <data name="Leave empty to keep the stored token" xml:space="preserve">
+    <value>Kayıtlı token'ı korumak için boş bırakın</value>
+  </data>
+  <data name="Send a test message to this channel now" xml:space="preserve">
+    <value>Bu kanala şimdi bir test mesajı gönder</value>
+  </data>
+  <data name="Send test" xml:space="preserve">
+    <value>Test gönder</value>
+  </data>
+  <data name="no contact e-mail set" xml:space="preserve">
+    <value>iletişim e-postası tanımlı değil</value>
+  </data>
+  <data name="When no channel is enabled" xml:space="preserve">
+    <value>Hiçbir kanal etkin değilken</value>
+  </data>
+  <data name="Alerts go to every enabled channel above. If no channel is enabled (none added, or all disabled), this setting decides what happens to DOWN / UP alerts. Disabling every channel therefore does not silence alerts unless you choose &quot;Do not send alerts&quot;." xml:space="preserve">
+    <value>Bildirimler yukarıdaki tüm etkin kanallara gönderilir. Hiçbir kanal etkin değilse (hiç eklenmemiş veya hepsi kapalı), DOWN / UP bildirimlerine ne olacağını bu ayar belirler. Bu nedenle tüm kanalları kapatmak, "Bildirim gönderme" seçilmedikçe bildirimleri susturmaz.</value>
+  </data>
+  <data name="No channel is enabled: alerts are currently sent to {0}." xml:space="preserve">
+    <value>Hiçbir kanal etkin değil: bildirimler şu anda {0} adresine gönderiliyor.</value>
+  </data>
+  <data name="No channel is enabled: alerts are currently not sent." xml:space="preserve">
+    <value>Hiçbir kanal etkin değil: bildirimler şu anda gönderilmiyor.</value>
+  </data>
+  <data name="Send alerts to the account contact e-mail ({0}) (default)" xml:space="preserve">
+    <value>Bildirimleri hesabın iletişim e-postasına gönder ({0}) (varsayılan)</value>
+  </data>
+  <data name="Do not send alerts" xml:space="preserve">
+    <value>Bildirim gönderme</value>
+  </data>
+  <data name="The setting was saved." xml:space="preserve">
+    <value>Ayar kaydedildi.</value>
+  </data>
+  <data name="Too many test notifications. Try again in {0} seconds." xml:space="preserve">
+    <value>Çok fazla test bildirimi gönderildi. {0} saniye sonra tekrar deneyin.</value>
+  </data>
+  <data name="Test notification sent to &quot;{0}&quot;." xml:space="preserve">
+    <value>"{0}" kanalına test bildirimi gönderildi.</value>
+  </data>
+  <data name="Test notification to &quot;{0}&quot; failed: {1}" xml:space="preserve">
+    <value>"{0}" kanalına test bildirimi başarısız oldu: {1}</value>
+  </data>
 </root>

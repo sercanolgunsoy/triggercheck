@@ -30,12 +30,13 @@ namespace TriggerCheck.Monitoring.Engine;
 /// </list>
 /// The runner bumps Version itself whenever it changes Status or opens/closes an incident, so a concurrent
 /// pause/resume/edit that read the old state fails on the token and retries on the new state.
-/// Alert delivery happens after the state is saved and its failures are only logged.
+/// Alerts are queued after the state is saved (<see cref="IAlertQueue"/>) and delivered by AlertSenderService, so a
+/// slow notification target never holds the check slot.
 /// </summary>
 public sealed class MonitorCheckRunner(
     IDbContextFactory<AppDbContext> dbFactory,
     IEnumerable<IMonitorChecker> checkers,
-    IAlertDispatcher alerts,
+    IAlertQueue alerts,
     MonitorRunGate gate,
     TimeProvider time,
     ILogger<MonitorCheckRunner> logger) : IMonitorCheckRunner
@@ -90,17 +91,7 @@ public sealed class MonitorCheckRunner(
             }
         }
 
-        if (alert is not null)
-        {
-            try
-            {
-                await alerts.DispatchAsync(alert, ct);
-            }
-            catch (Exception ex) when (!ct.IsCancellationRequested)
-            {
-                logger.LogError(ex, "Alert dispatch failed for monitor {MonitorId}", monitorId);
-            }
-        }
+        if (alert is not null) alerts.TryEnqueue(alert);
 
         return result;
     }

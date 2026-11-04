@@ -68,6 +68,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
         {
             e.HasOne(x => x.Customer).WithMany(c => c.AlertChannels).HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Cascade);
             e.Property(x => x.Target).HasMaxLength(2048).IsRequired();
+            e.Property(x => x.Secret).HasMaxLength(512);
         });
 
         b.Entity<Notification>(e =>

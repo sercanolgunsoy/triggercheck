@@ -10,4 +10,9 @@ public class Notification
     public string Subject { get; set; } = "";
     public bool Success { get; set; }
     public string? Error { get; set; }
+    /// <summary>
+    /// Delivery attempts made (1 = delivered or failed on the first try; transient failures are retried up to 4 times;
+    /// 0 = not attempted, e.g. an SMS channel on a plan without SMS).
+    /// </summary>
+    public int Attempts { get; set; } = 1;
 }

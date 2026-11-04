@@ -39,3 +39,8 @@
     <input asp-for="IsActive" class="form-check-input" />
     <label asp-for="IsActive" class="form-check-label"></label>
 </div>
+<div class="form-check mb-3">
+    <input asp-for="AllowsSmsVoice" class="form-check-input" />
+    <label asp-for="AllowsSmsVoice" class="form-check-label"></label>
+    <div class="form-text">@L["Customers on this plan can add SMS and voice call alert channels. They are only offered when Twilio is configured for this installation."]</div>
+</div>

@@ -32,10 +32,13 @@ public class PlanInput
 
     [Display(Name = "Active (offered to new customers)")] public bool IsActive { get; set; } = true;
 
+    [Display(Name = "SMS and voice call alerts (Twilio)")] public bool AllowsSmsVoice { get; set; }
+
     public static PlanInput From(Plan p) => new()
     {
         Name = p.Name, MinIntervalSeconds = p.MinIntervalSeconds, MaxMonitors = p.MaxMonitors,
-        RetentionDays = p.RetentionDays, MonthlyPrice = p.MonthlyPrice, IsActive = p.IsActive
+        RetentionDays = p.RetentionDays, MonthlyPrice = p.MonthlyPrice, IsActive = p.IsActive,
+        AllowsSmsVoice = p.AllowsSmsVoice
     };
 
     public void ApplyTo(Plan p)
@@ -46,6 +49,7 @@ public class PlanInput
         p.RetentionDays = RetentionDays!.Value;
         p.MonthlyPrice = MonthlyPrice!.Value;
         p.IsActive = IsActive;
+        p.AllowsSmsVoice = AllowsSmsVoice;
     }
 
     /// <summary>Rules that DataAnnotations can't express: supported interval and unique name (case-insensitive).</summary>

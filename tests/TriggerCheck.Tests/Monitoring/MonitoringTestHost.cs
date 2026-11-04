@@ -69,7 +69,31 @@ public sealed class MonitoringTestHost : IAsyncDisposable
             await db.Database.EnsureCreatedAsync(); // same startup steps as DbSeeder
             await db.EnableSqliteWalAsync();
         }
+        // Alerts are delivered by the hosted sender in production; run it here too (the scheduler is not started).
+        await sp.GetRequiredService<AlertSenderService>().StartAsync(CancellationToken.None);
         return new MonitoringTestHost(dbPath, time, sp);
+    }
+
+    public AlertQueue Alerts => Services.GetRequiredService<AlertQueue>();
+
+    /// <summary>Waits (real time, bounded) until every queued alert has been delivered and recorded.</summary>
+    public Task AlertsIdleAsync() => Alerts.WhenIdleAsync().WaitAsync(TimeSpan.FromSeconds(10));
+
+    /// <summary>
+    /// Moves the fake clock forward in <paramref name="step"/>s (letting timeouts and retry waits fire) until every
+    /// queued alert is done. Throws if that takes more than <paramref name="maxSimulated"/> of fake time.
+    /// </summary>
+    public async Task AdvanceUntilAlertsIdleAsync(TimeSpan? step = null, TimeSpan? maxSimulated = null)
+    {
+        var s = step ?? TimeSpan.FromSeconds(1);
+        var deadline = Time.GetUtcNow() + (maxSimulated ?? TimeSpan.FromMinutes(15));
+        await Task.Delay(20); // let the sender pick the alert up
+        while (Alerts.Pending > 0)
+        {
+            if (Time.GetUtcNow() > deadline) throw new TimeoutException("Alerts still pending after advancing the fake clock");
+            Time.Advance(s);
+            await Task.Delay(5);
+        }
     }
 
     public async Task<T> WithDbAsync<T>(Func<AppDbContext, Task<T>> action)
@@ -88,8 +112,13 @@ public sealed class MonitoringTestHost : IAsyncDisposable
         return await action(scope.ServiceProvider);
     }
 
-    public Task<CheckResult> RunCheckAsync(int monitorId) =>
-        InScope(sp => sp.GetRequiredService<IMonitorCheckRunner>().RunAsync(monitorId));
+    /// <summary>Runs one check and waits until the alerts it queued are delivered (so tests can assert on them).</summary>
+    public async Task<CheckResult> RunCheckAsync(int monitorId)
+    {
+        var result = await InScope(sp => sp.GetRequiredService<IMonitorCheckRunner>().RunAsync(monitorId));
+        await AlertsIdleAsync();
+        return result;
+    }
 
     public Task<Customer> AddCustomerAsync(bool isActive = true, int retentionDays = 30, string contactEmail = "ops@example.test") =>
         WithDbAsync(async db =>
@@ -116,6 +145,8 @@ public sealed class MonitoringTestHost : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        using (var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5)))
+            await Services.GetRequiredService<AlertSenderService>().StopAsync(stop.Token);
         await Services.DisposeAsync();
         SqliteConnection.ClearAllPools();
         try { File.Delete(_dbPath); } catch { /* ignore */ }
@@ -170,10 +201,10 @@ public sealed class RecordingNotifier(AlertChannelType type, Func<string, Notify
     public ConcurrentQueue<(string Target, AlertMessage Message)> Sent { get; } = new();
     public AlertChannelType Type => type;
 
-    public Task<NotifyResult> SendAsync(string target, AlertMessage message, CancellationToken ct)
+    public Task<NotifyResult> SendAsync(NotifyTarget target, AlertMessage message, CancellationToken ct)
     {
-        Sent.Enqueue((target, message));
-        return Task.FromResult(behavior?.Invoke(target) ?? NotifyResult.Ok);
+        Sent.Enqueue((target.Address, message));
+        return Task.FromResult(behavior?.Invoke(target.Address) ?? NotifyResult.Ok);
     }
 }
 

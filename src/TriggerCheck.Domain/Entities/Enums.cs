@@ -19,5 +19,10 @@ public enum MonitorStatus
 public enum AlertChannelType
 {
     Email = 0,
-    Webhook = 1
+    Webhook = 1,     // generic JSON POST
+    Slack = 2,       // Slack incoming webhook URL
+    Teams = 3,       // Microsoft Teams Workflows ("When a Teams webhook request is received") URL
+    Telegram = 4,    // Target = chat id, AlertChannel.Secret = bot token
+    Sms = 5,         // Twilio SMS, Target = E.164 phone number (plan must allow SMS/voice)
+    VoiceCall = 6    // Twilio voice call, Target = E.164 phone number (plan must allow SMS/voice)
 }

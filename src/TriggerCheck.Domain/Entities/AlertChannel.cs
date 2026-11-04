@@ -8,7 +8,9 @@ public class AlertChannel
     public Customer Customer { get; set; } = null!;
     public string Name { get; set; } = "";
     public AlertChannelType Type { get; set; }
-    /// <summary>Email address or webhook URL.</summary>
+    /// <summary>Email address, webhook URL (Webhook/Slack/Teams), Telegram chat id or E.164 phone number (SMS/voice).</summary>
     public string Target { get; set; } = "";
+    /// <summary>Channel credential that is never shown or logged (Telegram bot token). Null for other types.</summary>
+    public string? Secret { get; set; }
     public bool IsEnabled { get; set; } = true;
 }

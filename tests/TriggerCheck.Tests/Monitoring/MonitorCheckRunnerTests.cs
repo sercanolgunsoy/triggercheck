@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using TriggerCheck.Monitoring;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Monitoring.Alerting;
 using TriggerCheck.Monitoring.Checks;
@@ -179,7 +181,8 @@ public class MonitorCheckRunnerTests
         var customer = await host.AddCustomerAsync();
         var monitor = await host.AddMonitorAsync(customer.Id, m => m.FailureThreshold = 1);
 
-        var result = await host.RunCheckAsync(monitor.Id);
+        var result = await host.InScopeAsync(sp => sp.GetRequiredService<IMonitorCheckRunner>().RunAsync(monitor.Id));
+        await host.AdvanceUntilAlertsIdleAsync(); // a throwing notifier is a transient failure: retried with backoff
 
         Assert.False(result.IsUp);
         Assert.Equal("Internal checker error", result.Error); // exception details stay in the log
@@ -188,6 +191,7 @@ public class MonitorCheckRunnerTests
         var n = await host.WithDbAsync(db => db.Notifications.SingleAsync());
         Assert.False(n.Success);
         Assert.Contains("smtp exploded", n.Error);
+        Assert.Equal(AlertingOptions.MaxAttempts, n.Attempts);
     }
 
     [Fact]
@@ -221,6 +225,6 @@ public class MonitorCheckRunnerTests
     private sealed class ThrowingNotifier : INotifier
     {
         public AlertChannelType Type => AlertChannelType.Email;
-        public Task<NotifyResult> SendAsync(string target, AlertMessage message, CancellationToken ct) => throw new InvalidOperationException("smtp exploded");
+        public Task<NotifyResult> SendAsync(NotifyTarget target, AlertMessage message, CancellationToken ct) => throw new InvalidOperationException("smtp exploded");
     }
 }
