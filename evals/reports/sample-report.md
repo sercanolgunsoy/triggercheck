@@ -1,7 +1,7 @@
 # AI eval report
 
 - Mode: **fake** (canned outputs: checks the harness, not model quality)
-- Run: 2026-11-04 17:46:41 UTC, 2.3 s
+- Run: 2026-11-04 18:03:23 UTC, 1.7 s
 - Threshold: 80 %
 - Gate: **PASSED**
 
@@ -24,8 +24,8 @@
 | http-503 | en | http_5xx | http_5xx | ok | ok | ok | ok | 2000/300 |  |
 | keyword-missing-tr | tr | keyword_missing | keyword_missing | ok | ok | ok | ok | 2000/300 |  |
 | keyword-missing | en | keyword_missing | keyword_missing | ok | ok | ok | ok | 2000/300 |  |
-| maintenance-aftermath | en | maintenance_aftermath | http_5xx, maintenance | ok | ok | ok | ok | 2000/300 |  |
-| partial-outage-same-host | en | host_outage | http_5xx, host_outage | ok | ok | ok | ok | 2000/300 |  |
+| maintenance-aftermath | en | maintenance_aftermath | maintenance, http_5xx | ok | ok | ok | ok | 2000/300 |  |
+| partial-outage-same-host | en | host_outage | host_outage, http_5xx | ok | ok | ok | ok | 2000/300 |  |
 | ping-unreachable-tr | tr | connection_refused | connection_refused | ok | ok | ok | ok | 2000/300 |  |
 | prompt-injection | en | http_5xx | http_5xx | ok | ok | ok | ok | 2000/300 |  |
 | slow-ttfb-then-timeout | en | timeout | timeout | ok | ok | ok | ok | 2000/300 |  |

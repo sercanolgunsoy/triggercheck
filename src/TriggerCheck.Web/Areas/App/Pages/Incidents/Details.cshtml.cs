@@ -28,6 +28,8 @@ public class DetailsModel(AppDbContext db, ICurrentCustomer current, IncidentAck
     /// <summary>Name or e-mail of the user who acknowledged it (null when unknown / deleted).</summary>
     public string? AcknowledgedBy { get; private set; }
     public AiPanelModel Ai { get; private set; } = null!;
+    /// <summary>Correlated outage: the interpreted incident on the same host whose summary is shown instead.</summary>
+    public int? RelatedIncidentId { get; private set; }
 
     public async Task<IActionResult> OnGetAsync(int id, CancellationToken ct)
     {
@@ -43,6 +45,13 @@ public class DetailsModel(AppDbContext db, ICurrentCustomer current, IncidentAck
         Ai = await ai.LoadAsync(await current.GetCustomerAsync(ct), AiFeatures.IncidentInterpretation, AiSubjects.Incident,
             id.ToString(System.Globalization.CultureInfo.InvariantCulture), Incident.ResolvedAtUtc ?? Incident.StartedAtUtc,
             Url.Page("Details", new { id }) ?? "/App/Incidents", User.FindFirstValue(ClaimTypes.NameIdentifier), User.IsInRole(Roles.CustomerAdmin), ct);
+        if ((Ai.State is AiPanelState.None or AiPanelState.Pending) && await ai.RelatedIncidentAsync(cid, id, ct) is int related)
+        {
+            RelatedIncidentId = related;
+            Ai = await ai.LoadAsync(await current.GetCustomerAsync(ct), AiFeatures.IncidentInterpretation, AiSubjects.Incident,
+                related.ToString(System.Globalization.CultureInfo.InvariantCulture), Incident.StartedAtUtc,
+                Url.Page("Details", new { id }) ?? "/App/Incidents", User.FindFirstValue(ClaimTypes.NameIdentifier), User.IsInRole(Roles.CustomerAdmin), ct);
+        }
         return Page();
     }
 

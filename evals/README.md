@@ -95,13 +95,17 @@ correct `canned` answer (the fake run must stay at 100 %).
 Code-graded, no LLM judge (`EvalGrader`):
 
 - **Primary cause**: the most confident hypothesis of the raw output is classified into cause categories by English
-  and Turkish keywords (`dns`, `tls_expired`, `tls_name_mismatch`, `tls_untrusted`, `http_5xx`, `http_4xx`, `timeout`,
-  `connection_refused`, `keyword_missing`, `host_outage`, `maintenance`; for AI-3 `slow_dns`, `slow_connect`,
-  `slow_tls`, `slow_ttfb`). The case label maps to the accepted categories; at most two categories may match, so a
-  vague "DNS, TLS or a timeout" answer fails. The prompt asks the model to name the failing layer explicitly.
-- **Evidence**: every raw hypothesis (before validation drops any) cites at least one piece of evidence.
-- **Masking**: none of the case's `secrets`, the monitor's URL path / query and no e-mail address appear in the request
-  actually sent (system prompt + user content).
+  and Turkish word-boundary patterns (`dns`, `tls_expired`, `tls_name_mismatch`, `tls_untrusted`, `http_5xx`,
+  `http_4xx`, `timeout`, `connection_refused`, `keyword_missing`, `host_outage`, `maintenance`; for AI-3 `slow_dns`,
+  `slow_connect`, `slow_tls`, `slow_ttfb`). Status codes count only next to "HTTP" / "status" / "returned" or a reason
+  phrase (so "1500 ms" or "check #5004" are not 5xx), and "resolved" is not DNS. The category mentioned **first** is the
+  primary cause and must be accepted for the case's label; a hedge that names several categories ("maybe DNS or a
+  timeout") has no primary cause and fails. Negative probes are in `EvalHarnessTests`.
+- **Evidence**: every raw hypothesis (before validation drops any) cites at least one piece of evidence that is
+  grounded in the input: a check id that was sent ("check #1234"), a number of two or more digits, a quoted text or a
+  CamelCase identifier (e.g. `RemoteCertificateNameMismatch`) that occurs in the user content.
+- **Masking**: none of the case's `secrets`, the monitor names, the monitor's URL path / query and no e-mail address
+  appear in the request actually sent (system prompt + user content).
 - **Language**: the request asks for the case's language and the summary is written in it.
 - **No outage statement** (AI-3): the summary says that there is no outage yet.
 

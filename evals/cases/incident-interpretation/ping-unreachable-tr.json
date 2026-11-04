@@ -7,7 +7,7 @@
     "primaryCause": "connection_refused"
   },
   "monitor": {
-    "name": "Gateway",
+    "name": "Edge gateway",
     "type": "Ping",
     "target": "gw.example.test",
     "status": "Down"

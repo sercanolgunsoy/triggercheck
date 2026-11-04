@@ -2,6 +2,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using TriggerCheck.Ai;
 using TriggerCheck.Ai.Client;
+using TriggerCheck.Ai.Context;
+using TriggerCheck.Ai.Features;
 using TriggerCheck.Ai.Interpretation;
 using TriggerCheck.Domain;
 using TriggerCheck.Domain.Entities;
@@ -73,10 +75,40 @@ public sealed class AiPanels(AppDbContext db, IAiClient client, IOptions<AiOptio
         return new(AiPanelState.Decision, AiContentModel.From(decision, returnUrl, mine), canManage);
     }
 
-    /// <summary>Latest succeeded summary per subject id (list pages); empty when AI is unavailable or the customer opted out.</summary>
+    /// <summary>
+    /// AI-2 interprets only the first incident of a correlated outage (same customer, same host, within
+    /// Ai:Events:HostWindowMinutes). For the other incidents this finds that interpreted incident, so the page can show
+    /// its summary. Null when there is none.
+    /// </summary>
+    public async Task<int?> RelatedIncidentAsync(int customerId, int incidentId, CancellationToken ct)
+    {
+        var inc = await db.Incidents.AsNoTracking()
+            .Where(i => i.Id == incidentId && i.Monitor.CustomerId == customerId)
+            .Select(i => new { i.StartedAtUtc, i.MonitorId, i.Monitor.Type, i.Monitor.Target })
+            .FirstOrDefaultAsync(ct);
+        if (inc is null || AiTenantData.HostOf(inc.Type, inc.Target) is not { } host) return null;
+        var window = TimeSpan.FromMinutes(Math.Max(0, options.Value.Events.HostWindowMinutes));
+        var (from, to) = (inc.StartedAtUtc - window, inc.StartedAtUtc + window);
+        var candidates = (await db.Incidents.AsNoTracking()
+                .Where(i => i.Monitor.CustomerId == customerId && i.Id != incidentId && i.MonitorId != inc.MonitorId && i.StartedAtUtc >= from && i.StartedAtUtc <= to)
+                .Select(i => new { i.Id, i.StartedAtUtc, i.Monitor.Type, i.Monitor.Target })
+                .ToListAsync(ct))
+            .Where(i => AiTenantData.HostOf(i.Type, i.Target) == host)
+            .ToList();
+        if (candidates.Count == 0) return null;
+        var ids = candidates.Select(c => c.Id.ToString(System.Globalization.CultureInfo.InvariantCulture)).ToList();
+        var decided = await db.AiDecisions.AsNoTracking()
+            .Where(d => d.CustomerId == customerId && d.Feature == AiFeatures.IncidentInterpretation && d.SubjectType == AiSubjects.Incident
+                        && ids.Contains(d.SubjectId) && d.Status == AiDecisionStatus.Succeeded)
+            .Select(d => d.SubjectId).Distinct().ToListAsync(ct);
+        return candidates.Where(c => decided.Contains(c.Id.ToString(System.Globalization.CultureInfo.InvariantCulture)))
+            .OrderBy(c => c.StartedAtUtc).Select(c => (int?)c.Id).FirstOrDefault();
+    }
+
+    /// <summary>Latest succeeded summary per subject id (list pages); empty when AI is unavailable, opted out or not in the plan.</summary>
     public async Task<Dictionary<string, string>> SummariesAsync(Customer customer, string feature, string subjectType, IReadOnlyCollection<string> subjectIds, CancellationToken ct)
     {
-        if (!AiAvailable || !customer.AiEnabled || subjectIds.Count == 0) return [];
+        if (!AiAvailable || !customer.AiEnabled || !AiFeatures.PlanAllows(customer.Plan, feature) || subjectIds.Count == 0) return [];
         var rows = await db.AiDecisions.AsNoTracking()
             .Where(d => d.CustomerId == customer.Id && d.Feature == feature && d.SubjectType == subjectType
                         && subjectIds.Contains(d.SubjectId) && d.Status == AiDecisionStatus.Succeeded)

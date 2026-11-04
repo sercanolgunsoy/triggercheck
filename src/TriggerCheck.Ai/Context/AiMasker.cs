@@ -90,9 +90,16 @@ public static partial class AiMasker
         return s;
     }
 
-    /// <summary>Monitor target: URLs become scheme + host (+ port); Tcp/Ping hosts are kept without credentials.</summary>
-    public static string MaskTarget(MonitorType type, string? target) =>
-        type is MonitorType.Http or MonitorType.Keyword ? HostOnly(target) : MaskText(target);
+    /// <summary>
+    /// Monitor target: URLs (Http / Keyword / JsonApi) become scheme + host (+ port); Tcp / Ping / Dns host names are
+    /// kept without credentials; a Heartbeat (push) monitor has no target to send.
+    /// </summary>
+    public static string MaskTarget(MonitorType type, string? target) => type switch
+    {
+        MonitorType.Http or MonitorType.Keyword or MonitorType.JsonApi => HostOnly(target),
+        MonitorType.Heartbeat => "",
+        _ => MaskText(target),
+    };
 
     /// <summary>Alert channel target: webhook URLs lose their secret path; e-mail / phone / chat ids are never sent.</summary>
     public static string MaskAlertTarget(AlertChannelType type, string? target) => type switch

@@ -15,8 +15,11 @@ namespace TriggerCheck.Tests.Ai.Features;
 public sealed class CapturingQueue : IAiJobQueue
 {
     public ConcurrentQueue<AiJob> Jobs { get; } = new();
+    /// <summary>False simulates a full queue.</summary>
+    public bool Accept { get; set; } = true;
     public bool TryEnqueue(AiJob job)
     {
+        if (!Accept) return false;
         Jobs.Enqueue(job);
         return true;
     }
@@ -81,11 +84,12 @@ public class IncidentAiTests
 
         Assert.StartsWith("response_language: English", content);
         Assert.Contains("event: incident_opened", content);
-        Assert.Contains("name: Checkout", content);
+        Assert.DoesNotContain("Checkout", content); // customer-entered names are never sent (neutral labels)
         Assert.Contains("target_host: https://shop.example.test/…", content);
         Assert.Contains("DOWN status=503 total_ms=120 dns_ms=4 connect_ms=10 tls_ms=20 ttfb_ms=100 error=E", content);
         Assert.Contains("UP status=200", content);
-        Assert.Contains("'Shop web' type=Http status=Down", content);
+        Assert.Contains("monitor B: type=Http status=Down", content);
+        Assert.DoesNotContain("Shop web", content);
         Assert.DoesNotContain("Elsewhere", content);
         // K5: no path, credentials, query, e-mail or key; external text stays inside one closed data block.
         foreach (var leak in new[] { "/orders/42", "token=abc", "user:pw", "ops@shop", "sk-live-1234567890abcdef" })
@@ -256,9 +260,10 @@ public class IncidentAiTests
         var queue = new CapturingQueue();
         await using var h = await HostAsync(queue);
         var c = await h.AddCustomerAsync();
-        var m1 = await h.AddMonitorAsync(c.Id);
-        var m2 = await h.AddMonitorAsync(c.Id);
-        var m3 = await h.AddMonitorAsync(c.Id);
+        // Different hosts: same-host incidents would be damped as one correlated outage.
+        var m1 = await h.AddMonitorAsync(c.Id, x => x.Target = "https://one.example.test/");
+        var m2 = await h.AddMonitorAsync(c.Id, x => x.Target = "https://two.example.test/");
+        var m3 = await h.AddMonitorAsync(c.Id, x => x.Target = "https://three.example.test/");
         var recent = await AddIncidentAsync(h, m1, h.Now.AddMinutes(-5));
         var done = await AddIncidentAsync(h, m2, h.Now.AddMinutes(-5));
         await AddIncidentAsync(h, m3, h.Now.AddHours(-3)); // older than the look-back
@@ -284,5 +289,121 @@ public class IncidentAiTests
         Assert.True(watcher.ExecuteTask!.IsCompleted); // returned at once
         await watcher.StopAsync(CancellationToken.None);
         Assert.Empty(queue.Jobs);
+    }
+
+    // ---- damping and fairness ----
+
+    [Fact]
+    public async Task Host_outage_of_300_monitors_is_interpreted_once()
+    {
+        var queue = new CapturingQueue();
+        await using var h = await HostAsync(queue);
+        var c = await h.AddCustomerAsync();
+        var other = await h.AddCustomerAsync();
+        var state = new AiEventScanner.State();
+        await ScanAsync(h, state);
+
+        await h.WithDbAsync(async db =>
+        {
+            for (var i = 0; i < 300; i++)
+            {
+                var m = new MonitorEntity { CustomerId = c.Id, Name = "M" + i, Type = MonitorType.Http, Target = $"https://api.example.test/path{i}", IntervalSeconds = 60 };
+                db.Monitors.Add(m);
+                db.Incidents.Add(new Incident { Monitor = m, StartedAtUtc = h.Now, Cause = "HTTP 502" });
+            }
+            // Same host name at another customer: tenants are independent.
+            var o = new MonitorEntity { CustomerId = other.Id, Name = "O", Type = MonitorType.Http, Target = "https://api.example.test/", IntervalSeconds = 60 };
+            db.Monitors.Add(o);
+            db.Incidents.Add(new Incident { Monitor = o, StartedAtUtc = h.Now, Cause = "HTTP 502" });
+            await db.SaveChangesAsync();
+        });
+
+        for (var i = 0; i < 5; i++)
+        {
+            await ScanAsync(h, state);
+            h.Time.Advance(TimeSpan.FromMinutes(1));
+        }
+        Assert.Equal(1, queue.Jobs.Count(j => j.CustomerId == c.Id));
+        Assert.Equal(1, queue.Jobs.Count(j => j.CustomerId == other.Id));
+        Assert.Empty(state.Deferred);
+    }
+
+    [Fact]
+    public async Task Flapping_monitor_is_interpreted_at_most_once_per_cooldown()
+    {
+        var queue = new CapturingQueue();
+        await using var h = await HostAsync(queue);
+        var c = await h.AddCustomerAsync();
+        var m = await h.AddMonitorAsync(c.Id);
+        var state = new AiEventScanner.State();
+        await ScanAsync(h, state);
+
+        for (var i = 0; i < 10; i++) // 10 outages in 25 minutes
+        {
+            var incident = await AddIncidentAsync(h, m, h.Now);
+            await ScanAsync(h, state);
+            foreach (var job in queue.Jobs.Where(j => j.SubjectId == incident.Id.ToString())) await h.RunAsync(job);
+            h.Time.Advance(TimeSpan.FromMinutes(1));
+            await h.WithDbAsync(db => db.Incidents.Where(x => x.Id == incident.Id).ExecuteUpdateAsync(s => s.SetProperty(x => x.ResolvedAtUtc, h.Now)));
+            await ScanAsync(h, state);
+            h.Time.Advance(TimeSpan.FromMinutes(1.5));
+        }
+        // The first outage: opened + resolved. The other nine are damped.
+        Assert.Equal(2, queue.Jobs.Count);
+        Assert.Single(queue.Jobs.Select(j => j.SubjectId).Distinct());
+
+        // After the cool-down the next outage is interpreted again.
+        h.Time.Advance(TimeSpan.FromMinutes(31));
+        await AddIncidentAsync(h, m, h.Now);
+        Assert.Equal(1, await ScanAsync(h, state));
+    }
+
+    [Fact]
+    public async Task Noisy_tenant_is_capped_per_scan_and_does_not_starve_others()
+    {
+        var queue = new CapturingQueue();
+        await using var h = await HostAsync(queue);
+        var noisy = await h.AddCustomerAsync();
+        var quiet = await h.AddCustomerAsync();
+        var state = new AiEventScanner.State();
+        await ScanAsync(h, state);
+
+        for (var i = 0; i < 50; i++)
+            await AddIncidentAsync(h, await h.AddMonitorAsync(noisy.Id, x => x.Target = $"https://h{i}.example.test/"), h.Now);
+        await AddIncidentAsync(h, await h.AddMonitorAsync(quiet.Id, x => x.Target = "https://q.example.test/"), h.Now);
+
+        Assert.Equal(6, await ScanAsync(h, state)); // 5 of the noisy tenant (cap) + the quiet one
+        Assert.Single(queue.Jobs, j => j.CustomerId == quiet.Id);
+        Assert.Equal(45, state.Deferred.Count);
+        Assert.Equal(5, await ScanAsync(h, state)); // the rest follows on later scans
+        Assert.Equal(40, state.Deferred.Count);
+    }
+
+    [Fact]
+    public async Task Events_refused_by_a_full_queue_are_retried()
+    {
+        var queue = new CapturingQueue { Accept = false };
+        await using var h = await HostAsync(queue);
+        var c = await h.AddCustomerAsync();
+        var state = new AiEventScanner.State();
+        await ScanAsync(h, state);
+        var incident = await AddIncidentAsync(h, await h.AddMonitorAsync(c.Id), h.Now);
+
+        Assert.Equal(0, await ScanAsync(h, state));
+        Assert.Single(state.Deferred);
+        queue.Accept = true;
+        Assert.Equal(1, await ScanAsync(h, state));
+        Assert.Equal(incident.Id.ToString(), Assert.Single(queue.Jobs).SubjectId);
+        Assert.Equal(0, await ScanAsync(h, state));
+    }
+
+    [Fact]
+    public void Error_texts_are_grouped_by_normalised_text_and_push_targets_are_not_sent()
+    {
+        Assert.Equal(IncidentInterpretationProvider.NormalizeError("Request 4711 failed after 30012 ms (trace 9f8e7d6c5b4a)"),
+            IncidentInterpretationProvider.NormalizeError("Request 4712 failed after 30001 ms (trace 0a1b2c3d4e5f)"));
+        Assert.NotEqual(IncidentInterpretationProvider.NormalizeError("HTTP 503"), IncidentInterpretationProvider.NormalizeError("Connection refused"));
+        Assert.Equal("", AiMasker.MaskTarget(MonitorType.Heartbeat, "/hb/abcd…"));
+        Assert.Equal("https://api.example.test/…", AiMasker.MaskTarget(MonitorType.JsonApi, "https://api.example.test/v1/status?key=x"));
     }
 }

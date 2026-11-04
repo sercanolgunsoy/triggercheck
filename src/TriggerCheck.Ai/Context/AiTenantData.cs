@@ -34,7 +34,7 @@ public sealed class AiTenantData(AppDbContext db)
         var host = HostOf(monitor);
         if (host is null) return [];
         var candidates = await db.Monitors.AsNoTracking()
-            .Where(m => m.CustomerId == customerId && m.Id != monitor.Id && m.Target.Contains(host))
+            .Where(m => m.CustomerId == customerId && m.Id != monitor.Id && EF.Functions.Like(m.Target, "%" + host + "%"))
             .ToListAsync(ct);
         return candidates.Where(m => string.Equals(HostOf(m), host, StringComparison.OrdinalIgnoreCase)).ToList();
     }
@@ -72,8 +72,13 @@ public sealed class AiTenantData(AppDbContext db)
     public Task<List<MaintenanceOccurrence>> MaintenanceAsync(int customerId, int monitorId, DateTime fromUtc, DateTime toUtc, CancellationToken ct = default) =>
         MaintenanceQueries.OccurrencesAsync(db, customerId, monitorId, fromUtc, toUtc, ct);
 
-    public static string? HostOf(MonitorEntity m) =>
-        m.Type is MonitorType.Http or MonitorType.Keyword
-            ? Uri.TryCreate(m.Target, UriKind.Absolute, out var u) ? u.Host : null
-            : string.IsNullOrWhiteSpace(m.Target) ? null : m.Target.Trim();
+    public static string? HostOf(MonitorEntity m) => HostOf(m.Type, m.Target);
+
+    /// <summary>Host name of a monitor target (null for push monitors and unparsable targets).</summary>
+    public static string? HostOf(MonitorType type, string? target) => type switch
+    {
+        MonitorType.Http or MonitorType.Keyword or MonitorType.JsonApi => Uri.TryCreate(target, UriKind.Absolute, out var u) ? u.Host.ToLowerInvariant() : null,
+        MonitorType.Heartbeat => null,
+        _ => string.IsNullOrWhiteSpace(target) ? null : target.Trim().ToLowerInvariant(),
+    };
 }

@@ -1468,4 +1468,7 @@
   <data name="The AI summary language was saved." xml:space="preserve">
     <value>Yapay zekâ özeti dili kaydedildi.</value>
   </data>
+  <data name="Other monitors on the same host failed at the same time. AI summary of the related incident:" xml:space="preserve">
+    <value>Aynı sunucudaki diğer monitörler de aynı anda hata verdi. İlgili olayın yapay zekâ özeti:</value>
+  </data>
 </root>

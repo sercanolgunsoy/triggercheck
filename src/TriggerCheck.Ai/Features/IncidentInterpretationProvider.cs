@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.RegularExpressions;
 using TriggerCheck.Ai.Context;
 using TriggerCheck.Ai.Execution;
 using TriggerCheck.Domain;
@@ -89,17 +90,34 @@ public sealed class IncidentInterpretationProvider(AiTenantData data, TimeProvid
         return new AiPrompt(AiFeaturePrompts.IncidentInstructions, b.Build(), AiFeaturePrompts.IncidentActions);
     }
 
+    /// <summary>
+    /// The monitor's configuration. Customer-entered names are never sent (the model sees "this monitor"): they add no
+    /// diagnostic value and may contain personal or business data. Keywords, JSON paths and expected values are not sent
+    /// either; only that such a check is configured.
+    /// </summary>
     internal static void AddMonitor(AiContextBuilder b, MonitorEntity m)
     {
-        b.Section("Monitor")
-            .Identifier("name", m.Name)
-            .Fact("type", m.Type)
-            .Fact("target_host", AiMasker.MaskTarget(m.Type, m.Target));
+        b.Section("Monitor (this monitor)")
+            .Fact("type", m.Type);
+        if (m.Type != MonitorType.Heartbeat) b.Fact("target_host", AiMasker.MaskTarget(m.Type, m.Target));
         if (m.Port is int port) b.Fact("port", port);
-        if (m.Type is MonitorType.Http or MonitorType.Keyword)
+        if (m.Type is MonitorType.Http or MonitorType.Keyword or MonitorType.JsonApi)
             b.Fact("http_method", m.HttpMethod).Fact("expected_status_codes", m.ExpectedStatusCodes);
-        if (m.Type == MonitorType.Keyword)
-            b.Fact("keyword_check", "the response body must contain a configured keyword (keyword not shared)");
+        switch (m.Type)
+        {
+            case MonitorType.Keyword:
+                b.Fact("content_check", "the response body must contain a configured keyword (keyword not shared)");
+                break;
+            case MonitorType.JsonApi:
+                b.Fact("content_check", "a configured JSON path of the response must match an expected value (not shared)");
+                break;
+            case MonitorType.Dns:
+                b.Fact("dns_record_type", m.DnsRecordType).Fact("expected_value_configured", string.IsNullOrEmpty(m.ExpectedValue) ? "no" : "yes");
+                break;
+            case MonitorType.Heartbeat:
+                b.Fact("push_monitor", "the monitored job must call in every interval; DOWN when no ping arrives in time");
+                break;
+        }
         b.Fact("interval_seconds", m.IntervalSeconds)
             .Fact("timeout_seconds", m.TimeoutSeconds)
             .Fact("failure_threshold", m.FailureThreshold)
@@ -126,17 +144,19 @@ public sealed class IncidentInterpretationProvider(AiTenantData data, TimeProvid
             b.Fact("checks", "none recorded");
             return;
         }
-        // Distinct error texts are listed once (untrusted) and referenced by key.
-        var errors = new List<(string Key, string Text, List<long> Ids)>();
+        // Error texts are grouped by their masked text with numbers and ids normalised (so "request 4711 failed" and
+        // "request 4712 failed" are one group), listed once as untrusted data and referenced by key.
+        var errors = new List<(string Key, string Norm, string Text, List<long> Ids)>();
         foreach (var c in checks)
         {
             string? errorKey = null;
             if (!string.IsNullOrWhiteSpace(c.Error))
             {
-                var e = errors.FirstOrDefault(x => x.Text == c.Error);
+                var norm = NormalizeError(c.Error);
+                var e = errors.FirstOrDefault(x => x.Norm == norm);
                 if (e.Key is null && errors.Count < MaxErrorTexts)
                 {
-                    e = ("E" + (errors.Count + 1).ToString(CultureInfo.InvariantCulture), c.Error, []);
+                    e = ("E" + (errors.Count + 1).ToString(CultureInfo.InvariantCulture), norm, c.Error, []);
                     errors.Add(e);
                 }
                 if (e.Key is not null)
@@ -152,6 +172,14 @@ public sealed class IncidentInterpretationProvider(AiTenantData data, TimeProvid
         b.Section("Error texts of these checks");
         foreach (var e in errors)
             b.Untrusted($"error {e.Key} (checks {string.Join(", ", e.Ids.Select(i => "#" + i.ToString(CultureInfo.InvariantCulture)))})", e.Text, ErrorTextChars);
+    }
+
+    /// <summary>Grouping key of an error text: masked, digit runs and hex ids replaced, whitespace collapsed.</summary>
+    public static string NormalizeError(string error)
+    {
+        var s = AiMasker.MaskText(error);
+        s = Regex.Replace(s, @"\b[0-9a-fA-F]{8,}\b|\d+", "#");
+        return Regex.Replace(s, @"\s+", " ").Trim().ToLowerInvariant();
     }
 
     /// <summary>"2026-03-10T11:58:00Z DOWN status=503 total_ms=1200 dns_ms=5 connect_ms=10 tls_ms=20 ttfb_ms=1100 ..."</summary>
@@ -181,9 +209,13 @@ public sealed class IncidentInterpretationProvider(AiTenantData data, TimeProvid
             return;
         }
         var withIncident = await data.MonitorsWithOpenIncidentAsync(customerId, others.Select(o => o.Id).ToList(), ct);
-        foreach (var o in others)
-            b.Identifier("monitor", $"'{o.Name}' type={o.Type} status={o.Status} open_incident={(withIncident.Contains(o.Id) ? "yes" : "no")}"
+        // Neutral labels ("monitor B", "monitor C", ...): names are customer-entered text and never sent.
+        for (var i = 0; i < others.Count; i++)
+        {
+            var o = others[i];
+            b.Fact("monitor " + (char)('B' + i), $"type={o.Type} status={o.Status} open_incident={(withIncident.Contains(o.Id) ? "yes" : "no")}"
                 + (o.StatusChangedAtUtc is DateTime since ? $" status_since={Iso(since)}" : ""));
+        }
     }
 
     internal static string Iso(DateTime d) => AiContextBuilder.Iso(d);

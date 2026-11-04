@@ -105,6 +105,40 @@ public class EvalHarnessTests
         new(AiFeatures.IncidentInterpretation, "claude-opus-5-5", "low", 1000, "system", $"response_language: {language}\n{user}",
             AiInterpretationSchema.Build([]));
 
+    [Theory]
+    // Reviewer probes: substrings, "resolved", hedges, check ids and negated phrases must not pass.
+    [InlineData("The request timed out after 1500 ms.", "http_5xx")]
+    [InlineData("Timeouts until the incident was resolved.", "dns_failure")]
+    [InlineData("Something is wrong, maybe DNS or a timeout.", "dns_failure")]
+    [InlineData("Something is wrong, maybe DNS or a timeout.", "timeout")]
+    [InlineData("Check #5004 failed.", "http_5xx")]
+    [InlineData("The certificate chain is fine; the server returned 404", "tls_untrusted")]
+    [InlineData("Port 5432 is closed.", "http_5xx")]
+    public void Grader_rejects_false_positive_causes(string cause, string label) =>
+        Assert.False(EvalGrader.CauseMatches(cause, label, slowdown: false), $"'{cause}' must not pass {label}");
+
+    [Theory]
+    [InlineData("The request timed out after 1500 ms.", "timeout")]
+    [InlineData("The certificate chain is fine; the server returned 404", "http_4xx")]
+    [InlineData("Host-wide outage: all monitors on the same host fail with HTTP 502.", "host_outage")]
+    [InlineData("The DNS name could not be resolved.", "dns_failure")]
+    [InlineData("Sunucu HTTP 503 döndürüyor.", "http_5xx")]
+    public void Grader_accepts_clear_causes(string cause, string label) =>
+        Assert.True(EvalGrader.CauseMatches(cause, label, slowdown: false), $"'{cause}' should pass {label}");
+
+    [Fact]
+    public void Evidence_must_be_grounded_in_the_input()
+    {
+        const string input = "check #42: 2026-03-10T11:59:00Z DOWN status=503 total_ms=1234\n<untrusted_data source=\"e\">\nName or service not known\n</untrusted_data>\nvalidation_error: RemoteCertificateNameMismatch";
+        Assert.True(EvalGrader.Grounded("check #42 returned 503", input));
+        Assert.True(EvalGrader.Grounded("errors say 'Name or service not known'", input));
+        Assert.True(EvalGrader.Grounded("total time 1234 ms", input));
+        Assert.True(EvalGrader.Grounded("RemoteCertificateNameMismatch", input));
+        Assert.False(EvalGrader.Grounded("check #7 failed", input));
+        Assert.False(EvalGrader.Grounded("response took 9999 ms", input));
+        Assert.False(EvalGrader.Grounded("the server seems overloaded", input));
+    }
+
     [Fact]
     public void Grader_classifies_causes_in_English_and_Turkish()
     {

@@ -120,6 +120,10 @@ public class IncidentAiWebTests(AiEnabledWebAppFactory f) : IClassFixture<AiEnab
         var otherAdmin = await f.LoginAsync(email, "Admin123!");
         var otherIncident = await AddIncidentAsync(await f.AddMonitorAsync(other, "Basic monitor"), DateTime.UtcNow.AddHours(-1));
         Assert.Contains("data-ai-state=\"not-in-plan\"", await otherAdmin.GetHtmlAsync($"/App/Incidents/Details/{otherIncident}"));
+        // The list follows the same plan rule: no summary line although a decision exists.
+        await AddDecisionAsync(other, AiFeatures.IncidentInterpretation, AiSubjects.Incident, otherIncident.ToString());
+        Assert.DoesNotContain("ai-list-summary", await otherAdmin.GetHtmlAsync("/App/Incidents"));
+        await f.WithDbAsync(db => db.AiDecisions.Where(d => d.CustomerId == other).ExecuteDeleteAsync());
         await f.WithDbAsync(db => db.Plans.Where(p => p.Name == "Basic").ExecuteUpdateAsync(s => s.SetProperty(p => p.AiFeatures, AiFeatures.IncidentInterpretation)));
 
         // A decision of the demo customer stored under the other tenant's incident id is not shown to it.
@@ -128,6 +132,25 @@ public class IncidentAiWebTests(AiEnabledWebAppFactory f) : IClassFixture<AiEnab
         var html = await otherAdmin.GetHtmlAsync($"/App/Incidents/Details/{otherIncident}");
         Assert.DoesNotContain("data-ai-state=\"decision\"", html);
         Assert.DoesNotContain("returned HTTP 503", html);
+    }
+
+    [Fact]
+    public async Task Correlated_incident_shows_the_summary_of_the_interpreted_incident_on_the_same_host()
+    {
+        var cid = await f.DemoCustomerIdAsync();
+        await SetCustomerAsync(cid, true);
+        var first = await f.AddMonitorAsync(cid, "Corr A", m => m.Target = "https://corr.example.test/a");
+        var second = await f.AddMonitorAsync(cid, "Corr B", m => m.Target = "https://corr.example.test/b");
+        var started = DateTime.UtcNow.AddHours(-3);
+        var interpreted = await AddIncidentAsync(first, started);
+        var damped = await AddIncidentAsync(second, started.AddMinutes(1));
+        await AddDecisionAsync(cid, AiFeatures.IncidentInterpretation, AiSubjects.Incident, interpreted.ToString());
+        var admin = await AdminAsync();
+
+        var html = await admin.GetHtmlAsync($"/App/Incidents/Details/{damped}");
+        Assert.Contains("id=\"ai-related\"", html);
+        Assert.Contains($"href=\"/App/Incidents/Details/{interpreted}\"", html);
+        Assert.Contains("The monitor failed because the target returned HTTP 503", html);
     }
 
     [Fact]

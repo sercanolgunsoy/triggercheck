@@ -128,4 +128,10 @@ public sealed class AiEventOptions
     public int PollSeconds { get; set; } = 10;
     /// <summary>After a restart, events up to this old that have no AI decision yet are still picked up.</summary>
     public int LookbackMinutes { get; set; } = 15;
+    /// <summary>A monitor whose incident was interpreted within this many minutes gets no new AI-2 job (flapping).</summary>
+    public int MonitorCooldownMinutes { get; set; } = 30;
+    /// <summary>Of incidents of one customer on the same host within this many minutes, only the first is interpreted.</summary>
+    public int HostWindowMinutes { get; set; } = 10;
+    /// <summary>Jobs queued per customer per scan (round-robin across customers); the rest waits for the next scan.</summary>
+    public int MaxJobsPerCustomerPerScan { get; set; } = 5;
 }

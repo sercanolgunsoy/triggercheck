@@ -88,6 +88,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
         {
             e.HasOne(x => x.Monitor).WithMany(m => m.Incidents).HasForeignKey(x => x.MonitorId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(x => new { x.MonitorId, x.StartedAtUtc });
+            e.HasIndex(x => x.ResolvedAtUtc); // AI event watcher: recently resolved incidents
             e.Ignore(x => x.IsOpen);
             e.Property(x => x.AcknowledgedByUserId).HasMaxLength(450);
             e.Property(x => x.AcknowledgeNote).HasMaxLength(500);

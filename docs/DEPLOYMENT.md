@@ -327,6 +327,7 @@ product works fully without it: status, incidents and alerts are always decided 
 | `Ai__Pricing__<model>__InputPerMTok`, `__OutputPerMTok`, `__CacheReadPerMTok`, `__CacheWritePerMTok` | list prices | USD prices for cost estimates (SuperAdmin *AI usage*). |
 | `Ai__Baseline__Enabled` (true), `__IntervalSeconds` (60), `__RefreshMinutes` (60), `__WindowDays` (7), `__ZThreshold` (4), `__K` / `__N` (3 of 5), `__CloseAtMost` (1) | | L1 baseline / anomaly job (no LLM, no key needed). Runs only when `Monitoring__Enabled` is true. |
 | `Ai__Events__PollSeconds` (10), `Ai__Events__LookbackMinutes` (15) | | Event watcher of AI-2 / AI-3: how often new / resolved incidents and new slowdown signals are looked up, and how old an event without an AI decision may be to still be picked up after a restart. Runs only when AI is on and a key is set. |
+| `Ai__Events__MonitorCooldownMinutes` (30), `__HostWindowMinutes` (10), `__MaxJobsPerCustomerPerScan` (5) | | Cost damping of AI-2: a monitor whose incident was interpreted within the cool-down gets no new summary (flapping); of incidents of one customer on the same host within the window only the first is interpreted (its page is linked from the others); per scan at most this many jobs per customer, round-robin across customers. Events over the cap or refused by a full queue are retried on the next scan. |
 
 **Slowdown detection latency (AI-1):** a slowdown is flagged when 3 of the last 5 successful checks are anomalous.
 The first job run after the third slow check flags it, so the latency is 3 check intervals plus up to
@@ -344,7 +345,7 @@ dashboard. Summaries are written in the customer's AI language ("Language of AI 
 set from the admin's UI language when AI is switched on or the customer signs up). Pages say why there is no summary:
 AI switched off, customer opted out, not in the plan, budget used up, failed, or still being prepared. The model gets
 the monitor settings, the last ~20 checks around the incident with status codes and DNS / connect / TLS / TTFB timings,
-error texts (as untrusted data), the certificate, other monitors on the same host, slowdown signals and maintenance
+error texts (as untrusted data, grouped after removing numbers and ids), the certificate, other monitors on the same host, slowdown signals and maintenance
 periods, all masked as described below. Changing these prompts, a model or an effort level needs a passing eval run
 (`evals/README.md`); the effort of both features is `low` by default.
 
@@ -373,7 +374,10 @@ parallel calls cannot overshoot the call limit. A reservation is always complete
 - URL credentials and webhook URLs;
 - e-mail addresses and phone numbers;
 - key/value secrets (`Authorization`, `api_key`, `*_password`, `client_secret`, quoted JSON values, ...);
-- bare credential shapes: JWTs and other dot-separated opaque tokens, `sk-…` keys, AWS keys, Telegram / GitHub / GitLab / Slack tokens, grouped license-style keys, and any long letter+digit token (base64 included). System-generated identifiers such as monitor names skip only this last rule.
+- bare credential shapes: JWTs and other dot-separated opaque tokens, `sk-…` keys, AWS keys, Telegram / GitHub / GitLab / Slack tokens, grouped license-style keys, and any long letter+digit token (base64 included). System-generated ids skip only this last rule.
+
+Customer-entered text is not sent: monitor names (the model sees "this monitor", "monitor B", ...), keywords, JSON
+paths, expected values, maintenance window names and acknowledgement notes. Heartbeat monitors send no target at all.
 
 Probe error texts and response snippets are normalized (NFKC), stripped of control characters, truncated and sent in
 delimited `<untrusted_data>` blocks that the prompt declares to be data, never instructions. Model output is validated
