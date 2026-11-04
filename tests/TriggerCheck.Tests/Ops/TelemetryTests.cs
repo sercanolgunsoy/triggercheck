@@ -105,8 +105,7 @@ public class TelemetryTests
     public async Task Logs_are_exported_only_when_ExportLogs_is_enabled(bool exportLogs)
     {
         var received = new ConcurrentQueue<string>();
-        await using var collector = await LocalHttpServer.StartAsync(app =>
-            app.MapPost("/{**signal}", (HttpContext ctx) => { received.Enqueue(ctx.Request.Path.Value!); return Results.Ok(); }));
+        await using var collector = await StartCollectorAsync(received);
         await using var f = new TracingAppFactory(new()
         {
             ["Telemetry:OtlpEndpoint"] = collector.BaseUrl,
@@ -115,7 +114,7 @@ public class TelemetryTests
         });
 
         Assert.Equal(exportLogs, f.Services.GetServices<ILoggerProvider>().Any(p => p is OpenTelemetryLoggerProvider));
-        await f.CreateBrowser().GetAsync("/Account/Login");
+        await TraceOneRequestAsync(f);
         f.Services.GetRequiredService<ILoggerFactory>().CreateLogger("TelemetryTest").LogWarning("alert sent to someone@example.test");
 
         Assert.True(f.Services.GetRequiredService<TracerProvider>().ForceFlush(5000));
@@ -125,5 +124,47 @@ public class TelemetryTests
         Assert.Contains("/v1/traces", received);
         Assert.Contains("/v1/metrics", received);
         Assert.Equal(exportLogs, received.Contains("/v1/logs"));
+    }
+
+    [Fact]
+    public async Task Per_signal_endpoint_is_used_as_is_and_enables_only_that_signal()
+    {
+        var received = new ConcurrentQueue<string>();
+        await using var collector = await StartCollectorAsync(received);
+        await using var f = new TracingAppFactory(new()
+        {
+            ["Telemetry:OtlpEndpoint"] = "", // no fallback for the other signals
+            ["OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] = collector.Url("/custom/traces"),
+            ["OTEL_EXPORTER_OTLP_TRACES_PROTOCOL"] = "http/protobuf"
+        });
+
+        Assert.Null(f.Services.GetService<MeterProvider>());
+        Assert.DoesNotContain(f.Services.GetServices<ILoggerProvider>(), p => p is OpenTelemetryLoggerProvider);
+        await TraceOneRequestAsync(f);
+        Assert.True(f.Services.GetRequiredService<TracerProvider>().ForceFlush(5000));
+
+        Assert.Equal(["/custom/traces"], received.Distinct());
+    }
+
+    private static Task<LocalHttpServer> StartCollectorAsync(ConcurrentQueue<string> received) =>
+        LocalHttpServer.StartAsync(app =>
+            app.MapPost("/{**signal}", (HttpContext ctx) => { received.Enqueue(ctx.Request.Path.Value!); return Results.Ok(); }));
+
+    /// <summary>
+    /// Sends one request with a unique path and waits until its server span has ended (it ends after the response is
+    /// returned to the client, so flushing right away would race it).
+    /// </summary>
+    private static async Task TraceOneRequestAsync(TracingAppFactory f)
+    {
+        var path = $"/telemetry-probe-{Guid.NewGuid():N}";
+        await f.CreateBrowser().GetAsync(path);
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (true)
+        {
+            lock (f.Spans)
+                if (f.Spans.Any(s => Equals(s.GetTagItem("url.path"), path))) return;
+            if (DateTime.UtcNow > deadline) throw new TimeoutException($"No span for {path}");
+            await Task.Delay(20);
+        }
     }
 }

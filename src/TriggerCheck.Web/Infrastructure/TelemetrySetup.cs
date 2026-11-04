@@ -65,20 +65,33 @@ public static class TelemetrySetup
     }
 
     /// <summary>
-    /// The exporter configuration for one signal, or null when no endpoint applies to it. With an OTEL_* endpoint
-    /// the exporter reads the environment itself; with Telemetry:OtlpEndpoint the endpoint and protocol are set
-    /// here (http/protobuf needs the full per-signal path).
+    /// The exporter configuration for one signal, or null when no endpoint applies to it. Precedence: the signal's
+    /// OTEL_EXPORTER_OTLP_{SIGNAL}_ENDPOINT, then OTEL_EXPORTER_OTLP_ENDPOINT, then Telemetry:OtlpEndpoint (for
+    /// http/protobuf the per-signal /v1/* path is appended).
     /// </summary>
     private static Action<OtlpExporterOptions>? ExporterFor(IConfiguration config, string signal, string httpPath)
     {
-        if (!string.IsNullOrWhiteSpace(config["OTEL_EXPORTER_OTLP_ENDPOINT"]) ||
-            !string.IsNullOrWhiteSpace(config[$"OTEL_EXPORTER_OTLP_{signal}_ENDPOINT"]))
+        // Per-signal endpoint (OTel spec: used as-is, no path appended). Set explicitly: the exporter does not read the
+        // per-signal variables itself and would otherwise send to localhost.
+        var signalEndpoint = config[$"OTEL_EXPORTER_OTLP_{signal}_ENDPOINT"];
+        if (!string.IsNullOrWhiteSpace(signalEndpoint))
+        {
+            var protocol = config[$"OTEL_EXPORTER_OTLP_{signal}_PROTOCOL"] is { Length: > 0 } p ? p : config["OTEL_EXPORTER_OTLP_PROTOCOL"];
+            return o =>
+            {
+                o.Endpoint = new Uri(signalEndpoint);
+                o.Protocol = IsHttpProtobuf(protocol) ? OtlpExportProtocol.HttpProtobuf : OtlpExportProtocol.Grpc;
+            };
+        }
+
+        // Generic endpoint: the exporter reads OTEL_EXPORTER_OTLP_* (endpoint, protocol, headers) itself.
+        if (!string.IsNullOrWhiteSpace(config["OTEL_EXPORTER_OTLP_ENDPOINT"]))
             return _ => { };
 
         var endpoint = config["Telemetry:OtlpEndpoint"];
         if (string.IsNullOrWhiteSpace(endpoint)) return null;
 
-        var httpProtobuf = string.Equals(config["Telemetry:OtlpProtocol"], "http/protobuf", StringComparison.OrdinalIgnoreCase);
+        var httpProtobuf = IsHttpProtobuf(config["Telemetry:OtlpProtocol"]);
         var baseUri = new Uri(endpoint.EndsWith('/') ? endpoint : endpoint + "/");
         return o =>
         {
@@ -86,4 +99,6 @@ public static class TelemetrySetup
             o.Endpoint = httpProtobuf ? new Uri(baseUri, httpPath) : new Uri(endpoint);
         };
     }
+
+    private static bool IsHttpProtobuf(string? protocol) => string.Equals(protocol, "http/protobuf", StringComparison.OrdinalIgnoreCase);
 }
