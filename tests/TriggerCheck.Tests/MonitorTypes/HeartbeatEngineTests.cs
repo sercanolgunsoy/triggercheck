@@ -245,6 +245,39 @@ public class HeartbeatEngineTests
     }
 
     [Fact]
+    public async Task Overdue_heartbeat_in_a_maintenance_window_opens_no_incident_and_keeps_its_schedule()
+    {
+        await using var host = await CreateHostAsync();
+        var hb = await AddHeartbeatAsync(host);
+        await PingAsync(host, hb.Id);
+        await host.RunCheckAsync(hb.Id); // Up
+        await host.WithDbAsync(async db =>
+        {
+            db.MaintenanceWindows.Add(new MaintenanceWindow
+            {
+                CustomerId = hb.CustomerId, Name = "deploy", StartsAtUtc = host.Now, EndsAtUtc = host.Now.AddHours(2), AppliesToAllMonitors = true
+            });
+            await db.SaveChangesAsync();
+        });
+
+        host.Time.Advance(TimeSpan.FromSeconds(Interval + Grace)); // overdue inside the window
+        var r = await host.RunCheckAsync(hb.Id);
+
+        Assert.False(r.IsUp);
+        Assert.True(r.InMaintenance);
+        Assert.Equal(0, await host.WithDbAsync(db => db.Incidents.CountAsync()));
+        Assert.Empty(_email.Sent);
+        var m = await host.GetMonitorAsync(hb.Id);
+        Assert.Null(m.PendingConfirmationSinceUtc);
+        Assert.Equal(host.Now.AddSeconds(Interval), m.NextCheckAtUtc); // heartbeat schedule, applied after the maintenance branch
+
+        // The job comes back during the window: next ping evaluates normally.
+        await PingAsync(host, hb.Id);
+        Assert.True((await host.RunCheckAsync(hb.Id)).IsUp);
+        Assert.Equal(host.Now.AddSeconds(Interval + Grace), (await host.GetMonitorAsync(hb.Id)).NextCheckAtUtc);
+    }
+
+    [Fact]
     public void Schedule_helpers()
     {
         var now = new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);

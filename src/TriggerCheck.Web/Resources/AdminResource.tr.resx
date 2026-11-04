@@ -544,4 +544,199 @@
   <data name="{0} API key(s) were revoked." xml:space="preserve">
     <value>{0} API anahtarı iptal edildi.</value>
   </data>
+  <data name="Trial ends {0}" xml:space="preserve">
+    <value>Deneme bitişi {0}</value>
+  </data>
+  <data name="Subscription" xml:space="preserve">
+    <value>Abonelik</value>
+  </data>
+  <data name="Paid until" xml:space="preserve">
+    <value>Ödendiği tarih</value>
+  </data>
+  <data name="Past due since" xml:space="preserve">
+    <value>Ödeme gecikmesi başlangıcı</value>
+  </data>
+  <data name="Plan assigned by an administrator; no online subscription." xml:space="preserve">
+    <value>Plan bir yönetici tarafından atandı; çevrimiçi abonelik yok.</value>
+  </data>
+  <data name="Event" xml:space="preserve">
+    <value>Olay</value>
+  </data>
+  <data name="Result" xml:space="preserve">
+    <value>Sonuç</value>
+  </data>
+  <data name="Offered on the sign-up page (with a free trial for paid plans) and on the customers' Billing page. Turn off for sales-led plans such as Enterprise." xml:space="preserve">
+    <value>Kayıt sayfasında (ücretli planlarda ücretsiz denemeyle) ve müşterilerin Faturalandırma sayfasında sunulur. Enterprise gibi satış ekibi üzerinden satılan planlar için kapatın.</value>
+  </data>
+  <data name="iyzico subscription" xml:space="preserve">
+    <value>iyzico aboneliği</value>
+  </data>
+  <data name="Create the product and a monthly pricing plan in the iyzico merchant panel and paste their reference codes here. Paid plans without a pricing plan code cannot be bought online." xml:space="preserve">
+    <value>Ürünü ve aylık ödeme planını iyzico üye işyeri panelinde oluşturup referans kodlarını buraya yapıştırın. Ödeme planı kodu olmayan ücretli planlar çevrimiçi satın alınamaz.</value>
+  </data>
+  <data name="Self-service" xml:space="preserve">
+    <value>Self servis</value>
+  </data>
+  <data name="Plan &quot;{0}&quot; has subscription history and cannot be deleted. Deactivate it instead." xml:space="preserve">
+    <value>"{0}" planının abonelik geçmişi olduğu için silinemez. Bunun yerine pasifleştirin.</value>
+  </data>
+  <data name="Only letters, digits, - and _ are allowed." xml:space="preserve">
+    <value>Yalnızca harf, rakam, - ve _ kullanılabilir.</value>
+  </data>
+  <data name="Self-service sign-up and billing" xml:space="preserve">
+    <value>Self servis kayıt ve faturalandırma</value>
+  </data>
+  <data name="iyzico product reference code" xml:space="preserve">
+    <value>iyzico ürün referans kodu</value>
+  </data>
+  <data name="iyzico pricing plan reference code (monthly)" xml:space="preserve">
+    <value>iyzico ödeme planı referans kodu (aylık)</value>
+  </data>
+  <data name="The customer is not in trial." xml:space="preserve">
+    <value>Müşteri deneme sürecinde değil.</value>
+  </data>
+  <data name="The trial can only be extended for a customer in trial, by 1 to 90 days." xml:space="preserve">
+    <value>Deneme süresi yalnızca deneme sürecindeki bir müşteri için 1 ile 90 gün arasında uzatılabilir.</value>
+  </data>
+  <data name="The trial now ends on {0}." xml:space="preserve">
+    <value>Deneme süresi artık {0} tarihinde bitiyor.</value>
+  </data>
+  <data name="The trial was ended; the customer is now on the {0} plan." xml:space="preserve">
+    <value>Deneme sona erdirildi; müşteri artık {0} planında.</value>
+  </data>
+  <data name="Days" xml:space="preserve">
+    <value>Gün</value>
+  </data>
+  <data name="End the trial now? The customer moves to the free plan." xml:space="preserve">
+    <value>Deneme şimdi sona erdirilsin mi? Müşteri ücretsiz plana geçer.</value>
+  </data>
+  <data name="End trial" xml:space="preserve">
+    <value>Denemeyi bitir</value>
+  </data>
+  <data name="Extend trial" xml:space="preserve">
+    <value>Denemeyi uzat</value>
+  </data>
+  <data name="The customer has an active subscription. Its plan follows the subscription: the customer changes or cancels it on the Billing page." xml:space="preserve">
+    <value>Müşterinin etkin bir aboneliği var. Planı aboneliğe bağlıdır: müşteri planı Faturalandırma sayfasından değiştirir veya iptal eder.</value>
+  </data>
+  <data name="The trial or cancelled subscription was ended; the plan is now managed manually." xml:space="preserve">
+    <value>Deneme veya iptal edilmiş abonelik sona erdirildi; plan artık elle yönetiliyor.</value>
+  </data>
+  <data name="AI status" xml:space="preserve">
+    <value>Yapay zekâ durumu</value>
+  </data>
+  <data name="API key" xml:space="preserve">
+    <value>API anahtarı</value>
+  </data>
+  <data name="Available" xml:space="preserve">
+    <value>Kullanılabilir</value>
+  </data>
+  <data name="Configured" xml:space="preserve">
+    <value>Yapılandırıldı</value>
+  </data>
+  <data name="Current calendar month (UTC). Costs are estimates from token counts and list prices." xml:space="preserve">
+    <value>İçinde bulunulan takvim ayı (UTC). Maliyetler token sayıları ve liste fiyatlarından hesaplanan tahminlerdir.</value>
+  </data>
+  <data name="Default model" xml:space="preserve">
+    <value>Varsayılan model</value>
+  </data>
+  <data name="Estimated cost" xml:space="preserve">
+    <value>Tahmini maliyet</value>
+  </data>
+  <data name="Feedback (helpful / not helpful)" xml:space="preserve">
+    <value>Geri bildirim (faydalı / faydalı değil)</value>
+  </data>
+  <data name="Global switch (Ai:Enabled)" xml:space="preserve">
+    <value>Genel anahtar (Ai:Enabled)</value>
+  </data>
+  <data name="No AI usage yet." xml:space="preserve">
+    <value>Henüz yapay zekâ kullanımı yok.</value>
+  </data>
+  <data name="Not configured" xml:space="preserve">
+    <value>Yapılandırılmadı</value>
+  </data>
+  <data name="Off" xml:space="preserve">
+    <value>Kapalı</value>
+  </data>
+  <data name="On" xml:space="preserve">
+    <value>Açık</value>
+  </data>
+  <data name="Opted in" xml:space="preserve">
+    <value>Katılım verdi</value>
+  </data>
+  <data name="Read-only: AI is switched on and off with the Ai:Enabled setting (environment variable Ai__Enabled) and needs ANTHROPIC_API_KEY. Customers must also opt in." xml:space="preserve">
+    <value>Salt okunur: yapay zekâ Ai:Enabled ayarıyla (ortam değişkeni Ai__Enabled) açılıp kapatılır ve ANTHROPIC_API_KEY gerektirir. Müşterilerin ayrıca katılım vermesi gerekir.</value>
+  </data>
+  <data name="This month" xml:space="preserve">
+    <value>Bu ay</value>
+  </data>
+  <data name="Timeout" xml:space="preserve">
+    <value>Zaman aşımı</value>
+  </data>
+  <data name="Unavailable" xml:space="preserve">
+    <value>Kullanılamıyor</value>
+  </data>
+  <data name="Usage by customer" xml:space="preserve">
+    <value>Müşteri bazında kullanım</value>
+  </data>
+  <data name="effort" xml:space="preserve">
+    <value>efor</value>
+  </data>
+  <data name="over budget" xml:space="preserve">
+    <value>bütçe aşıldı</value>
+  </data>
+  <data name="AI calls / month" xml:space="preserve">
+    <value>Yapay zekâ çağrısı / ay</value>
+  </data>
+  <data name="{0} features" xml:space="preserve">
+    <value>{0} özellik</value>
+  </data>
+  <data name="AI call limit is required." xml:space="preserve">
+    <value>Yapay zekâ çağrı limiti zorunludur.</value>
+  </data>
+  <data name="AI calls per month" xml:space="preserve">
+    <value>Aylık yapay zekâ çağrısı</value>
+  </data>
+  <data name="AI token limit is required." xml:space="preserve">
+    <value>Yapay zekâ token limiti zorunludur.</value>
+  </data>
+  <data name="AI tokens per month (0 = no token limit)" xml:space="preserve">
+    <value>Aylık yapay zekâ token sayısı (0 = token limiti yok)</value>
+  </data>
+  <data name="The AI call limit must be 0 or greater." xml:space="preserve">
+    <value>Yapay zekâ çağrı limiti 0 veya daha büyük olmalıdır.</value>
+  </data>
+  <data name="The AI token limit must be 0 or greater." xml:space="preserve">
+    <value>Yapay zekâ token limiti 0 veya daha büyük olmalıdır.</value>
+  </data>
+  <data name="Monthly AI budget per customer on this plan. When it is used up, AI output is skipped until next month; monitoring is not affected. 0 AI calls = no AI." xml:space="preserve">
+    <value>Bu plandaki her müşteri için aylık yapay zekâ bütçesi. Bütçe dolduğunda yapay zekâ çıktısı gelecek aya kadar atlanır; izleme etkilenmez. 0 yapay zekâ çağrısı = yapay zekâ yok.</value>
+  </data>
+  <data name="Succeeded" xml:space="preserve">
+    <value>Başarılı</value>
+  </data>
+  <data name="Refused by the model" xml:space="preserve">
+    <value>Model reddetti</value>
+  </data>
+  <data name="Failed" xml:space="preserve">
+    <value>Başarısız</value>
+  </data>
+  <data name="Truncated (output limit)" xml:space="preserve">
+    <value>Kesildi (çıktı sınırı)</value>
+  </data>
+  <data name="In progress" xml:space="preserve">
+    <value>Devam ediyor</value>
+  </data>
+  <data name="Skipped: budget used up" xml:space="preserve">
+    <value>Atlandı: bütçe doldu</value>
+  </data>
+  <data name="Skipped: customer opted out" xml:space="preserve">
+    <value>Atlandı: müşteri katılmadı</value>
+  </data>
+  <data name="Skipped: not in plan" xml:space="preserve">
+    <value>Atlandı: planda yok</value>
+  </data>
+  <data name="Skipped: AI off" xml:space="preserve">
+    <value>Atlandı: yapay zekâ kapalı</value>
+  </data>
 </root>

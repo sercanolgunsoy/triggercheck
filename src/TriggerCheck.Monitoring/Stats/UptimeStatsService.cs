@@ -7,7 +7,10 @@ public record UptimeSummary(int MonitorId, int TotalChecks, int UpChecks, double
 
 public interface IUptimeStatsService
 {
-    /// <summary>Uptime % and average response time per monitor for [fromUtc, toUtc]. Monitors without checks get null values.</summary>
+    /// <summary>
+    /// Uptime % and average response time per monitor for [fromUtc, toUtc]. Monitors without checks get null values.
+    /// Confirmation probes and checks taken during maintenance windows (FEAT-3) are not counted.
+    /// </summary>
     Task<Dictionary<int, UptimeSummary>> GetSummariesAsync(IEnumerable<int> monitorIds, DateTime fromUtc, DateTime toUtc, CancellationToken ct = default);
 }
 
@@ -17,7 +20,7 @@ public class UptimeStatsService(AppDbContext db) : IUptimeStatsService
     {
         var ids = monitorIds.Distinct().ToList();
         var rows = await db.CheckResults.AsNoTracking()
-            .Where(c => ids.Contains(c.MonitorId) && c.CheckedAtUtc >= fromUtc && c.CheckedAtUtc <= toUtc && !c.IsConfirmation)
+            .Where(c => ids.Contains(c.MonitorId) && c.CheckedAtUtc >= fromUtc && c.CheckedAtUtc <= toUtc && !c.IsConfirmation && !c.InMaintenance)
             .GroupBy(c => c.MonitorId)
             .Select(g => new { MonitorId = g.Key, Total = g.Count(), Up = g.Count(x => x.IsUp), Avg = g.Average(x => (double)x.ResponseTimeMs) })
             .ToListAsync(ct);

@@ -11,6 +11,7 @@ using TriggerCheck.Domain;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Monitoring.Checks;
 using TriggerCheck.Tests.App;
+using TriggerCheck.Web.Areas.App.Support;
 using TriggerCheck.Tests.Infrastructure;
 using TriggerCheck.Tests.Ops;
 using TriggerCheck.Web.Api;
@@ -256,6 +257,32 @@ public class HeartbeatWebTests(TestWebAppFactory f) : IClassFixture<TestWebAppFa
     }
 
     [Fact]
+    public async Task Issued_and_matched_tokens_become_known_to_the_limiter()
+    {
+        var (id, token, _) = await CreateAsync("Known token");
+        var limiter = f.Services.GetRequiredService<HeartbeatRateLimiter>();
+        Assert.True(limiter.IsKnown(HeartbeatTokens.Hash(token)));        // issued: known before its first ping
+        Assert.False(limiter.IsKnown(HeartbeatTokens.Hash(HeartbeatTokens.NewToken())));
+    }
+
+    [Fact]
+    public void A_retried_apply_does_not_keep_a_token_that_was_not_saved()
+    {
+        var input = new MonitorInput { Name = "x", Type = MonitorType.Heartbeat, IntervalSeconds = 300 };
+        var fresh = new Domain.Entities.Monitor { Type = MonitorType.Http };
+        input.ApplyTo(fresh);
+        Assert.NotNull(input.IssuedHeartbeatToken);
+
+        // The retry reloads a row that meanwhile became a heartbeat with its own token: nothing new is issued...
+        var reloaded = new Domain.Entities.Monitor { Type = MonitorType.Heartbeat };
+        HeartbeatTokens.Issue(reloaded);
+        var hash = reloaded.HeartbeatTokenHash;
+        input.ApplyTo(reloaded);
+        Assert.Null(input.IssuedHeartbeatToken); // ...so the stale token of attempt 1 must not be revealed
+        Assert.Equal(hash, reloaded.HeartbeatTokenHash);
+    }
+
+    [Fact]
     public async Task Check_now_is_refused_for_heartbeats()
     {
         var (id, _, c) = await CreateAsync("No check now");
@@ -362,6 +389,42 @@ public class HeartbeatRateLimitTests(TestWebAppFactory f) : IClassFixture<TestWe
     {
         Assert.Equal(ApiSetup.ClientPartition(IPAddress.Parse("2001:db8:1:2::1")), ApiSetup.ClientPartition(IPAddress.Parse("2001:db8:1:2:ffff::9")));
         Assert.NotEqual(ApiSetup.ClientPartition(IPAddress.Parse("2001:db8:1:2::1")), ApiSetup.ClientPartition(IPAddress.Parse("2001:db8:1:3::1")));
+    }
+
+    [Fact]
+    public void Flood_from_many_networks_does_not_block_known_tokens()
+    {
+        var time = new FakeTimeProvider(DateTimeOffset.Parse("2026-01-01T00:00:00Z"));
+        var limiter = Limiter(time, global: 50, maxEntries: 200);
+        limiter.MarkKnown("real-monitor");
+
+        // An IPv6 /48 has 65536 /64s: one random token per request from a fresh /64 each time.
+        var denied = 0;
+        for (var i = 0; i < 5000; i++)
+            if (!limiter.TryAcquire("random-" + i, $"ip6:2001:db8:0:{i:x}::/64").Allowed) denied++;
+        Assert.True(denied > 4000, $"flood mostly denied ({denied})");
+
+        // The real monitor's pings still pass (global cap and memory pressure do not apply to it)...
+        for (var i = 0; i < 10; i++) Assert.True(limiter.TryAcquire("real-monitor", "ip:198.51.100.7").Allowed);
+        // ...but its own per-token limit still does.
+        Assert.False(limiter.TryAcquire("real-monitor", "ip:198.51.100.7").Allowed);
+
+        // Known status expires after two of the longest intervals.
+        time.Advance(HeartbeatRateLimiter.KnownFor);
+        Assert.False(limiter.IsKnown("real-monitor"));
+    }
+
+    [Fact]
+    public async Task Known_set_is_warmed_once_and_survives_a_failed_load()
+    {
+        var limiter = Limiter(new FakeTimeProvider(DateTimeOffset.Parse("2026-01-01T00:00:00Z")));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => limiter.EnsureWarmAsync(_ => throw new InvalidOperationException(), CancellationToken.None));
+        var loads = 0;
+        await limiter.EnsureWarmAsync(_ => { loads++; return Task.FromResult(new List<string> { "h1" }); }, CancellationToken.None);
+        await limiter.EnsureWarmAsync(_ => { loads++; return Task.FromResult(new List<string> { "h2" }); }, CancellationToken.None);
+        Assert.Equal(1, loads);
+        Assert.True(limiter.IsKnown("h1"));
+        Assert.False(limiter.IsKnown("h2"));
     }
 
     [Fact]

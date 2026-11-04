@@ -1,0 +1,79 @@
+@page
+@model TriggerCheck.Web.Areas.App.Pages.Billing.CheckoutModel
+@{
+    ViewData["Title"] = L["Subscribe"].Value;
+    var plan = Model.Plan!;
+}
+
+<nav aria-label="breadcrumb"><ol class="breadcrumb">
+    <li class="breadcrumb-item"><a asp-page="Index">@L["Billing"]</a></li>
+    <li class="breadcrumb-item active">@L["Subscribe"]</li>
+</ol></nav>
+
+<div class="row g-3">
+    <div class="col-lg-7">
+        <div class="card">
+            <div class="card-header">@L["Subscribe to {0}", plan.Name] · @Fmt.Money(plan.MonthlyPrice) @L["/ month"]</div>
+            <div class="card-body">
+                @if (Model.PaymentPageUrl is { } url)
+                {
+                    <p>@L["Your checkout is ready. Enter your card details on iyzico's secure payment page; you will be brought back here afterwards."]</p>
+                    <a class="btn btn-primary" href="@url" rel="noopener" data-testid="pay">@L["Continue to secure payment"]</a>
+                    <a class="btn btn-link" asp-page="Index">@L["Cancel"]</a>
+                }
+                else
+                {
+                    <p class="text-muted">@L["iyzico needs these billing details for the invoice. Your card is entered on iyzico's secure payment page, never on TriggerCheck."]</p>
+                    <form method="post" asp-route-planId="@plan.Id">
+                        <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label asp-for="Input.Name" class="form-label"></label>
+                                <input asp-for="Input.Name" class="form-control" autocomplete="given-name" />
+                                <span asp-validation-for="Input.Name" class="text-danger small"></span>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label asp-for="Input.Surname" class="form-label"></label>
+                                <input asp-for="Input.Surname" class="form-control" autocomplete="family-name" />
+                                <span asp-validation-for="Input.Surname" class="text-danger small"></span>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label asp-for="Input.Phone" class="form-label"></label>
+                                <input asp-for="Input.Phone" class="form-control" autocomplete="tel" placeholder="+905350000000" />
+                                <span asp-validation-for="Input.Phone" class="text-danger small"></span>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label asp-for="Input.IdentityNumber" class="form-label"></label>
+                                <input asp-for="Input.IdentityNumber" class="form-control" inputmode="numeric" autocomplete="off" />
+                                <span asp-validation-for="Input.IdentityNumber" class="text-danger small"></span>
+                            </div>
+                            <div class="col-12 mb-3">
+                                <label asp-for="Input.Address" class="form-label"></label>
+                                <input asp-for="Input.Address" class="form-control" autocomplete="street-address" />
+                                <span asp-validation-for="Input.Address" class="text-danger small"></span>
+                            </div>
+                            <div class="col-md-5 mb-3">
+                                <label asp-for="Input.City" class="form-label"></label>
+                                <input asp-for="Input.City" class="form-control" autocomplete="address-level2" />
+                                <span asp-validation-for="Input.City" class="text-danger small"></span>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label asp-for="Input.Country" class="form-label"></label>
+                                <input asp-for="Input.Country" class="form-control" autocomplete="country-name" />
+                                <span asp-validation-for="Input.Country" class="text-danger small"></span>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <label asp-for="Input.ZipCode" class="form-label"></label>
+                                <input asp-for="Input.ZipCode" class="form-control" autocomplete="postal-code" />
+                                <span asp-validation-for="Input.ZipCode" class="text-danger small"></span>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary">@L["Continue"]</button>
+                        <a class="btn btn-link" asp-page="Index">@L["Cancel"]</a>
+                    </form>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

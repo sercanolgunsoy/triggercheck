@@ -1,0 +1,68 @@
+@page
+@model TriggerCheck.Web.Areas.App.Pages.Escalation.IndexModel
+@{
+    ViewData["Title"] = L["Escalation policy"].Value;
+    var isAdmin = User.IsInRole(Roles.CustomerAdmin);
+}
+
+<div class="page-head">
+    <div>
+        <h2 class="mb-0">@L["Escalation policy"]</h2>
+        <div class="text-muted small">@L["When a monitor goes DOWN, every enabled channel is notified (step 0). If nobody acknowledges the incident, the steps below notify further channels while the monitor is still down."]</div>
+    </div>
+</div>
+
+<div class="alert alert-light border small">@L["Acknowledge an incident from the incidents page or with the link in the DOWN alert. Acknowledged or resolved incidents are not escalated; escalation also pauses while a monitor is in maintenance."]
+    @L["Delays count from the start of the incident, or from when the policy was turned on if that is later."]</div>
+
+@if (Model.Channels.Count == 0)
+{
+    <div class="alert alert-warning">@L["Add alert channels first; escalation steps notify channels you choose."]</div>
+}
+
+@foreach (var step in Model.StepsWithoutChannel)
+{
+    <div class="alert alert-warning step-warning">@L["Step {0} has no enabled alert channel left; its alert goes to the account contact e-mail instead (if that fallback is on).", step]</div>
+}
+
+<form method="post">
+    <div asp-validation-summary="All" class="alert alert-danger" role="alert"></div>
+    <div class="form-check form-switch mb-3">
+        <input class="form-check-input" type="checkbox" name="IsEnabled" id="esc-enabled" value="true" checked="@Model.IsEnabled" disabled="@(!isAdmin)" />
+        <input type="hidden" name="IsEnabled" value="false" />
+        <label class="form-check-label" for="esc-enabled">@L["Escalation enabled"]</label>
+    </div>
+    <div class="table-responsive">
+        <table class="table align-middle" id="escalation-steps">
+            <thead><tr><th>@L["Step"]</th><th>@L["Minutes after the incident started"]</th><th>@L["Notify channels"]</th></tr></thead>
+            <tbody>
+            @for (var i = 0; i < Model.Steps.Count; i++)
+            {
+                var s = Model.Steps[i];
+                <tr>
+                    <td>@(i + 1)</td>
+                    <td style="max-width: 160px">
+                        <input type="number" class="form-control" name="Steps[@i].DelayMinutes" min="1" max="1440" value="@s.DelayMinutes" disabled="@(!isAdmin)"
+                               aria-label="@L["Minutes after the incident started"]" />
+                    </td>
+                    <td>
+                        @foreach (var c in Model.Channels)
+                        {
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" name="Steps[@i].ChannelIds" id="esc-@i-@c.Id" value="@c.Id"
+                                       checked="@s.ChannelIds.Contains(c.Id)" disabled="@(!isAdmin)" />
+                                <label class="form-check-label" for="esc-@i-@c.Id">@c.Name <span class="text-muted small">(@AlertChannelInput.TypeName(c.Type, L))</span></label>
+                            </div>
+                        }
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+    <div class="form-text mb-3">@L["Leave a row empty to skip it. Each step must come later than the previous one (at most 24 hours)."]</div>
+    @if (isAdmin)
+    {
+        <button type="submit" class="btn btn-primary">@L["Save"]</button>
+    }
+</form>

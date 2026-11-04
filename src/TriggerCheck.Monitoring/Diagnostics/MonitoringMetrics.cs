@@ -18,6 +18,7 @@ namespace TriggerCheck.Monitoring.Diagnostics;
 /// <item><c>triggercheck.monitoring.scheduler.in_flight</c> (gauge): checks running at the end of the last tick.</item>
 /// <item><c>triggercheck.monitoring.scheduler.heartbeat</c> (gauge, s): unix time of the last completed scheduler tick.</item>
 /// <item><c>triggercheck.monitoring.alerts</c> (counter): alert deliveries, tags <c>channel.type</c>, <c>result</c> (sent/failed).</item>
+/// <item><c>triggercheck.monitoring.escalations</c> (counter): escalation steps triggered for unacknowledged incidents (FEAT-5).</item>
 /// </list>
 /// </summary>
 public sealed class MonitoringMetrics
@@ -33,6 +34,7 @@ public sealed class MonitoringMetrics
     private readonly Histogram<double> _checkDuration;
     private readonly Histogram<double> _tickLag;
     private readonly Counter<long> _alerts;
+    private readonly Counter<long> _escalations;
 
     private long _lastTickStartTicks;      // TimeProvider timestamp of the previous tick start (0 = none yet)
     private long _lastHeartbeatUnixMs = -1; // -1 = no completed tick yet
@@ -51,6 +53,7 @@ public sealed class MonitoringMetrics
         _tickLag = meter.CreateHistogram<double>("triggercheck.monitoring.scheduler.tick_lag", "s",
             "Delay of a scheduler tick beyond its configured interval");
         _alerts = meter.CreateCounter<long>("triggercheck.monitoring.alerts", "{alert}", "Alert deliveries by channel type and result");
+        _escalations = meter.CreateCounter<long>("triggercheck.monitoring.escalations", "{escalation}", "Escalation steps triggered for unacknowledged incidents");
         meter.CreateObservableGauge("triggercheck.monitoring.scheduler.due_monitors", () => Volatile.Read(ref _dueMonitors),
             "{monitor}", "Due monitors found at the last scheduler tick, including ones whose check is still in flight (capped by the per-tick limit)");
         meter.CreateObservableGauge("triggercheck.monitoring.scheduler.in_flight", () => Volatile.Read(ref _inFlight),
@@ -109,6 +112,9 @@ public sealed class MonitoringMetrics
             { "channel.type", channelType.ToString().ToLowerInvariant() },
             { "result", success ? "sent" : attempted ? "failed" : "skipped" }
         });
+
+    /// <summary>One escalation step was triggered (queued) for an unacknowledged incident.</summary>
+    public void RecordEscalation() => _escalations.Add(1);
 
     /// <summary>Starts the span of one probe (null when nobody listens). Never tagged with the target: it may carry credentials.</summary>
     public static Activity? StartCheckActivity(MonitorEntity monitor)

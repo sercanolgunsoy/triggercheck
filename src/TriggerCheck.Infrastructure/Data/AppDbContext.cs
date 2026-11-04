@@ -16,6 +16,15 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
     public DbSet<AlertChannel> AlertChannels => Set<AlertChannel>();
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<SmsVoiceUsage> SmsVoiceUsage => Set<SmsVoiceUsage>();
+    public DbSet<AiDecision> AiDecisions => Set<AiDecision>();
+    public DbSet<AiFeedback> AiFeedback => Set<AiFeedback>();
+    public DbSet<MonitorBaseline> MonitorBaselines => Set<MonitorBaseline>();
+    public DbSet<AnomalySignal> AnomalySignals => Set<AnomalySignal>();
+    public DbSet<Subscription> Subscriptions => Set<Subscription>();
+    public DbSet<PaymentEvent> PaymentEvents => Set<PaymentEvent>();
+    public DbSet<MaintenanceWindow> MaintenanceWindows => Set<MaintenanceWindow>();
+    public DbSet<EscalationPolicy> EscalationPolicies => Set<EscalationPolicy>();
+    public DbSet<EscalationStep> EscalationSteps => Set<EscalationStep>();
     public DbSet<ApiKey> ApiKeys => Set<ApiKey>();
 
     protected override void OnModelCreating(ModelBuilder b)
@@ -27,12 +36,17 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
             e.Property(x => x.Name).HasMaxLength(100).IsRequired();
             e.HasIndex(x => x.Name).IsUnique();
             e.Property(x => x.MonthlyPrice).HasConversion<double>();
+            e.Property(x => x.AiFeatures).HasMaxLength(500);
+            e.Property(x => x.IyzicoProductReferenceCode).HasMaxLength(100);
+            e.Property(x => x.IyzicoPricingPlanReferenceCode).HasMaxLength(100);
         });
 
         b.Entity<Customer>(e =>
         {
             e.Property(x => x.Name).HasMaxLength(200).IsRequired();
             e.Property(x => x.ContactEmail).HasMaxLength(256);
+            e.Property(x => x.TrialKey).HasMaxLength(256);
+            e.HasIndex(x => x.TrialKey);
             e.HasOne(x => x.Plan).WithMany(p => p.Customers).HasForeignKey(x => x.PlanId).OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -73,6 +87,31 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
             e.HasOne(x => x.Monitor).WithMany(m => m.Incidents).HasForeignKey(x => x.MonitorId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(x => new { x.MonitorId, x.StartedAtUtc });
             e.Ignore(x => x.IsOpen);
+            e.Property(x => x.AcknowledgedByUserId).HasMaxLength(450);
+            e.Property(x => x.AcknowledgeNote).HasMaxLength(500);
+        });
+
+        // FEAT-3: maintenance windows; the monitor list is a join table that disappears with either side.
+        b.Entity<MaintenanceWindow>(e =>
+        {
+            e.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            e.Property(x => x.TimeZoneId).HasMaxLength(100).IsRequired();
+            e.HasOne(x => x.Customer).WithMany().HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Cascade);
+            e.HasMany(x => x.Monitors).WithMany().UsingEntity("MaintenanceWindowMonitors");
+            e.HasIndex(x => x.CustomerId);
+        });
+
+        // FEAT-5: one optional escalation policy per customer; step channels are a join table.
+        b.Entity<EscalationPolicy>(e =>
+        {
+            e.HasOne(x => x.Customer).WithMany().HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => x.CustomerId).IsUnique();
+            e.HasMany(x => x.Steps).WithOne(s => s.Policy).HasForeignKey(s => s.EscalationPolicyId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<EscalationStep>(e =>
+        {
+            e.HasMany(x => x.Channels).WithMany().UsingEntity("EscalationStepChannels");
         });
 
         b.Entity<AlertChannel>(e =>
@@ -88,9 +127,83 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
             e.HasOne<Customer>().WithMany().HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Cascade);
         });
 
+        b.Entity<Subscription>(e =>
+        {
+            e.HasOne(x => x.Customer).WithMany(c => c.Subscriptions).HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Plan).WithMany().HasForeignKey(x => x.PlanId).OnDelete(DeleteBehavior.Restrict);
+            e.Property(x => x.Provider).HasMaxLength(32);
+            e.Property(x => x.ProviderReference).HasMaxLength(100);
+            e.Property(x => x.ProviderCustomerReference).HasMaxLength(100);
+            e.Property(x => x.CheckoutToken).HasMaxLength(200);
+            e.Property(x => x.CheckoutUrl).HasMaxLength(2048);
+            e.HasIndex(x => x.ProviderReference);
+            e.HasIndex(x => x.CheckoutToken);
+            e.HasIndex(x => new { x.CustomerId, x.Status });
+            e.HasIndex(x => x.ProviderCustomerReference);
+        });
+
+        b.Entity<PaymentEvent>(e =>
+        {
+            e.HasOne<Customer>().WithMany().HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<Subscription>().WithMany().HasForeignKey(x => x.SubscriptionId).OnDelete(DeleteBehavior.SetNull);
+            e.Property(x => x.ProviderEventId).HasMaxLength(200).IsRequired();
+            e.HasIndex(x => x.ProviderEventId).IsUnique();
+            e.Property(x => x.EventType).HasMaxLength(64);
+            e.Property(x => x.OrderReference).HasMaxLength(100);
+            e.Property(x => x.SubscriptionReference).HasMaxLength(100);
+            e.Property(x => x.CustomerReference).HasMaxLength(100);
+            e.Property(x => x.Currency).HasMaxLength(8);
+            e.Property(x => x.IgnoredReason).HasMaxLength(32);
+            e.HasIndex(x => new { x.Ignored, x.IgnoredReason });
+            e.Property(x => x.PlanName).HasMaxLength(100);
+            e.Property(x => x.Amount).HasConversion<double?>();
+            e.HasIndex(x => new { x.CustomerId, x.OccurredAtUtc });
+        });
+
         b.Entity<Notification>(e =>
         {
             e.HasIndex(x => new { x.MonitorId, x.SentAtUtc });
+        });
+
+        // ---- AI ----
+        b.Entity<AiDecision>(e =>
+        {
+            e.HasOne<Customer>().WithMany().HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Cascade);
+            e.Property(x => x.Feature).HasMaxLength(64).IsRequired();
+            e.Property(x => x.SubjectType).HasMaxLength(64);
+            e.Property(x => x.SubjectId).HasMaxLength(64);
+            e.Property(x => x.InputHash).HasMaxLength(64);
+            e.Property(x => x.Model).HasMaxLength(100);
+            e.Property(x => x.Effort).HasMaxLength(20);
+            e.Property(x => x.ErrorCode).HasMaxLength(64);
+            e.Property(x => x.FeedbackByUserId).HasMaxLength(450);
+            e.Property(x => x.CostEstimate).HasConversion<double>();
+            e.HasIndex(x => new { x.CustomerId, x.CreatedAtUtc });
+            e.HasIndex(x => new { x.Feature, x.SubjectType, x.SubjectId, x.InputHash });
+        });
+
+        b.Entity<AiFeedback>(e =>
+        {
+            e.HasKey(x => new { x.DecisionId, x.UserId });
+            e.HasOne<AiDecision>().WithMany().HasForeignKey(x => x.DecisionId).OnDelete(DeleteBehavior.Cascade);
+            e.Property(x => x.UserId).HasMaxLength(450);
+            e.HasIndex(x => x.CustomerId);
+        });
+
+        b.Entity<MonitorBaseline>(e =>
+        {
+            e.HasKey(x => new { x.MonitorId, x.Bucket });
+            e.HasOne<MonitorEntity>().WithMany().HasForeignKey(x => x.MonitorId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => x.CustomerId);
+        });
+
+        b.Entity<AnomalySignal>(e =>
+        {
+            e.HasOne<MonitorEntity>().WithMany().HasForeignKey(x => x.MonitorId).OnDelete(DeleteBehavior.Cascade);
+            e.Property(x => x.Metric).HasMaxLength(64).IsRequired();
+            e.HasIndex(x => new { x.MonitorId, x.EndedAtUtc });
+            e.HasIndex(x => new { x.CustomerId, x.StartedAtUtc });
+            e.Ignore(x => x.IsOpen);
         });
 
         b.Entity<ApiKey>(e =>

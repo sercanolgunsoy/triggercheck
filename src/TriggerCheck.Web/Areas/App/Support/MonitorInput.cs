@@ -273,6 +273,7 @@ public class MonitorInput : IValidatableObject
     /// <summary>Copies user-editable fields to the entity, clearing fields that don't apply to the type.</summary>
     public void ApplyTo(MonitorEntity m)
     {
+        IssuedHeartbeatToken = null; // a retried apply must not reveal the token of an attempt that was not saved
         var isHttp = IsHttpType(Type);
         var isHeartbeat = Type == MonitorType.Heartbeat;
         if (m.Target != Target || m.Type != Type)

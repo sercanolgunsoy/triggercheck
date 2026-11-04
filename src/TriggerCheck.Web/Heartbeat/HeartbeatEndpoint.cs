@@ -8,6 +8,7 @@ using TriggerCheck.Domain.Security;
 using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Monitoring.Checks;
 using TriggerCheck.Web.Api;
+using TriggerCheck.Web.Infrastructure;
 
 namespace TriggerCheck.Web.Heartbeat;
 
@@ -69,20 +70,21 @@ public static partial class HeartbeatEndpoint
     }
 
     /// <summary>
-    /// Full ping URL for <paramref name="token"/>: based on <c>Site:PublicBaseUrl</c> when configured (recommended behind
-    /// a proxy), otherwise on the current request (scheme, host, path base).
+    /// Full ping URL for <paramref name="token"/>, built by <see cref="PublicUrls"/>: <c>Site:PublicBaseUrl</c> when
+    /// configured (required outside Development), otherwise the current request's scheme, host and path base.
     /// </summary>
-    public static string PingUrl(HttpRequest request, string token)
-    {
-        var configured = request.HttpContext.RequestServices.GetService<IConfiguration>()?["Site:PublicBaseUrl"];
-        var baseUrl = !string.IsNullOrWhiteSpace(configured) ? configured.Trim().TrimEnd('/') : $"{request.Scheme}://{request.Host}{request.PathBase}";
-        return $"{baseUrl}/hb/{token}";
-    }
+    public static string PingUrl(HttpRequest request, string token) =>
+        request.HttpContext.RequestServices.GetRequiredService<PublicUrls>().Build(request, "/hb/" + token);
 
     private static async Task<IResult> HandleAsync(string token, HttpContext context, AppDbContext db, HeartbeatRateLimiter limiter, TimeProvider time)
     {
         context.Response.Headers.CacheControl = "no-store";
         var hash = HeartbeatTokens.Hash(token);
+        // After a restart the known-token set is rebuilt from the database once, so a flood of unknown tokens running
+        // at that moment cannot lock out existing monitors.
+        await limiter.EnsureWarmAsync(ct => db.Monitors.AsNoTracking()
+            .Where(x => x.Type == MonitorType.Heartbeat && x.HeartbeatTokenHash != null)
+            .Select(x => x.HeartbeatTokenHash!).ToListAsync(ct), context.RequestAborted);
         var decision = limiter.TryAcquire(hash, ApiSetup.ClientPartition(context.Connection.RemoteIpAddress));
         if (!decision.Allowed)
         {
@@ -100,6 +102,7 @@ public static partial class HeartbeatEndpoint
                 .Select(x => new PingTarget(x.Id, x.Status, x.IsEnabled && x.Status != MonitorStatus.Paused && x.Customer.IsActive,
                     x.IntervalSeconds, x.GracePeriodSeconds, x.LastCheckedAtUtc, x.LastHeartbeatFailed, x.NextCheckAtUtc))
                 .FirstOrDefaultAsync(context.RequestAborted);
+            if (m is not null) limiter.MarkKnown(hash);
             if (m is { Active: true })
             {
                 var next = NextCheckAfterPing(m, failed, now);
@@ -165,14 +168,24 @@ public static partial class HeartbeatEndpoint
 }
 
 /// <summary>
-/// Limits for heartbeat pings, all fixed windows: a global flood guard (per second), per client partition
-/// (<see cref="ApiSetup.ClientPartition"/>, per minute) and per token hash (per minute). In memory, single instance.
-/// Memory is bounded: entries are evicted by age only; when the table is still full, requests needing a new entry are
-/// denied (never fail open by forgetting existing counters).
+/// Limits for heartbeat pings, all fixed windows: per token hash (per minute), per client partition
+/// (<see cref="ApiSetup.ClientPartition"/>, per minute) and, for unknown tokens only, a global flood guard (per second).
+/// In memory, single instance.
+/// <para>
+/// Known tokens (hashes that matched a monitor in the last <see cref="KnownFor"/>, issued in this process, or loaded once
+/// from the database after a restart) bypass the global guard and the memory-pressure check: an attacker spraying
+/// random tokens from many addresses (an IPv6 /48 has 65536 /64s) can exhaust those, but must never block the pings of
+/// real monitors and cause false DOWNs. Per-token limits always apply.
+/// </para>
+/// Memory is bounded: counters are evicted by age only; when the table is still full, unknown tokens needing a new
+/// entry are denied (never fail open by forgetting existing counters). The known set holds hashes of real monitors only.
 /// </summary>
 public sealed class HeartbeatRateLimiter(TimeProvider time, Microsoft.Extensions.Options.IOptions<HeartbeatOptions> options)
 {
     public const int DefaultMaxEntries = 100_000;
+    public const int MaxKnownTokens = 200_000;
+    /// <summary>Two of the longest heartbeat intervals (24 h).</summary>
+    public static readonly TimeSpan KnownFor = TimeSpan.FromDays(2);
     private static readonly TimeSpan Minute = TimeSpan.FromMinutes(1);
     private static readonly TimeSpan Second = TimeSpan.FromSeconds(1);
 
@@ -181,36 +194,79 @@ public sealed class HeartbeatRateLimiter(TimeProvider time, Microsoft.Extensions
     private readonly HeartbeatOptions _o = options.Value;
     private readonly object _lock = new();
     private readonly Dictionary<string, (DateTime Start, int Count)> _windows = new();
+    private readonly Dictionary<string, DateTime> _known = new();
     private (DateTime Start, int Count) _global;
+    private int _warm; // 0 = not loaded, 1 = loading / loaded
 
-    /// <summary>Upper bound of tracked partitions + tokens (tests lower it).</summary>
+    /// <summary>Upper bound of tracked partitions + unknown tokens (tests lower it).</summary>
     public int MaxEntries { get; init; } = DefaultMaxEntries;
 
     public int TrackedEntries { get { lock (_lock) return _windows.Count; } }
+
+    /// <summary>Loads the hashes of all heartbeat monitors once per process (first ping after start).</summary>
+    public async Task EnsureWarmAsync(Func<CancellationToken, Task<List<string>>> loadHashes, CancellationToken ct)
+    {
+        if (Volatile.Read(ref _warm) == 1 || Interlocked.Exchange(ref _warm, 1) == 1) return;
+        try
+        {
+            foreach (var hash in await loadHashes(ct)) MarkKnown(hash);
+        }
+        catch
+        {
+            Volatile.Write(ref _warm, 0); // try again on a later ping
+            throw;
+        }
+    }
+
+    /// <summary>The token belongs to a monitor (lookup matched, or just issued).</summary>
+    public void MarkKnown(string tokenHash)
+    {
+        var now = time.GetUtcNow().UtcDateTime;
+        lock (_lock)
+        {
+            if (_known.Count >= MaxKnownTokens && !_known.ContainsKey(tokenHash))
+            {
+                foreach (var key in _known.Where(kv => now - kv.Value >= KnownFor).Select(kv => kv.Key).ToList()) _known.Remove(key);
+                if (_known.Count >= MaxKnownTokens) return;
+            }
+            _known[tokenHash] = now;
+        }
+    }
+
+    public bool IsKnown(string tokenHash)
+    {
+        var now = time.GetUtcNow().UtcDateTime;
+        lock (_lock) return _known.TryGetValue(tokenHash, out var seen) && now - seen < KnownFor;
+    }
 
     public Decision TryAcquire(string tokenHash, string clientPartition)
     {
         var now = time.GetUtcNow().UtcDateTime;
         lock (_lock)
         {
-            if (now - _global.Start >= Second) _global = (now, 0);
-            if (_global.Count >= Math.Max(1, _o.PingsPerSecondGlobal)) return new Decision(false, 1);
+            var known = _known.TryGetValue(tokenHash, out var seen) && now - seen < KnownFor;
+            if (!known)
+            {
+                if (now - _global.Start >= Second) _global = (now, 0);
+                if (_global.Count >= Math.Max(1, _o.PingsPerSecondGlobal)) return new Decision(false, 1);
+            }
 
             var tokenKey = "t:" + tokenHash;
             var clientKey = "c:" + clientPartition;
             var c = Current(clientKey, now);
             var t = Current(tokenKey, now);
-            if (c.Count >= Math.Max(1, _o.PingsPerMinutePerClient)) return Deny(c.Start, now);
             if (t.Count >= Math.Max(1, _o.PingsPerMinutePerToken)) return Deny(t.Start, now);
+            if (c.Count >= Math.Max(1, _o.PingsPerMinutePerClient)) return Deny(c.Start, now);
 
             var newEntries = (_windows.ContainsKey(clientKey) ? 0 : 1) + (_windows.ContainsKey(tokenKey) ? 0 : 1);
             if (newEntries > 0 && _windows.Count + newEntries > MaxEntries)
             {
                 EvictExpired(now);
-                if (_windows.Count + newEntries > MaxEntries) return new Decision(false, 60); // under pressure: deny, keep counters
+                // Under pressure: deny unknown tokens, keep all counters; known tokens may exceed the cap (bounded by the known set).
+                if (!known && _windows.Count + newEntries > MaxEntries) return new Decision(false, 60);
             }
 
-            _global = (_global.Start, _global.Count + 1);
+            if (!known) _global = (_global.Start, _global.Count + 1);
             _windows[clientKey] = (c.Start, c.Count + 1);
             _windows[tokenKey] = (t.Start, t.Count + 1);
             return new Decision(true, 0);

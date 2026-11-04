@@ -7,6 +7,7 @@ using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Monitoring;
 using TriggerCheck.Monitoring.Checks;
 using TriggerCheck.Monitoring.Engine;
+using TriggerCheck.Monitoring.Maintenance;
 using TriggerCheck.Monitoring.Stats;
 using TriggerCheck.Web.Areas.App.Support;
 using TriggerCheck.Web.Heartbeat;
@@ -18,7 +19,7 @@ namespace TriggerCheck.Web.Areas.App.Pages.Monitors;
 
 /// <summary>Readable by all customer members; the POST handlers (pause/resume/check now) are CustomerAdmin only.</summary>
 public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStatsService stats, MonitorLifecycle lifecycle, ILogger<DetailsModel> logger, Text<AppResource> L,
-    ManualCheckLimiter limiter, IResponseTimeSeriesService series, MonitorCommands commands, HeartbeatUrlReveal reveals) : PageModel
+    ManualCheckLimiter limiter, IResponseTimeSeriesService series, TimeProvider time, MonitorCommands commands, HeartbeatUrlReveal reveals) : PageModel
 {
     public const int MaxChartPoints = ResponseTimeSeriesService.MaxPoints;
 
@@ -40,8 +41,14 @@ public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStat
     /// <summary>Incident marker: bucket index where it started (and ended, when resolved within the range).</summary>
     public record ChartIncident(int Start, int? End, string Label);
 
+    /// <summary>Maintenance band (FEAT-3): first and last bucket index covered by a maintenance window.</summary>
+    public record ChartMaintenance(int Start, int End, string Label);
+
     public string Range { get; private set; } = "24h";
     public List<ChartIncident> ChartIncidents { get; private set; } = [];
+    public List<ChartMaintenance> ChartMaintenanceBands { get; private set; } = [];
+    /// <summary>The monitor is in a maintenance window right now.</summary>
+    public bool InMaintenance { get; private set; }
     public bool HasPhaseData => Chart.Any(p => p.Wait is not null);
     public bool IsHttps => MonitorStateMachine.IsHttpsMonitor(Monitor);
 
@@ -107,6 +114,12 @@ public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStat
             s.BucketIndexOf(i.StartedAtUtc < from ? from : i.StartedAtUtc) ?? 0,
             i.ResolvedAtUtc is DateTime r ? s.BucketIndexOf(r) : null,
             Label(i.StartedAtUtc))).ToList();
+
+        var bands = await MaintenanceQueries.OccurrencesAsync(db, m.CustomerId, id, from, now, ct);
+        ChartMaintenanceBands = bands.Select(b => new ChartMaintenance(
+            s.BucketIndexOf(b.StartUtc) ?? 0, s.BucketIndexOf(b.EndUtc.AddTicks(-1)) ?? s.Buckets.Count - 1,
+            Label(b.StartUtc) + " – " + Label(b.EndUtc))).ToList();
+        InMaintenance = (await MaintenanceQueries.MonitorsInMaintenanceAsync(db, m.CustomerId, [id], time.GetUtcNow().UtcDateTime, ct)).Count > 0;
 
         RecentChecks = await db.CheckResults.AsNoTracking()
             .Where(c => c.MonitorId == id)

@@ -1,0 +1,84 @@
+@page
+@model TriggerCheck.Web.Areas.SuperAdmin.Pages.Ai.IndexModel
+@{
+    ViewData["Title"] = L["AI usage"];
+    var o = Model.Options;
+    string Usd(decimal v) => "$" + v.ToString("0.0000", System.Globalization.CultureInfo.InvariantCulture);
+}
+
+<div class="page-head">
+    <div>
+        <h2>@L["AI usage"]</h2>
+        <div class="sub">@L["Current calendar month (UTC). Costs are estimates from token counts and list prices."]</div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-lg-6">
+        <div class="card h-100 @(Model.ClientAvailable ? "border-success" : "border-secondary")">
+            <div class="card-header fw-semibold">@L["AI status"]</div>
+            <div class="card-body">
+                <dl class="row mb-0 small">
+                    <dt class="col-sm-5">@L["Global switch (Ai:Enabled)"]</dt>
+                    <dd class="col-sm-7" id="ai-global-switch">@if (o.Enabled) { <span class="badge bg-success">@L["On"]</span> } else { <span class="badge bg-secondary">@L["Off"]</span> }</dd>
+                    <dt class="col-sm-5">@L["API key"]</dt>
+                    <dd class="col-sm-7">@(Model.KeyConfigured ? L["Configured"] : L["Not configured"])</dd>
+                    <dt class="col-sm-5">@L["AI calls"]</dt>
+                    <dd class="col-sm-7" id="ai-availability">@(Model.ClientAvailable ? L["Available"] : L["Unavailable"])</dd>
+                    <dt class="col-sm-5">@L["Default model"]</dt><dd class="col-sm-7"><code>@o.Model</code> (@L["effort"] <code>@o.Effort</code>)</dd>
+                    <dt class="col-sm-5">@L["Timeout"]</dt><dd class="col-sm-7">@L["{0} sec", o.TimeoutSeconds]</dd>
+                    @foreach (var f in o.Features.OrderBy(f => f.Key))
+                    {
+                        <dt class="col-sm-5">@f.Key</dt><dd class="col-sm-7"><code>@(f.Value.Model ?? o.Model)</code> (@L["effort"] <code>@(f.Value.Effort ?? o.Effort)</code>)</dd>
+                    }
+                </dl>
+                <p class="small text-muted mt-2 mb-0">@L["Read-only: AI is switched on and off with the Ai:Enabled setting (environment variable Ai__Enabled) and needs ANTHROPIC_API_KEY. Customers must also opt in."]</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header fw-semibold">@L["This month"]</div>
+            <div class="card-body">
+                <dl class="row mb-0 small">
+                    <dt class="col-sm-6">@L["AI calls"]</dt><dd class="col-sm-6">@Fmt.Number(Model.TotalCalls)</dd>
+                    <dt class="col-sm-6">@L["Estimated cost"]</dt><dd class="col-sm-6" id="ai-total-cost">@Usd(Model.TotalCost)</dd>
+                    <dt class="col-sm-6">@L["Feedback (helpful / not helpful)"]</dt><dd class="col-sm-6">@Fmt.Number(Model.Helpful) / @Fmt.Number(Model.NotHelpful)</dd>
+                    @foreach (var s in Model.ByStatus.OrderBy(s => s.Key))
+                    {
+                        <dt class="col-sm-6 fw-normal text-muted">@Model.StatusName(s.Key)</dt><dd class="col-sm-6">@Fmt.Number(s.Value)</dd>
+                    }
+                </dl>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header fw-semibold">@L["Usage by customer"]</div>
+    @if (Model.Rows.Count == 0)
+    {
+        <div class="card-body text-muted">@L["No AI usage yet."]</div>
+    }
+    else
+    {
+        <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0 align-middle" id="ai-usage-table">
+            <thead><tr><th>@L["Customer"]</th><th>@L["Plan"]</th><th>@L["Opted in"]</th><th class="text-end">@L["AI calls"]</th><th class="text-end">@L["Tokens"]</th><th class="text-end">@L["Estimated cost"]</th></tr></thead>
+            <tbody>
+            @foreach (var r in Model.Rows)
+            {
+                <tr data-customer-id="@r.CustomerId">
+                    <td><a asp-page="/Customers/Details" asp-route-id="@r.CustomerId">@r.CustomerName</a></td>
+                    <td>@r.PlanName</td>
+                    <td>@(r.CustomerOptedIn ? L["Yes"] : L["No"])</td>
+                    <td class="text-end">@Fmt.Number(r.Calls) / @Fmt.Number(r.CallLimit) @if (r.IsOverBudget && r.CallLimit > 0) { <span class="badge bg-warning text-dark">@L["over budget"]</span> }</td>
+                    <td class="text-end">@Fmt.Number(r.Tokens)@(r.TokenLimit > 0 ? " / " + Fmt.Number(r.TokenLimit) : "")</td>
+                    <td class="text-end">@Usd(r.EstimatedCostUsd)</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+        </div>
+    }
+</div>

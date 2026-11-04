@@ -67,7 +67,8 @@ public class CreateModel(AppDbContext db, UserManager<ApplicationUser> users, IL
                 ContactEmail = Input.ContactEmail.Trim(),
                 PlanId = plan!.Id,
                 IsActive = true,
-                CreatedAtUtc = DateTime.UtcNow
+                CreatedAtUtc = DateTime.UtcNow,
+                AiEnabled = true // decision K2: new customers are opted in to AI, existing ones opt in themselves
             };
             db.Customers.Add(customer);
             await db.SaveChangesAsync();

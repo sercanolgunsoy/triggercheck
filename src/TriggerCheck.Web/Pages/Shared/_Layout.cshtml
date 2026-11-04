@@ -46,14 +46,18 @@
                         @NavItem("/App/Monitors", "activity", L["Monitors"])
                         @NavItem("/App/Incidents", "alert", L["Incidents"])
                         @NavItem("/App/Alerts", "bell", L["Alert channels"])
+                        @NavItem("/App/Maintenance", "clock", L["Maintenance"])
+                        @NavItem("/App/Escalation", "zap", L["Escalation"])
                     </ul>
                 </div>
                 <div>
                     <div class="sidebar-section">@L["Settings"]</div>
                     <ul class="sidebar-nav">
                         @if (isCustomerAdmin) { @NavItem("/App/Users", "users", L["Users"]) }
+                        @NavItem("/App/Billing", "layers", L["Billing"])
                         @NavItem("/App/ApiKeys", "lock", L["API keys"])
                         @NavItem("/App/Account", "card", L["Account & plan"])
+                        @NavItem("/App/Ai", "sparkles", L["AI features"])
                     </ul>
                 </div>
             }
@@ -66,6 +70,7 @@
                         @NavItem("/SuperAdmin/Customers", "building", L["Customers"])
                         @NavItem("/SuperAdmin/Plans", "layers", L["Plans"])
                         @NavItem("/SuperAdmin/Monitors", "list", L["All monitors"])
+                        @NavItem("/SuperAdmin/Ai", "sparkles", L["AI usage"])
                     </ul>
                 </div>
             }

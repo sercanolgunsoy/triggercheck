@@ -1,0 +1,19 @@
+@page "{id:int}"
+@model TriggerCheck.Web.Areas.App.Pages.Maintenance.DeleteModel
+@{ ViewData["Title"] = L["Delete maintenance window"].Value; }
+
+<nav aria-label="breadcrumb"><ol class="breadcrumb">
+    <li class="breadcrumb-item"><a asp-page="Index">@L["Maintenance windows"]</a></li>
+    <li class="breadcrumb-item active">@L["Delete"]</li>
+</ol></nav>
+
+<div class="card border-danger">
+    <div class="card-header bg-danger text-white">@L["Delete maintenance window"]</div>
+    <div class="card-body">
+        <p>@L["Are you sure you want to delete the maintenance window \"{0}\"? Monitors it covers are alerted normally again.", Model.Window.Name]</p>
+        <form method="post" asp-route-id="@Model.Window.Id">
+            <button type="submit" class="btn btn-danger">@L["Yes, delete"]</button>
+            <a asp-page="Index" class="btn btn-link">@L["Cancel"]</a>
+        </form>
+    </div>
+</div>

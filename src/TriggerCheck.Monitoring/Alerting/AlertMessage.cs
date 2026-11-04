@@ -12,10 +12,20 @@ public enum AlertKind
     /// <summary>"Send test notification" from the alert channels page (no monitor involved, MonitorId = 0).</summary>
     Test,
     /// <summary>The TLS certificate of an https monitor expires soon (FEAT-1). Independent of Down/Up.</summary>
-    CertificateExpiring
+    CertificateExpiring,
+    /// <summary>
+    /// FEAT-5: an incident is still open and unacknowledged after an escalation step's delay; sent only to that step's
+    /// channels (<see cref="AlertMessage.ChannelIds"/>). Has its own lane in <see cref="AlertSenderService"/>.
+    /// </summary>
+    Escalation
 }
 
-/// <summary>A status-change alert for one monitor, a certificate-expiry warning, or a channel test message.</summary>
+/// <summary>A status-change alert for one monitor, a certificate-expiry warning, an escalation, or a channel test message.</summary>
+/// <param name="IncidentId">Incident of a DOWN / escalation alert (acknowledge link, escalation checks).</param>
+/// <param name="EscalationLevel">Escalation step (1-based) of an <see cref="AlertKind.Escalation"/> alert.</param>
+/// <param name="ChannelIds">Restricts delivery to these channels of the customer (escalation steps); null = all enabled channels.</param>
+/// <param name="AckUrl">Protected deep link to the acknowledge page, added by the dispatcher when configured.</param>
+/// <param name="DuringMaintenance">UP alert of a monitor that recovered during a maintenance window (FEAT-3).</param>
 public sealed record AlertMessage(
     int MonitorId,
     int CustomerId,
@@ -25,18 +35,27 @@ public sealed record AlertMessage(
     string? Error,
     DateTime OccurredAtUtc,
     TimeSpan? Downtime = null,
-    DateTime? CertificateExpiresAtUtc = null)
+    DateTime? CertificateExpiresAtUtc = null,
+    int? IncidentId = null,
+    int EscalationLevel = 0,
+    IReadOnlyList<int>? ChannelIds = null,
+    string? AckUrl = null,
+    bool DuringMaintenance = false)
 {
     public string StatusText => Kind switch
     {
         AlertKind.Down => "down",
         AlertKind.Up => "up",
         AlertKind.CertificateExpiring => "certificate_expiring",
+        AlertKind.Escalation => "escalation",
         _ => "test"
     };
 
-    /// <summary>Upper-case status for titles: DOWN / UP / TEST / CERTIFICATE EXPIRING.</summary>
+    /// <summary>Upper-case status for titles: DOWN / UP / TEST / CERTIFICATE EXPIRING / ESCALATION.</summary>
     public string StatusLabel => Kind == AlertKind.CertificateExpiring ? "CERTIFICATE EXPIRING" : StatusText.ToUpperInvariant();
+
+    /// <summary>DOWN and escalation alerts: the monitor is (still) down.</summary>
+    public bool IsDownLike => Kind is AlertKind.Down or AlertKind.Escalation;
 
     /// <summary>Whole days until <see cref="CertificateExpiresAtUtc"/> at <see cref="OccurredAtUtc"/> (never negative).</summary>
     public int? CertificateDaysLeft => CertificateExpiresAtUtc is { } e ? Math.Max(0, (int)Math.Floor((e - OccurredAtUtc).TotalDays)) : null;
@@ -48,10 +67,13 @@ public sealed record AlertMessage(
     public string Headline => Kind switch
     {
         AlertKind.Down => $"Monitor \"{OneLine(MonitorName)}\" is DOWN.",
-        AlertKind.Up => $"Monitor \"{OneLine(MonitorName)}\" is UP again.",
+        AlertKind.Up => DuringMaintenance
+            ? $"Monitor \"{OneLine(MonitorName)}\" is UP again (recovered during maintenance)."
+            : $"Monitor \"{OneLine(MonitorName)}\" is UP again.",
         AlertKind.CertificateExpiring => CertificateDaysLeft is { } days
             ? $"The TLS certificate of monitor \"{OneLine(MonitorName)}\" expires in {days} day{(days == 1 ? "" : "s")}."
             : $"The TLS certificate of monitor \"{OneLine(MonitorName)}\" expires soon.",
+        AlertKind.Escalation => $"Monitor \"{OneLine(MonitorName)}\" is still DOWN and nobody has acknowledged the incident (escalation level {EscalationLevel}).",
         _ => "This is a test notification from TriggerCheck."
     };
 
@@ -62,7 +84,10 @@ public sealed record AlertMessage(
     public string MaskedTarget => SecretMasker.MaskUrl(Target);
 
     /// <summary>Downtime as "1h 5m", or null.</summary>
-    public string? DowntimeText => Kind == AlertKind.Up && Downtime is { } d ? FormatDuration(d) : null;
+    public string? DowntimeText => Kind is AlertKind.Up or AlertKind.Escalation && Downtime is { } d ? FormatDuration(d) : null;
+
+    /// <summary>The acknowledge link, only on DOWN / escalation alerts.</summary>
+    public string? AckLink => IsDownLike ? AckUrl : null;
 
     /// <summary>Plain-text body (e-mail).</summary>
     public string Body => BuildBody(Target);
@@ -82,12 +107,23 @@ public sealed record AlertMessage(
         }
         sb.AppendLine($"Target: {target}");
         sb.AppendLine($"Time (UTC): {OccurredAtUtc:yyyy-MM-dd HH:mm:ss}");
-        if (Kind == AlertKind.Down && !string.IsNullOrEmpty(Error)) sb.AppendLine($"Error: {Error}");
+        if (IsDownLike && !string.IsNullOrEmpty(Error)) sb.AppendLine($"Error: {Error}");
         if (Kind == AlertKind.CertificateExpiring && CertificateExpiresAtUtc is { } exp)
             sb.AppendLine($"Certificate expires (UTC): {exp:yyyy-MM-dd HH:mm:ss}");
         if (DowntimeText is { } d) sb.AppendLine($"Downtime: {d}");
+        if (AckLink is { } link) sb.AppendLine($"Acknowledge: {link}");
         return sb.ToString();
     }
+
+    /// <summary>
+    /// Escalation alert for an open incident that started at <paramref name="incidentStartedAtUtc"/>, delivered only to
+    /// <paramref name="channelIds"/>.
+    /// </summary>
+    public static AlertMessage ForEscalation(Domain.Entities.Monitor monitor, int incidentId, DateTime incidentStartedAtUtc, int level,
+        IReadOnlyList<int> channelIds, DateTime occurredAtUtc) =>
+        new(monitor.Id, monitor.CustomerId, monitor.Name, monitor.Target, AlertKind.Escalation, monitor.LastError,
+            DateTime.SpecifyKind(occurredAtUtc, DateTimeKind.Utc), occurredAtUtc - incidentStartedAtUtc,
+            IncidentId: incidentId, EscalationLevel: level, ChannelIds: channelIds);
 
     public static AlertMessage For(Domain.Entities.Monitor monitor, AlertKind kind, DateTime occurredAtUtc, TimeSpan? downtime = null) =>
         new(monitor.Id, monitor.CustomerId, monitor.Name, monitor.Target, kind,

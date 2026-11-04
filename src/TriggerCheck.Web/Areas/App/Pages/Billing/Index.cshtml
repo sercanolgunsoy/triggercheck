@@ -1,0 +1,159 @@
+@page
+@model TriggerCheck.Web.Areas.App.Pages.Billing.IndexModel
+@{
+    ViewData["Title"] = L["Billing"].Value;
+    var isAdmin = User.IsInRole(Roles.CustomerAdmin);
+    var c = Model.Customer;
+    var sub = Model.Subscription;
+    var status = c.BillingStatus;
+    var canChange = sub is { Status: SubscriptionStatus.Active };
+    var canCheckout = sub is null || sub.Status == SubscriptionStatus.Cancelled;
+}
+
+<div class="page-head">
+    <div>
+        <h2>@L["Billing"]</h2>
+        <div class="sub">@c.Name</div>
+    </div>
+</div>
+
+@if (Model.Checkout == "success") { <div class="alert alert-success" data-testid="checkout-success">@L["Thank you! Your subscription is active."]</div> }
+else if (Model.Checkout == "pending") { <div class="alert alert-info" data-testid="checkout-pending">@L["We are waiting for iyzico to confirm your payment. This page will show the subscription as soon as it is confirmed."]</div> }
+else if (Model.Checkout == "refused") { <div class="alert alert-warning" data-testid="checkout-refused">@L["This payment could not be used: your workspace already has a subscription or the plan did not match. It was cancelled and the amount will be refunded to your card."]</div> }
+else if (Model.Checkout == "failed") { <div class="alert alert-danger" data-testid="checkout-failed">@L["The payment was not completed. No subscription was started."]</div> }
+
+<div class="row g-3">
+    <div class="col-lg-7">
+        <div class="card mb-4" data-testid="current-plan">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>@L["Current plan"]: <strong>@c.Plan.Name</strong></span>
+                <partial name="_BillingStatusBadge" model="status" />
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-5">@L["Monthly price"]</dt><dd class="col-sm-7">@(c.Plan.MonthlyPrice == 0 ? L["Free"].Value : Fmt.Money(c.Plan.MonthlyPrice))</dd>
+                    <dt class="col-sm-5">@L["Shortest check interval"]</dt><dd class="col-sm-7">@Fmt.Interval(c.Plan.MinIntervalSeconds)</dd>
+                    @if (status == BillingStatus.Trial && c.TrialEndsAtUtc is DateTime te)
+                    {
+                        <dt class="col-sm-5">@L["Trial ends"]</dt><dd class="col-sm-7">@Fmt.Time(te) @Fmt.TimeZoneLabel</dd>
+                    }
+                    @if (sub is { Status: SubscriptionStatus.Active, CurrentPeriodEndUtc: DateTime renew })
+                    {
+                        <dt class="col-sm-5">@L["Next renewal"]</dt><dd class="col-sm-7" data-testid="renewal">@Fmt.Date(renew)</dd>
+                    }
+                    @if (Model.ScheduledPlan is { } next && sub?.CurrentPeriodEndUtc is DateTime switchAt)
+                    {
+                        <dt class="col-sm-5">@L["Booked change"]</dt><dd class="col-sm-7" data-testid="scheduled">@L["Changes to {0} on {1}", next.Name, Fmt.Date(switchAt)]</dd>
+                    }
+                    @if (sub is { Status: SubscriptionStatus.Cancelled, CurrentPeriodEndUtc: DateTime until })
+                    {
+                        <dt class="col-sm-5">@L["Active until"]</dt><dd class="col-sm-7">@Fmt.Date(until)</dd>
+                    }
+                </dl>
+                @if (status == BillingStatus.Trial)
+                {
+                    <div class="alert alert-info mt-3 mb-0">@L["You are on a free trial. Subscribe before it ends to keep this plan; otherwise your workspace moves to the free plan."]</div>
+                }
+                else if (status == BillingStatus.PastDue)
+                {
+                    <div class="alert alert-danger mt-3 mb-0">@L["Your last payment failed. Please update your card at iyzico; if the payment is not collected within the grace period your workspace moves to the free plan."]</div>
+                }
+                else if (status == BillingStatus.Cancelled)
+                {
+                    <div class="alert alert-warning mt-3 mb-0">@L["Your subscription is cancelled. The plan stays active until the end of the paid period, then your workspace moves to the free plan."]</div>
+                }
+                @if (isAdmin && sub is { Status: SubscriptionStatus.Active or SubscriptionStatus.PastDue })
+                {
+                    <form method="post" asp-page-handler="Cancel" class="mt-3" data-confirm="@L["Cancel the subscription? Your plan stays active until the end of the paid period."]">
+                        <button type="submit" class="btn btn-outline-danger btn-sm">@L["Cancel subscription"]</button>
+                    </form>
+                }
+            </div>
+        </div>
+
+        <div class="card mb-4" data-testid="plans">
+            <div class="card-header">@L["Plans"]</div>
+            @if (!Model.PaymentsAvailable || Model.Plans.Count == 0)
+            {
+                <div class="card-body text-muted" data-testid="contact-to-upgrade">@L["Online payment is not available yet. Contact us to upgrade or change your plan."]
+                    @if (Model.Plans.Count > 0)
+                    {
+                        <ul class="mt-2 mb-0">
+                            @foreach (var p in Model.Plans) { <li>@p.Name · @Fmt.Money(p.MonthlyPrice) @L["/ month"] · @L["Up to {0} monitors", Fmt.Number(p.MaxMonitors)]</li> }
+                        </ul>
+                    }
+                </div>
+            }
+            else
+            {
+                <ul class="list-group list-group-flush">
+                    @foreach (var p in Model.Plans)
+                    {
+                        var isCurrent = p.Id == c.PlanId && status is BillingStatus.Active or BillingStatus.PastDue;
+                        var upgrade = p.MonthlyPrice > c.Plan.MonthlyPrice;
+                        var over = Model.Usage.Monitors.Used - p.MaxMonitors;
+                        <li class="list-group-item d-flex flex-wrap justify-content-between align-items-center gap-2" data-plan="@p.Name">
+                            <div>
+                                <div class="fw-semibold">@p.Name · @Fmt.Money(p.MonthlyPrice) @L["/ month"]</div>
+                                <div class="small text-muted">@L["Up to {0} monitors", Fmt.Number(p.MaxMonitors)] · @L["Checks every {0}", Fmt.Interval(p.MinIntervalSeconds)]</div>
+                                @if (over > 0)
+                                {
+                                    <div class="small text-danger">@L["You have {0} monitors; delete {1} to switch to this plan.", Model.Usage.Monitors.Used, over]</div>
+                                }
+                            </div>
+                            @if (isCurrent && sub?.ScheduledPlanId is not null && isAdmin && canChange)
+                            {
+                                <form method="post" asp-page-handler="ChangePlan" asp-route-planId="@p.Id">
+                                    <button type="submit" class="btn btn-sm btn-outline-secondary">@L["Keep this plan"]</button>
+                                </form>
+                            }
+                            else if (isCurrent) { <span class="badge bg-primary">@L["Current"]</span> }
+                            else if (isAdmin && canChange && over <= 0)
+                            {
+                                <form method="post" asp-page-handler="ChangePlan" asp-route-planId="@p.Id" data-confirm="@(upgrade ? L["Upgrade to the {0} plan now? iyzico charges the new price according to its terms.", p.Name] : L["Downgrade to the {0} plan at the end of the paid period?", p.Name])">
+                                    <button type="submit" class="btn btn-sm btn-outline-primary">@(upgrade ? L["Upgrade"] : L["Downgrade"])</button>
+                                </form>
+                            }
+                            else if (isAdmin && canCheckout && over <= 0)
+                            {
+                                <a class="btn btn-sm btn-primary" asp-page="Checkout" asp-route-planId="@p.Id">@L["Subscribe"]</a>
+                            }
+                        </li>
+                    }
+                </ul>
+                @if (!isAdmin) { <div class="card-footer small text-muted">@L["Only administrators can change the plan."]</div> }
+            }
+        </div>
+    </div>
+
+    <div class="col-lg-5">
+        <partial name="_UsageMeters" model="Model.Usage" />
+
+        <div class="card" data-testid="history">
+            <div class="card-header">@L["Payment history"]</div>
+            @if (Model.History.Count == 0)
+            {
+                <div class="card-body text-muted">@L["No payments yet."]</div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0 align-middle">
+                        <thead><tr><th>@L["Date"]</th><th>@L["Plan"]</th><th class="text-end">@L["Amount"]</th><th>@L["Status"]</th></tr></thead>
+                        <tbody>
+                        @foreach (var e in Model.History)
+                        {
+                            <tr>
+                                <td class="small">@Fmt.Date(e.OccurredAtUtc)</td>
+                                <td>@e.PlanName</td>
+                                <td class="text-end">@(e.Amount is decimal a ? a.ToString("N2", Fmt.Culture) + " " + e.Currency : "—")</td>
+                                <td>@if (e.Succeeded) { <span class="badge bg-success">@L["Paid"]</span> } else { <span class="badge bg-danger">@L["Failed"]</span> }</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+</div>

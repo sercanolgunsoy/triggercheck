@@ -1,0 +1,41 @@
+@page
+@model TriggerCheck.Web.Areas.App.Pages.Incidents.AckModel
+@{
+    ViewData["Title"] = L["Acknowledge incident"].Value;
+    var isAdmin = User.IsInRole(Roles.CustomerAdmin);
+}
+
+<h2 class="mb-3">@L["Acknowledge incident"]</h2>
+
+@if (Model.Problem is not null)
+{
+    <div class="alert alert-warning" id="ack-problem">@Model.Problem</div>
+    <a asp-page="Index" class="btn btn-outline-secondary">@L["Go to incidents"]</a>
+}
+else
+{
+    <div class="card"><div class="card-body">
+        <p>@L["Monitor {0} has been down since {1}.", Model.MonitorName, Fmt.Time(Model.StartedAtUtc) + " " + Fmt.TimeZoneLabel]</p>
+        @if (Model.IsResolved)
+        {
+            <div class="alert alert-success mb-0">@L["The incident is already resolved; resolved incidents cannot be acknowledged."]</div>
+        }
+        else if (Model.IsAcknowledged)
+        {
+            <div class="alert alert-info mb-0">@L["The incident was already acknowledged."]</div>
+        }
+        else if (!isAdmin)
+        {
+            <div class="alert alert-light border mb-0">@L["Only account admins can acknowledge incidents."]</div>
+        }
+        else
+        {
+            <form method="post" asp-route-token="@Model.Token">
+                <label class="form-label" for="ack-note-input">@L["Note (optional)"]</label>
+                <textarea class="form-control mb-3" id="ack-note-input" name="note" maxlength="500" rows="2"></textarea>
+                <button type="submit" class="btn btn-primary">@L["Acknowledge"]</button>
+                <a asp-page="Details" asp-route-id="@Model.IncidentId" class="btn btn-link">@L["View incident"]</a>
+            </form>
+        }
+    </div></div>
+}

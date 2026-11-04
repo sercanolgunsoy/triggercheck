@@ -4,6 +4,8 @@ using TriggerCheck.Domain;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Monitoring.Engine;
+using TriggerCheck.Monitoring.Escalation;
+using TriggerCheck.Monitoring.Maintenance;
 using TriggerCheck.Monitoring.Stats;
 using TriggerCheck.Web.Areas.App.Support;
 using TriggerCheck.Web.Infrastructure;
@@ -46,6 +48,10 @@ public static class ApiEndpoints
         writes.MapPost("/{id:int}/resume", ResumeMonitor).Produces<MonitorDto>().ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status409Conflict);
 
         api.MapGet("/incidents", ListIncidents).WithTags("Incidents").Produces<List<IncidentDto>>().ProducesValidationProblem();
+        api.MapPost("/incidents/{id:int}/acknowledge", AcknowledgeIncident).WithTags("Incidents")
+            .RequireAuthorization(ApiSetup.WritePolicy).Accepts<AcknowledgeRequest>("application/json")
+            .Produces<IncidentDto>().ProducesValidationProblem().ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status409Conflict);
         api.MapGet("/status", GetStatus).WithTags("Status").Produces<StatusDto>();
     }
 
@@ -55,13 +61,14 @@ public static class ApiEndpoints
     {
         var cid = current.RequiredCustomerId;
         var list = await db.Monitors.AsNoTracking().Where(m => m.CustomerId == cid).OrderBy(m => m.Name).ThenBy(m => m.Id).ToListAsync(ct);
-        return Results.Ok(list.Select(MonitorDto.From).ToList());
+        var inMaintenance = await MaintenanceQueries.MonitorsInMaintenanceAsync(db, cid, list.Select(m => m.Id).ToList(), DateTime.UtcNow, ct);
+        return Results.Ok(list.Select(m => MonitorDto.From(m, inMaintenance.Contains(m.Id))).ToList());
     }
 
     private static async Task<IResult> GetMonitor(int id, AppDbContext db, ICurrentCustomer current, CancellationToken ct)
     {
         var m = await FindAsync(db, current, id, ct);
-        return m is null ? ApiProblems.NotFound() : Results.Ok(MonitorDto.From(m));
+        return m is null ? ApiProblems.NotFound() : Results.Ok(await ToDtoAsync(db, m, ct));
     }
 
     /// <summary>Checks in [from, to] (default: last 24 hours), newest first, at most <c>limit</c> (default 100, max 1000).</summary>
@@ -81,14 +88,14 @@ public static class ApiEndpoints
             .Where(c => c.MonitorId == id && c.CheckedAtUtc >= start && c.CheckedAtUtc <= end)
             .OrderByDescending(c => c.CheckedAtUtc).ThenByDescending(c => c.Id)
             .Take(take)
-            .Select(c => new CheckDto(c.Id, c.CheckedAtUtc, c.IsUp, c.StatusCode, c.ResponseTimeMs, c.Error))
+            .Select(c => new CheckDto(c.Id, c.CheckedAtUtc, c.IsUp, c.StatusCode, c.ResponseTimeMs, c.Error, c.InMaintenance))
             .ToListAsync(ct);
         return Results.Ok(rows.Select(c => c with { CheckedAtUtc = Utc.Of(c.CheckedAtUtc) }).ToList());
     }
 
     // ---- monitors: write --------------------------------------------------------------------------------------
 
-    private static async Task<IResult> CreateMonitor(HttpContext http, MonitorCommands commands, ICurrentCustomer current, Text<AppResource> L, CancellationToken ct)
+    private static async Task<IResult> CreateMonitor(HttpContext http, MonitorCommands commands, AppDbContext db, ICurrentCustomer current, Text<AppResource> L, CancellationToken ct)
     {
         var (input, error) = await ApiProblems.ReadJsonAsync<MonitorInput>(http, ct);
         if (error is not null) return error;
@@ -105,12 +112,12 @@ public static class ApiEndpoints
         {
             MonitorCommandError.QuotaReached => QuotaReached(plan),
             MonitorCommandError.Busy => Busy(http),
-            _ => Results.Created($"{ApiSetup.BasePath}/monitors/{r.Monitor!.Id}", WithPingUrl(http, r))
+            _ => Results.Created($"{ApiSetup.BasePath}/monitors/{r.Monitor!.Id}", await WithPingUrlAsync(http, db, r, ct))
         };
     }
 
     /// <summary>Full replacement: omitted fields get their defaults (same as an empty form field).</summary>
-    private static async Task<IResult> UpdateMonitor(int id, HttpContext http, MonitorCommands commands, ICurrentCustomer current, Text<AppResource> L, CancellationToken ct)
+    private static async Task<IResult> UpdateMonitor(int id, HttpContext http, MonitorCommands commands, AppDbContext db, ICurrentCustomer current, Text<AppResource> L, CancellationToken ct)
     {
         var m = await commands.FindTrackedAsync(current.RequiredCustomerId, id, ct);
         if (m is null) return ApiProblems.NotFound();
@@ -127,26 +134,26 @@ public static class ApiEndpoints
         {
             MonitorCommandError.NotFound => ApiProblems.NotFound(),
             MonitorCommandError.Conflict => ApiProblems.Conflict("The monitor was changed concurrently. Retry the request."),
-            _ => Results.Ok(WithPingUrl(http, r))
+            _ => Results.Ok(await WithPingUrlAsync(http, db, r, ct))
         };
     }
 
     /// <summary>Heartbeat: replaces the ping token; the response carries the new <c>pingUrl</c> (shown only here).</summary>
-    private static async Task<IResult> RegenerateHeartbeatToken(int id, HttpContext http, MonitorCommands commands, ICurrentCustomer current, CancellationToken ct)
+    private static async Task<IResult> RegenerateHeartbeatToken(int id, HttpContext http, MonitorCommands commands, AppDbContext db, ICurrentCustomer current, CancellationToken ct)
     {
         var r = await commands.RegenerateHeartbeatTokenAsync(current.RequiredCustomerId, id, ct);
         return r.Error switch
         {
             MonitorCommandError.NotFound => ApiProblems.NotFound(),
             MonitorCommandError.Conflict => ApiProblems.Conflict("The monitor was changed concurrently. Retry the request."),
-            _ => Results.Ok(WithPingUrl(http, r))
+            _ => Results.Ok(await WithPingUrlAsync(http, db, r, ct))
         };
     }
 
     /// <summary>The monitor, plus the full ping URL when this command issued a heartbeat token (then not cacheable).</summary>
-    private static MonitorDto WithPingUrl(HttpContext http, MonitorCommandResult r)
+    private static async Task<MonitorDto> WithPingUrlAsync(HttpContext http, AppDbContext db, MonitorCommandResult r, CancellationToken ct)
     {
-        var dto = MonitorDto.From(r.Monitor!);
+        var dto = await ToDtoAsync(db, r.Monitor!, ct);
         if (r.IssuedHeartbeatToken is not { } token) return dto;
         http.Response.Headers.CacheControl = "no-store";
         return dto with { PingUrl = Heartbeat.HeartbeatEndpoint.PingUrl(http.Request, token) };
@@ -170,7 +177,7 @@ public static class ApiEndpoints
         catch (DbUpdateConcurrencyException) { return ApiProblems.Conflict("The monitor was changed concurrently. Retry the request."); }
         if (r is null) return ApiProblems.NotFound();
         var m = await FindAsync(db, current, id, ct);
-        return m is null ? ApiProblems.NotFound() : Results.Ok(MonitorDto.From(m));
+        return m is null ? ApiProblems.NotFound() : Results.Ok(await ToDtoAsync(db, m, ct));
     }
 
     // ---- incidents and status ---------------------------------------------------------------------------------
@@ -195,10 +202,45 @@ public static class ApiEndpoints
         }
         if (!TryParseLimit(limit, MaxIncidentsLimit, out var take)) return ApiProblems.Invalid("limit", $"The limit must be between 1 and {MaxIncidentsLimit}.");
 
-        var rows = await q.OrderByDescending(i => i.StartedAtUtc).ThenByDescending(i => i.Id).Take(take)
-            .Select(i => new IncidentDto(i.Id, i.MonitorId, i.Monitor.Name, i.StartedAtUtc, i.ResolvedAtUtc, i.ResolvedAtUtc == null, i.Cause))
-            .ToListAsync(ct);
-        return Results.Ok(rows.Select(i => i with { StartedAtUtc = Utc.Of(i.StartedAtUtc), ResolvedAtUtc = Utc.Of(i.ResolvedAtUtc) }).ToList());
+        var rows = await q.OrderByDescending(i => i.StartedAtUtc).ThenByDescending(i => i.Id).Take(take).Select(IncidentProjection).ToListAsync(ct);
+        return Results.Ok(rows.Select(Normalize).ToList());
+    }
+
+    private static readonly System.Linq.Expressions.Expression<Func<Incident, IncidentDto>> IncidentProjection = i =>
+        new IncidentDto(i.Id, i.MonitorId, i.Monitor.Name, i.StartedAtUtc, i.ResolvedAtUtc, i.ResolvedAtUtc == null, i.Cause,
+            i.AcknowledgedAtUtc, i.AcknowledgeNote, i.LastEscalationStep, i.ResolvedDuringMaintenance);
+
+    private static IncidentDto Normalize(IncidentDto i) =>
+        i with { StartedAtUtc = Utc.Of(i.StartedAtUtc), ResolvedAtUtc = Utc.Of(i.ResolvedAtUtc), AcknowledgedAtUtc = Utc.Of(i.AcknowledgedAtUtc) };
+
+    /// <summary>
+    /// FEAT-5: acknowledges an open incident of the key's customer (stops further escalation; the monitor status is not
+    /// changed). Optional JSON body <c>{ "note": "..." }</c>. 409 when already acknowledged or resolved.
+    /// </summary>
+    private static async Task<IResult> AcknowledgeIncident(int id, HttpContext http, AppDbContext db, ICurrentCustomer current,
+        IncidentAcknowledger acknowledger, CancellationToken ct)
+    {
+        string? note = null;
+        if (http.Request.ContentLength is > 0 || http.Request.Headers.TransferEncoding.Count > 0)
+        {
+            var (body, error) = await ApiProblems.ReadJsonAsync<AcknowledgeRequest>(http, ct);
+            if (error is not null) return error;
+            note = body!.Note;
+            if (note is { Length: > IncidentAcknowledger.MaxNoteLength })
+                return ApiProblems.Invalid("note", $"The note can be at most {IncidentAcknowledger.MaxNoteLength} characters.");
+        }
+
+        var cid = current.RequiredCustomerId;
+        var keyId = http.User.FindFirst(ApiKeyDefaults.KeyIdClaim)?.Value;
+        var result = await acknowledger.AcknowledgeAsync(id, cid, Areas.App.Pages.Incidents.DetailsModel.ApiKeyUserPrefix + keyId, note, ct);
+        switch (result)
+        {
+            case AckResult.NotFound: return ApiProblems.NotFound();
+            case AckResult.AlreadyAcknowledged: return ApiProblems.Conflict("The incident was already acknowledged.");
+            case AckResult.Resolved: return ApiProblems.Conflict("The incident is resolved; resolved incidents cannot be acknowledged.");
+        }
+        var dto = await db.Incidents.AsNoTracking().Where(i => i.Id == id && i.Monitor.CustomerId == cid).Select(IncidentProjection).SingleAsync(ct);
+        return Results.Ok(Normalize(dto));
     }
 
     private static async Task<IResult> GetStatus(AppDbContext db, ICurrentCustomer current, IUptimeStatsService stats, CancellationToken ct)
@@ -223,6 +265,10 @@ public static class ApiEndpoints
     }
 
     // ---- helpers ----------------------------------------------------------------------------------------------
+
+    /// <summary>The monitor with its current maintenance state.</summary>
+    private static async Task<MonitorDto> ToDtoAsync(AppDbContext db, Domain.Entities.Monitor m, CancellationToken ct) =>
+        MonitorDto.From(m, (await MaintenanceQueries.MonitorsInMaintenanceAsync(db, m.CustomerId, [m.Id], DateTime.UtcNow, ct)).Count > 0);
 
     private static Task<Domain.Entities.Monitor?> FindAsync(AppDbContext db, ICurrentCustomer current, int id, CancellationToken ct)
     {

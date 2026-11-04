@@ -87,7 +87,12 @@ Errors use [RFC 7807](https://www.rfc-editor.org/rfc/rfc7807) `application/probl
 | POST | `/monitors/{id}/heartbeat-token` | write | Heartbeat only: new ping token, the old URL stops working; the response has the new `pingUrl` |
 | GET | `/monitors/{id}/checks?from&to&limit` | read | Check results, newest first. Default: last 24 h, `limit` 100 (max 1000). Times in ISO 8601 |
 | GET | `/incidents?status=open\|resolved&monitorId&limit` | read | Incidents, newest first. `limit` 100 (max 500) |
+| POST | `/incidents/{id}/acknowledge` | read-write | Acknowledges an open incident (stops further escalation steps; the monitor status is not changed). Optional body `{ "note": "..." }` (max 500 chars). 409 if already acknowledged or resolved |
 | GET | `/status` | read | Counts by status, open incidents, 24 h uptime, plan limits |
+
+Monitors include `inMaintenance` (an active maintenance window covers the monitor), checks include `inMaintenance`
+(not counted in uptime), and incidents include `acknowledgedAtUtc`, `acknowledgeNote`, `escalationLevel` and
+`resolvedDuringMaintenance`. Maintenance windows and escalation policies are managed in the panel only.
 
 ### Monitor body (POST / PUT)
 
@@ -165,6 +170,10 @@ curl -H "Authorization: Bearer $TC_KEY" "$TC/api/v1/monitors/42/checks?from=$(da
 
 # Open incidents
 curl -H "Authorization: Bearer $TC_KEY" "$TC/api/v1/incidents?status=open"
+
+# Acknowledge one (read-write key)
+curl -X POST -H "Authorization: Bearer $TC_KEY" -H "Content-Type: application/json" \
+     -d '{"note":"Looking into it"}' "$TC/api/v1/incidents/42/acknowledge"
 
 # Delete
 curl -X DELETE -H "Authorization: Bearer $TC_KEY" $TC/api/v1/monitors/42

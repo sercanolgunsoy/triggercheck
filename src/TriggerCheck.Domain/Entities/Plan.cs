@@ -14,6 +14,20 @@ public class Plan
     public bool IsActive { get; set; } = true;
     /// <summary>Customers on this plan may use SMS and voice call alert channels (Twilio).</summary>
     public bool AllowsSmsVoice { get; set; }
+    /// <summary>Offered on the self-service sign-up and billing pages (false = sales-led, e.g. Enterprise).</summary>
+    public bool AllowsSelfSignup { get; set; }
+    /// <summary>iyzico subscription product reference code (informational; the pricing plan code is what checkout uses).</summary>
+    public string? IyzicoProductReferenceCode { get; set; }
+    /// <summary>iyzico monthly pricing plan reference code. Paid self-service checkout is only possible when it is set.</summary>
+    public string? IyzicoPricingPlanReferenceCode { get; set; }
+
+    // ---- AI (AI-10): monthly budget and the AI features included in the plan ----
+    /// <summary>Comma separated <see cref="TriggerCheck.Domain.AiFeatures"/> names included in the plan (empty = no AI).</summary>
+    public string AiFeatures { get; set; } = "";
+    /// <summary>Maximum AI calls per customer per calendar month (UTC). 0 = no AI calls.</summary>
+    public int AiMonthlyCallLimit { get; set; }
+    /// <summary>Maximum AI tokens (input + output) per customer per calendar month (UTC). 0 = no limit besides the call limit.</summary>
+    public long AiMonthlyTokenLimit { get; set; }
 
     public ICollection<Customer> Customers { get; set; } = new List<Customer>();
 }

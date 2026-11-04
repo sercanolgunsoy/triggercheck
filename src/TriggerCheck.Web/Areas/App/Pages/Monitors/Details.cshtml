@@ -22,6 +22,10 @@
             {
                 <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle fs-6 align-middle" id="confirming-badge">@L["Confirming failure…"]</span>
             }
+            @if (Model.InMaintenance)
+            {
+                <span class="badge bg-info text-dark fs-6 align-middle maintenance-badge" id="maintenance-badge">@L["In maintenance"]</span>
+            }
         </h2>
         <div class="text-muted">@Fmt.TypeName(m.Type) · <span class="font-monospace">@m.Target@(m.Port is int p ? ":" + p : "")</span>@(m.DnsRecordType is { } drt ? " · " + drt : "")</div>
     </div>
@@ -172,6 +176,10 @@
         else
         {
             <div class="small text-muted mb-2">@L["Average and 95th percentile of successful checks; failed checks and incidents are marked in red."]</div>
+            @if (Model.ChartMaintenanceBands.Count > 0)
+            {
+                <div class="small text-muted mb-2" id="maintenance-legend">@L["Grey bands are maintenance windows; checks in them are not counted."]</div>
+            }
             <div class="tc-chart"><canvas id="rtChart" aria-label="@L["Response time chart"]" role="img"></canvas></div>
             @if (Model.HasPhaseData)
             {
@@ -200,7 +208,8 @@
                         <tr>
                             <td class="text-nowrap">@Fmt.Time(c.CheckedAtUtc)</td>
                             <td>@if (c.IsUp) { <span class="badge bg-success">@Fmt.StatusName(MonitorStatus.Up)</span> } else { <span class="badge bg-danger">@Fmt.StatusName(MonitorStatus.Down)</span> }
-                                @if (c.IsConfirmation) { <span class="badge text-bg-light border">@L["Confirmation check"]</span> }</td>
+                                @if (c.IsConfirmation) { <span class="badge text-bg-light border">@L["Confirmation check"]</span> }
+                                @if (c.InMaintenance) { <span class="badge text-bg-light border">@L["Maintenance"]</span> }</td>
                             <td>@(c.StatusCode?.ToString() ?? "—")</td>
                             <td class="text-end">@Fmt.Ms(c.ResponseTimeMs)</td>
                             <td class="small text-muted text-nowrap">@Model.PhaseText(c)</td>
@@ -225,10 +234,12 @@
                     <li class="list-group-item">
                         <div class="d-flex justify-content-between">
                             <span>@if (i.ResolvedAtUtc is null) { <span class="badge bg-danger">@L["Open"]</span> } else { <span class="badge bg-success">@L["Resolved"]</span> }
-                                @Fmt.Time(i.StartedAtUtc)</span>
+                                @if (i.AcknowledgedAtUtc is not null) { <span class="badge bg-info text-dark">@L["Acknowledged"]</span> }
+                                <a asp-page="/Incidents/Details" asp-route-id="@i.Id">@Fmt.Time(i.StartedAtUtc)</a></span>
                             <span class="text-muted">@Fmt.Duration((i.ResolvedAtUtc ?? DateTime.UtcNow) - i.StartedAtUtc)</span>
                         </div>
                         @if (!string.IsNullOrEmpty(i.Cause)) { <div class="small text-muted">@i.Cause</div> }
+                        @if (i.ResolvedDuringMaintenance) { <div class="small text-muted">@L["Recovered during maintenance."]</div> }
                     </li>
                 }
             </ul>
@@ -244,6 +255,7 @@
         (function () {
             var data = @Json.Serialize(Model.Chart);
             var incidents = @Json.Serialize(Model.ChartIncidents);
+            var maintenance = @Json.Serialize(Model.ChartMaintenanceBands);
             var text = @Json.Serialize(new
             {
                 avg = L["Average (ms)"].Value,
@@ -251,6 +263,7 @@
                 failed = L["Failed checks"].Value,
                 checks = L["Checks"].Value,
                 incident = L["Incident"].Value,
+                maintenance = L["Maintenance"].Value,
                 dns = L["DNS"].Value,
                 connect = L["Connect"].Value,
                 tls = L["TLS"].Value,
@@ -290,6 +303,25 @@
                 }
             };
 
+            // Maintenance bands (FEAT-3): a grey band over the buckets covered by a maintenance window.
+            var maintenancePlugin = {
+                id: 'tcMaintenance',
+                beforeDatasetsDraw: function (chart) {
+                    if (!maintenance.length) return;
+                    var x = chart.scales.x, a = chart.chartArea, ctx = chart.ctx;
+                    var rgb = token('--tc-idle-rgb', '100, 116, 139');
+                    var half = labels.length > 1 ? (x.getPixelForValue(1) - x.getPixelForValue(0)) / 2 : 4;
+                    ctx.save();
+                    ctx.fillStyle = 'rgba(' + rgb + ', 0.16)';
+                    maintenance.forEach(function (m) {
+                        var x1 = Math.max(a.left, x.getPixelForValue(m.start) - half);
+                        var x2 = Math.min(a.right, x.getPixelForValue(m.end) + half);
+                        ctx.fillRect(x1, a.top, Math.max(2, x2 - x1), a.bottom - a.top);
+                    });
+                    ctx.restore();
+                }
+            };
+
             function baseOptions(stacked) {
                 var grid = token('--tc-border', '#e5e7eb');
                 return {
@@ -316,6 +348,7 @@
                     var p = data[items[0].dataIndex], lines = [text.checks + ': ' + p.checks];
                     if (p.failures) lines.push(text.failed + ': ' + p.failures);
                     incidents.forEach(function (i) { if (i.start === items[0].dataIndex) lines.push(text.incident + ': ' + i.label); });
+                    maintenance.forEach(function (m) { if (m.start <= items[0].dataIndex && items[0].dataIndex <= m.end) lines.push(text.maintenance + ': ' + m.label); });
                     return lines;
                 }
             };
@@ -340,7 +373,7 @@
                     }]
                 },
                 options: rtOptions,
-                plugins: [incidentPlugin]
+                plugins: [maintenancePlugin, incidentPlugin]
             })];
 
             var phaseCanvas = document.getElementById('phaseChart');
@@ -360,7 +393,7 @@
                         })
                     },
                     options: baseOptions(true),
-                    plugins: [incidentPlugin]
+                    plugins: [maintenancePlugin, incidentPlugin]
                 }));
             }
 

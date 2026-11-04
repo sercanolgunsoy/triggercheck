@@ -6,6 +6,7 @@ using TriggerCheck.Domain.Entities;
 using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Monitoring.Checks;
 using TriggerCheck.Monitoring.Engine;
+using TriggerCheck.Web.Heartbeat;
 using MonitorEntity = TriggerCheck.Domain.Entities.Monitor;
 
 namespace TriggerCheck.Web.Areas.App.Support;
@@ -39,7 +40,7 @@ public sealed record MonitorCommandResult(MonitorEntity? Monitor, MonitorCommand
 /// plus the data annotations) and resolve the tenant themselves; every method is restricted to <c>customerId</c>.
 /// Pause / resume live in <see cref="MonitorLifecycle"/>.
 /// </summary>
-public sealed class MonitorCommands(AppDbContext db)
+public sealed class MonitorCommands(AppDbContext db, HeartbeatRateLimiter? heartbeatLimiter = null)
 {
     public Task<int> CountAsync(int customerId, CancellationToken ct) =>
         db.Monitors.CountAsync(m => m.CustomerId == customerId, ct);
@@ -81,7 +82,7 @@ public sealed class MonitorCommands(AppDbContext db)
             db.ChangeTracker.Clear();
             return new(null, MonitorCommandError.Busy);
         }
-        return new(monitor, MonitorCommandError.None) { IssuedHeartbeatToken = input.IssuedHeartbeatToken };
+        return new(monitor, MonitorCommandError.None) { IssuedHeartbeatToken = Known(input.IssuedHeartbeatToken) };
     }
 
     /// <summary>Loads a monitor of the customer for editing (tracked), or null.</summary>
@@ -102,7 +103,7 @@ public sealed class MonitorCommands(AppDbContext db)
             {
                 await db.SaveChangesAsync(ct);
                 // ApplyTo issues a token on every attempt that switches to Heartbeat: the saved one is the last.
-                return new(m, MonitorCommandError.None) { IssuedHeartbeatToken = input.IssuedHeartbeatToken };
+                return new(m, MonitorCommandError.None) { IssuedHeartbeatToken = Known(input.IssuedHeartbeatToken) };
             }
             catch (DbUpdateConcurrencyException) when (attempt < 3)
             {
@@ -151,7 +152,7 @@ public sealed class MonitorCommands(AppDbContext db)
             try
             {
                 await db.SaveChangesAsync(ct);
-                return new(m, MonitorCommandError.None) { IssuedHeartbeatToken = token };
+                return new(m, MonitorCommandError.None) { IssuedHeartbeatToken = Known(token) };
             }
             catch (DbUpdateConcurrencyException) when (attempt < 3)
             {
@@ -181,6 +182,13 @@ public sealed class MonitorCommands(AppDbContext db)
             await tx.CommitAsync(ct);
         }
         return name;
+    }
+
+    /// <summary>A newly issued ping token is known to the ping limiter right away (its first ping is never treated as a flood).</summary>
+    private string? Known(string? token)
+    {
+        if (token is not null) heartbeatLimiter?.MarkKnown(HeartbeatTokens.Hash(token));
+        return token;
     }
 
     /// <summary>SQLITE_BUSY (5) / SQLITE_LOCKED (6), possibly wrapped in a DbUpdateException.</summary>
