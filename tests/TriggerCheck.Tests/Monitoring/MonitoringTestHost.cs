@@ -28,6 +28,12 @@ public sealed class MonitoringTestHost : IAsyncDisposable
 
     private readonly string _dbPath;
     public FakeTimeProvider Time { get; }
+
+    /// <summary>
+    /// Due times of every timer created on the fake clock (Task.Delay, CancellationTokenSource timeouts...), in creation
+    /// order. Lets tests assert the waits the code asked for, independently of when the test advanced the clock.
+    /// </summary>
+    public IReadOnlyList<TimeSpan> TimerDueTimes => ((RecordingFakeTimeProvider)Time).DueTimes.ToList();
     public ServiceProvider Services { get; }
 
     private MonitoringTestHost(string dbPath, FakeTimeProvider time, ServiceProvider services)
@@ -55,7 +61,7 @@ public sealed class MonitoringTestHost : IAsyncDisposable
         foreach (var kv in settings ?? new()) all[kv.Key] = kv.Value;
         var config = new ConfigurationBuilder().AddInMemoryCollection(all).Build();
 
-        var time = new FakeTimeProvider(Start);
+        var time = new RecordingFakeTimeProvider(Start);
         var services = new ServiceCollection();
         services.AddLogging(b => b.SetMinimumLevel(LogLevel.Warning));
         services.AddSingleton<IConfiguration>(config);
@@ -256,5 +262,17 @@ public sealed class LocalHttpServer : IAsyncDisposable
     {
         await _app.StopAsync();
         await _app.DisposeAsync();
+    }
+}
+
+/// <summary><see cref="FakeTimeProvider"/> that remembers the due time of every timer created on it.</summary>
+public sealed class RecordingFakeTimeProvider(DateTimeOffset start) : FakeTimeProvider(start)
+{
+    public ConcurrentQueue<TimeSpan> DueTimes { get; } = new();
+
+    public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+    {
+        DueTimes.Enqueue(dueTime);
+        return base.CreateTimer(callback, state, dueTime, period);
     }
 }
