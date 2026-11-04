@@ -50,7 +50,17 @@ public class EditModel(AppDbContext db, ICurrentCustomer current, Text<AppResour
             if (probeChanged || intervalChanged) m.NextCheckAtUtc = DateTime.UtcNow;
         }
 
-        await db.SaveChangesAsync(ct);
+        // Concurrency token: an in-flight check re-reads the monitor and won't overwrite this edit.
+        m.Version++;
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            ModelState.AddModelError("", L["This monitor was changed in the meantime (for example paused or edited by someone else). Reload the page and try again."]);
+            return Page();
+        }
         TempData["Success"] = L["Monitor \"{0}\" was updated.", m.Name].Value;
         return RedirectToPage("Details", new { id });
     }

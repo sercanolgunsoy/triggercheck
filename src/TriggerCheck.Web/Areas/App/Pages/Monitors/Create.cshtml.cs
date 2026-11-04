@@ -1,3 +1,4 @@
+using System.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -54,8 +55,22 @@ public class CreateModel(AppDbContext db, ICurrentCustomer current, Text<AppReso
             NextCheckAtUtc = now
         };
         Input.ApplyTo(monitor);
-        db.Monitors.Add(monitor);
-        await db.SaveChangesAsync(ct);
+
+        // Re-count and insert atomically so parallel posts cannot exceed the plan quota. On SQLite a Serializable
+        // transaction is BEGIN IMMEDIATE: it takes the write lock up front, so concurrent creates run one by one.
+        await using (var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct))
+        {
+            CurrentCount = await db.Monitors.CountAsync(m => m.CustomerId == cid, ct);
+            if (QuotaReached)
+            {
+                await tx.RollbackAsync(ct);
+                ModelState.AddModelError("", L["You have reached the monitor limit of your plan ({0}). Upgrade your plan to add a new monitor.", Plan.MaxMonitors]);
+                return Page();
+            }
+            db.Monitors.Add(monitor);
+            await db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
+        }
 
         TempData["Success"] = L["Monitor \"{0}\" was created. The first check will run shortly.", monitor.Name].Value;
         return RedirectToPage("Details", new { id = monitor.Id });

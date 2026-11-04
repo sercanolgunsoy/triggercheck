@@ -48,6 +48,7 @@ public static class DependencyInjection
         // ---- engine ----
         services.AddSingleton<MonitorRunGate>();
         services.AddScoped<IMonitorCheckRunner, MonitorCheckRunner>();
+        services.AddScoped<MonitorLifecycle>();
 
         // ---- alerting ----
         services.AddSingleton<INotifier, EmailNotifier>();

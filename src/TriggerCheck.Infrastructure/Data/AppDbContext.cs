@@ -47,6 +47,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
             e.Property(x => x.ExpectedStatusCodes).HasMaxLength(100);
             e.HasOne(x => x.Customer).WithMany(c => c.Monitors).HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(x => new { x.IsEnabled, x.NextCheckAtUtc });
+            e.Property(x => x.Version).IsConcurrencyToken();
         });
 
         b.Entity<CheckResult>(e =>

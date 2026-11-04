@@ -430,6 +430,9 @@
   <data name="This check interval is not available on your plan ({0}). Allowed: {1}." xml:space="preserve">
     <value>Bu kontrol aralığı planınızda ({0}) kullanılamaz. İzin verilen: {1}.</value>
   </data>
+  <data name="This monitor was changed in the meantime (for example paused or edited by someone else). Reload the page and try again." xml:space="preserve">
+    <value>Bu monitör bu arada değiştirildi (örneğin başka biri tarafından duraklatıldı veya düzenlendi). Sayfayı yenileyip tekrar deneyin.</value>
+  </data>
   <data name="Time ({0})" xml:space="preserve">
     <value>Zaman ({0})</value>
   </data>

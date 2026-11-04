@@ -4,13 +4,14 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Infrastructure.Data;
+using TriggerCheck.Monitoring.Engine;
 using TriggerCheck.Web.Infrastructure;
 using TriggerCheck.Web.Localization;
 
 namespace TriggerCheck.Web.Areas.SuperAdmin.Pages.Monitors;
 
 [Authorize(Policy = Policies.SuperAdmin)]
-public class IndexModel(AppDbContext db, Text<AdminResource> L) : PageModel
+public class IndexModel(AppDbContext db, MonitorLifecycle lifecycle, Text<AdminResource> L) : PageModel
 {
     public const int PageSize = 50;
 
@@ -60,26 +61,11 @@ public class IndexModel(AppDbContext db, Text<AdminResource> L) : PageModel
 
     private async Task<IActionResult> SetPausedAsync(int id, bool paused)
     {
-        var m = await db.Monitors.FindAsync(id);
-        if (m is null) return NotFound();
-        var now = DateTime.UtcNow;
-        if (paused && m.IsEnabled)
-        {
-            m.IsEnabled = false;
-            m.Status = MonitorStatus.Paused;
-            m.StatusChangedAtUtc = now;
-            TempData["Success"] = L["\"{0}\" was paused.", m.Name].Value;
-        }
-        else if (!paused && !m.IsEnabled)
-        {
-            m.IsEnabled = true;
-            m.Status = MonitorStatus.Unknown;
-            m.ConsecutiveFailures = 0;
-            m.StatusChangedAtUtc = now;
-            m.NextCheckAtUtc = now;
-            TempData["Success"] = L["\"{0}\" was resumed.", m.Name].Value;
-        }
-        await db.SaveChangesAsync();
+        // Same semantics as the customer panel (closes open incidents on pause), see MonitorLifecycle.
+        var r = paused ? await lifecycle.PauseAsync(id, customerId: null) : await lifecycle.ResumeAsync(id, customerId: null);
+        if (r is null) return NotFound();
+        if (r.Changed)
+            TempData["Success"] = (paused ? L["\"{0}\" was paused.", r.Name] : L["\"{0}\" was resumed.", r.Name]).Value;
         return RedirectToPage(new { CustomerId, Status, Type, Q, p = PageNo });
     }
 }

@@ -5,6 +5,7 @@ using TriggerCheck.Domain;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Monitoring;
+using TriggerCheck.Monitoring.Engine;
 using TriggerCheck.Monitoring.Stats;
 using TriggerCheck.Web.Infrastructure;
 using TriggerCheck.Web.Localization;
@@ -13,7 +14,7 @@ using MonitorEntity = TriggerCheck.Domain.Entities.Monitor;
 namespace TriggerCheck.Web.Areas.App.Pages.Monitors;
 
 /// <summary>Readable by all customer members; the POST handlers (pause/resume/check now) are CustomerAdmin only.</summary>
-public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStatsService stats, ILogger<DetailsModel> logger, Text<AppResource> L) : PageModel
+public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStatsService stats, MonitorLifecycle lifecycle, ILogger<DetailsModel> logger, Text<AppResource> L) : PageModel
 {
     public const int MaxChartPoints = 300;
 
@@ -88,41 +89,19 @@ public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStat
     public async Task<IActionResult> OnPostPauseAsync(int id, string? returnTo, CancellationToken ct)
     {
         if (!IsAdmin) return Forbid();
-        var m = await FindAsync(id, ct);
-        if (m is null) return NotFound();
-
-        if (m.Status != MonitorStatus.Paused)
-        {
-            var now = DateTime.UtcNow;
-            m.Status = MonitorStatus.Paused;
-            m.IsEnabled = false;
-            m.StatusChangedAtUtc = now;
-            // A paused monitor is no longer observed: close any open downtime so it doesn't stay open forever.
-            var open = await db.Incidents.Where(i => i.MonitorId == m.Id && i.ResolvedAtUtc == null).ToListAsync(ct);
-            foreach (var i in open) i.ResolvedAtUtc = now;
-            await db.SaveChangesAsync(ct);
-        }
-        TempData["Success"] = L["\"{0}\" was paused. It will not be checked until it is resumed.", m.Name].Value;
+        // Closes any open incident; see MonitorLifecycle for the shared pause/resume semantics.
+        var r = await lifecycle.PauseAsync(id, current.RequiredCustomerId, ct);
+        if (r is null) return NotFound();
+        TempData["Success"] = L["\"{0}\" was paused. It will not be checked until it is resumed.", r.Name].Value;
         return Back(id, returnTo);
     }
 
     public async Task<IActionResult> OnPostResumeAsync(int id, string? returnTo, CancellationToken ct)
     {
         if (!IsAdmin) return Forbid();
-        var m = await FindAsync(id, ct);
-        if (m is null) return NotFound();
-
-        var now = DateTime.UtcNow;
-        if (m.Status == MonitorStatus.Paused || !m.IsEnabled)
-        {
-            m.Status = MonitorStatus.Unknown;
-            m.IsEnabled = true;
-            m.ConsecutiveFailures = 0;
-            m.StatusChangedAtUtc = now;
-            m.NextCheckAtUtc = now;
-            await db.SaveChangesAsync(ct);
-        }
-        TempData["Success"] = L["\"{0}\" is being monitored again.", m.Name].Value;
+        var r = await lifecycle.ResumeAsync(id, current.RequiredCustomerId, ct);
+        if (r is null) return NotFound();
+        TempData["Success"] = L["\"{0}\" is being monitored again.", r.Name].Value;
         return Back(id, returnTo);
     }
 

@@ -30,13 +30,14 @@ public class DeleteModel(AppDbContext db, ICurrentCustomer current, Text<AppReso
     public async Task<IActionResult> OnPostAsync(int id, CancellationToken ct)
     {
         var cid = current.RequiredCustomerId;
-        var m = await db.Monitors.FirstOrDefaultAsync(x => x.Id == id && x.CustomerId == cid, ct);
+        var m = await db.Monitors.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id && x.CustomerId == cid, ct);
         if (m is null) return NotFound();
 
         // Notifications reference the monitor without an FK; remove them as well.
         await db.Notifications.Where(n => n.MonitorId == id).ExecuteDeleteAsync(ct);
-        db.Monitors.Remove(m); // CheckResults and Incidents are removed by cascade.
-        await db.SaveChangesAsync(ct);
+        // Set-based delete: not subject to the Version concurrency token (a concurrent pause/check must not make
+        // the delete fail). CheckResults and Incidents are removed by the database cascade.
+        await db.Monitors.Where(x => x.Id == id && x.CustomerId == cid).ExecuteDeleteAsync(ct);
 
         TempData["Success"] = L["Monitor \"{0}\" was deleted.", m.Name].Value;
         return RedirectToPage("Index");

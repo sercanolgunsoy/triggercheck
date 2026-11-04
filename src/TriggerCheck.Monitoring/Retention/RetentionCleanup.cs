@@ -7,7 +7,10 @@ using TriggerCheck.Infrastructure.Data;
 
 namespace TriggerCheck.Monitoring.Retention;
 
-/// <summary>Deletes CheckResults older than the owning customer's plan RetentionDays (RetentionDays &lt;= 0 = keep forever).</summary>
+/// <summary>
+/// Deletes data older than the owning customer's plan RetentionDays (RetentionDays &lt;= 0 = keep forever):
+/// CheckResults, resolved Incidents (by resolution time; open incidents are never deleted) and Notifications.
+/// </summary>
 public sealed class RetentionCleaner(IDbContextFactory<AppDbContext> dbFactory, TimeProvider time, ILogger<RetentionCleaner> logger)
 {
     public async Task<int> CleanupAsync(CancellationToken ct = default)
@@ -21,17 +24,27 @@ public sealed class RetentionCleaner(IDbContextFactory<AppDbContext> dbFactory, 
             .Where(x => x.RetentionDays > 0)
             .GroupBy(x => x.RetentionDays, x => x.Id);
 
-        var total = 0;
+        int results = 0, incidents = 0, notifications = 0;
         foreach (var g in groups)
         {
             var cutoff = now.AddDays(-g.Key);
             var customerIds = g.ToList();
-            total += await db.CheckResults
+            results += await db.CheckResults
                 .Where(r => r.CheckedAtUtc < cutoff && customerIds.Contains(r.Monitor.CustomerId))
+                .ExecuteDeleteAsync(ct);
+            incidents += await db.Incidents
+                .Where(i => i.ResolvedAtUtc != null && i.ResolvedAtUtc < cutoff && customerIds.Contains(i.Monitor.CustomerId))
+                .ExecuteDeleteAsync(ct);
+            // Notifications reference the monitor without a navigation property.
+            notifications += await db.Notifications
+                .Where(n => n.SentAtUtc < cutoff && db.Monitors.Any(m => m.Id == n.MonitorId && customerIds.Contains(m.CustomerId)))
                 .ExecuteDeleteAsync(ct);
         }
 
-        if (total > 0) logger.LogInformation("Retention cleanup deleted {Count} check result(s)", total);
+        var total = results + incidents + notifications;
+        if (total > 0)
+            logger.LogInformation("Retention cleanup deleted {Results} check result(s), {Incidents} incident(s), {Notifications} notification(s)",
+                results, incidents, notifications);
         return total;
     }
 }
