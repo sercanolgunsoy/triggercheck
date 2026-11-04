@@ -493,4 +493,10 @@
   <data name="The customer could not be created because of an unexpected error. Reference: {0}" xml:space="preserve">
     <value>Beklenmeyen bir hata nedeniyle müşteri oluşturulamadı. Referans: {0}</value>
   </data>
+  <data name="SMS and voice call alerts (Twilio)" xml:space="preserve">
+    <value>SMS ve sesli arama bildirimleri (Twilio)</value>
+  </data>
+  <data name="Customers on this plan can add SMS and voice call alert channels. They are only offered when Twilio is configured for this installation." xml:space="preserve">
+    <value>Bu plandaki müşteriler SMS ve sesli arama bildirim kanalları ekleyebilir. Bu kanallar yalnızca bu kurulumda Twilio yapılandırılmışsa sunulur.</value>
+  </data>
 </root>

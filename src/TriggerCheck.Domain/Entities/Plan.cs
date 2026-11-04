@@ -12,6 +12,8 @@ public class Plan
     public int RetentionDays { get; set; } = 30;
     public decimal MonthlyPrice { get; set; }
     public bool IsActive { get; set; } = true;
+    /// <summary>Customers on this plan may use SMS and voice call alert channels (Twilio).</summary>
+    public bool AllowsSmsVoice { get; set; }
 
     public ICollection<Customer> Customers { get; set; } = new List<Customer>();
 }

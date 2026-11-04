@@ -1,10 +1,31 @@
 @model TriggerCheck.Web.Areas.App.Support.AlertChannelInput
 @*
     Rendered with the page's Input object; field names are prefixed via ViewData.TemplateInfo so they bind to "Input.*".
+    ViewData: "ChannelTypes" (IEnumerable<AlertChannelType>, the types offered) and "HasStoredSecret" (bool, edit only).
 *@
 @{
-    var emailHelp = L["The e-mail address that alerts are sent to."].Value;
-    var webhookHelp = L["Incident details are POSTed to this address as JSON (http/https)."].Value;
+    var types = ViewData["ChannelTypes"] as IEnumerable<AlertChannelType> ?? AlertChannelInput.AvailableTypes(false, Model.Type);
+    var hasStoredSecret = ViewData["HasStoredSecret"] as bool? ?? false;
+    var help = new Dictionary<string, string>
+    {
+        ["Email"] = L["The e-mail address that alerts are sent to."].Value,
+        ["Webhook"] = L["Incident details are POSTed to this address as JSON (http/https)."].Value,
+        ["Slack"] = L["In Slack, add an Incoming Webhook to a channel and paste its URL (https://hooks.slack.com/services/...). Alerts arrive as formatted messages."].Value,
+        ["Teams"] = L["In Teams, create a workflow from the template \"Post to a channel when a webhook request is received\" and paste its URL. Alerts arrive as Adaptive Cards."].Value,
+        ["Telegram"] = L["Create a bot with @BotFather, add it to your group or channel, and enter the chat id here. The bot token is never shown again after saving."].Value,
+        ["Sms"] = L["Mobile phone number in international E.164 format, e.g. +905551234567. Messages are kept short."].Value,
+        ["VoiceCall"] = L["Phone number in international E.164 format, e.g. +905551234567. The alert is read out in English."].Value,
+    };
+    var placeholders = new Dictionary<string, string>
+    {
+        ["Email"] = "ops@example.com",
+        ["Webhook"] = "https://hooks.example.com/triggercheck",
+        ["Slack"] = "https://hooks.slack.com/services/T000/B000/XXXX",
+        ["Teams"] = "https://prod-00.westeurope.logic.azure.com/workflows/...",
+        ["Telegram"] = "-1001234567890",
+        ["Sms"] = "+905551234567",
+        ["VoiceCall"] = "+905551234567",
+    };
 }
 <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
 <div class="row g-3">
@@ -16,7 +37,7 @@
     <div class="col-md-6">
         <label asp-for="Type" class="form-label"></label>
         <select asp-for="Type" class="form-select" id="channel-type">
-            @foreach (var t in Enum.GetValues<AlertChannelType>())
+            @foreach (var t in types)
             {
                 <option value="@t" selected="@(Model.Type == t)">@AlertChannelInput.TypeName(t, L)</option>
             }
@@ -29,6 +50,13 @@
         <div class="form-text" id="channel-help"></div>
         <span asp-validation-for="Target" class="text-danger small"></span>
     </div>
+    <div class="col-md-12" id="channel-secret-row">
+        <label asp-for="Secret" class="form-label"></label>
+        @* Write-only: the stored token is never rendered back into the page. *@
+        <input asp-for="Secret" class="form-control font-monospace" type="password" autocomplete="off" value=""
+               placeholder="@(hasStoredSecret ? L["Leave empty to keep the stored token"].Value : "123456789:AA...")" />
+        <span asp-validation-for="Secret" class="text-danger small"></span>
+    </div>
     <div class="col-md-12">
         <div class="form-check">
             <input asp-for="IsEnabled" class="form-check-input" />
@@ -38,11 +66,13 @@
 </div>
 <script>
 (function () {
-    var sel = document.getElementById('channel-type'), help = document.getElementById('channel-help'), target = document.getElementById('channel-target');
+    var help = @Json.Serialize(help), placeholders = @Json.Serialize(placeholders);
+    var sel = document.getElementById('channel-type'), helpEl = document.getElementById('channel-help'),
+        target = document.getElementById('channel-target'), secretRow = document.getElementById('channel-secret-row');
     function update() {
-        var email = sel.value === 'Email';
-        help.textContent = email ? @Json.Serialize(emailHelp) : @Json.Serialize(webhookHelp);
-        target.placeholder = email ? 'ops@example.com' : 'https://hooks.example.com/triggercheck';
+        helpEl.textContent = help[sel.value] || '';
+        target.placeholder = placeholders[sel.value] || '';
+        secretRow.hidden = sel.value !== 'Telegram';
     }
     sel.addEventListener('change', update);
     update();

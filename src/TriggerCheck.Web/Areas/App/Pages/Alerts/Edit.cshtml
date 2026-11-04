@@ -1,6 +1,10 @@
 @page "{id:int}"
 @model TriggerCheck.Web.Areas.App.Pages.Alerts.EditModel
-@{ ViewData["Title"] = L["Edit alert channel"].Value; }
+@{
+    ViewData["Title"] = L["Edit alert channel"].Value;
+    ViewData["ChannelTypes"] = Model.Types;
+    ViewData["HasStoredSecret"] = Model.HasStoredSecret;
+}
 
 <nav aria-label="breadcrumb"><ol class="breadcrumb">
     <li class="breadcrumb-item"><a asp-page="Index">@L["Alert channels"]</a></li>

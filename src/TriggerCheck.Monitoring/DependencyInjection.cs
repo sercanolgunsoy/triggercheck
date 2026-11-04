@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TriggerCheck.Monitoring.Alerting;
 using TriggerCheck.Monitoring.Checks;
+using TriggerCheck.Monitoring.Diagnostics;
 using TriggerCheck.Monitoring.Engine;
 using TriggerCheck.Monitoring.Retention;
 using TriggerCheck.Monitoring.Scheduling;
@@ -26,7 +27,12 @@ public static class DependencyInjection
     {
         services.Configure<MonitoringOptions>(config.GetSection(MonitoringOptions.Section));
         services.Configure<SmtpOptions>(config.GetSection(SmtpOptions.Section));
+        services.Configure<AlertingOptions>(config.GetSection(AlertingOptions.Section));
+        services.Configure<TelegramOptions>(config.GetSection(TelegramOptions.Section));
+        services.Configure<TwilioOptions>(config.GetSection(TwilioOptions.Section));
         services.TryAddSingleton(TimeProvider.System);
+        services.AddMetrics();
+        services.TryAddSingleton<MonitoringMetrics>();
 
         services.AddScoped<IUptimeStatsService, UptimeStatsService>();
         services.AddMemoryCache();
@@ -50,7 +56,9 @@ public static class DependencyInjection
                 UseCookies = false,
                 UseProxy = false,
                 ConnectCallback = TargetGuard.ConnectCallback(AllowPrivateTargets(sp), GuardLogger(sp))
-            });
+            })
+            // Alert URLs carry secrets (Slack/Teams webhook paths, Telegram bot tokens): no request URI logging.
+            .RemoveAllLoggers();
 
         // ---- checkers ----
         services.AddSingleton<IMonitorChecker, HttpMonitorChecker>();
@@ -60,13 +68,27 @@ public static class DependencyInjection
 
         // ---- engine ----
         services.AddSingleton<MonitorRunGate>();
-        services.AddScoped<IMonitorCheckRunner, MonitorCheckRunner>();
+        // Checkers are wrapped at resolve time so every probe is traced and measured (OPS-4, see MonitoringMetrics).
+        services.AddScoped<IMonitorCheckRunner>(sp => ActivatorUtilities.CreateInstance<MonitorCheckRunner>(sp, InstrumentedMonitorChecker.Wrap(
+            sp.GetServices<IMonitorChecker>(), sp.GetRequiredService<MonitoringMetrics>(), sp.GetRequiredService<TimeProvider>())));
         services.AddScoped<MonitorLifecycle>();
 
         // ---- alerting ----
         services.AddSingleton<INotifier, EmailNotifier>();
         services.AddSingleton<INotifier, WebhookNotifier>();
+        services.AddSingleton<INotifier, SlackNotifier>();
+        services.AddSingleton<INotifier, TeamsNotifier>();
+        services.AddSingleton<INotifier, TelegramNotifier>();
+        services.AddSingleton<INotifier, TwilioSmsNotifier>();
+        services.AddSingleton<INotifier, TwilioVoiceNotifier>();
         services.AddScoped<IAlertDispatcher, AlertDispatcher>();
+        // Runner -> bounded queue -> sender (own concurrency, timeouts, retries). Registered before the scheduler so
+        // it stops after it (hosted services stop in reverse order) and can drain the last alerts.
+        services.AddSingleton<AlertDeliveryThrottle>();
+        services.AddSingleton<AlertQueue>();
+        services.AddSingleton<IAlertQueue>(sp => sp.GetRequiredService<AlertQueue>());
+        services.AddSingleton<AlertSenderService>();
+        services.AddHostedService(sp => sp.GetRequiredService<AlertSenderService>());
 
         // ---- background jobs ----
         services.AddScoped<RetentionCleaner>();

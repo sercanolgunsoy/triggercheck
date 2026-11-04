@@ -33,7 +33,8 @@ namespace TriggerCheck.Monitoring.Engine;
 /// </list>
 /// The runner bumps Version itself whenever it changes Status or opens/closes an incident, so a concurrent
 /// pause/resume/edit that read the old state fails on the token and retries on the new state.
-/// Alert delivery happens after the state is saved and its failures are only logged.
+/// Alerts are queued after the state is saved (<see cref="IAlertQueue"/>) and delivered by AlertSenderService, so a
+/// slow notification target never holds the check slot.
 /// <para>
 /// Confirm before alert (<see cref="MonitoringOptions.ConfirmBeforeDown"/>): a failed probe that would take an
 /// actively monitored monitor DOWN (<see cref="MonitorStateMachine.NeedsConfirmation"/>) is only recorded: the
@@ -47,7 +48,8 @@ namespace TriggerCheck.Monitoring.Engine;
 /// The delay starts when the failed probe ended; the outage is still dated from when it started.
 /// A pending confirmation is bound to the monitor's Version when it was recorded: any user change meanwhile (edit,
 /// pause, resume, SuperAdmin clamp; delete removes the row) cancels it, and so does age (no run within delay +
-/// interval + timeout + slack, e.g. after downtime); the next probe is then evaluated from scratch.
+/// interval + timeout + slack, e.g. after downtime or under scheduler lag). A too-old confirmation that fails anyway is
+/// still a confirmed outage, dated from that late probe; otherwise the next probe is evaluated from scratch.
 /// Worst-case DOWN detection: interval + delay + scheduler tick + probe timeout.
 /// </para>
 /// <para>
@@ -59,7 +61,7 @@ namespace TriggerCheck.Monitoring.Engine;
 public sealed class MonitorCheckRunner(
     IDbContextFactory<AppDbContext> dbFactory,
     IEnumerable<IMonitorChecker> checkers,
-    IAlertDispatcher alerts,
+    IAlertQueue alerts,
     MonitorRunGate gate,
     TimeProvider time,
     IOptionsMonitor<MonitoringOptions> options,
@@ -112,29 +114,9 @@ public sealed class MonitorCheckRunner(
             }
         }
 
-        if (alert is not null)
-        {
-            try
-            {
-                await alerts.DispatchAsync(alert, ct);
-            }
-            catch (Exception ex) when (!ct.IsCancellationRequested)
-            {
-                logger.LogError(ex, "Alert dispatch failed for monitor {MonitorId}", monitorId);
-            }
-        }
+        if (alert is not null) alerts.TryEnqueue(alert);
 
-        if (certAlert is not null)
-        {
-            try
-            {
-                await alerts.DispatchAsync(certAlert, ct);
-            }
-            catch (Exception ex) when (!ct.IsCancellationRequested)
-            {
-                logger.LogError(ex, "Certificate alert dispatch failed for monitor {MonitorId}", monitorId);
-            }
-        }
+        if (certAlert is not null) alerts.TryEnqueue(certAlert);
 
         return result;
     }
@@ -199,9 +181,18 @@ public sealed class MonitorCheckRunner(
                 if (transition == StatusTransition.WentDown) transitionAt = failedAt; // the outage started at the first failure
                 logger.LogInformation("Monitor {MonitorId} confirmation probe: {Result}", monitor.Id, outcome.IsUp ? "up (transient failure)" : "failed");
             }
+            else if (MonitorStateMachine.HasExpiredPendingConfirmation(monitor) && !outcome.IsUp)
+            {
+                // The confirmation came too late (sustained scheduler lag, downtime) but this probe fails too: two
+                // failures in a row are a confirmed outage. Dated from this probe, not the old failure; restarting the
+                // confirmation instead could postpone the DOWN forever while the lag lasts.
+                MonitorStateMachine.ClearPendingConfirmation(monitor);
+                transition = MonitorStateMachine.ApplyConfirmed(monitor, checkedAt, outcome, checkedAt);
+                logger.LogInformation("Monitor {MonitorId}: late confirmation failed; outage dated from this probe", monitor.Id);
+            }
             else
             {
-                MonitorStateMachine.ClearPendingConfirmation(monitor); // stale (monitor changed since, or too old) or none
+                MonitorStateMachine.ClearPendingConfirmation(monitor); // monitor changed since, too old and up now, or none
                 if (o.ConfirmBeforeDown && MonitorStateMachine.NeedsConfirmation(monitor, outcome))
                     MonitorStateMachine.BeginConfirmation(monitor, outcome, checkedAt, probeEndedAt + delay);
                 else
@@ -234,7 +225,7 @@ public sealed class MonitorCheckRunner(
         catch (Exception ex) when (!ct.IsCancellationRequested)
         {
             // Checkers should not throw; this is a safety net against bugs.
-            logger.LogError(ex, "Checker {Checker} threw for monitor {MonitorId}", checker.GetType().Name, monitor.Id);
+            logger.LogError(ex, "Checker for {MonitorType} threw for monitor {MonitorId}", monitor.Type, monitor.Id);
             // The message is customer-visible: keep exception details in the log only.
             return CheckOutcome.Down("Internal checker error");
         }
