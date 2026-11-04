@@ -820,4 +820,193 @@
   <data name="You can have at most {0} active API keys. Revoke one you no longer use first." xml:space="preserve">
     <value>En fazla {0} etkin API anahtarınız olabilir. Önce artık kullanmadığınız birini iptal edin.</value>
   </data>
+  <data name="Plan, subscription and payments are managed on the Billing page." xml:space="preserve">
+    <value>Plan, abonelik ve ödemeler Faturalandırma sayfasından yönetilir.</value>
+  </data>
+  <data name="AI requests this month" xml:space="preserve">
+    <value>Bu ayki AI istekleri</value>
+  </data>
+  <data name="Plan usage" xml:space="preserve">
+    <value>Plan kullanımı</value>
+  </data>
+  <data name="Limit reached." xml:space="preserve">
+    <value>Sınıra ulaşıldı.</value>
+  </data>
+  <data name="{0}% of your plan limit is used." xml:space="preserve">
+    <value>Plan sınırınızın %{0} kadarı kullanıldı.</value>
+  </data>
+  <data name="The new plan allows fewer monitors than you have. Delete {0} monitor(s) first, then change the plan." xml:space="preserve">
+    <value>Yeni plan sahip olduğunuzdan daha az monitöre izin veriyor. Önce {0} monitörü silin, ardından planı değiştirin.</value>
+  </data>
+  <data name="Online payment is not available at the moment. Please contact us." xml:space="preserve">
+    <value>Çevrimiçi ödeme şu anda kullanılamıyor. Lütfen bizimle iletişime geçin.</value>
+  </data>
+  <data name="The payment provider did not accept the request. Please try again later." xml:space="preserve">
+    <value>Ödeme sağlayıcısı isteği kabul etmedi. Lütfen daha sonra tekrar deneyin.</value>
+  </data>
+  <data name="This action is not possible in the current subscription state." xml:space="preserve">
+    <value>Bu işlem mevcut abonelik durumunda yapılamaz.</value>
+  </data>
+  <data name="First name is required." xml:space="preserve">
+    <value>Ad zorunludur.</value>
+  </data>
+  <data name="Last name is required." xml:space="preserve">
+    <value>Soyad zorunludur.</value>
+  </data>
+  <data name="Phone number is required." xml:space="preserve">
+    <value>Telefon numarası zorunludur.</value>
+  </data>
+  <data name="Enter a valid phone number." xml:space="preserve">
+    <value>Geçerli bir telefon numarası girin.</value>
+  </data>
+  <data name="The identity number has 11 digits." xml:space="preserve">
+    <value>Kimlik numarası 11 hanelidir.</value>
+  </data>
+  <data name="Address is required." xml:space="preserve">
+    <value>Adres zorunludur.</value>
+  </data>
+  <data name="City is required." xml:space="preserve">
+    <value>Şehir zorunludur.</value>
+  </data>
+  <data name="Country is required." xml:space="preserve">
+    <value>Ülke zorunludur.</value>
+  </data>
+  <data name="First name" xml:space="preserve">
+    <value>Ad</value>
+  </data>
+  <data name="Last name" xml:space="preserve">
+    <value>Soyad</value>
+  </data>
+  <data name="Mobile phone" xml:space="preserve">
+    <value>Cep telefonu</value>
+  </data>
+  <data name="Turkish identity or tax number (optional)" xml:space="preserve">
+    <value>T.C. kimlik veya vergi numarası (isteğe bağlı)</value>
+  </data>
+  <data name="Billing address" xml:space="preserve">
+    <value>Fatura adresi</value>
+  </data>
+  <data name="City" xml:space="preserve">
+    <value>Şehir</value>
+  </data>
+  <data name="Country" xml:space="preserve">
+    <value>Ülke</value>
+  </data>
+  <data name="Postal code" xml:space="preserve">
+    <value>Posta kodu</value>
+  </data>
+  <data name="Subscribe" xml:space="preserve">
+    <value>Abone ol</value>
+  </data>
+  <data name="Subscribe to {0}" xml:space="preserve">
+    <value>{0} planına abone ol</value>
+  </data>
+  <data name="Your checkout is ready. Enter your card details on iyzico's secure payment page; you will be brought back here afterwards." xml:space="preserve">
+    <value>Ödeme adımınız hazır. Kart bilgilerinizi iyzico'nun güvenli ödeme sayfasında girin; ardından buraya geri yönlendirileceksiniz.</value>
+  </data>
+  <data name="Continue to secure payment" xml:space="preserve">
+    <value>Güvenli ödemeye devam et</value>
+  </data>
+  <data name="iyzico needs these billing details for the invoice. Your card is entered on iyzico's secure payment page, never on TriggerCheck." xml:space="preserve">
+    <value>iyzico fatura için bu bilgilere ihtiyaç duyar. Kart bilgileriniz TriggerCheck'e değil, iyzico'nun güvenli ödeme sayfasına girilir.</value>
+  </data>
+  <data name="Continue" xml:space="preserve">
+    <value>Devam</value>
+  </data>
+  <data name="Thank you! Your subscription is active." xml:space="preserve">
+    <value>Teşekkürler! Aboneliğiniz etkin.</value>
+  </data>
+  <data name="The payment was not completed. No subscription was started." xml:space="preserve">
+    <value>Ödeme tamamlanmadı. Abonelik başlatılmadı.</value>
+  </data>
+  <data name="Current plan" xml:space="preserve">
+    <value>Mevcut plan</value>
+  </data>
+  <data name="Next renewal" xml:space="preserve">
+    <value>Sonraki yenileme</value>
+  </data>
+  <data name="Active until" xml:space="preserve">
+    <value>Şu tarihe kadar etkin</value>
+  </data>
+  <data name="You are on a free trial. Subscribe before it ends to keep this plan; otherwise your workspace moves to the free plan." xml:space="preserve">
+    <value>Ücretsiz deneme sürecindesiniz. Bu planı korumak için deneme bitmeden abone olun; aksi halde çalışma alanınız ücretsiz plana geçer.</value>
+  </data>
+  <data name="Your last payment failed. Please update your card at iyzico; if the payment is not collected within the grace period your workspace moves to the free plan." xml:space="preserve">
+    <value>Son ödemeniz başarısız oldu. Lütfen iyzico'daki kartınızı güncelleyin; ödeme ek süre içinde tahsil edilemezse çalışma alanınız ücretsiz plana geçer.</value>
+  </data>
+  <data name="Your subscription is cancelled. The plan stays active until the end of the paid period, then your workspace moves to the free plan." xml:space="preserve">
+    <value>Aboneliğiniz iptal edildi. Plan, ödenmiş dönemin sonuna kadar etkin kalır; ardından çalışma alanınız ücretsiz plana geçer.</value>
+  </data>
+  <data name="Cancel the subscription? Your plan stays active until the end of the paid period." xml:space="preserve">
+    <value>Abonelik iptal edilsin mi? Planınız ödenmiş dönemin sonuna kadar etkin kalır.</value>
+  </data>
+  <data name="Cancel subscription" xml:space="preserve">
+    <value>Aboneliği iptal et</value>
+  </data>
+  <data name="Online payment is not available at the moment. Please contact us to change your plan." xml:space="preserve">
+    <value>Çevrimiçi ödeme şu anda kullanılamıyor. Planınızı değiştirmek için lütfen bizimle iletişime geçin.</value>
+  </data>
+  <data name="You have {0} monitors; delete {1} to switch to this plan." xml:space="preserve">
+    <value>{0} monitörünüz var; bu plana geçmek için {1} tanesini silin.</value>
+  </data>
+  <data name="Current" xml:space="preserve">
+    <value>Mevcut</value>
+  </data>
+  <data name="Switch to the {0} plan now? The price difference is prorated by iyzico." xml:space="preserve">
+    <value>Şimdi {0} planına geçilsin mi? Fiyat farkı iyzico tarafından kıst olarak hesaplanır.</value>
+  </data>
+  <data name="Upgrade" xml:space="preserve">
+    <value>Yükselt</value>
+  </data>
+  <data name="Downgrade" xml:space="preserve">
+    <value>Düşür</value>
+  </data>
+  <data name="Only administrators can change the plan." xml:space="preserve">
+    <value>Planı yalnızca yöneticiler değiştirebilir.</value>
+  </data>
+  <data name="Payment history" xml:space="preserve">
+    <value>Ödeme geçmişi</value>
+  </data>
+  <data name="No payments yet." xml:space="preserve">
+    <value>Henüz ödeme yok.</value>
+  </data>
+  <data name="Amount" xml:space="preserve">
+    <value>Tutar</value>
+  </data>
+  <data name="Your plan was changed." xml:space="preserve">
+    <value>Planınız değiştirildi.</value>
+  </data>
+  <data name="Check interval raised to the new plan minimum for {0} monitor(s)." xml:space="preserve">
+    <value>{0} monitörün kontrol aralığı yeni planın en kısa aralığına yükseltildi.</value>
+  </data>
+  <data name="Your subscription was cancelled. Your plan stays active until the end of the paid period." xml:space="preserve">
+    <value>Aboneliğiniz iptal edildi. Planınız ödenmiş dönemin sonuna kadar etkin kalır.</value>
+  </data>
+  <data name="This plan cannot be chosen." xml:space="preserve">
+    <value>Bu plan seçilemez.</value>
+  </data>
+  <data name="The plan change is booked and takes effect on {0}, at the end of the paid period." xml:space="preserve">
+    <value>Plan değişikliği kaydedildi; ödenmiş dönemin sonunda, {0} tarihinde geçerli olur.</value>
+  </data>
+  <data name="Booked change" xml:space="preserve">
+    <value>Planlanan değişiklik</value>
+  </data>
+  <data name="Changes to {0} on {1}" xml:space="preserve">
+    <value>{1} tarihinde {0} planına geçer</value>
+  </data>
+  <data name="Downgrade to the {0} plan at the end of the paid period?" xml:space="preserve">
+    <value>Ödenmiş dönemin sonunda {0} planına düşürülsün mü?</value>
+  </data>
+  <data name="Keep this plan" xml:space="preserve">
+    <value>Bu planda kal</value>
+  </data>
+  <data name="Online payment is not available yet. Contact us to upgrade or change your plan." xml:space="preserve">
+    <value>Çevrimiçi ödeme henüz kullanılamıyor. Planınızı yükseltmek veya değiştirmek için bizimle iletişime geçin.</value>
+  </data>
+  <data name="Upgrade to the {0} plan now? iyzico charges the new price according to its terms." xml:space="preserve">
+    <value>Şimdi {0} planına yükseltilsin mi? iyzico yeni fiyatı kendi koşullarına göre tahsil eder.</value>
+  </data>
+  <data name="We are waiting for iyzico to confirm your payment. This page will show the subscription as soon as it is confirmed." xml:space="preserve">
+    <value>Ödemenizin iyzico tarafından onaylanmasını bekliyoruz. Onaylandığında abonelik bu sayfada görünecek.</value>
+  </data>
 </root>

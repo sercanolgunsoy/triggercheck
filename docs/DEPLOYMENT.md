@@ -169,3 +169,94 @@ database's data was still entirely in the `-wal` file: the main `.db` file was 4
 - changed a row after the backup, stopped the app, and restored with the steps above.
 - started the app again: the changed row was back to its backed-up value, `/health/ready` returned 200, and the
   journal mode was back to `wal`.
+
+## Self-service sign-up and billing (iyzico)
+
+Visitors sign up at `/Account/Register` (BIZ-1). A paid self-service plan starts a free trial (14 days by default) on
+that plan's limits. A trial is granted once per address and to at most 3 sign-ups per company domain; `+tag` aliases
+count as the same address. The account must confirm its e-mail address before it can sign in. Sign-ups that are never
+confirmed are deleted after 2 days. If the same unconfirmed address signs up again, the account takes over the new
+submission, and earlier confirmation links stop working. `/Account/ForgotPassword` sends a one-day reset link. It shows
+the same answer for every address. A completed reset also confirms the address.
+
+Paid plans are sold as monthly iyzico subscriptions (BIZ-2). The card is entered only on iyzico's hosted payment page,
+never in TriggerCheck. **Online paid checkout is switched off by default** (`Billing__PaidCheckoutEnabled=false`). The
+Billing page then lists the plans with "contact us to upgrade", and the checkout and plan-change handlers are disabled.
+Sign-up and trials work either way. Complete the sandbox checklist below before you switch it on.
+
+### Settings
+
+| Variable | Required | Purpose |
+|---|---|---|
+| `Billing__PublicBaseUrl` | **yes outside Development** | e.g. `https://app.example.com`. Used for the links in e-mails and for the iyzico callback URL. **The app refuses to start without it** in any environment other than Development. |
+| `Billing__PaidCheckoutEnabled` | no (false) | Turns on the iyzico checkout, upgrades and downgrades. Leave it off until the sandbox checklist is done. |
+| `Iyzico__ApiKey`, `Iyzico__SecretKey` | for paid checkout | iyzico API credentials (merchant panel > Settings). **Secrets.** Store them in the secret store only. |
+| `Iyzico__MerchantId` | for webhooks | Part of the webhook signature (`X-IYZ-SIGNATURE-V3`). Without it every webhook is rejected with 401. |
+| `Iyzico__BaseUrl` | no | `https://sandbox-api.iyzipay.com` (default, sandbox) or `https://api.iyzipay.com` (production). |
+| `Iyzico__CheckoutPageUrl` | no | Hosted payment page, used when the initialize response has no `paymentPageUrl`. Default `https://sandbox-cpp.iyzipay.com`; production `https://cpp.iyzipay.com`. See the checklist. |
+| `Billing__TrialDays` (14), `Billing__TrialReminderDaysBefore` (3), `Billing__PastDueGraceDays` (7) | no | Trial length, when the "trial ends soon" e-mail goes out, and how long a failed renewal keeps its plan. |
+| `Billing__MaxTrialsPerDomain` (3), `Billing__PublicEmailDomains` | no | Trial cap per company domain. `0` means no cap. Public mail providers (gmail.com, outlook.com, ...) are only limited per address. |
+| `Billing__FallbackPlanName` (`Basic`) | no | Plan that customers move to when a trial ends without a subscription, a past-due subscription passes its grace period, or a cancelled subscription reaches the end of its paid period. |
+| `Billing__MaintenanceIntervalMinutes` (15) | no | How often the billing job runs. `0` disables it. Run it in **one** instance only, the same as the monitoring scheduler. Every step is idempotent, and its state changes are conditional. |
+| `Billing__CheckoutRecheckAfterMinutes` (10), `Billing__CheckoutTimeoutMinutes` (60) | no | An open checkout is checked again with iyzico after 10 minutes, which covers a closed tab or a lost callback. It is closed as failed after 60 minutes if iyzico has not confirmed it. |
+| `Billing__WebhookMaxAgeHours` (72) | no | Webhook events older than this, or more than 10 minutes in the future, are recorded but not applied. |
+| `Billing__UnconfirmedAccountDays` (2) | no | Unconfirmed sign-ups are deleted after this many days. |
+| `Billing__RegistrationsPerHourPerIp` (5), `Billing__WebhooksPerMinutePerIp` (120) | no | Per-IP rate limits for sign-up POSTs, password-reset requests, and the iyzico callback/webhook endpoints. Behind a reverse proxy, enable `ForwardedHeaders__*` (above). Otherwise all clients share the proxy's IP. |
+
+SMTP (`Smtp__*`) is also needed for sign-up and password reset. If it is not configured, those e-mails are not sent.
+In Development their full text, including the link, is logged at Information level (marked "DEV ONLY"). In other
+environments only a warning is logged, because the links carry account tokens.
+
+### iyzico setup
+
+1. In the iyzico merchant panel (sandbox first), create a subscription **product** and a **monthly pricing plan** for
+   each paid self-service plan.
+2. In TriggerCheck, go to SuperAdmin > Plans > Edit and paste the product and pricing plan reference codes. A paid plan
+   without a pricing plan code cannot be bought online. The plan option "Self-service sign-up and billing" decides
+   whether it is offered at sign-up and on the Billing page. It is off for new plans and for Enterprise, which keeps a
+   "Contact sales" link.
+3. Set the iyzico webhook (notification) URL to `https://<host>/billing/iyzico/webhook`. The checkout callback is
+   `https://<host>/billing/iyzico/callback`. TriggerCheck sends it with each checkout.
+4. Webhooks are verified with `X-IYZ-SIGNATURE-V3` = hex HMAC-SHA256(secretKey, merchantId + secretKey + eventType +
+   subscriptionReferenceCode + orderReferenceCode + customerReferenceCode). An event is identified by the signed
+   fields only (type + subscription + order reference) and is processed once. Events older than the last one applied to
+   the subscription are recorded but not applied. `subscription.order.success` keeps or restores the subscription.
+   `subscription.order.failure` marks it `PastDue`, which moves the customer to the fallback plan after the grace
+   period. Events for unknown subscriptions trigger a re-check of the open checkouts. If nothing matches, they are kept
+   as ignored payment events for reconciliation.
+
+**Flow.** Billing page > Subscribe > billing details form > "Continue to secure payment" link to iyzico > iyzico posts
+to the callback > TriggerCheck retrieves the checkout result from iyzico (server to server) and only then activates the
+plan.
+- A checkout is only closed as failed on a definitive answer from iyzico. After network errors it stays open, and the
+  job checks it again.
+- A paid checkout is cancelled at iyzico, and never activated, when iyzico reports a different or missing pricing plan,
+  or when the customer already has an active subscription (for example, two tabs).
+- **Upgrades** use iyzico's upgrade endpoint with `NOW`. **Downgrades** use `NEXT_PERIOD` and take effect when the
+  period rolls over, which the Billing page shows. A downgrade first checks that the monitors fit the new plan, and the
+  check intervals are clamped when it applies.
+- **Cancellation** stops renewals at iyzico. The plan stays until the end of the paid period.
+- SuperAdmins can extend or end a trial on the customer page. A manual plan change clears a trial or a cancelled
+  subscription, and is refused while the customer has an active or past-due subscription.
+
+### Sandbox verification checklist (before `Billing__PaidCheckoutEnabled=true`)
+
+No sandbox account was available during development. Verify these points against the iyzico sandbox. They are marked
+`TODO-verify` in `IyzicoPaymentProvider`.
+- [ ] **Hosted page vs embedded form.** Does a subscription checkout token open on `CheckoutPageUrl?token=...&lang=..`,
+  or does iyzico return a `paymentPageUrl`? If neither works, the `checkoutFormContent` script has to be embedded,
+  which needs iyzico's script and frame origins in the CSP (`SecurityHeaders.cs`).
+- [ ] **Proration.** What iyzico charges on an upgrade with `NOW`, and what it reports for a `NEXT_PERIOD` downgrade:
+  the subscription status and whether a new reference code is returned. The UI promises no proration.
+- [ ] **`iyziEventTime` units.** Milliseconds or seconds (both are accepted today). Also check whether iyzico retries
+  webhooks, and for how long, against `WebhookMaxAgeHours`.
+- [ ] **Signing path with a query string.** IYZWSv2 signs `randomKey + path + body`. None of the current requests has a
+  query string. Confirm the rule before adding one.
+- [ ] **Identity number placeholder.** `11111111111` is sent when the customer gives no Turkish identity or tax number.
+  Confirm that iyzico accepts it for foreign customers and invoices.
+- [ ] **Checkout result for abandoned and expired tokens.** Confirm that iyzico answers `status: failure`, which
+  TriggerCheck treats as definitive, and the token lifetime, against `CheckoutTimeoutMinutes`.
+- [ ] **Paid amount and currency** in webhooks or order details. The payment history shows them only when the provider
+  reports them.
+- [ ] End to end in the sandbox: trial > subscribe > callback, closed tab (webhook / job), renewal success, renewal
+  failure > grace > downgrade, upgrade, downgrade at period end, cancel.
