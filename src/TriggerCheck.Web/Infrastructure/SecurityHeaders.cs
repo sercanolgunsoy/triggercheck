@@ -40,7 +40,8 @@ public sealed class SecurityHeadersMiddleware(RequestDelegate next, IWebHostEnvi
                 h.ContentSecurityPolicy = BuildCsp(nonce);
             h.XContentTypeOptions = "nosniff";
             h.XFrameOptions = "DENY";
-            h["Referrer-Policy"] = "strict-origin-when-cross-origin";
+            // A stricter policy set by the endpoint (e.g. "no-referrer" on token links) is kept.
+            if (!h.ContainsKey("Referrer-Policy")) h["Referrer-Policy"] = "strict-origin-when-cross-origin";
             h["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), payment=(), usb=()";
             return Task.CompletedTask;
         });

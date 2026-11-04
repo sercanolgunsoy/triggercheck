@@ -56,8 +56,14 @@ public class CreateModel(AppDbContext db, ICurrentCustomer current, TimeProvider
         }
         var page = new StatusPage { CustomerId = cid, CreatedAtUtc = time.GetUtcNow().UtcDateTime };
         Input.ApplyTo(page, monitors);
-        Db.StatusPages.Add(page);
-        try { await Db.SaveChangesAsync(ct); }
+        try
+        {
+            if (!await StatusPageRules.AddWithinLimitAsync(Db, page, (await current.GetCustomerAsync(ct)).Plan, ct))
+            {
+                await LimitReachedAsync(ct);
+                return RedirectToPage("Index");
+            }
+        }
         catch (DbUpdateException)
         {
             ModelState.AddModelError("Input.Slug", L["This address is already taken."]);

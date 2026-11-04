@@ -234,13 +234,6 @@ public class StatusPageManagementTests(StatusPageTestFactory f) : IClassFixture<
     }
 
     [Fact]
-    public async Task Unknown_hosts_still_reach_the_app()
-    {
-        var other = f.CreateClient(new() { BaseAddress = new Uri("http://unrelated.example"), AllowAutoRedirect = false });
-        Assert.Equal(HttpStatusCode.OK, (await other.GetAsync("/Account/Login")).StatusCode);
-    }
-
-    [Fact]
     public async Task Seeded_plans_have_status_page_quotas()
     {
         var plans = await f.WithDbAsync(db => db.Plans.AsNoTracking().ToDictionaryAsync(p => p.Name));

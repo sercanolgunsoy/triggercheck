@@ -1555,4 +1555,13 @@
   <data name="Slow server response" xml:space="preserve">
     <value>Yavaş sunucu yanıtı</value>
   </data>
+  <data name="Confirm your status page subscription" xml:space="preserve">
+    <value>Durum sayfası aboneliğinizi onaylayın</value>
+  </data>
+  <data name="{0} changed state {1} times since the last notice and is currently unavailable." xml:space="preserve">
+    <value>{0}, son bildirimden bu yana {1} kez durum değiştirdi ve şu anda erişilemiyor.</value>
+  </data>
+  <data name="{0} changed state {1} times since the last notice and is currently available." xml:space="preserve">
+    <value>{0}, son bildirimden bu yana {1} kez durum değiştirdi ve şu anda erişilebilir.</value>
+  </data>
 </root>

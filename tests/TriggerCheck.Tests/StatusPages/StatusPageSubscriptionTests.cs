@@ -40,7 +40,8 @@ public class StatusPageSubscriptionTests(StatusPageTestFactory f) : IClassFixtur
         var r = await visitor.PostFormAsync("/status/subs-page/subscribe", new() { ["Email"] = " Visitor@Example.org " });
         Assert.Contains("Thank you.", await r.ReadHtmlAsync());
         var confirmMail = Assert.Single(await MailsAsync(email));
-        Assert.Contains("Title subs-page", confirmMail.Subject);
+        Assert.Equal("Confirm your status page subscription", confirmMail.Subject); // fixed: no customer text in the subject
+        Assert.Contains("\"Title subs-page\"", confirmMail.Body);
 
         // Repeated requests give the same answer but do not re-send (and never reveal the state).
         r = await visitor.PostFormAsync("/status/subs-page/subscribe", new() { ["Email"] = email });
@@ -53,7 +54,7 @@ public class StatusPageSubscriptionTests(StatusPageTestFactory f) : IClassFixtur
         Assert.Single(await MailsAsync(email));
 
         // GET only shows the button; POST confirms.
-        var confirm = Link(confirmMail.Body, "/status/subs-page/confirm");
+        var confirm = Link(confirmMail.Body!, "/status/subs-page/confirm");
         Assert.NotEmpty(confirm);
         var page = await visitor.GetHtmlAsync(confirm);
         Assert.Contains("Confirm subscription", page);
@@ -69,11 +70,11 @@ public class StatusPageSubscriptionTests(StatusPageTestFactory f) : IClassFixtur
         Assert.Equal(2, mails.Count);
         Assert.Contains("Public 0 is down", mails[1].Subject);
         Assert.DoesNotContain("db-primary", mails[1].Body);
-        var unsubscribe = Link(mails[1].Body, "/status/subs-page/unsubscribe");
+        var unsubscribe = Link(mails[1].Body!, "/status/subs-page/unsubscribe");
         Assert.NotEmpty(unsubscribe);
 
         // Resolution and maintenance start.
-        f.Time.Advance(TimeSpan.FromMinutes(10));
+        f.Time.Advance(TimeSpan.FromMinutes(31)); // past the per-monitor quiet period
         await f.WithDbAsync(db => db.Incidents.Where(i => i.Id == incident).ExecuteUpdateAsync(u => u.SetProperty(i => i.ResolvedAtUtc, f.Now.AddMinutes(-1))));
         await f.AddMaintenanceAsync(cid, "Kernel patching", f.Now.AddMinutes(-2), f.Now.AddHours(1), m);
         await RunNotifierAsync();

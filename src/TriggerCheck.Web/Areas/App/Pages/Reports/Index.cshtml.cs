@@ -17,7 +17,7 @@ namespace TriggerCheck.Web.Areas.App.Pages.Reports;
 /// FEAT-10: monthly SLA report. Every member (viewers too) can view and download it (PDF / CSV) - it only aggregates
 /// data they can already see; the monthly e-mail setting is CustomerAdmin only.
 /// </summary>
-public class IndexModel(AppDbContext db, ICurrentCustomer current, SlaReportService reports, SlaReportPdf pdf, TimeProvider time,
+public class IndexModel(AppDbContext db, ICurrentCustomer current, SlaReportCache reports, SlaReportPdf pdf, TimeProvider time,
     Text<AppResource> L) : PageModel
 {
     public const int MonthsOffered = 12;
@@ -81,7 +81,7 @@ public class IndexModel(AppDbContext db, ICurrentCustomer current, SlaReportServ
                  || selected.Year < 2000 || selected > thisMonth) return false;
         Month = selected.ToString("yyyy-MM", CultureInfo.InvariantCulture);
         if (!Months.Contains(Month)) Months.Add(Month);
-        Report = (await reports.BuildAsync(cid, selected.Year, selected.Month, TimeZoneId, ct))!;
+        Report = (await reports.GetAsync(cid, selected.Year, selected.Month, TimeZoneId, ct))!;
         return true;
     }
 }

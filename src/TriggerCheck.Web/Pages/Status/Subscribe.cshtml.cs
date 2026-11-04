@@ -10,14 +10,14 @@ using TriggerCheck.Web.StatusPages;
 
 namespace TriggerCheck.Web.Pages.Status;
 
-/// <summary>The status page of a slug (customer active), or null.</summary>
+/// <summary>The status page of a slug (customer active, page within the plan's limit), or null.</summary>
 public sealed record StatusPageRef(int Id, string Slug, string Title)
 {
-    public static Task<StatusPageRef?> FindAsync(AppDbContext db, string? slug, CancellationToken ct)
+    public static async Task<StatusPageRef?> FindAsync(AppDbContext db, string? slug, CancellationToken ct)
     {
         var s = StatusPageRules.NormalizeSlug(slug);
-        return db.StatusPages.AsNoTracking().Where(p => p.Slug == s && p.Customer.IsActive)
-            .Select(p => new StatusPageRef(p.Id, p.Slug, p.Title)).FirstOrDefaultAsync(ct);
+        var page = await db.StatusPages.AsNoTracking().Where(p => p.Slug == s && p.Customer.IsActive).FirstOrDefaultAsync(ct);
+        return page is null || !await StatusPageRules.IsWithinPlanAsync(db, page, ct) ? null : new StatusPageRef(page.Id, page.Slug, page.Title);
     }
 }
 

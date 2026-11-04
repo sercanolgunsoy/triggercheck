@@ -2,7 +2,8 @@
    links into the panel. ViewData: "Title", "NoIndex" (bool), "Base" (the page's own base path). *@
 @{
     var basePath = ViewData["Base"] as string;
-    var here = Context.Request.Path + Context.Request.QueryString;
+    // Path only (never the query string: the page is cached and must not echo request input); the public path on custom domains.
+    var here = TriggerCheck.Web.StatusPages.CustomDomainMiddleware.PublicPath(Context);
 }
 <!DOCTYPE html>
 <html lang="@System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName">

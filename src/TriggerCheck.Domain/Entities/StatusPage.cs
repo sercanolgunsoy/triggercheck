@@ -29,11 +29,18 @@ public class StatusPage
     public string TimeZoneId { get; set; } = "UTC";
 
     // ---- custom domain (CNAME), Pro / Enterprise ----
-    /// <summary>Lower-case host name (e.g. status.example.com); unique. Served only while verified.</summary>
+    /// <summary>
+    /// Lower-case host name (e.g. status.example.com). Several pages may claim the same domain while unverified; only
+    /// one can be verified (a successful verification clears the other claims). Served only while verified.
+    /// </summary>
     public string? CustomDomain { get; set; }
     /// <summary>Random token the customer publishes as a DNS TXT record to prove control of <see cref="CustomDomain"/>.</summary>
     public string? CustomDomainToken { get; set; }
     public DateTime? CustomDomainVerifiedAtUtc { get; set; }
+    /// <summary>Last periodic re-verification of a verified domain (the TXT record must stay in place).</summary>
+    public DateTime? CustomDomainCheckedAtUtc { get; set; }
+    /// <summary>Consecutive failed re-verifications; the domain is unverified after a few.</summary>
+    public int CustomDomainFailures { get; set; }
 
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 
@@ -88,5 +95,9 @@ public class StatusPageEvent
     public int StatusPageId { get; set; }
     /// <summary>e.g. "incident:42:start", "incident:42:resolved", "maintenance:7:638..."</summary>
     public string Key { get; set; } = "";
+    /// <summary>Monitor of an incident event (null for maintenance): notifications are throttled per monitor.</summary>
+    public int? MonitorId { get; set; }
+    /// <summary>False when the event was only recorded (throttled: flapping monitor); a later digest covers it.</summary>
+    public bool Mailed { get; set; }
     public DateTime CreatedAtUtc { get; set; }
 }

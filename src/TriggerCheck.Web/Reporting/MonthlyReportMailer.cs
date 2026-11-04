@@ -11,6 +11,7 @@ using TriggerCheck.Monitoring.Maintenance;
 using TriggerCheck.Monitoring.Reporting;
 using TriggerCheck.Web.Infrastructure;
 using TriggerCheck.Web.Localization;
+using TriggerCheck.Web.StatusPages;
 
 namespace TriggerCheck.Web.Reporting;
 
@@ -72,10 +73,11 @@ public sealed class ReportLinks(IDataProtectionProvider dataProtection, IOptions
 /// Monthly SLA report e-mail (FEAT-10, opt-in per customer): in the first <see cref="ReportOptions.CatchUpDays"/> days
 /// of a month (in the customer's report time zone) the previous month's report goes to the customer's active admins
 /// (or the contact address when there are none) through the e-mail outbox, with the key figures and a signed PDF
-/// download link. Idempotent per customer and month: the <see cref="MonthlyReportDelivery"/> row (unique) is claimed
-/// before sending, so restarts and parallel instances never send twice.
+/// download link. Idempotent per customer and month: the <see cref="MonthlyReportDelivery"/> row (unique) and the
+/// outbox rows are saved in ONE transaction, so parallel instances never send twice and a failure (report, database)
+/// leaves nothing claimed - the next run retries.
 /// </summary>
-public sealed class MonthlyReportMailer(AppDbContext db, SlaReportService reports, ReportLinks links, IAppEmailSender email, PublicUrls urls,
+public sealed class MonthlyReportMailer(AppDbContext db, SlaReportService reports, ReportLinks links, AppEmailSignal signal, PublicUrls urls,
     TimeProvider time, IOptionsMonitor<ReportOptions> options, Text<SharedResource> L, ILogger<MonthlyReportMailer> logger)
 {
     public async Task<int> RunAsync(CancellationToken ct)
@@ -94,25 +96,37 @@ public sealed class MonthlyReportMailer(AppDbContext db, SlaReportService report
             try
             {
                 if (await db.MonthlyReportDeliveries.AnyAsync(d => d.CustomerId == c.Id && d.Month == key, ct)) continue;
-                db.MonthlyReportDeliveries.Add(new MonthlyReportDelivery { CustomerId = c.Id, Month = key, SentAtUtc = now });
-                try { await db.SaveChangesAsync(ct); }
-                catch (DbUpdateException) { continue; } // another instance claimed it
-
                 var report = await reports.BuildAsync(c.Id, month.Year, month.Month, c.ReportTimeZoneId, ct);
                 if (report is null) continue;
-                await SendAsync(report, ct);
+                var (subject, body, recipients) = await ComposeAsync(report, ct);
+
+                // Reads are done: the transaction only writes (SQLite takes the write lock at once).
+                await using var transaction = await db.Database.BeginTransactionAsync(ct);
+                db.MonthlyReportDeliveries.Add(new MonthlyReportDelivery { CustomerId = c.Id, Month = key, SentAtUtc = now });
+                foreach (var address in recipients) OutboxRows.Add(db, address, subject, body, now);
+                try
+                {
+                    await db.SaveChangesAsync(ct);
+                    await transaction.CommitAsync(ct);
+                }
+                catch (DbUpdateException)
+                {
+                    await transaction.RollbackAsync(CancellationToken.None);
+                    continue; // another instance claimed it
+                }
                 sent++;
             }
             catch (Exception ex) when (!ct.IsCancellationRequested)
             {
-                logger.LogError(ex, "Monthly report for customer {CustomerId} ({Month}) failed; continuing.", c.Id, key);
+                logger.LogError(ex, "Monthly report for customer {CustomerId} ({Month}) failed; it is retried on the next run.", c.Id, key);
             }
             finally { db.ChangeTracker.Clear(); }
         }
+        if (sent > 0) signal.Notify();
         return sent;
     }
 
-    private async Task SendAsync(SlaReport r, CancellationToken ct)
+    private async Task<(string Subject, string Body, List<string> Recipients)> ComposeAsync(SlaReport r, CancellationToken ct)
     {
         var s = r.Summary;
         var lines = new List<string>
@@ -130,17 +144,14 @@ public sealed class MonthlyReportMailer(AppDbContext db, SlaReportService report
         lines.Add(L["Download the PDF (link valid for {0} days): {1}", options.CurrentValue.DownloadLinkDays, links.Url(r.CustomerId, r.Year, r.Month, r.TimeZoneId)]);
         lines.Add(L["All reports: {0}", $"{urls.BaseUrl}/App/Reports?month={r.MonthKey}"]);
         lines.Add(L["You receive this e-mail because monthly reports are enabled on the Reports page. An admin can turn them off there."]);
-        var body = string.Join("\n\n", lines);
-        var subject = L["TriggerCheck SLA report {0}", r.MonthKey];
 
         var adminRoleId = await db.Roles.Where(x => x.Name == Roles.CustomerAdmin).Select(x => x.Id).FirstOrDefaultAsync(ct);
-        var to = await db.Users.Where(u => u.CustomerId == r.CustomerId && u.IsActive && u.Email != null
+        var recipients = await db.Users.Where(u => u.CustomerId == r.CustomerId && u.IsActive && u.Email != null
                 && db.UserRoles.Any(ur => ur.UserId == u.Id && ur.RoleId == adminRoleId))
             .Select(u => u.Email!).ToListAsync(ct);
-        if (to.Count == 0 && await db.Customers.Where(c => c.Id == r.CustomerId).Select(c => c.ContactEmail).FirstOrDefaultAsync(ct) is { Length: > 0 } contact)
-            to.Add(contact);
-        foreach (var address in to.Distinct(StringComparer.OrdinalIgnoreCase))
-            await email.SendAsync(address, subject, body, ct);
+        if (recipients.Count == 0 && await db.Customers.Where(c => c.Id == r.CustomerId).Select(c => c.ContactEmail).FirstOrDefaultAsync(ct) is { Length: > 0 } contact)
+            recipients.Add(contact);
+        return (L["TriggerCheck SLA report {0}", r.MonthKey], string.Join("\n\n", lines), recipients.Distinct(StringComparer.OrdinalIgnoreCase).ToList());
     }
 }
 

@@ -11,7 +11,7 @@ namespace TriggerCheck.Monitoring.Reporting;
 /// maintenance, over the part of the month the monitor existed. Response times come from the successful checks
 /// (confirmation probes and checks taken during maintenance excluded).
 /// </summary>
-public sealed class SlaReportService(AppDbContext db, TimeProvider time)
+public class SlaReportService(AppDbContext db, TimeProvider time)
 {
     public const string DefaultTimeZone = "UTC";
 
@@ -26,7 +26,7 @@ public sealed class SlaReportService(AppDbContext db, TimeProvider time)
     public static TimeZoneInfo ResolveZone(string? id) => MaintenanceSchedule.FindTimeZone(id) ?? TimeZoneInfo.Utc;
 
     /// <summary>Null when the customer does not exist.</summary>
-    public async Task<SlaReport?> BuildAsync(int customerId, int year, int month, string? timeZoneId, CancellationToken ct = default)
+    public virtual async Task<SlaReport?> BuildAsync(int customerId, int year, int month, string? timeZoneId, CancellationToken ct = default)
     {
         var customer = await db.Customers.AsNoTracking().Where(c => c.Id == customerId)
             .Select(c => new { c.Name, c.Plan.RetentionDays }).FirstOrDefaultAsync(ct);

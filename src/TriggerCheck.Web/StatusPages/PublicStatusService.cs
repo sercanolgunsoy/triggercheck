@@ -47,7 +47,7 @@ public sealed class PublicStatusService(AppDbContext db, TimeProvider time)
     public const int MaintenanceHorizonDays = 14;
     public const int MaxIncidents = 100;
 
-    /// <summary>The page with this slug, or null when unknown or the customer is suspended.</summary>
+    /// <summary>The page with this slug, or null when unknown, the customer is suspended or the page is over the plan's limit.</summary>
     public async Task<StatusPageView?> GetAsync(string? slug, CancellationToken ct = default)
     {
         var normalized = StatusPageRules.NormalizeSlug(slug);
@@ -56,7 +56,8 @@ public sealed class PublicStatusService(AppDbContext db, TimeProvider time)
             .Where(p => p.Slug == normalized && p.Customer.IsActive)
             .Select(p => new { Page = p, p.Customer.Plan.RetentionDays })
             .FirstOrDefaultAsync(ct);
-        return page is null ? null : await BuildAsync(page.Page, page.RetentionDays, ct);
+        if (page is null || !await StatusPageRules.IsWithinPlanAsync(db, page.Page, ct)) return null;
+        return await BuildAsync(page.Page, page.RetentionDays, ct);
     }
 
     private async Task<StatusPageView> BuildAsync(StatusPage page, int retentionDays, CancellationToken ct)

@@ -1774,4 +1774,7 @@
   <data name="Other monitors on the same host failed at the same time. AI summary of the related incident:" xml:space="preserve">
     <value>Aynı sunucudaki diğer monitörler de aynı anda hata verdi. İlgili olayın yapay zekâ özeti:</value>
   </data>
+  <data name="Downtime counts from when a monitor went DOWN (after its failure threshold) until it recovered. Paused time counts as available, incidents are counted in the month they started, and closed months are cached for up to 6 hours." xml:space="preserve">
+    <value>Kesinti süresi, monitörün DOWN olduğu andan (hata eşiğinden sonra) düzelene kadar sayılır. Duraklatılan süre erişilebilir sayılır, olaylar başladıkları ayda sayılır ve kapanmış aylar 6 saate kadar önbellekte tutulur.</value>
+  </data>
 </root>

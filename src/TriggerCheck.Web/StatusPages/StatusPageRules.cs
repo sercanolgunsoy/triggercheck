@@ -1,6 +1,8 @@
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
+using Microsoft.EntityFrameworkCore;
 using TriggerCheck.Domain.Entities;
+using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Monitoring.Checks.Dns;
 
 namespace TriggerCheck.Web.StatusPages;
@@ -69,4 +71,46 @@ public static partial class StatusPageRules
     public static bool CanAddPage(Plan plan, int currentCount) => plan.MaxStatusPages is not { } max || currentCount < max;
 
     public static string LimitText(Plan plan) => plan.MaxStatusPages?.ToString() ?? "∞";
+
+    /// <summary>
+    /// After a downgrade a customer may have more pages than the plan allows (nothing is deleted): only the oldest
+    /// <see cref="Plan.MaxStatusPages"/> pages are served and notified.
+    /// </summary>
+    public static async Task<bool> IsWithinPlanAsync(AppDbContext db, StatusPage page, CancellationToken ct)
+    {
+        var max = await db.Customers.Where(c => c.Id == page.CustomerId).Select(c => c.Plan.MaxStatusPages).FirstOrDefaultAsync(ct);
+        if (max is null) return true;
+        var older = await db.StatusPages.CountAsync(p => p.CustomerId == page.CustomerId
+            && (p.CreatedAtUtc < page.CreatedAtUtc || (p.CreatedAtUtc == page.CreatedAtUtc && p.Id < page.Id)), ct);
+        return older < max;
+    }
+
+    /// <summary>
+    /// Adds the page only if the plan limit still allows it, atomically: the row is inserted first and the count taken in
+    /// the same transaction (SQLite serializes writers), so two parallel requests cannot both pass the check.
+    /// False (nothing saved) when the limit is reached; a DbUpdateException (slug / domain taken) propagates.
+    /// </summary>
+    public static async Task<bool> AddWithinLimitAsync(AppDbContext db, StatusPage page, Plan plan, CancellationToken ct)
+    {
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        db.StatusPages.Add(page);
+        await db.SaveChangesAsync(ct);
+        if (plan.MaxStatusPages is { } max && await db.StatusPages.CountAsync(p => p.CustomerId == page.CustomerId, ct) > max)
+        {
+            await tx.RollbackAsync(CancellationToken.None);
+            db.ChangeTracker.Clear();
+            return false;
+        }
+        await tx.CommitAsync(ct);
+        return true;
+    }
+
+    /// <summary>
+    /// The verified page now owns the domain: other (unverified) claims of the same domain are dropped. Only one page per
+    /// domain can be verified at a time.
+    /// </summary>
+    public static Task<int> ReleaseOtherClaimsAsync(AppDbContext db, int pageId, string domain, CancellationToken ct) =>
+        db.StatusPages.Where(p => p.CustomDomain == domain && p.Id != pageId)
+            .ExecuteUpdateAsync(u => u.SetProperty(p => p.CustomDomain, (string?)null).SetProperty(p => p.CustomDomainToken, (string?)null)
+                .SetProperty(p => p.CustomDomainVerifiedAtUtc, (DateTime?)null).SetProperty(p => p.CustomDomainFailures, 0), ct);
 }

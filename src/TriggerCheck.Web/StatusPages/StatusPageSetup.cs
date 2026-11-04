@@ -29,6 +29,8 @@ public static class StatusPageSetup
     public const string CacheTag = "status-pages";
     public const string ViewPolicy = "status-page-view";
     public const string SubscribePolicy = "status-page-subscribe";
+    public const string DomainCheckPolicy = "status-domain-check";
+    public const string ReportDownloadPolicy = "report-download";
 
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     {
@@ -41,6 +43,7 @@ public static class StatusPageSetup
         services.AddScoped<PublicStatusService>();
         services.AddScoped<StatusPageSubscriptions>();
         services.AddScoped<StatusPageNotifier>();
+        services.AddScoped<CustomDomainReverifier>();
         services.AddSingleton<CustomDomainMap>();
         services.AddSingleton<ICustomDomainVerifier, DnsCustomDomainVerifier>();
         services.AddHostedService<StatusPageNotifierService>();
@@ -51,6 +54,8 @@ public static class StatusPageSetup
             if (cacheSeconds <= 0) { b.NoCache(); return; }
             b.Expire(TimeSpan.FromSeconds(cacheSeconds))
                 .SetVaryByRouteValue("slug")
+                // The default policy varies by every query value: arbitrary ?x=... would bypass the cache.
+                .SetVaryByQuery(Array.Empty<string>())
                 .VaryByValue(_ => new KeyValuePair<string, string>("lang", CultureInfo.CurrentUICulture.Name))
                 .Tag(CacheTag);
         }));
@@ -58,6 +63,15 @@ public static class StatusPageSetup
         services.AddRateLimiter(o =>
         {
             o.AddPolicy(ViewPolicy, http => PerMinute(http, "status:"));
+            // The reverse proxy asks once per new TLS handshake host: loopback (proxy sidecar) is not limited, others get a high budget.
+            o.AddPolicy(DomainCheckPolicy, http => http.Connection.RemoteIpAddress is { } ip && System.Net.IPAddress.IsLoopback(ip)
+                ? RateLimitPartition.GetNoLimiter("loopback")
+                : RateLimitPartition.GetFixedWindowLimiter("domain-check:" + ApiSetup.ClientPartition(http.Connection.RemoteIpAddress),
+                    _ => new FixedWindowRateLimiterOptions { PermitLimit = 1200, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+            // E-mailed report links: PDFs are built on demand, so a small budget per client.
+            o.AddPolicy(ReportDownloadPolicy, http =>
+                RateLimitPartition.GetFixedWindowLimiter("report-download:" + ApiSetup.ClientPartition(http.Connection.RemoteIpAddress),
+                    _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
             o.AddPolicy(SubscribePolicy, http =>
             {
                 if (!HttpMethods.IsPost(http.Request.Method)) return PerMinute(http, "status-sub-get:");
@@ -95,8 +109,8 @@ public static class StatusPageSetup
         {
             var host = (domain ?? "").Trim().TrimEnd('.').ToLowerInvariant();
             if (host.Length is 0 or > StatusPageRules.MaxDomainLength) return Results.NotFound();
-            return await map.FindAsync(host, http.RequestAborted) is { Servable: true } ? Results.Ok() : Results.NotFound();
-        }).AllowAnonymous().RequireRateLimiting(ViewPolicy).ExcludeFromDescription();
+            return await map.FindAsync(host, http.RequestAborted) is not null ? Results.Ok() : Results.NotFound();
+        }).AllowAnonymous().RequireRateLimiting(DomainCheckPolicy).ExcludeFromDescription();
 
         app.MapGet("/status/{slug}.json", async (string slug, HttpContext http, PublicStatusService service) =>
         {

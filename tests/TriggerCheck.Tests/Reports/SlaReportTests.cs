@@ -213,7 +213,7 @@ public class SlaReportTests(ReportsTestFactory f) : IClassFixture<ReportsTestFac
         Assert.False(await f.WithDbAsync(db => db.MonthlyReportDeliveries.AnyAsync(d => d.CustomerId == optedOut)));
         Assert.False(await f.WithDbAsync(db => db.EmailOutbox.AnyAsync(m => m.To == "viewer-mail@t.test")));
 
-        var link = Regex.Match(mail.Body, @"https?://\S+/reports/download\?token=(\S+)");
+        var link = Regex.Match(mail.Body!, @"https?://\S+/reports/download\?token=(\S+)");
         Assert.True(link.Success, mail.Body);
         var anon = f.CreateBrowser();
         var pdf = await anon.GetAsync("/reports/download?token=" + link.Groups[1].Value);

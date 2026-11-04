@@ -87,8 +87,12 @@ public static class StatusPageApi
         var page = new StatusPage { CustomerId = cid, CreatedAtUtc = time.GetUtcNow().UtcDateTime };
         var result = await ApplyAsync(http, db, cid, plan, page, input!, L, ct);
         if (result is not null) return result;
-        db.StatusPages.Add(page);
-        if (!await TrySaveAsync(db, ct)) return ApiProblems.Conflict("The address or custom domain is already taken.");
+        try
+        {
+            if (!await StatusPageRules.AddWithinLimitAsync(db, page, plan, ct))
+                return ApiProblems.Conflict($"You have reached the status page limit of your plan ({StatusPageRules.LimitText(plan)}).");
+        }
+        catch (DbUpdateException) { return ApiProblems.Conflict("The address is already taken."); }
         await StatusPageSetup.EvictAsync(http.RequestServices, ct);
         return Results.Created($"{ApiSetup.BasePath}/status-pages/{page.Id}", StatusPageDto.From(page, BaseUrl(http)));
     }
@@ -142,7 +146,7 @@ public static class StatusPageApi
                 ms.AddModelError(nameof(StatusPageRequest.CustomDomain), "Custom domains are available on the Pro and Enterprise plans.");
             else if (domain is null)
                 ms.AddModelError(nameof(StatusPageRequest.CustomDomain), "Enter a host name such as status.example.com.");
-            else if (await db.StatusPages.AnyAsync(p => p.CustomDomain == domain && p.Id != page.Id, ct))
+            else if (await db.StatusPages.AnyAsync(p => p.CustomDomain == domain && p.Id != page.Id && p.CustomDomainVerifiedAtUtc != null, ct))
                 ms.AddModelError(nameof(StatusPageRequest.CustomDomain), "This domain is already used by another status page.");
         }
         if (!ms.IsValid)
@@ -155,6 +159,8 @@ public static class StatusPageApi
             page.CustomDomain = domain;
             page.CustomDomainToken = domain is null ? null : StatusPageRules.NewVerificationToken();
             page.CustomDomainVerifiedAtUtc = null;
+            page.CustomDomainCheckedAtUtc = null;
+            page.CustomDomainFailures = 0;
         }
         return null;
     }

@@ -43,6 +43,45 @@ public class StatusPageCachingTests(CachedStatusPageTestFactory f) : IClassFixtu
     }
 }
 
+/// <summary>FEAT-4: the cache key ignores the query string; the same slug on the app and on its custom domain stay apart.</summary>
+public class StatusPageCacheKeyTests(CachedStatusPageTestFactory f) : IClassFixture<CachedStatusPageTestFactory>
+{
+    [Fact]
+    public async Task Query_variants_hit_the_same_entry_and_are_not_echoed()
+    {
+        var (cid, _, _) = await f.AddTenantAsync("query");
+        var pageId = await f.AddStatusPageAsync(cid, "query-page", [await f.AddMonitorAsync(cid, "M")]);
+        var anon = f.CreateBrowser();
+        var first = await anon.GetStringAsync("/status/query-page?utm=%3Cscript%3Ex");
+        Assert.DoesNotContain("utm", first);
+        Assert.DoesNotContain("<script", first);
+
+        await f.WithDbAsync(db => db.StatusPages.Where(p => p.Id == pageId).ExecuteUpdateAsync(u => u.SetProperty(p => p.Title, "Changed directly")));
+        foreach (var q in new[] { "", "?a=1", "?utm=other&b=2" })
+            Assert.Contains("Title query-page", await anon.GetStringAsync("/status/query-page" + q));
+    }
+
+    [Fact]
+    public async Task Same_slug_on_app_host_and_custom_domain_are_cached_separately()
+    {
+        var (cid, _, _) = await f.AddTenantAsync("hosts");
+        await f.AddStatusPageAsync(cid, "hosts-page", [await f.AddMonitorAsync(cid, "M")], p =>
+        {
+            p.CustomDomain = "status.hosts.example"; p.CustomDomainToken = "t"; p.CustomDomainVerifiedAtUtc = f.Now;
+        });
+        await f.EvictAsync();
+        var app = f.CreateBrowser();
+        var custom = f.CreateClient(new() { BaseAddress = new Uri("http://status.hosts.example"), AllowAutoRedirect = false });
+
+        Assert.Contains("href=\"/status/hosts-page/subscribe\"", await app.GetStringAsync("/status/hosts-page"));
+        var onDomain = await custom.GetStringAsync("/");
+        Assert.Contains("href=\"/subscribe\"", onDomain);
+        Assert.DoesNotContain("/status/hosts-page", onDomain);
+        Assert.Contains("returnUrl=%2F\"", onDomain); // language switch returns to the public path
+        Assert.Contains("href=\"/status/hosts-page/subscribe\"", await app.GetStringAsync("/status/hosts-page"));
+    }
+}
+
 /// <summary>FEAT-4: per-client rate limits of the public endpoints and the subscription form.</summary>
 public class StatusPageRateLimitTests(RateLimitedStatusPageTestFactory f) : IClassFixture<RateLimitedStatusPageTestFactory>
 {

@@ -84,6 +84,7 @@ else
         </table>
     </div>
     <p class="small text-muted">@L["Uptime excludes maintenance windows. Downtime is the time monitors had an open incident; response times are of successful checks."] @L["Set an SLA target on a monitor's edit page to see whether it was met."]</p>
+    <p class="small text-muted" id="report-fidelity">@L["Downtime counts from when a monitor went DOWN (after its failure threshold) until it recovered. Paused time counts as available, incidents are counted in the month they started, and closed months are cached for up to 6 hours."]</p>
 }
 
 <div class="card mt-4" id="report-settings">

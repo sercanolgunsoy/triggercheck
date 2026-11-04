@@ -12,7 +12,8 @@ namespace TriggerCheck.Web.Areas.App.Pages.StatusPages;
 
 /// <summary>
 /// Custom domain of a status page (Pro / Enterprise plans). The domain is served only after the customer proved control
-/// with a DNS TXT record; changing it resets the verification.
+/// with a DNS TXT record; changing it resets the verification. Several pages may claim a domain until one verifies it
+/// (a verified domain cannot be claimed again); the verification drops the other claims.
 /// </summary>
 [Authorize(Policy = Policies.CustomerAdmin)]
 public class DomainModel(AppDbContext db, ICurrentCustomer current, ICustomDomainVerifier verifier, PublicUrls urls, TimeProvider time,
@@ -37,7 +38,7 @@ public class DomainModel(AppDbContext db, ICurrentCustomer current, ICustomDomai
         var domain = StatusPageRules.NormalizeDomain(Domain, appHost);
         if (domain is null)
             ModelState.AddModelError(nameof(Domain), L["Enter a host name such as status.example.com."]);
-        else if (await db.StatusPages.AnyAsync(p => p.CustomDomain == domain && p.Id != id, ct))
+        else if (await db.StatusPages.AnyAsync(p => p.CustomDomain == domain && p.Id != id && p.CustomDomainVerifiedAtUtc != null, ct))
             ModelState.AddModelError(nameof(Domain), L["This domain is already used by another status page."]);
         if (!ModelState.IsValid) return Page();
 
@@ -46,12 +47,9 @@ public class DomainModel(AppDbContext db, ICurrentCustomer current, ICustomDomai
             StatusPage.CustomDomain = domain;
             StatusPage.CustomDomainToken = StatusPageRules.NewVerificationToken();
             StatusPage.CustomDomainVerifiedAtUtc = null;
-            try { await db.SaveChangesAsync(ct); }
-            catch (DbUpdateException)
-            {
-                ModelState.AddModelError(nameof(Domain), L["This domain is already used by another status page."]);
-                return Page();
-            }
+            StatusPage.CustomDomainCheckedAtUtc = null;
+            StatusPage.CustomDomainFailures = 0;
+            await db.SaveChangesAsync(ct);
             await StatusPageSetup.EvictAsync(HttpContext.RequestServices, ct);
         }
         TempData["Success"] = L["Domain saved. Publish the TXT record below, then verify."].Value;
@@ -64,8 +62,12 @@ public class DomainModel(AppDbContext db, ICurrentCustomer current, ICustomDomai
         if (!PlanAllows || StatusPage.CustomDomain is null || StatusPage.CustomDomainToken is null) return RedirectToPage(new { id });
         if (await verifier.VerifyAsync(StatusPage.CustomDomain, StatusPage.CustomDomainToken, ct))
         {
+            // Whoever proves control of the domain owns it; other (unverified or stale) claims are dropped.
             StatusPage.CustomDomainVerifiedAtUtc = time.GetUtcNow().UtcDateTime;
+            StatusPage.CustomDomainCheckedAtUtc = StatusPage.CustomDomainVerifiedAtUtc;
+            StatusPage.CustomDomainFailures = 0;
             await db.SaveChangesAsync(ct);
+            await StatusPageRules.ReleaseOtherClaimsAsync(db, id, StatusPage.CustomDomain, ct);
             await StatusPageSetup.EvictAsync(HttpContext.RequestServices, ct);
             TempData["Success"] = L["The domain {0} is verified.", StatusPage.CustomDomain].Value;
         }

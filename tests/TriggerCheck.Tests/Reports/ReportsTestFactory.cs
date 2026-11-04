@@ -2,7 +2,9 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Time.Testing;
+using TriggerCheck.Web.Infrastructure;
 using TriggerCheck.Tests.Infrastructure;
 
 namespace TriggerCheck.Tests.Reports;
@@ -30,6 +32,13 @@ public class ReportsTestFactory : TestWebAppFactory
         {
             s.RemoveAll<TimeProvider>();
             s.AddSingleton<TimeProvider>(Time);
+            // No delivery: the outbox keeps the bodies (the sender clears them once sent), so tests read them there.
+            foreach (var d in s.Where(d => d.ServiceType == typeof(IHostedService) && d.ImplementationType == typeof(AppEmailSenderService)).ToList())
+                s.Remove(d);
+            ConfigureServices(s);
         });
     }
+
+    /// <summary>Extra test service replacements of derived factories.</summary>
+    protected virtual void ConfigureServices(IServiceCollection services) { }
 }

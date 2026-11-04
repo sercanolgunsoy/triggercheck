@@ -1,8 +1,10 @@
 using System.Globalization;
 using System.Net.Mail;
 using System.Security.Cryptography;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Web.Infrastructure;
@@ -14,17 +16,21 @@ namespace TriggerCheck.Web.StatusPages;
 /// E-mail subscriptions of status pages (FEAT-4): double opt-in and one-click unsubscribe. Links carry the subscriber
 /// id protected with ASP.NET Core Data Protection (authenticated encryption; the confirmation link expires with the
 /// unconfirmed row after <see cref="UnconfirmedDays"/> days). Subscribing never reveals whether an address is already
-/// subscribed: every request gets the same answer, and repeated requests do not re-send within
-/// <see cref="ResendAfter"/>.
+/// subscribed: every request gets the same answer.
+/// Spam guards for confirmation e-mails (they go to unconfirmed addresses): at most one per address and page per
+/// <see cref="ResendAfter"/>, <see cref="StatusPageOptions.ConfirmationsPerAddressPerDay"/> per address over all pages,
+/// <see cref="StatusPageOptions.ConfirmationsPerPagePerHour"/> per page; a fixed subject, and the customer-chosen title
+/// only in the body with links defanged (<see cref="Safe"/>). Only confirmed subscribers count toward
+/// <see cref="MaxSubscribersPerPage"/>.
 /// </summary>
-public sealed class StatusPageSubscriptions(AppDbContext db, IDataProtectionProvider dataProtection, IAppEmailSender email,
-    PublicUrls urls, TimeProvider time, Text<SharedResource> L, ILogger<StatusPageSubscriptions> logger)
+public sealed partial class StatusPageSubscriptions(AppDbContext db, IDataProtectionProvider dataProtection, IAppEmailSender email,
+    PublicUrls urls, TimeProvider time, IOptionsMonitor<StatusPageOptions> options, Text<SharedResource> L, ILogger<StatusPageSubscriptions> logger)
 {
     public const string ConfirmPurpose = "StatusPageSubscription.Confirm.v1";
     public const string UnsubscribePurpose = "StatusPageSubscription.Unsubscribe.v1";
     public const int UnconfirmedDays = 2;
     public const int MaxSubscribersPerPage = 10_000;
-    public static readonly TimeSpan ResendAfter = TimeSpan.FromMinutes(15);
+    public static readonly TimeSpan ResendAfter = TimeSpan.FromHours(24);
 
     private ITimeLimitedDataProtector ConfirmProtector => dataProtection.CreateProtector(ConfirmPurpose).ToTimeLimitedDataProtector();
     private IDataProtector UnsubscribeProtector => dataProtection.CreateProtector(UnsubscribePurpose);
@@ -42,16 +48,29 @@ public sealed class StatusPageSubscriptions(AppDbContext db, IDataProtectionProv
         catch (FormatException) { return null; }
     }
 
-    /// <summary>Records the subscription request and sends the confirmation e-mail (when appropriate). Same outcome for every case.</summary>
+    /// <summary>Records the subscription request and sends the confirmation e-mail (when allowed). Same outcome for every case.</summary>
     public async Task SubscribeAsync(int pageId, string slug, string title, string normalizedEmail, string baseUrl, CancellationToken ct)
     {
+        var o = options.CurrentValue;
         var now = time.GetUtcNow().UtcDateTime;
         var sub = await db.StatusPageSubscribers.FirstOrDefaultAsync(s => s.StatusPageId == pageId && s.Email == normalizedEmail, ct);
         if (sub is { ConfirmedAtUtc: not null }) return;
         if (sub is not null && sub.ConfirmationSentAtUtc > now - ResendAfter) return;
+        if (await db.StatusPageSubscribers.CountAsync(s => s.Email == normalizedEmail && s.ConfirmationSentAtUtc > now.AddDays(-1), ct)
+            >= Math.Max(1, o.ConfirmationsPerAddressPerDay))
+        {
+            logger.LogInformation("Confirmation e-mail limit per address reached; subscription request ignored.");
+            return;
+        }
+        if (await db.StatusPageSubscribers.CountAsync(s => s.StatusPageId == pageId && s.ConfirmationSentAtUtc > now.AddHours(-1), ct)
+            >= Math.Max(1, o.ConfirmationsPerPagePerHour))
+        {
+            logger.LogWarning("Status page {PageId} reached the hourly confirmation e-mail limit; subscription request ignored.", pageId);
+            return;
+        }
         if (sub is null)
         {
-            if (await db.StatusPageSubscribers.CountAsync(s => s.StatusPageId == pageId, ct) >= MaxSubscribersPerPage)
+            if (await db.StatusPageSubscribers.CountAsync(s => s.StatusPageId == pageId && s.ConfirmedAtUtc != null, ct) >= MaxSubscribersPerPage)
             {
                 logger.LogWarning("Status page {PageId} reached the subscriber limit; subscription request ignored.", pageId);
                 return;
@@ -64,11 +83,28 @@ public sealed class StatusPageSubscriptions(AppDbContext db, IDataProtectionProv
         catch (DbUpdateException) { return; } // a parallel request for the same address won
 
         var link = $"{baseUrl}/status/{slug}/confirm?token={Uri.EscapeDataString(ConfirmToken(sub.Id))}";
-        await email.SendAsync(sub.Email, L["Confirm your subscription to {0}", Subject(title)],
+        await email.SendAsync(sub.Email, L["Confirm your status page subscription"],
             string.Join("\n\n",
-                L["Someone (hopefully you) asked to receive e-mail updates from the status page \"{0}\".", title],
+                L["Someone (hopefully you) asked to receive e-mail updates from the status page \"{0}\".", Safe(title)],
                 L["Confirm the subscription by opening this link (valid for {0} days):", UnconfirmedDays] + "\n" + link,
                 L["If you did not ask for this, ignore this e-mail; you will not receive any updates."]), ct);
+    }
+
+    [GeneratedRegex(@"[a-z][a-z0-9+.-]*://\S*", RegexOptions.IgnoreCase)]
+    private static partial Regex UrlRx();
+
+    [GeneratedRegex(@"(?<=[\w-])\.(?=[A-Za-z][A-Za-z0-9-]*\b)")]
+    private static partial Regex DomainDotRx();
+
+    /// <summary>
+    /// Customer-chosen text for e-mails: one line, no control characters, at most 150 characters, URLs removed and
+    /// host-like words defanged ("example.com" → "example[.]com") so mail clients do not turn them into links.
+    /// </summary>
+    public static string Safe(string text)
+    {
+        var s = new string(text.Where(c => !char.IsControl(c)).ToArray());
+        s = DomainDotRx().Replace(UrlRx().Replace(s, ""), "[.]").Trim();
+        return s.Length > 150 ? s[..150] : s;
     }
 
     /// <summary>Wall-clock expiry on purpose: the time-limited protector checks it against the system clock, not a TimeProvider.</summary>
@@ -115,6 +151,4 @@ public sealed class StatusPageSubscriptions(AppDbContext db, IDataProtectionProv
     public string BaseUrl(HttpRequest? request) =>
         urls.BaseUrl ?? (request is null ? "" : $"{request.Scheme}://{request.Host}{request.PathBase}");
 
-    /// <summary>One line, no control characters (e-mail subject).</summary>
-    public static string Subject(string text) => new(text.Where(c => !char.IsControl(c)).Take(150).ToArray());
 }

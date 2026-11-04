@@ -12,6 +12,8 @@ public static class ReportingSetup
     {
         services.Configure<ReportOptions>(config.GetSection(ReportOptions.Section));
         services.AddScoped<SlaReportService>();
+        services.AddScoped<SlaReportCache>();
+        services.AddMemoryCache();
         services.AddScoped<SlaReportPdf>();
         services.AddSingleton<ReportLinks>();
         services.AddScoped<MonthlyReportMailer>();
@@ -28,14 +30,14 @@ public static class ReportingSetup
     /// </summary>
     public static void MapReportEndpoints(this IEndpointRouteBuilder app) =>
         app.MapGet(ReportLinks.DownloadPath, async (string? token, HttpContext http, ReportLinks links, AppDbContext db,
-            SlaReportService reports, SlaReportPdf pdf) =>
+            SlaReportCache reports, SlaReportPdf pdf) =>
         {
             http.Response.Headers.CacheControl = "no-store";
             http.Response.Headers["Referrer-Policy"] = "no-referrer";
             if (!links.TryRead(token, out var t)) return Results.NotFound();
             if (!await db.Customers.AnyAsync(c => c.Id == t!.CustomerId && c.IsActive, http.RequestAborted)) return Results.NotFound();
-            var report = await reports.BuildAsync(t!.CustomerId, t.Year, t.Month, t.TimeZoneId, http.RequestAborted);
+            var report = await reports.GetAsync(t!.CustomerId, t.Year, t.Month, t.TimeZoneId, http.RequestAborted);
             if (report is null) return Results.NotFound();
             return Results.File(pdf.Render(report), "application/pdf", FileName(report.MonthKey, "pdf"));
-        }).AllowAnonymous().RequireRateLimiting(StatusPageSetup.ViewPolicy).ExcludeFromDescription();
+        }).AllowAnonymous().RequireRateLimiting(StatusPageSetup.ReportDownloadPolicy).ExcludeFromDescription();
 }

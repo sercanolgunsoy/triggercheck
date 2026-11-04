@@ -237,7 +237,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
             e.Property(x => x.Announcement).HasMaxLength(2000);
             e.Property(x => x.TimeZoneId).HasMaxLength(100).IsRequired();
             e.Property(x => x.CustomDomain).HasMaxLength(253);
-            e.HasIndex(x => x.CustomDomain).IsUnique(); // NULLs do not collide
+            e.HasIndex(x => x.CustomDomain); // unverified claims may repeat; only one verified page per domain (app rule)
             e.Property(x => x.CustomDomainToken).HasMaxLength(64);
             e.HasIndex(x => x.CustomerId);
             e.HasMany(x => x.Monitors).WithOne(m => m.StatusPage).HasForeignKey(m => m.StatusPageId).OnDelete(DeleteBehavior.Cascade);
@@ -272,6 +272,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
             e.Property(x => x.Key).HasMaxLength(100).IsRequired();
             e.HasIndex(x => new { x.StatusPageId, x.Key }).IsUnique();
             e.HasIndex(x => x.CreatedAtUtc);
+            e.HasIndex(x => new { x.StatusPageId, x.MonitorId, x.CreatedAtUtc });
         });
 
         // FEAT-10: one monthly report e-mail per customer and month.
