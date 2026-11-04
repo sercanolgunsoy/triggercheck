@@ -19,6 +19,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
     public DbSet<MaintenanceWindow> MaintenanceWindows => Set<MaintenanceWindow>();
     public DbSet<EscalationPolicy> EscalationPolicies => Set<EscalationPolicy>();
     public DbSet<EscalationStep> EscalationSteps => Set<EscalationStep>();
+    public DbSet<ApiKey> ApiKeys => Set<ApiKey>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -112,6 +113,18 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
         b.Entity<Notification>(e =>
         {
             e.HasIndex(x => new { x.MonitorId, x.SentAtUtc });
+        });
+
+        b.Entity<ApiKey>(e =>
+        {
+            e.HasOne(x => x.Customer).WithMany().HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Cascade);
+            e.Property(x => x.Name).HasMaxLength(100).IsRequired();
+            e.Property(x => x.Prefix).HasMaxLength(32).IsRequired();
+            e.HasIndex(x => x.Prefix).IsUnique();
+            e.Property(x => x.SecretHash).HasMaxLength(64).IsRequired();
+            e.Property(x => x.CreatedBy).HasMaxLength(256);
+            e.HasIndex(x => x.CustomerId);
+            e.Ignore(x => x.IsRevoked);
         });
     }
 }
