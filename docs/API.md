@@ -89,6 +89,27 @@ Errors use [RFC 7807](https://www.rfc-editor.org/rfc/rfc7807) `application/probl
 | GET | `/incidents?status=open\|resolved&monitorId&limit` | read | Incidents, newest first. `limit` 100 (max 500) |
 | POST | `/incidents/{id}/acknowledge` | read-write | Acknowledges an open incident (stops further escalation steps; the monitor status is not changed). Optional body `{ "note": "..." }` (max 500 chars). 409 if already acknowledged or resolved |
 | GET | `/status` | read | Counts by status, open incidents, 24 h uptime, plan limits |
+| GET | `/status-pages` | read | The customer's public status pages (FEAT-4) |
+| GET | `/status-pages/{id}` | read | One status page |
+| POST | `/status-pages` | write | Create (`201` + `Location`); `409` when the plan's status page limit is reached or the address / domain was taken concurrently |
+| PUT | `/status-pages/{id}` | write | Replace (omitted fields get their defaults; an omitted `customDomain` removes it) |
+| DELETE | `/status-pages/{id}` | write | Delete with its subscribers and notes (`204`) |
+
+### Status page body (POST / PUT)
+
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| `title` | string | (required) | max 100, plain text |
+| `slug` | string | (required) | public address `/status/{slug}`: 3-50 lower-case letters, digits and inner hyphens, unique, some words reserved |
+| `announcement` | string | | optional plain text shown at the top, max 2000 |
+| `visibility` | `Public` \| `Unlisted` | `Public` | unlisted pages are served with `noindex` |
+| `timeZoneId` | string | `UTC` | IANA zone for times and daily uptime bars |
+| `monitors` | `[{ "monitorId": 1, "displayName": "Website" }]` | (at least one) | the customer's own monitors, shown only under `displayName` (max 100) |
+| `customDomain` | string | | Pro / Enterprise only, e.g. `status.example.com`. A new or changed domain is unverified; the response's `customDomainVerificationRecord` is the TXT record to publish, verification is done in the panel |
+
+Responses add `id`, `url`, `customDomainVerified` and `createdAtUtc`. Incident notes and subscribers are managed in
+the panel. The public page itself is anonymous: `/status/{slug}` (HTML), `/status/{slug}.json`, `/status/{slug}/feed`
+(Atom).
 
 Monitors include `inMaintenance` (an active maintenance window covers the monitor), checks include `inMaintenance`
 (not counted in uptime), and incidents include `acknowledgedAtUtc`, `acknowledgeNote`, `escalationLevel` and
@@ -116,6 +137,7 @@ rejected (SSRF protection), type-specific fields.
 | `gracePeriodSeconds` | int | 60 | Heartbeat: 10-86400, extra time for a late ping |
 | `timeoutSeconds` | int | 10 | 1-60, below the interval (not used by Heartbeat) |
 | `failureThreshold` | int | 2 | 1-5; always 1 for Heartbeat (the grace period is the tolerance) |
+| `slaTarget` | number | | optional SLA target in percent (0-100, e.g. `99.9`) for the monthly SLA report |
 
 Responses contain these fields plus `id`, `status` (`Unknown`/`Up`/`Down`/`Paused`), `isPaused`, `lastCheckedAtUtc`,
 `nextCheckAtUtc`, `lastResponseTimeMs`, `lastError`, `statusChangedAtUtc`, `createdAtUtc` (UTC, ISO 8601). Heartbeat

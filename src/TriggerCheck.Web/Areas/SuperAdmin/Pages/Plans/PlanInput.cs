@@ -42,6 +42,12 @@ public class PlanInput
     [StringLength(100, ErrorMessage = "At most {1} characters."), RegularExpression(@"^[A-Za-z0-9\-_]*$", ErrorMessage = "Only letters, digits, - and _ are allowed.")]
     [Display(Name = "iyzico pricing plan reference code (monthly)")] public string? IyzicoPricingPlanReferenceCode { get; set; }
 
+    // ---- status pages (FEAT-4) ----
+    [Range(0, 100_000, ErrorMessage = "The status page limit must be 0 or greater.")]
+    [Display(Name = "Status pages (empty = unlimited)")] public int? MaxStatusPages { get; set; } = 1;
+
+    [Display(Name = "Status pages on custom domains")] public bool AllowsStatusPageCustomDomain { get; set; }
+
     // ---- AI (AI-10) ----
     [Required(ErrorMessage = "AI call limit is required."), Range(0, 10_000_000, ErrorMessage = "The AI call limit must be 0 or greater.")]
     [Display(Name = "AI calls per month")] public int? AiMonthlyCallLimit { get; set; } = 0;
@@ -59,6 +65,7 @@ public class PlanInput
         AllowsSmsVoice = p.AllowsSmsVoice, AllowsSelfSignup = p.AllowsSelfSignup,
         IyzicoProductReferenceCode = p.IyzicoProductReferenceCode, IyzicoPricingPlanReferenceCode = p.IyzicoPricingPlanReferenceCode,
         AiMonthlyCallLimit = p.AiMonthlyCallLimit, AiMonthlyTokenLimit = p.AiMonthlyTokenLimit,
+        MaxStatusPages = p.MaxStatusPages, AllowsStatusPageCustomDomain = p.AllowsStatusPageCustomDomain,
         AiFeatures = Domain.AiFeatures.Parse(p.AiFeatures).ToList()
     };
 
@@ -77,6 +84,8 @@ public class PlanInput
         p.AiMonthlyCallLimit = AiMonthlyCallLimit!.Value;
         p.AiMonthlyTokenLimit = AiMonthlyTokenLimit!.Value;
         p.AiFeatures = Domain.AiFeatures.Format(AiFeatures);
+        p.MaxStatusPages = MaxStatusPages;
+        p.AllowsStatusPageCustomDomain = AllowsStatusPageCustomDomain;
     }
 
     /// <summary>Rules that DataAnnotations can't express: supported interval and unique name (case-insensitive).</summary>

@@ -1,0 +1,11 @@
+@page "/status/{slug}/confirm"
+@model TriggerCheck.Web.Pages.Status.ConfirmModel
+@{
+    Layout = "_StatusLayout";
+    ViewData["Title"] = Model.Ref.Title;
+    ViewData["NoIndex"] = true;
+    ViewData["Heading"] = L["Confirm your subscription"].Value;
+    ViewData["Button"] = L["Confirm subscription"].Value;
+    ViewData["DoneText"] = L["Your subscription is confirmed. You will receive an e-mail about incidents and maintenance."].Value;
+}
+<partial name="_SubscriptionLink" model="Model" />

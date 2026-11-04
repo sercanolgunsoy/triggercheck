@@ -1,0 +1,52 @@
+@page "{id:int}"
+@model TriggerCheck.Web.Areas.App.Pages.StatusPages.DomainModel
+@using TriggerCheck.Web.StatusPages
+@{
+    ViewData["Title"] = L["Custom domain"].Value;
+    var p = Model.StatusPage;
+}
+
+<nav aria-label="breadcrumb"><ol class="breadcrumb">
+    <li class="breadcrumb-item"><a asp-page="Index">@L["Status pages"]</a></li>
+    <li class="breadcrumb-item active">@p.Title</li>
+</ol></nav>
+
+<h2 class="mb-3">@L["Custom domain"]</h2>
+@if (!Model.PlanAllows)
+{
+    <div class="alert alert-warning" id="domain-plan">@L["Custom domains are available on the Pro and Enterprise plans."]</div>
+}
+<div class="card mb-3"><div class="card-body">
+    <form method="post" asp-page-handler="Save" asp-route-id="@p.Id">
+        <label asp-for="Domain" class="form-label">@L["Domain"]</label>
+        <div class="input-group" style="max-width: 520px">
+            <input asp-for="Domain" class="form-control" placeholder="status.example.com" maxlength="@StatusPageRules.MaxDomainLength" disabled="@(!Model.PlanAllows)" />
+            <button type="submit" class="btn btn-primary" disabled="@(!Model.PlanAllows)">@L["Save"]</button>
+        </div>
+        <span asp-validation-for="Domain" class="text-danger small"></span>
+    </form>
+</div></div>
+
+@if (p.CustomDomain is not null && p.CustomDomainToken is not null)
+{
+    <div class="card mb-3"><div class="card-body">
+        <p class="mb-2">@L["Status:"]
+            @if (p.CustomDomainVerifiedAtUtc is not null) { <span class="badge bg-success" id="domain-verified">@L["Verified"]</span> }
+            else { <span class="badge bg-secondary" id="domain-unverified">@L["Not verified"]</span> }
+        </p>
+        <ol class="small">
+            <li>@L["Create a CNAME record for {0} pointing to this app's host name.", p.CustomDomain]</li>
+            <li>@L["Create a TXT record to prove that you control the domain:"]
+                <div class="font-monospace border rounded p-2 my-1">@StatusPageRules.VerificationRecordName(p.CustomDomain) TXT "@StatusPageRules.VerificationRecordValue(p.CustomDomainToken)"</div>
+            </li>
+            <li>@L["Verify. The page is served on the domain only after a successful verification."]</li>
+        </ol>
+        <div class="d-flex gap-2">
+            @if (Model.PlanAllows)
+            {
+                <form method="post" asp-page-handler="Verify" asp-route-id="@p.Id"><button type="submit" class="btn btn-outline-primary">@L["Verify"]</button></form>
+            }
+            <form method="post" asp-page-handler="Remove" asp-route-id="@p.Id" data-confirm="@L["Remove the custom domain?"]"><button type="submit" class="btn btn-outline-danger">@L["Remove"]</button></form>
+        </div>
+    </div></div>
+}

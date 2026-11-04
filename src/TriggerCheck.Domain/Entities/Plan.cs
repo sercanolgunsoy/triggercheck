@@ -29,5 +29,11 @@ public class Plan
     /// <summary>Maximum AI tokens (input + output) per customer per calendar month (UTC). 0 = no limit besides the call limit.</summary>
     public long AiMonthlyTokenLimit { get; set; }
 
+    // ---- public status pages (FEAT-4) ----
+    /// <summary>Status pages a customer on this plan may create; null = unlimited.</summary>
+    public int? MaxStatusPages { get; set; } = 1;
+    /// <summary>Status pages may be served on the customer's own (verified) domain.</summary>
+    public bool AllowsStatusPageCustomDomain { get; set; }
+
     public ICollection<Customer> Customers { get; set; } = new List<Customer>();
 }

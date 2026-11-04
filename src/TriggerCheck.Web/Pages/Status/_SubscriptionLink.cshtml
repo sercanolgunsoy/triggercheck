@@ -1,0 +1,19 @@
+@model TriggerCheck.Web.Pages.Status.SubscriptionLinkModel
+@* Shared body of the confirm / unsubscribe pages. ViewData: "Heading", "Button", "DoneText". *@
+<p><a href="@(Model.Base.Length == 0 ? "/" : Model.Base)">← @Model.Ref.Title</a></p>
+<h1 class="h4">@ViewData["Heading"]</h1>
+@if (Model.Done)
+{
+    <div class="alert alert-success" id="link-done">@ViewData["DoneText"]</div>
+}
+else if (!Model.Valid)
+{
+    <div class="alert alert-warning" id="link-invalid">@L["This link is invalid or has expired."]</div>
+}
+else
+{
+    <form method="post">
+        <input type="hidden" name="Token" value="@Model.Token" />
+        <button type="submit" class="btn btn-primary">@ViewData["Button"]</button>
+    </form>
+}

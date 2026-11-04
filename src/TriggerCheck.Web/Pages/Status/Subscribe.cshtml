@@ -1,0 +1,24 @@
+@page "/status/{slug}/subscribe"
+@model TriggerCheck.Web.Pages.Status.SubscribeModel
+@{
+    Layout = "_StatusLayout";
+    ViewData["Title"] = Model.Ref.Title;
+    ViewData["NoIndex"] = true;
+}
+<p><a href="@(Model.Base.Length == 0 ? "/" : Model.Base)">← @Model.Ref.Title</a></p>
+<h1 class="h4">@L["Subscribe to updates"]</h1>
+@if (Model.Sent)
+{
+    <div class="alert alert-success" id="subscribe-sent">@L["Thank you. If this address is not subscribed yet, we have sent it an e-mail with a confirmation link."]</div>
+}
+else
+{
+    <p class="text-muted">@L["Get an e-mail when an incident starts or is resolved and when planned maintenance starts. You can unsubscribe at any time."]</p>
+    <form method="post" class="card card-body" style="max-width: 480px">
+        <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+        <label asp-for="Email" class="form-label"></label>
+        <input asp-for="Email" type="email" class="form-control" autocomplete="email" maxlength="256" required />
+        <span asp-validation-for="Email" class="text-danger small"></span>
+        <button type="submit" class="btn btn-primary mt-3">@L["Subscribe"]</button>
+    </form>
+}

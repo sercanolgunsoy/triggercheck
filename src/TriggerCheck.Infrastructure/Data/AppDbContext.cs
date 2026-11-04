@@ -27,6 +27,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
     public DbSet<EscalationPolicy> EscalationPolicies => Set<EscalationPolicy>();
     public DbSet<EscalationStep> EscalationSteps => Set<EscalationStep>();
     public DbSet<ApiKey> ApiKeys => Set<ApiKey>();
+    public DbSet<StatusPage> StatusPages => Set<StatusPage>();
+    public DbSet<StatusPageMonitor> StatusPageMonitors => Set<StatusPageMonitor>();
+    public DbSet<StatusPageSubscriber> StatusPageSubscribers => Set<StatusPageSubscriber>();
+    public DbSet<StatusPageNote> StatusPageNotes => Set<StatusPageNote>();
+    public DbSet<StatusPageEvent> StatusPageEvents => Set<StatusPageEvent>();
+    public DbSet<MonthlyReportDelivery> MonthlyReportDeliveries => Set<MonthlyReportDelivery>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -47,6 +53,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
             e.Property(x => x.Name).HasMaxLength(200).IsRequired();
             e.Property(x => x.ContactEmail).HasMaxLength(256);
             e.Property(x => x.TrialKey).HasMaxLength(256);
+            e.Property(x => x.ReportTimeZoneId).HasMaxLength(100);
             e.Property(x => x.AiLanguage).HasMaxLength(8);
             e.HasIndex(x => x.TrialKey);
             e.HasOne(x => x.Plan).WithMany(p => p.Customers).HasForeignKey(x => x.PlanId).OnDelete(DeleteBehavior.Restrict);
@@ -218,6 +225,62 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
             e.HasIndex(x => new { x.MonitorId, x.EndedAtUtc });
             e.HasIndex(x => new { x.CustomerId, x.StartedAtUtc });
             e.Ignore(x => x.IsOpen);
+        });
+
+        // FEAT-4: public status pages. Slug and custom domain are unique across all customers.
+        b.Entity<StatusPage>(e =>
+        {
+            e.HasOne(x => x.Customer).WithMany().HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Cascade);
+            e.Property(x => x.Title).HasMaxLength(100).IsRequired();
+            e.Property(x => x.Slug).HasMaxLength(50).IsRequired();
+            e.HasIndex(x => x.Slug).IsUnique();
+            e.Property(x => x.Announcement).HasMaxLength(2000);
+            e.Property(x => x.TimeZoneId).HasMaxLength(100).IsRequired();
+            e.Property(x => x.CustomDomain).HasMaxLength(253);
+            e.HasIndex(x => x.CustomDomain); // unverified claims may repeat; only one verified page per domain (app rule)
+            e.Property(x => x.CustomDomainToken).HasMaxLength(64);
+            e.HasIndex(x => x.CustomerId);
+            e.HasMany(x => x.Monitors).WithOne(m => m.StatusPage).HasForeignKey(m => m.StatusPageId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<StatusPageMonitor>(e =>
+        {
+            e.HasOne(x => x.Monitor).WithMany().HasForeignKey(x => x.MonitorId).OnDelete(DeleteBehavior.Cascade);
+            e.Property(x => x.DisplayName).HasMaxLength(100).IsRequired();
+            e.HasIndex(x => new { x.StatusPageId, x.MonitorId }).IsUnique();
+        });
+
+        b.Entity<StatusPageSubscriber>(e =>
+        {
+            e.HasOne(x => x.StatusPage).WithMany().HasForeignKey(x => x.StatusPageId).OnDelete(DeleteBehavior.Cascade);
+            e.Property(x => x.Email).HasMaxLength(256).IsRequired();
+            e.HasIndex(x => new { x.StatusPageId, x.Email }).IsUnique();
+            e.HasIndex(x => new { x.ConfirmedAtUtc, x.CreatedAtUtc });
+        });
+
+        b.Entity<StatusPageNote>(e =>
+        {
+            e.HasOne(x => x.StatusPage).WithMany().HasForeignKey(x => x.StatusPageId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Incident).WithMany().HasForeignKey(x => x.IncidentId).OnDelete(DeleteBehavior.Cascade);
+            e.Property(x => x.Body).HasMaxLength(1000).IsRequired();
+            e.HasIndex(x => new { x.StatusPageId, x.IncidentId });
+        });
+
+        b.Entity<StatusPageEvent>(e =>
+        {
+            e.HasOne<StatusPage>().WithMany().HasForeignKey(x => x.StatusPageId).OnDelete(DeleteBehavior.Cascade);
+            e.Property(x => x.Key).HasMaxLength(100).IsRequired();
+            e.HasIndex(x => new { x.StatusPageId, x.Key }).IsUnique();
+            e.HasIndex(x => x.CreatedAtUtc);
+            e.HasIndex(x => new { x.StatusPageId, x.MonitorId, x.CreatedAtUtc });
+        });
+
+        // FEAT-10: one monthly report e-mail per customer and month.
+        b.Entity<MonthlyReportDelivery>(e =>
+        {
+            e.HasOne<Customer>().WithMany().HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Cascade);
+            e.Property(x => x.Month).HasMaxLength(7).IsRequired();
+            e.HasIndex(x => new { x.CustomerId, x.Month }).IsUnique();
         });
 
         b.Entity<ApiKey>(e =>

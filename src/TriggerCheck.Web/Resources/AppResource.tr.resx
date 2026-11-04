@@ -1441,6 +1441,309 @@
   <data name="You have several unfinished checkouts. Complete one of them or try again in an hour." xml:space="preserve">
     <value>Tamamlanmamış birkaç ödeme işleminiz var. Bunlardan birini tamamlayın veya bir saat sonra tekrar deneyin.</value>
   </data>
+  <data name="The SLA target must be between 0 and 100." xml:space="preserve">
+    <value>SLA hedefi 0 ile 100 arasında olmalıdır.</value>
+  </data>
+  <data name="SLA target (%)" xml:space="preserve">
+    <value>SLA hedefi (%)</value>
+  </data>
+  <data name="Optional. The monthly SLA report shows whether the uptime met it." xml:space="preserve">
+    <value>İsteğe bağlı. Aylık SLA raporu çalışma oranının bu hedefi tutup tutmadığını gösterir.</value>
+  </data>
+  <data name="Edit status page" xml:space="preserve">
+    <value>Durum sayfasını düzenle</value>
+  </data>
+  <data name="Status pages" xml:space="preserve">
+    <value>Durum sayfaları</value>
+  </data>
+  <data name="This address is already taken." xml:space="preserve">
+    <value>Bu adres zaten kullanılıyor.</value>
+  </data>
+  <data name="Status page &quot;{0}&quot; was created." xml:space="preserve">
+    <value>"{0}" durum sayfası oluşturuldu.</value>
+  </data>
+  <data name="You have reached the status page limit of your plan ({0}). Upgrade your plan to add another one." xml:space="preserve">
+    <value>Planınızın durum sayfası sınırına ulaştınız ({0}). Yeni bir tane eklemek için planınızı yükseltin.</value>
+  </data>
+  <data name="Status page &quot;{0}&quot; was updated." xml:space="preserve">
+    <value>"{0}" durum sayfası güncellendi.</value>
+  </data>
+  <data name="e.g. Acme status" xml:space="preserve">
+    <value>örn. Acme durum</value>
+  </data>
+  <data name="Lower-case letters, digits and hyphens." xml:space="preserve">
+    <value>Küçük harfler, rakamlar ve tire.</value>
+  </data>
+  <data name="Optional plain-text message shown at the top of the page." xml:space="preserve">
+    <value>Sayfanın üstünde gösterilen isteğe bağlı düz metin mesaj.</value>
+  </data>
+  <data name="Public (search engines may index it)" xml:space="preserve">
+    <value>Herkese açık (arama motorları dizine ekleyebilir)</value>
+  </data>
+  <data name="Unlisted (only people with the address)" xml:space="preserve">
+    <value>Liste dışı (yalnızca adresi bilenler)</value>
+  </data>
+  <data name="Only selected monitors are shown, under the public name you enter. Visitors never see the monitor's own name, target or error details." xml:space="preserve">
+    <value>Yalnızca seçilen monitörler, girdiğiniz herkese açık adla gösterilir. Ziyaretçiler monitörün kendi adını, hedefini veya hata ayrıntılarını asla görmez.</value>
+  </data>
+  <data name="Public name" xml:space="preserve">
+    <value>Herkese açık ad</value>
+  </data>
+  <data name="The title contains invalid characters." xml:space="preserve">
+    <value>Başlık geçersiz karakterler içeriyor.</value>
+  </data>
+  <data name="The announcement contains invalid characters." xml:space="preserve">
+    <value>Duyuru geçersiz karakterler içeriyor.</value>
+  </data>
+  <data name="Invalid visibility." xml:space="preserve">
+    <value>Geçersiz görünürlük.</value>
+  </data>
+  <data name="Unknown time zone." xml:space="preserve">
+    <value>Bilinmeyen saat dilimi.</value>
+  </data>
+  <data name="Use 3-50 lower-case letters, digits and hyphens (not at the start or end). Some words are reserved." xml:space="preserve">
+    <value>3-50 küçük harf, rakam ve tire kullanın (başta veya sonda tire olmadan). Bazı kelimeler ayrılmıştır.</value>
+  </data>
+  <data name="Select at least one monitor." xml:space="preserve">
+    <value>En az bir monitör seçin.</value>
+  </data>
+  <data name="A status page can show at most {0} monitors." xml:space="preserve">
+    <value>Bir durum sayfası en fazla {0} monitör gösterebilir.</value>
+  </data>
+  <data name="Unknown monitor." xml:space="preserve">
+    <value>Bilinmeyen monitör.</value>
+  </data>
+  <data name="Every selected monitor needs a public display name (at most 100 characters)." xml:space="preserve">
+    <value>Seçilen her monitörün herkese açık bir adı olmalıdır (en fazla 100 karakter).</value>
+  </data>
+  <data name="Title is required." xml:space="preserve">
+    <value>Başlık zorunludur.</value>
+  </data>
+  <data name="The title can be at most 100 characters." xml:space="preserve">
+    <value>Başlık en fazla 100 karakter olabilir.</value>
+  </data>
+  <data name="The address can be at most 50 characters." xml:space="preserve">
+    <value>Adres en fazla 50 karakter olabilir.</value>
+  </data>
+  <data name="The announcement can be at most 2000 characters." xml:space="preserve">
+    <value>Duyuru en fazla 2000 karakter olabilir.</value>
+  </data>
+  <data name="Title" xml:space="preserve">
+    <value>Başlık</value>
+  </data>
+  <data name="Address" xml:space="preserve">
+    <value>Adres</value>
+  </data>
+  <data name="Announcement" xml:space="preserve">
+    <value>Duyuru</value>
+  </data>
+  <data name="Visibility" xml:space="preserve">
+    <value>Görünürlük</value>
+  </data>
+  <data name="A note must be 1-1000 characters of plain text." xml:space="preserve">
+    <value>Not 1-1000 karakter düz metin olmalıdır.</value>
+  </data>
+  <data name="An incident can have at most {0} notes." xml:space="preserve">
+    <value>Bir olayın en fazla {0} notu olabilir.</value>
+  </data>
+  <data name="The note was published." xml:space="preserve">
+    <value>Not yayımlandı.</value>
+  </data>
+  <data name="The note was deleted." xml:space="preserve">
+    <value>Not silindi.</value>
+  </data>
+  <data name="Delete status page" xml:space="preserve">
+    <value>Durum sayfasını sil</value>
+  </data>
+  <data name="Are you sure you want to delete the status page &quot;{0}&quot;? Its address stops working and all its subscribers and notes are removed." xml:space="preserve">
+    <value>"{0}" durum sayfasını silmek istediğinizden emin misiniz? Adresi çalışmayı durdurur ve tüm aboneleri ile notları silinir.</value>
+  </data>
+  <data name="New status page" xml:space="preserve">
+    <value>Yeni durum sayfası</value>
+  </data>
+  <data name="Custom domain" xml:space="preserve">
+    <value>Özel alan adı</value>
+  </data>
+  <data name="Custom domains are available on the Pro and Enterprise plans." xml:space="preserve">
+    <value>Özel alan adları Pro ve Enterprise planlarında kullanılabilir.</value>
+  </data>
+  <data name="Domain" xml:space="preserve">
+    <value>Alan adı</value>
+  </data>
+  <data name="Status:" xml:space="preserve">
+    <value>Durum:</value>
+  </data>
+  <data name="Verified" xml:space="preserve">
+    <value>Doğrulandı</value>
+  </data>
+  <data name="Not verified" xml:space="preserve">
+    <value>Doğrulanmadı</value>
+  </data>
+  <data name="Create a CNAME record for {0} pointing to this app's host name." xml:space="preserve">
+    <value>{0} için bu uygulamanın sunucu adını gösteren bir CNAME kaydı oluşturun.</value>
+  </data>
+  <data name="Create a TXT record to prove that you control the domain:" xml:space="preserve">
+    <value>Alan adını kontrol ettiğinizi kanıtlamak için bir TXT kaydı oluşturun:</value>
+  </data>
+  <data name="Verify. The page is served on the domain only after a successful verification." xml:space="preserve">
+    <value>Doğrulayın. Sayfa bu alan adında yalnızca başarılı bir doğrulamadan sonra yayınlanır.</value>
+  </data>
+  <data name="Verify" xml:space="preserve">
+    <value>Doğrula</value>
+  </data>
+  <data name="Remove the custom domain?" xml:space="preserve">
+    <value>Özel alan adı kaldırılsın mı?</value>
+  </data>
+  <data name="Remove" xml:space="preserve">
+    <value>Kaldır</value>
+  </data>
+  <data name="Enter a host name such as status.example.com." xml:space="preserve">
+    <value>status.example.com gibi bir sunucu adı girin.</value>
+  </data>
+  <data name="This domain is already used by another status page." xml:space="preserve">
+    <value>Bu alan adı başka bir durum sayfası tarafından kullanılıyor.</value>
+  </data>
+  <data name="Domain saved. Publish the TXT record below, then verify." xml:space="preserve">
+    <value>Alan adı kaydedildi. Aşağıdaki TXT kaydını yayınlayın, sonra doğrulayın.</value>
+  </data>
+  <data name="The domain {0} is verified." xml:space="preserve">
+    <value>{0} alan adı doğrulandı.</value>
+  </data>
+  <data name="The TXT record was not found yet. DNS changes can take a while; try again later." xml:space="preserve">
+    <value>TXT kaydı henüz bulunamadı. DNS değişiklikleri biraz zaman alabilir; daha sonra tekrar deneyin.</value>
+  </data>
+  <data name="The custom domain was removed." xml:space="preserve">
+    <value>Özel alan adı kaldırıldı.</value>
+  </data>
+  <data name="Status page &quot;{0}&quot; was deleted." xml:space="preserve">
+    <value>"{0}" durum sayfası silindi.</value>
+  </data>
+  <data name="Incident notes" xml:space="preserve">
+    <value>Olay notları</value>
+  </data>
+  <data name="Notes are published on the status page immediately, as plain text, under the incident. Write them for your customers: they never see the monitor's target or error details." xml:space="preserve">
+    <value>Notlar durum sayfasında olayın altında hemen, düz metin olarak yayımlanır. Müşterileriniz için yazın: monitörün hedefini veya hata ayrıntılarını asla görmezler.</value>
+  </data>
+  <data name="No incidents in the last {0} days." xml:space="preserve">
+    <value>Son {0} günde olay yok.</value>
+  </data>
+  <data name="Delete this note?" xml:space="preserve">
+    <value>Bu not silinsin mi?</value>
+  </data>
+  <data name="e.g. We identified the cause and are rolling out a fix." xml:space="preserve">
+    <value>örn. Nedeni bulduk ve bir düzeltme yayınlıyoruz.</value>
+  </data>
+  <data name="Note" xml:space="preserve">
+    <value>Not</value>
+  </data>
+  <data name="Publish note" xml:space="preserve">
+    <value>Notu yayımla</value>
+  </data>
+  <data name="Public pages that show the current status, uptime and incident history of selected monitors under public names. Targets and error details are never shown." xml:space="preserve">
+    <value>Seçilen monitörlerin güncel durumunu, çalışma oranını ve olay geçmişini herkese açık adlarla gösteren sayfalar. Hedefler ve hata ayrıntıları asla gösterilmez.</value>
+  </data>
+  <data name="Your plan ({0}) allows {1} status page(s); {2} in use." xml:space="preserve">
+    <value>Planınız ({0}) {1} durum sayfasına izin veriyor; {2} kullanımda.</value>
+  </data>
+  <data name="No status pages yet." xml:space="preserve">
+    <value>Henüz durum sayfası yok.</value>
+  </data>
+  <data name="Subscribers" xml:space="preserve">
+    <value>Aboneler</value>
+  </data>
+  <data name="Public" xml:space="preserve">
+    <value>Herkese açık</value>
+  </data>
+  <data name="Unlisted" xml:space="preserve">
+    <value>Liste dışı</value>
+  </data>
+  <data name="SLA report" xml:space="preserve">
+    <value>SLA raporu</value>
+  </data>
+  <data name="Monthly uptime, downtime and response times per monitor. Maintenance windows are excluded." xml:space="preserve">
+    <value>Monitör başına aylık çalışma oranı, kesinti ve yanıt süreleri. Bakım pencereleri hariç tutulur.</value>
+  </data>
+  <data name="Month" xml:space="preserve">
+    <value>Ay</value>
+  </data>
+  <data name="Show" xml:space="preserve">
+    <value>Göster</value>
+  </data>
+  <data name="Download PDF" xml:space="preserve">
+    <value>PDF indir</value>
+  </data>
+  <data name="Download CSV" xml:space="preserve">
+    <value>CSV indir</value>
+  </data>
+  <data name="Period: {0} ({1})" xml:space="preserve">
+    <value>Dönem: {0} ({1})</value>
+  </data>
+  <data name="Month in progress" xml:space="preserve">
+    <value>Ay devam ediyor</value>
+  </data>
+  <data name="Part of this month is older than your plan's data retention; figures may be incomplete." xml:space="preserve">
+    <value>Bu ayın bir kısmı planınızın veri saklama süresinden eski; rakamlar eksik olabilir.</value>
+  </data>
+  <data name="Uptime" xml:space="preserve">
+    <value>Çalışma oranı</value>
+  </data>
+  <data name="Downtime" xml:space="preserve">
+    <value>Kesinti süresi</value>
+  </data>
+  <data name="MTTR" xml:space="preserve">
+    <value>MTTR</value>
+  </data>
+  <data name="p95 response" xml:space="preserve">
+    <value>p95 yanıt</value>
+  </data>
+  <data name="SLA met / missed" xml:space="preserve">
+    <value>SLA tutuldu / kaçırıldı</value>
+  </data>
+  <data name="No monitors in this period." xml:space="preserve">
+    <value>Bu dönemde monitör yok.</value>
+  </data>
+  <data name="SLA target" xml:space="preserve">
+    <value>SLA hedefi</value>
+  </data>
+  <data name="SLA" xml:space="preserve">
+    <value>SLA</value>
+  </data>
+  <data name="Avg response" xml:space="preserve">
+    <value>Ort. yanıt</value>
+  </data>
+  <data name="Met" xml:space="preserve">
+    <value>Tutuldu</value>
+  </data>
+  <data name="Missed" xml:space="preserve">
+    <value>Kaçırıldı</value>
+  </data>
+  <data name="Uptime excludes maintenance windows. Downtime is the time monitors had an open incident; response times are of successful checks." xml:space="preserve">
+    <value>Çalışma oranına bakım pencereleri dahil değildir. Kesinti süresi, monitörlerin açık olayının bulunduğu süredir; yanıt süreleri başarılı kontrollere aittir.</value>
+  </data>
+  <data name="Set an SLA target on a monitor's edit page to see whether it was met." xml:space="preserve">
+    <value>Tutulup tutulmadığını görmek için monitörün düzenleme sayfasında bir SLA hedefi belirleyin.</value>
+  </data>
+  <data name="Report settings" xml:space="preserve">
+    <value>Rapor ayarları</value>
+  </data>
+  <data name="Time zone of the month boundaries" xml:space="preserve">
+    <value>Ay sınırlarının saat dilimi</value>
+  </data>
+  <data name="E-mail the report to the admins on the 1st of each month" xml:space="preserve">
+    <value>Raporu her ayın 1'inde yöneticilere e-postayla gönder</value>
+  </data>
+  <data name="Time zone: {0}" xml:space="preserve">
+    <value>Saat dilimi: {0}</value>
+  </data>
+  <data name="Monthly e-mail: on" xml:space="preserve">
+    <value>Aylık e-posta: açık</value>
+  </data>
+  <data name="Monthly e-mail: off" xml:space="preserve">
+    <value>Aylık e-posta: kapalı</value>
+  </data>
+  <data name="Report settings saved." xml:space="preserve">
+    <value>Rapor ayarları kaydedildi.</value>
+  </data>
   <data name="Slowdown" xml:space="preserve">
     <value>Yavaşlama</value>
   </data>
@@ -1470,5 +1773,8 @@
   </data>
   <data name="Other monitors on the same host failed at the same time. AI summary of the related incident:" xml:space="preserve">
     <value>Aynı sunucudaki diğer monitörler de aynı anda hata verdi. İlgili olayın yapay zekâ özeti:</value>
+  </data>
+  <data name="Downtime counts from when a monitor went DOWN (after its failure threshold) until it recovered. Paused time counts as available, incidents are counted in the month they started, and closed months are cached for up to 6 hours." xml:space="preserve">
+    <value>Kesinti süresi, monitörün DOWN olduğu andan (hata eşiğinden sonra) düzelene kadar sayılır. Duraklatılan süre erişilebilir sayılır, olaylar başladıkları ayda sayılır ve kapanmış aylar 6 saate kadar önbellekte tutulur.</value>
   </data>
 </root>

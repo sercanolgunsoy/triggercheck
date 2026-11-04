@@ -11,6 +11,8 @@ using TriggerCheck.Web.Billing;
 using TriggerCheck.Web.Heartbeat;
 using TriggerCheck.Web.Infrastructure;
 using TriggerCheck.Web.Localization;
+using TriggerCheck.Web.Reporting;
+using TriggerCheck.Web.StatusPages;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -71,6 +73,9 @@ builder.Services.AddHeartbeatEndpoint(builder.Configuration); // FEAT-9: /hb/{to
 // BIZ-1/2/3: self-service sign-up, trial, iyzico subscriptions, usage meters (+ their rate limits and background job).
 builder.Services.AddBilling(builder.Configuration);
 builder.Services.AddSingleton<TriggerCheck.Web.Areas.App.Pages.Alerts.TestNotificationLimiter>();
+// FEAT-4: public status pages (output cache, rate limits, subscriber notifications); FEAT-10: monthly SLA reports.
+builder.Services.AddStatusPages(builder.Configuration);
+builder.Services.AddReporting(builder.Configuration);
 
 builder.Services.AddRazorPages(o =>
 {
@@ -95,6 +100,8 @@ if (!app.Environment.IsDevelopment() && app.Configuration.GetValue<bool>("Monito
 // Behind a reverse proxy (ForwardedHeaders:Enabled): real client IP and scheme, before anything that uses them.
 app.UseAppForwardedHeaders();
 app.UseSecurityHeaders();
+// FEAT-4: status pages on verified custom domains (host-based rewrite, before routing).
+app.UseStatusPageCustomDomains();
 
 if (!app.Environment.IsDevelopment())
 {
@@ -112,6 +119,7 @@ app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter(); // after authorization: the API limit is partitioned by the authenticated key
+app.UseOutputCache(); // public status pages only (policy on those endpoints); after the rate limiter so cached hits count too
 
 // AllowAnonymous on static assets and the health endpoints also tells SessionValidator to skip its per-request DB check there.
 app.MapStaticAssets().AllowAnonymous();
@@ -121,6 +129,8 @@ app.MapHeartbeatEndpoint();
 app.MapSetLanguage();
 app.MapBillingEndpoints();
 app.MapTriggerCheckApi();
+app.MapStatusPageEndpoints();
+app.MapReportEndpoints();
 
 await DbSeeder.SeedAsync(app.Services);
 

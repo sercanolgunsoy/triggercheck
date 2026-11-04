@@ -82,6 +82,8 @@ secret store, never in the image or in `appsettings.json`.
 | `Escalation__CheckIntervalSeconds` (30), `Escalation__AckLinkValidHours` (72) | no | How often the escalation job runs; lifetime of acknowledge links. |
 | `Monitoring__DnsResolvers__0`, `__1`, ... | no (1.1.1.1, 8.8.8.8) | Resolvers for DNS monitors, tried in order: `ip`, `ip:port` or `[ipv6]:port`. Operator configuration (not subject to the SSRF guard). |
 | `Heartbeat__PingsPerMinutePerToken` (10), `Heartbeat__PingsPerMinutePerClient` (6000), `Heartbeat__PingsPerSecondGlobal` (1000) | no | Limits of the `/hb/{token}` ping endpoint. The per-client limit is per IPv4 address / IPv6 /64 and deliberately high (many hosts behind one NAT). **Behind a reverse proxy enable ForwardedHeaders**, otherwise all pings share the proxy's address. |
+| `StatusPages__CacheSeconds` (30), `StatusPages__RequestsPerMinutePerClient` (120), `StatusPages__SubscriptionsPerHourPerClient` (10), `StatusPages__NotifyIntervalSeconds` (60, 0 = off), `StatusPages__IncidentMailIntervalMinutes` (30), `StatusPages__ConfirmationsPerAddressPerDay` (3), `StatusPages__ConfirmationsPerPagePerHour` (30), `StatusPages__DomainRecheckHours` (24), `StatusPages__DomainRecheckFailures` (3) | no | Public status pages (FEAT-4): output cache lifetime, per-client limits (IPv4 / IPv6 /64; enable ForwardedHeaders behind a proxy), subscriber notification job. See [Status pages](#public-status-pages-and-custom-domains). |
+| `Reports__JobIntervalMinutes` (60, 0 = off), `Reports__CatchUpDays` (7), `Reports__DownloadLinkDays` (30) | no | Monthly SLA report e-mail (FEAT-10): how often the job looks for due reports, how many days into a month the previous month is still sent, lifetime of the signed PDF link. |
 | `Seed__DemoData` | no | Ignored outside Development. |
 
 Acknowledge links are protected with ASP.NET Core Data Protection (purpose `IncidentAck.v1`), the same key ring as
@@ -307,6 +309,82 @@ No sandbox account was available during development. Verify these points against
   reports them.
 - [ ] End to end in the sandbox: trial > subscribe > callback, closed tab (webhook / job), renewal success, renewal
   failure > grace > downgrade, upgrade, downgrade at period end, cancel.
+
+## Public status pages and custom domains
+
+Status pages are served by the app itself at `https://<Site__PublicBaseUrl host>/status/<slug>` (plus `.json`,
+`/feed` and the subscription pages). They are anonymous, set no cookies (only the subscribe / confirm / unsubscribe
+forms carry an antiforgery cookie), are output-cached in memory for `StatusPages__CacheSeconds` per instance and are
+rate-limited per client. Subscriber e-mails (double opt-in) go through the e-mail outbox, so SMTP must be configured.
+Confirmation and unsubscribe links are signed with the Data Protection key ring in `/data` (keep it persistent).
+
+**Custom domains (Pro / Enterprise).** A customer enters a host such as `status.example.com` in the panel and
+publishes two DNS records:
+
+1. `status.example.com CNAME <your app host>` (or A/AAAA records to the reverse proxy), and
+2. `_triggercheck.status.example.com TXT "triggercheck-verification=<token>"` (shown in the panel).
+
+After *Verify* succeeds (the TXT lookup uses `Monitoring__DnsResolvers`), requests whose `Host` is that domain are
+served the page at `/` (`/index.json`, `/feed`, `/subscribe`, ... likewise); every other path, including sign-in,
+the panel and `/api`, answers 404 there. Unverified domains, domains of suspended customers and of plans without
+custom domains never serve anything. The domain list is cached for one minute per instance. Several pages may claim
+the same domain until one of them verifies it; that drops the other claims. Verified domains are checked again every
+`StatusPages__DomainRecheckHours` (24) and stop being served after `StatusPages__DomainRecheckFailures` (3)
+consecutive failed checks.
+
+**Host check.** With `Site__PublicBaseUrl` set, a request whose `Host` is neither the app's host nor a verified custom
+domain answers **404** (before routing), so a domain still pointing at the proxy after its claim was removed never
+shows the app. Exempt, for internal callers: `localhost`, IP-literal hosts, `/health*` (container / load balancer
+probes - they may use any host name) and `/status/domain-check` (the proxy's `ask` call). Without
+`Site__PublicBaseUrl` (Development only) every host reaches the app.
+
+**Notifications.** Subscribers get at most one incident e-mail per monitor and page every
+`StatusPages__IncidentMailIntervalMinutes` (30); changes in between are summarized in the next e-mail. Confirmation
+e-mails are capped per address (`StatusPages__ConfirmationsPerAddressPerDay`, 3, over all pages) and per page
+(`StatusPages__ConfirmationsPerPagePerHour`, 30) and have a fixed subject.
+
+**TLS is a deployment concern.** The app only sees the `Host` header; the reverse proxy in front of it must accept
+arbitrary customer hosts and obtain certificates on demand. With Caddy, for example:
+
+```
+{
+    on_demand_tls {
+        # Only issue certificates for verified custom domains: the app answers 200 for them, 404 otherwise.
+        ask http://triggercheck:8080/status/domain-check
+    }
+}
+app.example.com {
+    reverse_proxy triggercheck:8080
+}
+:443 {
+    tls { on_demand }
+    reverse_proxy triggercheck:8080
+}
+```
+
+`GET /status/domain-check?domain=<host>` is that `ask` endpoint (anonymous, rate-limited). Never run `on_demand`
+without it, or anyone could point a domain at the proxy and exhaust the ACME rate limits. With Traefik or nginx +
+cert-manager, issue per-host certificates (HTTP-01) for the verified domains in the same way.
+Keep `ForwardedHeaders__Enabled=true` with the proxy's address so per-client limits see real client IPs, and forward
+the original `Host` header unchanged.
+
+## SLA reports
+
+The *Reports* page computes monthly SLA figures on the fly (no stored aggregates). PDFs are rendered with PDFsharp
+(MIT, pure managed code) and the embedded Roboto font (Apache 2.0), so the runtime image needs no fonts or native
+libraries. Opted-in customers get the previous month's report on the 1st (in their report time zone) with a signed,
+expiring PDF download link (`/reports/download`, Data Protection purpose `SlaReportDownload.v1`, 10 downloads per
+client and minute). Built reports are cached in memory per (customer, month, time zone): closed months for 6 hours,
+the running month for 2 minutes.
+
+Fidelity choices (also stated on the Reports page):
+- Uptime is **time based**: downtime is the time a monitor had an open incident (from when it went DOWN, i.e. after
+  the failure threshold, until it recovered), clipped to the month and to the monitor's lifetime, minus maintenance
+  windows. It is not the share of successful checks shown elsewhere in the panel.
+- Paused periods count as available (pause history is not stored); deleted monitors disappear from past reports.
+- Incident count and MTTR use the incidents that **started** in the month (MTTR with their full duration).
+- Response times (average, nearest-rank p95) use successful checks only, without maintenance and confirmation probes.
+- Data older than the plan's retention is purged; such months are flagged as possibly incomplete.
 
 ## AI features
 

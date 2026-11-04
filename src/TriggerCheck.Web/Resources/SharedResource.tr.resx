@@ -1267,6 +1267,222 @@
   <data name="Refunds" xml:space="preserve">
     <value>İadeler</value>
   </data>
+  <data name="SLA report {0}" xml:space="preserve">
+    <value>SLA raporu {0}</value>
+  </data>
+  <data name="SLA target" xml:space="preserve">
+    <value>SLA hedefi</value>
+  </data>
+  <data name="Uptime" xml:space="preserve">
+    <value>Çalışma oranı</value>
+  </data>
+  <data name="SLA" xml:space="preserve">
+    <value>SLA</value>
+  </data>
+  <data name="Downtime" xml:space="preserve">
+    <value>Kesinti süresi</value>
+  </data>
+  <data name="MTTR" xml:space="preserve">
+    <value>MTTR</value>
+  </data>
+  <data name="Avg response" xml:space="preserve">
+    <value>Ort. yanıt</value>
+  </data>
+  <data name="p95 response" xml:space="preserve">
+    <value>p95 yanıt</value>
+  </data>
+  <data name="Period: {0} to {1} ({2})" xml:space="preserve">
+    <value>Dönem: {0} - {1} ({2})</value>
+  </data>
+  <data name="The month is not over yet: figures up to {0}." xml:space="preserve">
+    <value>Ay henüz bitmedi: rakamlar {0} itibarıyla.</value>
+  </data>
+  <data name="Part of this month is older than your plan's data retention; figures may be incomplete." xml:space="preserve">
+    <value>Bu ayın bir kısmı planınızın veri saklama süresinden eski; rakamlar eksik olabilir.</value>
+  </data>
+  <data name="SLA met / missed" xml:space="preserve">
+    <value>SLA tutuldu / kaçırıldı</value>
+  </data>
+  <data name="Met" xml:space="preserve">
+    <value>Tutuldu</value>
+  </data>
+  <data name="Missed" xml:space="preserve">
+    <value>Kaçırıldı</value>
+  </data>
+  <data name="No monitors in this period." xml:space="preserve">
+    <value>Bu dönemde monitör yok.</value>
+  </data>
+  <data name="Uptime excludes maintenance windows. Downtime is the time monitors had an open incident; response times are of successful checks." xml:space="preserve">
+    <value>Çalışma oranına bakım pencereleri dahil değildir. Kesinti süresi, monitörlerin açık olayının bulunduğu süredir; yanıt süreleri başarılı kontrollere aittir.</value>
+  </data>
+  <data name="Your TriggerCheck SLA report for {0} ({1}):" xml:space="preserve">
+    <value>{0} dönemine ait TriggerCheck SLA raporunuz ({1}):</value>
+  </data>
+  <data name="Uptime: {0}" xml:space="preserve">
+    <value>Çalışma oranı: {0}</value>
+  </data>
+  <data name="Downtime: {0}" xml:space="preserve">
+    <value>Kesinti süresi: {0}</value>
+  </data>
+  <data name="Incidents: {0}" xml:space="preserve">
+    <value>Olaylar: {0}</value>
+  </data>
+  <data name="MTTR: {0}" xml:space="preserve">
+    <value>MTTR: {0}</value>
+  </data>
+  <data name="SLA targets met: {0}, missed: {1}" xml:space="preserve">
+    <value>Tutulan SLA hedefleri: {0}, kaçırılan: {1}</value>
+  </data>
+  <data name="Missed SLA targets:" xml:space="preserve">
+    <value>Kaçırılan SLA hedefleri:</value>
+  </data>
+  <data name="Download the PDF (link valid for {0} days): {1}" xml:space="preserve">
+    <value>PDF'i indirin (bağlantı {0} gün geçerli): {1}</value>
+  </data>
+  <data name="All reports: {0}" xml:space="preserve">
+    <value>Tüm raporlar: {0}</value>
+  </data>
+  <data name="You receive this e-mail because monthly reports are enabled on the Reports page. An admin can turn them off there." xml:space="preserve">
+    <value>Bu e-postayı Raporlar sayfasında aylık raporlar açık olduğu için alıyorsunuz. Bir yönetici oradan kapatabilir.</value>
+  </data>
+  <data name="TriggerCheck SLA report {0}" xml:space="preserve">
+    <value>TriggerCheck SLA raporu {0}</value>
+  </data>
+  <data name="Confirm your subscription to {0}" xml:space="preserve">
+    <value>{0} aboneliğinizi onaylayın</value>
+  </data>
+  <data name="Someone (hopefully you) asked to receive e-mail updates from the status page &quot;{0}&quot;." xml:space="preserve">
+    <value>Birisi (umarız siz) "{0}" durum sayfasından e-posta bildirimleri almak istedi.</value>
+  </data>
+  <data name="Confirm the subscription by opening this link (valid for {0} days):" xml:space="preserve">
+    <value>Aboneliği bu bağlantıyı açarak onaylayın ({0} gün geçerli):</value>
+  </data>
+  <data name="If you did not ask for this, ignore this e-mail; you will not receive any updates." xml:space="preserve">
+    <value>Bunu siz istemediyseniz bu e-postayı yok sayın; hiçbir bildirim almayacaksınız.</value>
+  </data>
+  <data name="[{0}] {1} is down" xml:space="preserve">
+    <value>[{0}] {1} erişilemiyor</value>
+  </data>
+  <data name="{0} has been unavailable since {1}. We will let you know when it has recovered." xml:space="preserve">
+    <value>{0}, {1} tarihinden beri erişilemiyor. Düzeldiğinde size haber vereceğiz.</value>
+  </data>
+  <data name="[{0}] {1} has recovered" xml:space="preserve">
+    <value>[{0}] {1} düzeldi</value>
+  </data>
+  <data name="{0} is available again since {1} (down for {2})." xml:space="preserve">
+    <value>{0}, {1} itibarıyla yeniden erişilebilir ({2} kesinti).</value>
+  </data>
+  <data name="[{0}] Maintenance started: {1}" xml:space="preserve">
+    <value>[{0}] Bakım başladı: {1}</value>
+  </data>
+  <data name="Planned maintenance &quot;{0}&quot; started at {1} and is scheduled to end at {2}." xml:space="preserve">
+    <value>"{0}" planlı bakımı {1} tarihinde başladı ve {2} tarihinde bitmesi planlanıyor.</value>
+  </data>
+  <data name="Status page: {0}" xml:space="preserve">
+    <value>Durum sayfası: {0}</value>
+  </data>
+  <data name="Unsubscribe: {0}" xml:space="preserve">
+    <value>Abonelikten çık: {0}</value>
+  </data>
+  <data name="Status pages" xml:space="preserve">
+    <value>Durum sayfaları</value>
+  </data>
+  <data name="Powered by TriggerCheck" xml:space="preserve">
+    <value>TriggerCheck ile çalışır</value>
+  </data>
+  <data name="Confirm your subscription" xml:space="preserve">
+    <value>Aboneliğinizi onaylayın</value>
+  </data>
+  <data name="Confirm subscription" xml:space="preserve">
+    <value>Aboneliği onayla</value>
+  </data>
+  <data name="Your subscription is confirmed. You will receive an e-mail about incidents and maintenance." xml:space="preserve">
+    <value>Aboneliğiniz onaylandı. Olaylar ve bakımlar hakkında e-posta alacaksınız.</value>
+  </data>
+  <data name="Unsubscribe" xml:space="preserve">
+    <value>Abonelikten çık</value>
+  </data>
+  <data name="You are unsubscribed and will not receive further e-mails from this status page." xml:space="preserve">
+    <value>Abonelikten çıktınız; bu durum sayfasından artık e-posta almayacaksınız.</value>
+  </data>
+  <data name="This link is invalid or has expired." xml:space="preserve">
+    <value>Bu bağlantı geçersiz veya süresi dolmuş.</value>
+  </data>
+  <data name="All systems operational" xml:space="preserve">
+    <value>Tüm sistemler çalışıyor</value>
+  </data>
+  <data name="Partial outage" xml:space="preserve">
+    <value>Kısmi kesinti</value>
+  </data>
+  <data name="Major outage" xml:space="preserve">
+    <value>Büyük kesinti</value>
+  </data>
+  <data name="Maintenance in progress" xml:space="preserve">
+    <value>Bakım sürüyor</value>
+  </data>
+  <data name="Status unknown" xml:space="preserve">
+    <value>Durum bilinmiyor</value>
+  </data>
+  <data name="Operational" xml:space="preserve">
+    <value>Çalışıyor</value>
+  </data>
+  <data name="Outage" xml:space="preserve">
+    <value>Kesinti</value>
+  </data>
+  <data name="No data" xml:space="preserve">
+    <value>Veri yok</value>
+  </data>
+  <data name="Subscribe to updates" xml:space="preserve">
+    <value>Bildirimlere abone ol</value>
+  </data>
+  <data name="Scheduled maintenance" xml:space="preserve">
+    <value>Planlı bakım</value>
+  </data>
+  <data name="Uptime of the last {0} days" xml:space="preserve">
+    <value>Son {0} günün çalışma oranı</value>
+  </data>
+  <data name="{0} min down" xml:space="preserve">
+    <value>{0} dk kesinti</value>
+  </data>
+  <data name="{0} days ago" xml:space="preserve">
+    <value>{0} gün önce</value>
+  </data>
+  <data name="{0} uptime" xml:space="preserve">
+    <value>{0} çalışma</value>
+  </data>
+  <data name="Today" xml:space="preserve">
+    <value>Bugün</value>
+  </data>
+  <data name="Incident history (last {0} days)" xml:space="preserve">
+    <value>Olay geçmişi (son {0} gün)</value>
+  </data>
+  <data name="No incidents reported." xml:space="preserve">
+    <value>Bildirilen olay yok.</value>
+  </data>
+  <data name="{0} unavailable" xml:space="preserve">
+    <value>{0} erişilemedi</value>
+  </data>
+  <data name="Ongoing" xml:space="preserve">
+    <value>Sürüyor</value>
+  </data>
+  <data name="Times are shown in {0}." xml:space="preserve">
+    <value>Saatler {0} saat diliminde gösterilir.</value>
+  </data>
+  <data name="Atom feed" xml:space="preserve">
+    <value>Atom akışı</value>
+  </data>
+  <data name="Thank you. If this address is not subscribed yet, we have sent it an e-mail with a confirmation link." xml:space="preserve">
+    <value>Teşekkürler. Bu adres henüz abone değilse, onay bağlantısı içeren bir e-posta gönderdik.</value>
+  </data>
+  <data name="Get an e-mail when an incident starts or is resolved and when planned maintenance starts. You can unsubscribe at any time." xml:space="preserve">
+    <value>Bir olay başladığında veya çözüldüğünde ve planlı bakım başladığında e-posta alın. İstediğiniz zaman abonelikten çıkabilirsiniz.</value>
+  </data>
+  <data name="Subscribe" xml:space="preserve">
+    <value>Abone ol</value>
+  </data>
+  <data name="E-mail address" xml:space="preserve">
+    <value>E-posta adresi</value>
+  </data>
   <data name="The AI summary is being prepared. Reload the page in a moment." xml:space="preserve">
     <value>Yapay zekâ özeti hazırlanıyor. Birazdan sayfayı yenileyin.</value>
   </data>
@@ -1338,5 +1554,14 @@
   </data>
   <data name="Slow server response" xml:space="preserve">
     <value>Yavaş sunucu yanıtı</value>
+  </data>
+  <data name="Confirm your status page subscription" xml:space="preserve">
+    <value>Durum sayfası aboneliğinizi onaylayın</value>
+  </data>
+  <data name="{0} changed state {1} times since the last notice and is currently unavailable." xml:space="preserve">
+    <value>{0}, son bildirimden bu yana {1} kez durum değiştirdi ve şu anda erişilemiyor.</value>
+  </data>
+  <data name="{0} changed state {1} times since the last notice and is currently available." xml:space="preserve">
+    <value>{0}, son bildirimden bu yana {1} kez durum değiştirdi ve şu anda erişilebilir.</value>
   </data>
 </root>
