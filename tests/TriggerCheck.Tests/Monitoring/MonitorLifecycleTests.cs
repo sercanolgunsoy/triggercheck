@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TriggerCheck.Domain.Entities;
+using TriggerCheck.Monitoring;
 using TriggerCheck.Monitoring.Alerting;
 using TriggerCheck.Monitoring.Checks;
 using TriggerCheck.Monitoring.Engine;
@@ -190,7 +191,8 @@ public class MonitorLifecycleTests
         await checker.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await EditAsync(host, monitor.Id, m => m.Target = "http://127.0.0.2/");
         checker.Release();
-        await run;
+        var ex = await Assert.ThrowsAsync<MonitorCheckDiscardedException>(() => run);
+        Assert.False(ex.MonitorDeleted);
 
         var m = await host.GetMonitorAsync(monitor.Id);
         Assert.Equal("http://127.0.0.2/", m.Target);
@@ -233,12 +235,105 @@ public class MonitorLifecycleTests
         await checker.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await host.WithDbAsync(db => db.Monitors.Where(m => m.Id == monitor.Id).ExecuteDeleteAsync());
         checker.Release();
-        await run;
+        Assert.True((await Assert.ThrowsAsync<MonitorCheckDiscardedException>(() => run)).MonitorDeleted);
 
         Assert.Equal(0, await host.WithDbAsync(db => db.CheckResults.CountAsync()));
         Assert.Equal(0, await host.WithDbAsync(db => db.Incidents.CountAsync()));
         Assert.Empty(_email.Sent);
         Assert.Equal(0, host.Services.GetRequiredService<MonitorRunGate>().Count);
+    }
+
+    [Fact]
+    public async Task Pause_and_resume_during_probe_only_records_the_probe()
+    {
+        var checker = new BlockingChecker(Fail);
+        await using var host = await CreateHostAsync(checker);
+        var c = await host.AddCustomerAsync();
+        var monitor = await host.AddMonitorAsync(c.Id, m => { m.Status = MonitorStatus.Up; m.FailureThreshold = 1; });
+
+        var run = host.RunCheckAsync(monitor.Id);
+        await checker.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await PauseAsync(host, monitor.Id);
+        await ResumeAsync(host, monitor.Id);                          // active again, but the probe predates it
+        checker.Release();
+        await run;
+
+        var m = await host.GetMonitorAsync(monitor.Id);
+        Assert.Equal(MonitorStatus.Unknown, m.Status);
+        Assert.Equal(0, m.ConsecutiveFailures);
+        Assert.Equal(1, await host.WithDbAsync(db => db.CheckResults.CountAsync()));
+        Assert.Equal(0, await host.WithDbAsync(db => db.Incidents.CountAsync()));
+        Assert.Empty(_email.Sent);
+    }
+
+    [Fact]
+    public async Task Pause_landing_between_runner_reread_and_save_wins()
+    {
+        // The hook runs once, inside the runner's SaveChanges (after its re-read), and pauses the monitor there.
+        var hook = new SaveHook(db => db.ChangeTracker.Entries<CheckResult>().Any(e => e.State == EntityState.Added));
+        var checker = new ScriptedChecker(MonitorType.Http).Then(Fail);
+        await using var host = await MonitoringTestHost.CreateAsync(s =>
+        {
+            s.ReplaceCheckers(checker).ReplaceNotifiers(_email);
+            s.ConfigureDbContext<TriggerCheck.Infrastructure.Data.AppDbContext>(o => o.AddInterceptors(hook));
+        });
+        var c = await host.AddCustomerAsync();
+        var monitor = await host.AddMonitorAsync(c.Id, m => { m.Status = MonitorStatus.Up; m.FailureThreshold = 1; });
+        hook.Action = () => PauseAsync(host, monitor.Id);
+
+        await host.RunCheckAsync(monitor.Id);
+
+        Assert.True(hook.Fired);
+        var m = await host.GetMonitorAsync(monitor.Id);
+        Assert.Equal(MonitorStatus.Paused, m.Status);
+        Assert.Equal(0, await host.WithDbAsync(db => db.Incidents.CountAsync()));
+        Assert.Equal(1, await host.WithDbAsync(db => db.CheckResults.CountAsync())); // retried save recorded the probe
+        Assert.Empty(_email.Sent);
+    }
+
+    [Fact]
+    public async Task Down_transition_landing_between_pause_read_and_save_is_not_lost()
+    {
+        // The hook runs once, inside the pause's SaveChanges (after it read the monitor as Up), and lets a check
+        // take the monitor Down (incident + DOWN alert). The pause must retry on the new state and close the incident.
+        var hook = new SaveHook(db => db.ChangeTracker.Entries<MonitorEntity>().Any(e => e.State == EntityState.Modified && e.Entity.Status == MonitorStatus.Paused));
+        var checker = new ScriptedChecker(MonitorType.Http).Then(Fail);
+        await using var host = await MonitoringTestHost.CreateAsync(s =>
+        {
+            s.ReplaceCheckers(checker).ReplaceNotifiers(_email);
+            s.ConfigureDbContext<TriggerCheck.Infrastructure.Data.AppDbContext>(o => o.AddInterceptors(hook));
+        });
+        var c = await host.AddCustomerAsync();
+        var monitor = await host.AddMonitorAsync(c.Id, m => { m.Status = MonitorStatus.Up; m.FailureThreshold = 1; });
+        hook.Action = () => host.RunCheckAsync(monitor.Id);
+
+        Assert.True((await PauseAsync(host, monitor.Id))!.Changed);
+
+        Assert.True(hook.Fired);
+        var m = await host.GetMonitorAsync(monitor.Id);
+        Assert.Equal(MonitorStatus.Paused, m.Status);
+        Assert.True(m.DownWhenPaused);
+        Assert.Equal(0, await OpenIncidentsAsync(host, monitor.Id));
+        Assert.Equal(1, await host.WithDbAsync(db => db.Incidents.CountAsync()));
+        Assert.Equal(AlertKind.Down, Assert.Single(_email.Sent).Message.Kind);
+    }
+
+    [Fact]
+    public async Task Superadmin_interval_clamp_bumps_the_token()
+    {
+        await using var host = await CreateHostAsync(new ScriptedChecker(MonitorType.Http));
+        var c = await host.AddCustomerAsync();
+        var fast = await host.AddMonitorAsync(c.Id, m => m.IntervalSeconds = 15);
+        var slow = await host.AddMonitorAsync(c.Id, m => m.IntervalSeconds = 600);
+
+        var adjusted = await host.WithDbAsync(db =>
+            TriggerCheck.Web.Areas.SuperAdmin.Services.SuperAdminOps.ClampMonitorsAsync(db, new Plan { MinIntervalSeconds = 60 }, [c.Id]));
+
+        Assert.Equal(1, adjusted);
+        var f = await host.GetMonitorAsync(fast.Id);
+        Assert.Equal(60, f.IntervalSeconds);
+        Assert.Equal(1, f.Version);
+        Assert.Equal(0, (await host.GetMonitorAsync(slow.Id)).Version);
     }
 
     /// <summary>A user edit as the Edit page does it (bumps the concurrency token).</summary>
@@ -250,6 +345,23 @@ public class MonitorLifecycleTests
             m.Version++;
             await db.SaveChangesAsync();
         });
+
+    /// <summary>Runs <see cref="Action"/> once, inside the first SaveChanges matching the predicate, before it executes.</summary>
+    private sealed class SaveHook(Func<DbContext, bool> when) : Microsoft.EntityFrameworkCore.Diagnostics.SaveChangesInterceptor
+    {
+        private int _fired;
+        public Func<Task>? Action { get; set; }
+        public bool Fired => _fired == 1;
+
+        public override async ValueTask<Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<int>> SavingChangesAsync(
+            Microsoft.EntityFrameworkCore.Diagnostics.DbContextEventData eventData,
+            Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<int> result, CancellationToken cancellationToken = default)
+        {
+            if (Action is not null && eventData.Context is { } db && when(db) && Interlocked.Exchange(ref _fired, 1) == 0)
+                await Action();
+            return result;
+        }
+    }
 
     /// <summary>Checker that signals when the probe starts and blocks until released.</summary>
     private sealed class BlockingChecker(CheckOutcome outcome) : IMonitorChecker

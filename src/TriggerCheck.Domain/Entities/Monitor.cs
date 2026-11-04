@@ -42,8 +42,9 @@ public class Monitor
     public bool DownWhenPaused { get; set; }
 
     /// <summary>
-    /// Application-managed optimistic concurrency token (SQLite has no rowversion). Bumped by every user-initiated
-    /// change (edit, pause, resume); the check runner never bumps it, but its save fails if it changed meanwhile.
+    /// Application-managed optimistic concurrency token (SQLite has no rowversion). Bumped by user changes (edit,
+    /// pause, resume, SuperAdmin interval clamp / reactivation) and by the check runner whenever it changes Status or
+    /// opens/closes an incident. Writers that lose the race get a concurrency exception and retry on fresh state.
     /// </summary>
     public int Version { get; set; }
 

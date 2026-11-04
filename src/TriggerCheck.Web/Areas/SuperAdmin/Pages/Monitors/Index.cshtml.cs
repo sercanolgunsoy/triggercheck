@@ -56,13 +56,22 @@ public class IndexModel(AppDbContext db, MonitorLifecycle lifecycle, Text<AdminR
             .ToListAsync();
     }
 
-    public async Task<IActionResult> OnPostPauseAsync(int id) => await SetPausedAsync(id, paused: true);
-    public async Task<IActionResult> OnPostResumeAsync(int id) => await SetPausedAsync(id, paused: false);
+    public async Task<IActionResult> OnPostPauseAsync(int id, CancellationToken ct) => await SetPausedAsync(id, paused: true, ct);
+    public async Task<IActionResult> OnPostResumeAsync(int id, CancellationToken ct) => await SetPausedAsync(id, paused: false, ct);
 
-    private async Task<IActionResult> SetPausedAsync(int id, bool paused)
+    private async Task<IActionResult> SetPausedAsync(int id, bool paused, CancellationToken ct)
     {
         // Same semantics as the customer panel (closes open incidents on pause), see MonitorLifecycle.
-        var r = paused ? await lifecycle.PauseAsync(id, customerId: null) : await lifecycle.ResumeAsync(id, customerId: null);
+        MonitorLifecycleResult? r;
+        try
+        {
+            r = paused ? await lifecycle.PauseAsync(id, customerId: null, ct) : await lifecycle.ResumeAsync(id, customerId: null, ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            TempData["Error"] = L["This monitor was changed in the meantime (for example paused or edited by someone else). Reload the page and try again."].Value;
+            return RedirectToPage(new { CustomerId, Status, Type, Q, p = PageNo });
+        }
         if (r is null) return NotFound();
         if (r.Changed)
             TempData["Success"] = (paused ? L["\"{0}\" was paused.", r.Name] : L["\"{0}\" was resumed.", r.Name]).Value;

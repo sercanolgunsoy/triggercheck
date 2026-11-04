@@ -62,7 +62,11 @@ public sealed class MonitoringTestHost : IAsyncDisposable
 
         var sp = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = true });
         using (var scope = sp.CreateScope())
-            await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.EnsureCreatedAsync();
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await db.Database.EnsureCreatedAsync(); // same startup steps as DbSeeder
+            await db.EnableSqliteWalAsync();
+        }
         return new MonitoringTestHost(dbPath, time, sp);
     }
 

@@ -10,6 +10,7 @@ namespace TriggerCheck.Monitoring.Retention;
 /// <summary>
 /// Deletes data older than the owning customer's plan RetentionDays (RetentionDays &lt;= 0 = keep forever):
 /// CheckResults, resolved Incidents (by resolution time; open incidents are never deleted) and Notifications.
+/// Notifications of deleted monitors are removed regardless of age.
 /// </summary>
 public sealed class RetentionCleaner(IDbContextFactory<AppDbContext> dbFactory, TimeProvider time, ILogger<RetentionCleaner> logger)
 {
@@ -40,6 +41,11 @@ public sealed class RetentionCleaner(IDbContextFactory<AppDbContext> dbFactory, 
                 .Where(n => n.SentAtUtc < cutoff && db.Monitors.Any(m => m.Id == n.MonitorId && customerIds.Contains(m.CustomerId)))
                 .ExecuteDeleteAsync(ct);
         }
+
+        // Notifications of monitors that no longer exist (they have no FK, so no cascade).
+        notifications += await db.Notifications
+            .Where(n => !db.Monitors.Any(m => m.Id == n.MonitorId))
+            .ExecuteDeleteAsync(ct);
 
         var total = results + incidents + notifications;
         if (total > 0)

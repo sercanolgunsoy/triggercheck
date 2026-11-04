@@ -86,11 +86,20 @@ public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStat
     private IActionResult Back(int id, string? returnTo) =>
         returnTo == "list" ? RedirectToPage("Index") : RedirectToPage("Details", new { id });
 
+    /// <summary>Pause/resume kept losing optimistic-concurrency races (very unlikely): ask the user to retry.</summary>
+    private IActionResult ConcurrencyConflict(int id, string? returnTo)
+    {
+        TempData["Error"] = L["This monitor was changed in the meantime (for example paused or edited by someone else). Reload the page and try again."].Value;
+        return Back(id, returnTo);
+    }
+
     public async Task<IActionResult> OnPostPauseAsync(int id, string? returnTo, CancellationToken ct)
     {
         if (!IsAdmin) return Forbid();
         // Closes any open incident; see MonitorLifecycle for the shared pause/resume semantics.
-        var r = await lifecycle.PauseAsync(id, current.RequiredCustomerId, ct);
+        MonitorLifecycleResult? r;
+        try { r = await lifecycle.PauseAsync(id, current.RequiredCustomerId, ct); }
+        catch (DbUpdateConcurrencyException) { return ConcurrencyConflict(id, returnTo); }
         if (r is null) return NotFound();
         TempData["Success"] = L["\"{0}\" was paused. It will not be checked until it is resumed.", r.Name].Value;
         return Back(id, returnTo);
@@ -99,7 +108,9 @@ public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStat
     public async Task<IActionResult> OnPostResumeAsync(int id, string? returnTo, CancellationToken ct)
     {
         if (!IsAdmin) return Forbid();
-        var r = await lifecycle.ResumeAsync(id, current.RequiredCustomerId, ct);
+        MonitorLifecycleResult? r;
+        try { r = await lifecycle.ResumeAsync(id, current.RequiredCustomerId, ct); }
+        catch (DbUpdateConcurrencyException) { return ConcurrencyConflict(id, returnTo); }
         if (r is null) return NotFound();
         TempData["Success"] = L["\"{0}\" is being monitored again.", r.Name].Value;
         return Back(id, returnTo);
@@ -130,6 +141,15 @@ public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStat
             var http = r.StatusCode is int sc ? $" (HTTP {sc})" : "";
             if (r.IsUp) TempData["Success"] = L["Check succeeded: {0}{1}.", Fmt.Ms(r.ResponseTimeMs), http].Value;
             else TempData["Error"] = L["Check failed: {0}{1}.", r.Error ?? L["an unknown error"].Value, http].Value;
+        }
+        catch (MonitorCheckDiscardedException ex) when (ex.MonitorDeleted)
+        {
+            TempData["Error"] = L["The monitor was deleted while it was being checked."].Value;
+            return RedirectToPage("Index");
+        }
+        catch (MonitorCheckDiscardedException)
+        {
+            TempData["Error"] = L["The monitor settings were changed while it was being checked. The result was discarded; run the check again."].Value;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

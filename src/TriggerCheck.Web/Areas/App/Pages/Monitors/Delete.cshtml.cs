@@ -33,11 +33,15 @@ public class DeleteModel(AppDbContext db, ICurrentCustomer current, Text<AppReso
         var m = await db.Monitors.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id && x.CustomerId == cid, ct);
         if (m is null) return NotFound();
 
-        // Notifications reference the monitor without an FK; remove them as well.
-        await db.Notifications.Where(n => n.MonitorId == id).ExecuteDeleteAsync(ct);
-        // Set-based delete: not subject to the Version concurrency token (a concurrent pause/check must not make
-        // the delete fail). CheckResults and Incidents are removed by the database cascade.
-        await db.Monitors.Where(x => x.Id == id && x.CustomerId == cid).ExecuteDeleteAsync(ct);
+        // Set-based deletes: not subject to the Version concurrency token (a concurrent pause/check must not make
+        // the delete fail). Notifications reference the monitor without an FK, so they are removed explicitly in the
+        // same transaction; CheckResults and Incidents are removed by the database cascade.
+        await using (var tx = await db.Database.BeginTransactionAsync(ct))
+        {
+            await db.Notifications.Where(n => n.MonitorId == id).ExecuteDeleteAsync(ct);
+            await db.Monitors.Where(x => x.Id == id && x.CustomerId == cid).ExecuteDeleteAsync(ct);
+            await tx.CommitAsync(ct);
+        }
 
         TempData["Success"] = L["Monitor \"{0}\" was deleted.", m.Name].Value;
         return RedirectToPage("Index");

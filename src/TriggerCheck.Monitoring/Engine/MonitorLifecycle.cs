@@ -21,7 +21,11 @@ public sealed record MonitorLifecycleResult(int MonitorId, string Name, bool Cha
 /// <item>First check after resume: Up and the monitor was paused while Down -&gt; UP alert (Recovered);
 /// Up otherwise -&gt; plain BecameUp; Down after the failure threshold -&gt; new incident + DOWN alert.</item>
 /// </list>
-/// Every change bumps <see cref="MonitorEntity.Version"/> so an in-flight check cannot overwrite it.
+/// Every change bumps <see cref="MonitorEntity.Version"/>: an in-flight check re-reads the row and sees the new
+/// Status/IsEnabled, so it only records its probe. Conversely, if a check changed the status (incident opened or
+/// closed) between our read and our save, the save fails on the token and the change is retried on fresh state.
+/// Customer suspension is separate: it does not touch the monitors (Status stays as is); the scheduler skips them
+/// and the runner treats them as not actively monitored, so no transition happens while a customer is suspended.
 /// </summary>
 public sealed class MonitorLifecycle(IDbContextFactory<AppDbContext> dbFactory, TimeProvider time, ILogger<MonitorLifecycle> logger)
 {

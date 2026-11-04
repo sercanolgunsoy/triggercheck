@@ -70,10 +70,12 @@ public class DetailsModel(AppDbContext db, UserManager<ApplicationUser> users, T
         if (c.IsActive) { TempData["Error"] = L["The customer is already active."].Value; return RedirectToPage(new { id }); }
 
         c.IsActive = true;
-        var now = DateTime.UtcNow;
-        var monitors = await db.Monitors.Where(m => m.CustomerId == id).ToListAsync();
-        foreach (var m in monitors) m.NextCheckAtUtc = now; // resume checking immediately
         await db.SaveChangesAsync();
+        // Resume checking immediately. Set-based and bumping the concurrency token: never conflicts with a running
+        // check, and an in-flight check re-reads the row afterwards.
+        var now = DateTime.UtcNow;
+        await db.Monitors.Where(m => m.CustomerId == id)
+            .ExecuteUpdateAsync(s => s.SetProperty(m => m.NextCheckAtUtc, now).SetProperty(m => m.Version, m => m.Version + 1));
         TempData["Success"] = L["\"{0}\" was activated again.", c.Name].Value;
         return RedirectToPage(new { id });
     }

@@ -148,6 +148,10 @@ public sealed class MonitorScheduler : BackgroundService
         {
             _logger.LogDebug("Monitor {MonitorId} was deleted before it could be checked", monitorId);
         }
+        catch (MonitorCheckDiscardedException ex)
+        {
+            _logger.LogDebug("{Message}", ex.Message);
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Check of monitor {MonitorId} failed", monitorId);

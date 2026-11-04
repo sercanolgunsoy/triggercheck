@@ -388,6 +388,12 @@
   <data name="The monitor goes DOWN after this many consecutive failed checks." xml:space="preserve">
     <value>Art arda bu kadar hatalı kontrol sonrası DOWN olur.</value>
   </data>
+  <data name="The monitor settings were changed while it was being checked. The result was discarded; run the check again." xml:space="preserve">
+    <value>Monitör kontrol edilirken ayarları değiştirildi. Sonuç kullanılmadı; kontrolü tekrar çalıştırın.</value>
+  </data>
+  <data name="The monitor was deleted while it was being checked." xml:space="preserve">
+    <value>Monitör kontrol edilirken silindi.</value>
+  </data>
   <data name="The on-demand check service is currently unavailable." xml:space="preserve">
     <value>Anlık kontrol servisi şu anda kullanılamıyor.</value>
   </data>
@@ -411,6 +417,9 @@
   </data>
   <data name="The role of {0} was changed to &quot;{1}&quot;." xml:space="preserve">
     <value>{0} kullanıcısının rolü "{1}" olarak değiştirildi.</value>
+  </data>
+  <data name="The system is busy right now. Please try again in a moment." xml:space="preserve">
+    <value>Sistem şu anda meşgul. Lütfen birazdan tekrar deneyin.</value>
   </data>
   <data name="The target must be a host name or IP address without a scheme (e.g. example.com)." xml:space="preserve">
     <value>Hedef, şema içermeyen bir alan adı veya IP adresi olmalıdır (örn. example.com).</value>

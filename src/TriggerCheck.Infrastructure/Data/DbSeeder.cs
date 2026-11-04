@@ -21,6 +21,7 @@ public static class DbSeeder
         var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger("DbSeeder");
 
         await db.Database.EnsureCreatedAsync();
+        await db.EnableSqliteWalAsync();
 
         var roleManager = sp.GetRequiredService<RoleManager<IdentityRole>>();
         foreach (var role in new[] { Roles.SuperAdmin, Roles.CustomerAdmin, Roles.CustomerViewer })

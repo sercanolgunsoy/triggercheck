@@ -21,13 +21,15 @@ namespace TriggerCheck.Monitoring.Engine;
 /// Concurrency with the UI: the probe (slow) runs against an untracked snapshot. Afterwards the monitor is
 /// re-read and only runtime fields are written, guarded by <see cref="MonitorEntity.Version"/>:
 /// <list type="bullet">
-/// <item>deleted meanwhile, or its probe settings (target, type, timeout, ...) were edited: the stale result is
-/// discarded;</item>
-/// <item>paused / disabled / suspended meanwhile: only the probe is recorded - never a transition, incident or
-/// alert;</item>
+/// <item>deleted meanwhile, or its <see cref="ProbeSettings"/> were edited: the stale result is discarded and
+/// <see cref="MonitorCheckDiscardedException"/> is thrown;</item>
+/// <item>Status / IsEnabled differ from the snapshot (paused, resumed, disabled meanwhile) or the monitor is not
+/// actively monitored: only the probe is recorded - never a transition, incident or alert;</item>
 /// <item>a user change lands between the re-read and the save: the save fails on the token and is retried
 /// against the fresh row.</item>
 /// </list>
+/// The runner bumps Version itself whenever it changes Status or opens/closes an incident, so a concurrent
+/// pause/resume/edit that read the old state fails on the token and retries on the new state.
 /// Alert delivery happens after the state is saved and its failures are only logged.
 /// </summary>
 public sealed class MonitorCheckRunner(
@@ -105,20 +107,23 @@ public sealed class MonitorCheckRunner(
         if (monitor is null)
         {
             logger.LogDebug("Monitor {MonitorId} was deleted during its check; result discarded", snapshot.Id);
-            return null;
+            throw new MonitorCheckDiscardedException(snapshot.Id, monitorDeleted: true);
         }
-        if (monitor.Version != snapshot.Version && !SameProbeSettings(snapshot, monitor))
+        if (ProbeSettings.Of(monitor) != ProbeSettings.Of(snapshot))
         {
             logger.LogDebug("Monitor {MonitorId} was edited during its check; stale result discarded", snapshot.Id);
-            return null;
+            throw new MonitorCheckDiscardedException(snapshot.Id, monitorDeleted: false);
         }
 
         db.CheckResults.Add(result);
         AlertMessage? alert = null;
-        if (MonitorStateMachine.IsActivelyMonitored(snapshot) && MonitorStateMachine.IsActivelyMonitored(monitor))
+        var unchangedLifecycle = monitor.Status == snapshot.Status && monitor.IsEnabled == snapshot.IsEnabled;
+        if (unchangedLifecycle && MonitorStateMachine.IsActivelyMonitored(snapshot) && MonitorStateMachine.IsActivelyMonitored(monitor))
         {
             var transition = MonitorStateMachine.Apply(monitor, outcome, checkedAt);
             alert = await ApplyTransitionAsync(db, monitor, transition, checkedAt, ct);
+            // Status changed (and possibly an incident opened/closed): make concurrent user writers retry.
+            if (transition != StatusTransition.None) monitor.Version++;
         }
         else
         {
@@ -129,10 +134,6 @@ public sealed class MonitorCheckRunner(
         await db.SaveChangesAsync(ct);
         return alert;
     }
-
-    private static bool SameProbeSettings(MonitorEntity a, MonitorEntity b) =>
-        a.Type == b.Type && a.Target == b.Target && a.Port == b.Port && a.Keyword == b.Keyword
-        && a.ExpectedStatusCodes == b.ExpectedStatusCodes && a.HttpMethod == b.HttpMethod && a.TimeoutSeconds == b.TimeoutSeconds;
 
     private async Task<CheckOutcome> ProbeAsync(MonitorEntity monitor, CancellationToken ct)
     {
@@ -146,7 +147,8 @@ public sealed class MonitorCheckRunner(
         {
             // Checkers should not throw; this is a safety net against bugs.
             logger.LogError(ex, "Checker {Checker} threw for monitor {MonitorId}", checker.GetType().Name, monitor.Id);
-            return CheckOutcome.Down("Internal checker error: " + ex.Message);
+            // The message is customer-visible: keep exception details in the log only.
+            return CheckOutcome.Down("Internal checker error");
         }
     }
 
