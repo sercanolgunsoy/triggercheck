@@ -61,7 +61,7 @@ public sealed class EvalReport
         sb.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|");
         foreach (var c in Cases)
             sb.AppendLine(CultureInfo.InvariantCulture,
-                $"| {c.Id} | {c.Language} | {c.Label} | {c.PrimaryCategory} | {Ok(c.PrimaryCauseOk)} | {Ok(c.EvidenceOk)} | {Ok(c.MaskingOk)} | {Ok(c.LanguageOk)} | {string.Join(", ", c.Categories)} | {c.InputTokens + c.CacheReadTokens + c.CacheWriteTokens}/{c.OutputTokens} | {string.Join("; ", c.Notes).Replace("|", "/")} |");
+                $"| {c.Id} | {c.Language} | {c.Label} | {(c.Hedged ? "**hedged**" : c.PrimaryCategory)} | {Ok(c.PrimaryCauseOk)} | {Ok(c.EvidenceOk)} | {Ok(c.MaskingOk)} | {Ok(c.LanguageOk)} | {string.Join(", ", c.Categories)} | {c.InputTokens + c.CacheReadTokens + c.CacheWriteTokens}/{c.OutputTokens} | {string.Join("; ", c.Notes).Replace("|", "/")} |");
         return sb.ToString();
     }
 

@@ -20,8 +20,9 @@ public sealed record AiJob(string Feature, int CustomerId, string SubjectType, s
 /// cite "evidence_refs" that resolve to <paramref name="EvidenceKeys"/>; hypotheses that do not are dropped.
 /// </param>
 /// <param name="EvidenceKeys">Keys of the evidence items present in <paramref name="UserContent"/> ("check #1234", "ttfb", ...).</param>
+/// <param name="RefAllowed">(category, key) → whether that key may support a hypothesis of that category.</param>
 public sealed record AiPrompt(string FeatureInstructions, string UserContent, IReadOnlyList<string> AllowedActions,
-    IReadOnlyList<string>? Categories = null, IReadOnlySet<string>? EvidenceKeys = null);
+    IReadOnlyList<string>? Categories = null, IReadOnlySet<string>? EvidenceKeys = null, Func<string, string, bool>? RefAllowed = null);
 
 /// <summary>
 /// Builds the model input for one feature (registered per feature in DI). Must load data only through
