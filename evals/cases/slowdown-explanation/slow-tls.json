@@ -1,0 +1,86 @@
+{
+  "id": "slow-tls",
+  "feature": "SlowdownExplanation",
+  "language": "en",
+  "description": "TLS handshakes slowed down.",
+  "expect": {
+    "primaryCause": "slow_tls",
+    "noOutageStatement": true
+  },
+  "monitor": {
+    "name": "Shop API",
+    "type": "Http",
+    "target": "https://shop.example.test/health",
+    "status": "Up",
+    "certExpiresInDays": 60
+  },
+  "anomaly": {
+    "startedMinutesAgo": 30,
+    "score": 7.5,
+    "points": [
+      {
+        "minutesAgo": 3,
+        "ms": 780,
+        "medianMs": 180
+      },
+      {
+        "minutesAgo": 2,
+        "ms": 780,
+        "medianMs": 180
+      },
+      {
+        "minutesAgo": 1,
+        "ms": 780,
+        "medianMs": 180
+      }
+    ]
+  },
+  "checks": [
+    {
+      "minutesAgo": 1,
+      "repeat": 29,
+      "everyMinutes": 1,
+      "up": true,
+      "status": 200,
+      "ms": 780,
+      "dns": 4,
+      "connect": 12,
+      "tls": 600,
+      "ttfb": 730
+    },
+    {
+      "minutesAgo": 31,
+      "repeat": 60,
+      "everyMinutes": 2,
+      "up": true,
+      "status": 200,
+      "ms": 180,
+      "dns": 4,
+      "connect": 12,
+      "tls": 25,
+      "ttfb": 150
+    }
+  ],
+  "baselineMedianMs": 180,
+  "canned": {
+    "summary": "Shop API is slower since 11:30 because TLS handshakes take about 600 ms instead of 25 ms. There is no outage yet.",
+    "hypotheses": [
+      {
+        "cause": "TLS handshakes got slower: the median TLS time rose from 25 ms to 600 ms.",
+        "confidence": "high",
+        "evidence": [
+          "tls before=25 since=600 ratio=24"
+        ]
+      }
+    ],
+    "suggested_actions": [
+      {
+        "action": "check_tls_configuration",
+        "description": "Check the TLS termination (load balancer) for CPU limits or OCSP delays.",
+        "autonomy": "A0",
+        "reversible": true
+      }
+    ],
+    "unknowns": []
+  }
+}

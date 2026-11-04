@@ -1255,4 +1255,22 @@
   <data name="reversible" xml:space="preserve">
     <value>geri alınabilir</value>
   </data>
+  <data name="The AI summary is being prepared. Reload the page in a moment." xml:space="preserve">
+    <value>Yapay zekâ özeti hazırlanıyor. Birazdan sayfayı yenileyin.</value>
+  </data>
+  <data name="AI summaries are switched off for this service." xml:space="preserve">
+    <value>Yapay zekâ özetleri bu hizmette kapalı.</value>
+  </data>
+  <data name="AI summaries are turned off for your account." xml:space="preserve">
+    <value>Yapay zekâ özetleri hesabınız için kapalı.</value>
+  </data>
+  <data name="AI settings" xml:space="preserve">
+    <value>Yapay zekâ ayarları</value>
+  </data>
+  <data name="AI summaries are not included in your plan." xml:space="preserve">
+    <value>Yapay zekâ özetleri planınıza dahil değil.</value>
+  </data>
+  <data name="No AI summary is available for this item." xml:space="preserve">
+    <value>Bu kayıt için yapay zekâ özeti yok.</value>
+  </data>
 </root>

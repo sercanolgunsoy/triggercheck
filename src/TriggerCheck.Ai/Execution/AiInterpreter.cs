@@ -59,6 +59,7 @@ public sealed class AiInterpreter(
             SubjectId = job.SubjectId,
             Model = o.ModelFor(feature.Name),
             Effort = o.EffortFor(feature.Name),
+            Language = AiJob.NormalizeLanguage(job.Language),
             CreatedAtUtc = time.GetUtcNow().UtcDateTime,
         };
 
@@ -78,7 +79,8 @@ public sealed class AiInterpreter(
             return await SaveAsync(decision, ct);
         }
 
-        var provider = providers.FirstOrDefault(p => p.Feature == feature.Name);
+        // Last registration wins (DI convention), so a host can replace a feature's provider.
+        var provider = providers.LastOrDefault(p => p.Feature == feature.Name);
         if (provider is null)
         {
             logger.LogWarning("No AI context provider is registered for feature {Feature}", feature.Name);

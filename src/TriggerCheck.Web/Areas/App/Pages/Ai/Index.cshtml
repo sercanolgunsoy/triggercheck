@@ -34,6 +34,21 @@
                     <p>@L["Status"]: <strong id="ai-optin-state">@(Model.Customer.AiEnabled ? L["Enabled"] : L["Disabled"])</strong>
                     <span class="text-muted small">(@L["Only customer admins can change this."])</span></p>
                 }
+                @if (Model.IsAdmin)
+                {
+                    <form method="post" asp-page-handler="Language" class="d-flex flex-wrap align-items-center gap-2 mb-3" id="ai-language-form">
+                        <label class="form-label mb-0" for="ai-language">@L["Language of AI summaries"]</label>
+                        <select class="form-select form-select-sm w-auto" id="ai-language" name="language">
+                            <option value="en" selected="@(Model.Customer.AiLanguage != "tr")">English</option>
+                            <option value="tr" selected="@(Model.Customer.AiLanguage == "tr")">Türkçe</option>
+                        </select>
+                        <button type="submit" class="btn btn-sm btn-outline-primary">@L["Save"]</button>
+                    </form>
+                }
+                else
+                {
+                    <p class="small">@L["Language of AI summaries"]: <span id="ai-language-state">@(Model.Customer.AiLanguage == "tr" ? "Türkçe" : "English")</span></p>
+                }
                 <div class="alert alert-info small mb-0" id="ai-privacy-note">
                     <strong>@L["Privacy"]:</strong>
                     @L["Only masked technical data is sent to the AI provider (Anthropic, Claude): monitor type, host name, status codes, error types and timings. URL paths and query strings, credentials and tokens, webhook URLs, e-mail addresses and phone numbers are removed first. Your data is not shared with other customers."]

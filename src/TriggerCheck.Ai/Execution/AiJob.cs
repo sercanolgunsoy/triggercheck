@@ -4,7 +4,12 @@ namespace TriggerCheck.Ai.Execution;
 /// A request to run one AI feature for one subject of one tenant, e.g. (IncidentInterpretation, customer 3, "Incident", "42").
 /// <see cref="CustomerId"/> must come from the session or from the subject's owner, never from user or model input.
 /// </summary>
-public sealed record AiJob(string Feature, int CustomerId, string SubjectType, string SubjectId, string Language = "en");
+public sealed record AiJob(string Feature, int CustomerId, string SubjectType, string SubjectId, string Language = "en")
+{
+    /// <summary>The supported output languages: "tr" for Turkish, "en" for everything else.</summary>
+    public static string NormalizeLanguage(string? language) =>
+        language is not null && language.StartsWith("tr", StringComparison.OrdinalIgnoreCase) ? "tr" : "en";
+}
 
 /// <summary>Model input for one job, produced by the feature's <see cref="IAiContextProvider"/>.</summary>
 /// <param name="FeatureInstructions">Static, feature-specific instructions appended to the cached system prompt.</param>

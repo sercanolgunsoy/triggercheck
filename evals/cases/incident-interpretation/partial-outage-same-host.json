@@ -1,0 +1,85 @@
+{
+  "id": "partial-outage-same-host",
+  "feature": "IncidentInterpretation",
+  "language": "en",
+  "description": "All monitors on the host are down with 502.",
+  "expect": {
+    "primaryCause": "host_outage"
+  },
+  "monitor": {
+    "name": "Shop API",
+    "type": "Http",
+    "target": "https://shop.example.test/health",
+    "status": "Down",
+    "certExpiresInDays": 60
+  },
+  "incident": {
+    "startedMinutesAgo": 6,
+    "cause": "HTTP 502 (expected 200-299)"
+  },
+  "checks": [
+    {
+      "minutesAgo": 1,
+      "repeat": 6,
+      "everyMinutes": 1,
+      "up": false,
+      "ms": 40,
+      "status": 502,
+      "error": "HTTP 502 (expected 200-299)",
+      "dns": 4,
+      "connect": 11,
+      "tls": 24,
+      "ttfb": 35
+    },
+    {
+      "minutesAgo": 7,
+      "repeat": 8,
+      "everyMinutes": 1,
+      "up": true,
+      "status": 200,
+      "ms": 180,
+      "dns": 4,
+      "connect": 12,
+      "tls": 25,
+      "ttfb": 150
+    }
+  ],
+  "sameHost": [
+    {
+      "name": "Shop web",
+      "type": "Http",
+      "target": "https://shop.example.test/",
+      "status": "Down",
+      "openIncident": true
+    },
+    {
+      "name": "Shop admin",
+      "type": "Http",
+      "target": "https://shop.example.test/admin",
+      "status": "Down",
+      "openIncident": true
+    }
+  ],
+  "canned": {
+    "summary": "Shop API and the other monitors on shop.example.test are down at the same time with HTTP 502.",
+    "hypotheses": [
+      {
+        "cause": "Host-wide outage: all monitors on the same host fail with HTTP 502.",
+        "confidence": "high",
+        "evidence": [
+          "Shop web and Shop admin on the same host are Down with open incidents",
+          "6 checks returned status 502"
+        ]
+      }
+    ],
+    "suggested_actions": [
+      {
+        "action": "contact_hosting_provider",
+        "description": "Check the shared reverse proxy or the hosting provider for an outage.",
+        "autonomy": "A0",
+        "reversible": true
+      }
+    ],
+    "unknowns": []
+  }
+}

@@ -115,6 +115,7 @@ public class RegisterModel(AppDbContext db, UserManager<ApplicationUser> users, 
         {
             // AiEnabled: new customers are opted in to AI (decision K2); existing customers opt in themselves.
             var customer = new Customer { Name = Input.CompanyName.Trim(), ContactEmail = email, CreatedAtUtc = now, SignupPending = true, AiEnabled = true };
+            customer.AiLanguage = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "tr" ? "tr" : "en"; // AI summary language
             await ApplyPlanAsync(customer, plan!, email, now, ct);
             db.Customers.Add(customer);
             await db.SaveChangesAsync(ct);

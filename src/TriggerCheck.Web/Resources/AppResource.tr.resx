@@ -1309,4 +1309,31 @@
   <data name="Only masked technical data is sent to the AI provider (Anthropic, Claude): monitor type, host name, status codes, error types and timings. URL paths and query strings, credentials and tokens, webhook URLs, e-mail addresses and phone numbers are removed first. Your data is not shared with other customers." xml:space="preserve">
     <value>Yapay zekâ sağlayıcısına (Anthropic, Claude) yalnızca maskelenmiş teknik veri gönderilir: monitör türü, sunucu adı, durum kodları, hata türleri ve süreler. URL yolları ve sorgu parametreleri, kimlik bilgileri ve token'lar, webhook adresleri, e-posta adresleri ve telefon numaraları önceden çıkarılır. Verileriniz başka müşterilerle paylaşılmaz.</value>
   </data>
+  <data name="Slowdown" xml:space="preserve">
+    <value>Yavaşlama</value>
+  </data>
+  <data name="Slowdown ended" xml:space="preserve">
+    <value>Yavaşlama sona erdi</value>
+  </data>
+  <data name="Response times are above this monitor's usual level." xml:space="preserve">
+    <value>Yanıt süreleri bu monitörün olağan seviyesinin üzerinde.</value>
+  </data>
+  <data name="Since {0} {1}" xml:space="preserve">
+    <value>{0} {1} itibarıyla</value>
+  </data>
+  <data name="up to {0}× the baseline" xml:space="preserve">
+    <value>olağan seviyenin {0} katına kadar</value>
+  </data>
+  <data name="No outage so far: the monitor is still up." xml:space="preserve">
+    <value>Henüz kesinti yok: monitör hâlâ çalışıyor.</value>
+  </data>
+  <data name="Slow" xml:space="preserve">
+    <value>Yavaş</value>
+  </data>
+  <data name="Language of AI summaries" xml:space="preserve">
+    <value>Yapay zekâ özetlerinin dili</value>
+  </data>
+  <data name="The AI summary language was saved." xml:space="preserve">
+    <value>Yapay zekâ özeti dili kaydedildi.</value>
+  </data>
 </root>

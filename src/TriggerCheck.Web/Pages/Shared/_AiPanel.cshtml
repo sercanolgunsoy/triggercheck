@@ -1,0 +1,28 @@
+@model TriggerCheck.Web.Infrastructure.AiPanelModel
+@*
+    AI block of one subject (AI-2 incident summary, AI-3 slowdown explanation). A decision is rendered by
+    "_AiInterpretation" (summary, failure or budget note); otherwise a short note says why there is no AI content.
+    The page always works without it: status and alerts never depend on AI (decision K4).
+*@
+@switch (Model.State)
+{
+    case AiPanelState.Decision:
+        <div class="ai-panel" data-ai-state="decision"><partial name="_AiInterpretation" model="Model.Content" /></div>
+        break;
+    case AiPanelState.Pending:
+        <div class="ai-panel ai-unavailable small text-muted" data-ai-state="pending">@Icons.Get("sparkles", 14) @L["The AI summary is being prepared. Reload the page in a moment."]</div>
+        break;
+    case AiPanelState.Off:
+        <div class="ai-panel ai-unavailable small text-muted" data-ai-state="off">@Icons.Get("sparkles", 14) @L["AI summaries are switched off for this service."]</div>
+        break;
+    case AiPanelState.OptOut:
+        <div class="ai-panel ai-unavailable small text-muted" data-ai-state="opt-out">@Icons.Get("sparkles", 14) @L["AI summaries are turned off for your account."]
+            @if (Model.CanManage) { <a asp-area="App" asp-page="/Ai/Index">@L["AI settings"]</a> }</div>
+        break;
+    case AiPanelState.NotInPlan:
+        <div class="ai-panel ai-unavailable small text-muted" data-ai-state="not-in-plan">@Icons.Get("sparkles", 14) @L["AI summaries are not included in your plan."]</div>
+        break;
+    default:
+        <div class="ai-panel ai-unavailable small text-muted" data-ai-state="none">@Icons.Get("sparkles", 14) @L["No AI summary is available for this item."]</div>
+        break;
+}

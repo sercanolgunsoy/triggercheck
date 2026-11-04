@@ -35,6 +35,8 @@ public sealed class AiOptions
 
     public AiBaselineOptions Baseline { get; set; } = new();
 
+    public AiEventOptions Events { get; set; } = new();
+
     public static readonly IReadOnlySet<string> Efforts = new HashSet<string> { "low", "medium", "high", "xhigh", "max" };
 
     /// <summary>Unknown effort values (default and per feature); checked at startup.</summary>
@@ -114,4 +116,16 @@ public sealed class AiBaselineOptions
     public int MaxSamples { get; set; } = 50_000;
     /// <summary>Monitors processed per batch (one query per batch for the recent checks).</summary>
     public int BatchSize { get; set; } = 100;
+}
+
+/// <summary>
+/// "Ai:Events": the watcher that queues AI-2 / AI-3 jobs for new and resolved incidents and new slowdown signals
+/// (<see cref="Features.AiEventWatcher"/>). Runs only when AI is enabled and a key is configured.
+/// </summary>
+public sealed class AiEventOptions
+{
+    /// <summary>How often the database is checked for new events. A summary is ready about this much after the alert.</summary>
+    public int PollSeconds { get; set; } = 10;
+    /// <summary>After a restart, events up to this old that have no AI decision yet are still picked up.</summary>
+    public int LookbackMinutes { get; set; } = 15;
 }

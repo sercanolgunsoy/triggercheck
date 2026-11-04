@@ -43,7 +43,7 @@ public sealed partial class AiContextBuilder
         var text = value switch
         {
             null => "n/a",
-            DateTime d => d.ToUniversalTime().ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture),
+            DateTime d => Iso(d),
             IFormattable f => f.ToString(null, CultureInfo.InvariantCulture),
             _ => value.ToString() ?? "",
         };
@@ -61,6 +61,13 @@ public sealed partial class AiContextBuilder
     }
 
     public string Build() => _sb.ToString();
+
+    /// <summary>
+    /// UTC timestamp text. Values read from the database have Kind Unspecified but are UTC (the app stores UTC only), so
+    /// only Local values are converted; otherwise the text would depend on the server's time zone.
+    /// </summary>
+    public static string Iso(DateTime d) =>
+        (d.Kind == DateTimeKind.Local ? d.ToUniversalTime() : d).ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture);
 
     public static string Truncate(string text, int maxChars) =>
         text.Length <= maxChars ? text : text[..Math.Max(0, maxChars)] + TruncatedMarker;

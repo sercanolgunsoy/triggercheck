@@ -1,0 +1,72 @@
+{
+  "id": "keyword-missing-tr",
+  "feature": "IncidentInterpretation",
+  "language": "tr",
+  "description": "Keyword missing, Turkish output.",
+  "expect": {
+    "primaryCause": "keyword_missing"
+  },
+  "monitor": {
+    "name": "Shop home",
+    "type": "Keyword",
+    "target": "https://shop.example.test/",
+    "status": "Down",
+    "certExpiresInDays": 60,
+    "keyword": "Add to cart"
+  },
+  "incident": {
+    "startedMinutesAgo": 9,
+    "cause": "Keyword not found in response (HTTP 200)"
+  },
+  "checks": [
+    {
+      "minutesAgo": 1,
+      "repeat": 9,
+      "everyMinutes": 1,
+      "up": false,
+      "ms": 210,
+      "status": 200,
+      "error": "Keyword not found in response (HTTP 200)",
+      "dns": 4,
+      "connect": 12,
+      "tls": 25,
+      "ttfb": 190
+    },
+    {
+      "minutesAgo": 10,
+      "repeat": 8,
+      "everyMinutes": 1,
+      "up": true,
+      "status": 200,
+      "ms": 180,
+      "dns": 4,
+      "connect": 12,
+      "tls": 25,
+      "ttfb": 150
+    }
+  ],
+  "secrets": [
+    "Add to cart"
+  ],
+  "canned": {
+    "summary": "Shop home sayfası HTTP 200 ile açılıyor ancak beklenen anahtar kelime artık yanıtta yer almıyor.",
+    "hypotheses": [
+      {
+        "cause": "Beklenen anahtar kelime yanıtta yok; sayfa içeriği değişmiş olabilir.",
+        "confidence": "high",
+        "evidence": [
+          "9 kontrol 200 durum koduyla 'Keyword not found in response' hatası verdi"
+        ]
+      }
+    ],
+    "suggested_actions": [
+      {
+        "action": "verify_expected_content",
+        "description": "Sayfanın içeriğinin değişip değişmediğini kontrol edin.",
+        "autonomy": "A0",
+        "reversible": true
+      }
+    ],
+    "unknowns": []
+  }
+}

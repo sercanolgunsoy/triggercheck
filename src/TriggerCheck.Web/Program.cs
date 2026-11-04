@@ -63,6 +63,7 @@ builder.Services.AddAuthorization(o =>
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentCustomer, CurrentCustomer>();
+builder.Services.AddScoped<AiPanels>(); // AI-2 / AI-3 blocks on incident and monitor pages
 builder.Services.AddScoped<TriggerCheck.Web.Areas.App.Support.MonitorCommands>();
 builder.Services.AddSingleton<ManualCheckLimiter>();
 // BIZ-1/2/3: self-service sign-up, trial, iyzico subscriptions, usage meters (+ their rate limits and background job).
