@@ -166,7 +166,9 @@ public sealed class IyzicoPaymentProvider(HttpClient http, IOptionsMonitor<Iyzic
 
     /// <summary>
     /// Signed request. Returns the JSON response when iyzico answers status "success"; otherwise logs and returns null,
-    /// with <c>Rejected</c> = true when iyzico itself answered "failure" with a 4xx or 200 status (a definitive no), as
+    /// with <c>Rejected</c> = true only when iyzico answered "failure" with one of the configured
+    /// <see cref="IyzicoOptions.DefinitiveCheckoutErrorCodes"/> ("not paid" / "token not found") and a 200, 400, 404 or
+    /// 422 status. Authentication (401/403), throttling (429), other errors and 5xx are not definitive, as
     /// opposed to network errors, timeouts, 5xx and unreadable bodies.
     /// </summary>
     private async Task<(JsonObject? Response, bool Rejected)> SendAsync(HttpMethod method, string path, JsonObject? body, CancellationToken ct)
@@ -194,7 +196,9 @@ public sealed class IyzicoPaymentProvider(HttpClient http, IOptionsMonitor<Iyzic
             if (response.IsSuccessStatusCode && status == "success") return (result, false);
             logger.LogWarning("iyzico {Method} {Path} failed: HTTP {Status}, error {Code} {Message}", method, path, (int)response.StatusCode,
                 result?["errorCode"]?.ToString(), result?["errorMessage"]?.ToString());
-            return (null, status == "failure" && (int)response.StatusCode < 500);
+            var code = result?["errorCode"]?.ToString();
+            var definitiveStatus = (int)response.StatusCode is 200 or 400 or 404 or 422;
+            return (null, status == "failure" && definitiveStatus && code is not null && o.DefinitiveCheckoutErrorCodes.Contains(code));
         }
         catch (Exception ex) when (ex is HttpRequestException or JsonException or OperationCanceledException && !ct.IsCancellationRequested)
         {

@@ -20,7 +20,7 @@ namespace TriggerCheck.Web.Areas.App.Pages.Billing;
 /// </summary>
 [Authorize(Policy = Policies.CustomerAdmin)]
 public class CheckoutModel(AppDbContext db, ICurrentCustomer current, BillingService billing, UserManager<ApplicationUser> users,
-    IOptionsMonitor<BillingOptions> options, Text<AppResource> L) : PageModel
+    Text<AppResource> L) : PageModel
 {
     [BindProperty] public ContactInput Input { get; set; } = new();
     public Plan? Plan { get; private set; }
@@ -81,7 +81,7 @@ public class CheckoutModel(AppDbContext db, ICurrentCustomer current, BillingSer
         // iyzico requires an identity number; customers outside Turkey may use the documented placeholder. TODO-verify with iyzico.
         var contact = new BillingContact(i.Name.Trim(), i.Surname.Trim(), email, i.Phone.Replace(" ", ""),
             string.IsNullOrWhiteSpace(i.IdentityNumber) ? "11111111111" : i.IdentityNumber, i.Address.Trim(), i.City.Trim(), i.Country.Trim(), i.ZipCode?.Trim());
-        var callback = BillingSetup.PublicUrl(Request, options.CurrentValue, BillingSetup.CallbackPath);
+        var callback = BillingSetup.PublicUrl(Request, BillingSetup.CallbackPath);
         var locale = Fmt.IsTurkish ? "tr" : "en";
 
         var r = await billing.StartCheckoutAsync(current.RequiredCustomerId, planId, contact, callback, locale, ct);

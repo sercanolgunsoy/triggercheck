@@ -64,6 +64,7 @@ public class EditModel(AppDbContext db, Text<AdminResource> L) : PageModel
         if (!ModelState.IsValid) return Page();
 
         Customer.Name = Input.Name.Trim();
+        Customer.SignupPending = false; // managed by an operator now: never purged as an unconfirmed sign-up
         Customer.ContactEmail = Input.ContactEmail.Trim();
 
         var messages = new List<string> { L["Customer details were saved."] };

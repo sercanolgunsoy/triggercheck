@@ -76,7 +76,8 @@ secret store, never in the image or in `appsettings.json`.
 | `ForwardedHeaders__KnownProxies`, `ForwardedHeaders__KnownNetworks` | with the above | Trusted proxy IPs (comma separated) / networks in CIDR form, e.g. `10.0.0.0/8`. With neither set only loopback is trusted. |
 | `ForwardedHeaders__ForwardLimit` | no (1) | Number of proxy hops to unwind. |
 | `Api__RequestsPerMinute` (120), `Api__RequestsPerMinutePerCustomer` (300), `Api__RequestsPerMinutePerIp` (600) | no | REST API rate limits, see [API.md](API.md). |
-| `Site__ContactEmail` | no | Sales / support address shown on the marketing pages. |
+| `Site__ContactEmail` | no | Sales / support address shown on the marketing pages. It also receives operator alerts, such as "refund needed" for a refused payment. |
+| `Site__PublicBaseUrl` | **yes outside Development** | Public address of the app, e.g. `https://app.example.com`. Used in e-mail links (sign-up confirmation, password reset), for the iyzico callback, and later for escalation acknowledgement and heartbeat URLs. **The app refuses to start without it** in any environment other than Development. The former `Billing__PublicBaseUrl` is still read as a fallback. |
 | `Seed__DemoData` | no | Ignored outside Development. |
 
 ## Health and telemetry
@@ -174,8 +175,11 @@ database's data was still entirely in the `-wal` file: the main `.db` file was 4
 
 Visitors sign up at `/Account/Register` (BIZ-1). A paid self-service plan starts a free trial (14 days by default) on
 that plan's limits. A trial is granted once per address and to at most 3 sign-ups per company domain; `+tag` aliases
-count as the same address. The account must confirm its e-mail address before it can sign in. Sign-ups that are never
-confirmed are deleted after 2 days. If the same unconfirmed address signs up again, the account takes over the new
+count as the same address. Public mail providers (gmail.com, outlook.com.tr, mynet.com, ...) are only limited per
+address. When no trial is granted, the workspace starts on the free plan, and the confirmation e-mail says so. The page
+stays the same for every outcome. The account must confirm its e-mail address before it can sign in. Sign-ups that are never
+confirmed are deleted after 2 days. This applies only while they are still in their initial state: once a SuperAdmin
+has edited the customer or changed its trial, it is never purged. If the same unconfirmed address signs up again, the account takes over the new
 submission, and earlier confirmation links stop working. `/Account/ForgotPassword` sends a one-day reset link. It shows
 the same answer for every address. A completed reset also confirms the address.
 
@@ -188,7 +192,7 @@ Sign-up and trials work either way. Complete the sandbox checklist below before 
 
 | Variable | Required | Purpose |
 |---|---|---|
-| `Billing__PublicBaseUrl` | **yes outside Development** | e.g. `https://app.example.com`. Used for the links in e-mails and for the iyzico callback URL. **The app refuses to start without it** in any environment other than Development. |
+| `Iyzico__DefinitiveCheckoutErrorCodes` | no (empty) | iyzico error codes that mean "not paid / token not found" and close a checkout early. See the checklist. |
 | `Billing__PaidCheckoutEnabled` | no (false) | Turns on the iyzico checkout, upgrades and downgrades. Leave it off until the sandbox checklist is done. |
 | `Iyzico__ApiKey`, `Iyzico__SecretKey` | for paid checkout | iyzico API credentials (merchant panel > Settings). **Secrets.** Store them in the secret store only. |
 | `Iyzico__MerchantId` | for webhooks | Part of the webhook signature (`X-IYZ-SIGNATURE-V3`). Without it every webhook is rejected with 401. |
@@ -222,19 +226,31 @@ environments only a warning is logged, because the links carry account tokens.
    fields only (type + subscription + order reference) and is processed once. Events older than the last one applied to
    the subscription are recorded but not applied. `subscription.order.success` keeps or restores the subscription.
    `subscription.order.failure` marks it `PastDue`, which moves the customer to the fallback plan after the grace
-   period. Events for unknown subscriptions trigger a re-check of the open checkouts. If nothing matches, they are kept
-   as ignored payment events for reconciliation.
+   period. The webhook request makes no calls to iyzico. An event for an unknown subscription is stored as an ignored
+   payment event (`unknown-subscription`), and the billing job reconciles it: for 30 days, at most hourly per event and
+   20 events per run, the job re-checks the open and recently failed checkouts. When one of them turns out to be the
+   subscription, the job applies the event.
 
 **Flow.** Billing page > Subscribe > billing details form > "Continue to secure payment" link to iyzico > iyzico posts
 to the callback > TriggerCheck retrieves the checkout result from iyzico (server to server) and only then activates the
 plan.
-- A checkout is only closed as failed on a definitive answer from iyzico. After network errors it stays open, and the
-  job checks it again.
-- A paid checkout is cancelled at iyzico, and never activated, when iyzico reports a different or missing pricing plan,
-  or when the customer already has an active subscription (for example, two tabs).
+- A checkout is only closed early on a definitive answer from iyzico: a state such as CANCELED, EXPIRED or UNPAID, or
+  an error code listed in `Iyzico__DefinitiveCheckoutErrorCodes`. That list is empty until the codes are verified.
+  Network errors, 401/403/429, other 4xx and 5xx keep the checkout open, and the job checks it again. At the timeout,
+  a checkout that gets no answer is asked once more before it is closed. Failed checkouts that never reached "paid" are
+  asked again by the job for 30 days (every 6 hours, 20 per run), so a late confirmation is not lost.
+- A paid checkout is never activated when iyzico reports a different or missing pricing plan, or when the customer
+  already has an active subscription (for example, two tabs). The "already subscribed" check runs inside the
+  activation transaction. In that case the subscription is cancelled at iyzico and an Error is logged. A "Refund
+  needed" e-mail goes to `Site__ContactEmail`, and the customer is told that the amount will be refunded. The return
+  page shows "refused", never "success". **Refunds are done by hand in the iyzico panel** until the subscription
+  refund API is verified (see the checklist).
+- All e-mails (confirmation, password reset, "already registered", billing notices) are queued and sent by a
+  background sender. Requests never wait for SMTP, so response times do not reveal whether an account exists.
 - **Upgrades** use iyzico's upgrade endpoint with `NOW`. **Downgrades** use `NEXT_PERIOD` and take effect when the
-  period rolls over, which the Billing page shows. A downgrade first checks that the monitors fit the new plan, and the
-  check intervals are clamped when it applies.
+  period rolls over, which the Billing page shows. A downgrade first checks that the monitors fit the new plan. When it
+  applies, the check intervals are clamped and the monitor count is checked again. If monitors were added in the
+  meantime, nothing is deleted, and the admins get an e-mail that lists the monitors over the limit.
 - **Cancellation** stops renewals at iyzico. The plan stays until the end of the paid period.
 - SuperAdmins can extend or end a trial on the customer page. A manual plan change clears a trial or a cancelled
   subscription, and is refused while the customer has an active or past-due subscription.
@@ -248,14 +264,24 @@ No sandbox account was available during development. Verify these points against
   which needs iyzico's script and frame origins in the CSP (`SecurityHeaders.cs`).
 - [ ] **Proration.** What iyzico charges on an upgrade with `NOW`, and what it reports for a `NEXT_PERIOD` downgrade:
   the subscription status and whether a new reference code is returned. The UI promises no proration.
+- [ ] **Downgrade at period end.** Does iyzico switch the pricing plan itself at renewal, and does the renewal
+  `subscription.order.success` arrive for the old or a new subscription reference? TriggerCheck applies the booked
+  plan on the first renewal webhook, or when the job sees the period end.
+- [ ] **Undoing a booked downgrade.** "Keep this plan" sends another `NEXT_PERIOD` upgrade back to the current pricing
+  plan. Confirm that iyzico accepts this, and that it does not charge or reset the period.
+- [ ] **Refund API for subscriptions.** Is there a documented refund for a subscription order (refused duplicate or
+  mismatched payment)? Until then, refunds are done manually after the "Refund needed" e-mail.
+- [ ] **Definitive error codes.** Which `errorCode` values does the checkout-result retrieval return for "token not
+  found / not paid / expired"? Put them in `Iyzico__DefinitiveCheckoutErrorCodes`. Without them, unpaid checkouts
+  close only at `CheckoutTimeoutMinutes`.
 - [ ] **`iyziEventTime` units.** Milliseconds or seconds (both are accepted today). Also check whether iyzico retries
   webhooks, and for how long, against `WebhookMaxAgeHours`.
 - [ ] **Signing path with a query string.** IYZWSv2 signs `randomKey + path + body`. None of the current requests has a
   query string. Confirm the rule before adding one.
 - [ ] **Identity number placeholder.** `11111111111` is sent when the customer gives no Turkish identity or tax number.
   Confirm that iyzico accepts it for foreign customers and invoices.
-- [ ] **Checkout result for abandoned and expired tokens.** Confirm that iyzico answers `status: failure`, which
-  TriggerCheck treats as definitive, and the token lifetime, against `CheckoutTimeoutMinutes`.
+- [ ] **Checkout result for abandoned and expired tokens.** Check what iyzico answers, and the token lifetime, against
+  `CheckoutTimeoutMinutes`.
 - [ ] **Paid amount and currency** in webhooks or order details. The payment history shows them only when the provider
   reports them.
 - [ ] End to end in the sandbox: trial > subscribe > callback, closed tab (webhook / job), renewal success, renewal

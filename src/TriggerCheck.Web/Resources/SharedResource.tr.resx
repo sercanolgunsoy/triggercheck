@@ -1162,4 +1162,19 @@
   <data name="Your password was changed. You can sign in now." xml:space="preserve">
     <value>Parolanız değiştirildi. Artık giriş yapabilirsiniz.</value>
   </data>
+  <data name="No free trial was started: this address or its company domain already had one. Your workspace starts on the {0} plan; you can subscribe to a paid plan on the Billing page." xml:space="preserve">
+    <value>Ücretsiz deneme başlatılmadı: bu adres veya şirket alan adı daha önce denemeden yararlandı. Çalışma alanınız {0} planıyla başlıyor; Faturalandırma sayfasından ücretli bir plana abone olabilirsiniz.</value>
+  </data>
+  <data name="We received a payment for a subscription that we could not activate (your workspace already has a subscription, or the plan did not match). It was cancelled and the amount will be refunded to your card. Your current plan is not affected." xml:space="preserve">
+    <value>Etkinleştiremediğimiz bir abonelik için ödeme aldık (çalışma alanınızın zaten bir aboneliği var veya plan eşleşmedi). Abonelik iptal edildi ve tutar kartınıza iade edilecek. Mevcut planınız etkilenmez.</value>
+  </data>
+  <data name="Your extra TriggerCheck payment will be refunded" xml:space="preserve">
+    <value>Fazladan yapılan TriggerCheck ödemeniz iade edilecek</value>
+  </data>
+  <data name="Your workspace is now on the {0} plan, which allows {1} monitors. These monitors are over the limit; they keep running, but you cannot add new monitors until you delete some or upgrade:" xml:space="preserve">
+    <value>Çalışma alanınız artık en fazla {1} monitöre izin veren {0} planında. Aşağıdaki monitörler sınırın üzerinde; çalışmaya devam ederler, ancak bazılarını silene veya planı yükseltene kadar yeni monitör ekleyemezsiniz:</value>
+  </data>
+  <data name="Paid plans start with a free trial once per address and company domain; if yours already had one, the e-mail tells you which plan your workspace starts on." xml:space="preserve">
+    <value>Ücretli planlar her adres ve şirket alan adı için bir kez ücretsiz denemeyle başlar; sizinki daha önce yararlandıysa, çalışma alanınızın hangi planla başladığını e-postada belirtiriz.</value>
+  </data>
 </root>

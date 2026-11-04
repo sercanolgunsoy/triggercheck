@@ -70,6 +70,7 @@ public class DetailsModel(AppDbContext db, UserManager<ApplicationUser> users, T
         var now = time.GetUtcNow().UtcDateTime;
         c.TrialEndsAtUtc = (c.TrialEndsAtUtc is DateTime end && end > now ? end : now).AddDays(days);
         c.TrialReminderSentAtUtc = null;
+        c.SignupPending = false;
         await db.SaveChangesAsync();
         TempData["Success"] = L["The trial now ends on {0}.", Fmt.Date(c.TrialEndsAtUtc)].Value;
         return RedirectToPage(new { id });
@@ -80,6 +81,7 @@ public class DetailsModel(AppDbContext db, UserManager<ApplicationUser> users, T
     {
         var c = await db.Customers.Include(x => x.Plan).FirstOrDefaultAsync(x => x.Id == id);
         if (c is null) return NotFound();
+        c.SignupPending = false;
         if (c.BillingStatus != BillingStatus.Trial || !await billing.DowngradeToFallbackAsync(c, null, BillingStatus.Trial, mailer.TrialEndedReason, HttpContext.RequestAborted))
             TempData["Error"] = L["The customer is not in trial."].Value;
         else

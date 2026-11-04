@@ -1009,4 +1009,7 @@
   <data name="We are waiting for iyzico to confirm your payment. This page will show the subscription as soon as it is confirmed." xml:space="preserve">
     <value>Ödemenizin iyzico tarafından onaylanmasını bekliyoruz. Onaylandığında abonelik bu sayfada görünecek.</value>
   </data>
+  <data name="This payment could not be used: your workspace already has a subscription or the plan did not match. It was cancelled and the amount will be refunded to your card." xml:space="preserve">
+    <value>Bu ödeme kullanılamadı: çalışma alanınızın zaten bir aboneliği var veya plan eşleşmedi. Ödeme iptal edildi ve tutar kartınıza iade edilecek.</value>
+  </data>
 </root>
