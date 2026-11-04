@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using TriggerCheck.Infrastructure.Data;
+using TriggerCheck.Web.Areas.App.Support;
 using TriggerCheck.Web.Infrastructure;
 using TriggerCheck.Web.Localization;
 using MonitorEntity = TriggerCheck.Domain.Entities.Monitor;
@@ -10,7 +11,7 @@ using MonitorEntity = TriggerCheck.Domain.Entities.Monitor;
 namespace TriggerCheck.Web.Areas.App.Pages.Monitors;
 
 [Authorize(Policy = Policies.CustomerAdmin)]
-public class DeleteModel(AppDbContext db, ICurrentCustomer current, Text<AppResource> L) : PageModel
+public class DeleteModel(AppDbContext db, MonitorCommands commands, ICurrentCustomer current, Text<AppResource> L) : PageModel
 {
     public MonitorEntity Monitor { get; private set; } = null!;
     public int CheckCount { get; private set; }
@@ -29,21 +30,11 @@ public class DeleteModel(AppDbContext db, ICurrentCustomer current, Text<AppReso
 
     public async Task<IActionResult> OnPostAsync(int id, CancellationToken ct)
     {
-        var cid = current.RequiredCustomerId;
-        var m = await db.Monitors.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id && x.CustomerId == cid, ct);
-        if (m is null) return NotFound();
+        // Monitor and notifications are removed in one transaction (history by cascade); see MonitorCommands.DeleteAsync.
+        var name = await commands.DeleteAsync(current.RequiredCustomerId, id, ct);
+        if (name is null) return NotFound();
 
-        // Set-based deletes: not subject to the Version concurrency token (a concurrent pause/check must not make
-        // the delete fail). Notifications reference the monitor without an FK, so they are removed explicitly in the
-        // same transaction; CheckResults and Incidents are removed by the database cascade.
-        await using (var tx = await db.Database.BeginTransactionAsync(ct))
-        {
-            await db.Notifications.Where(n => n.MonitorId == id).ExecuteDeleteAsync(ct);
-            await db.Monitors.Where(x => x.Id == id && x.CustomerId == cid).ExecuteDeleteAsync(ct);
-            await tx.CommitAsync(ct);
-        }
-
-        TempData["Success"] = L["Monitor \"{0}\" was deleted.", m.Name].Value;
+        TempData["Success"] = L["Monitor \"{0}\" was deleted.", name].Value;
         return RedirectToPage("Index");
     }
 }

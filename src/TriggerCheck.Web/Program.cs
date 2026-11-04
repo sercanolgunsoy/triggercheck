@@ -5,6 +5,7 @@ using TriggerCheck.Infrastructure;
 using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Infrastructure.Identity;
 using TriggerCheck.Monitoring;
+using TriggerCheck.Web.Api;
 using TriggerCheck.Web.Infrastructure;
 using TriggerCheck.Web.Localization;
 
@@ -42,7 +43,11 @@ builder.Services.ConfigureApplicationCookie(o =>
     // Role / active-state changes take effect on the next request (security stamp, active state and customer
     // checked per request; replaces the former ActiveAccountFilter).
     SessionValidator.Attach(o);
+    // FEAT-8: /api requests are authenticated by the API key scheme only (no cookie, no SessionValidator there).
+    o.ForwardDefaultSelector = ApiSetup.ForwardApiRequests;
 });
+// FEAT-8: REST API (API key scheme + policies, per-key rate limit, OpenAPI document).
+builder.Services.AddTriggerCheckApi(builder.Configuration);
 
 builder.Services.AddAuthorization(o =>
 {
@@ -53,6 +58,7 @@ builder.Services.AddAuthorization(o =>
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentCustomer, CurrentCustomer>();
+builder.Services.AddScoped<TriggerCheck.Web.Areas.App.Support.MonitorCommands>();
 builder.Services.AddSingleton<ManualCheckLimiter>();
 builder.Services.AddSingleton<TriggerCheck.Web.Areas.App.Pages.Alerts.TestNotificationLimiter>();
 
@@ -84,15 +90,18 @@ if (!app.Environment.IsDevelopment())
 // English (default) / Turkish UI; parsing stays culture-invariant (see LocalizationSetup).
 app.UseAppLocalization();
 
+app.UseApiProblemStatusCodes(); // FEAT-8: problem+json for bodiless /api errors
 app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter(); // after authorization: the API limit is partitioned by the authenticated key
 
 // AllowAnonymous on static assets and the health endpoints also tells SessionValidator to skip its per-request DB check there.
 app.MapStaticAssets().AllowAnonymous();
 app.MapRazorPages().WithStaticAssets();
 app.MapAppHealthChecks(includeDetails: app.Environment.IsDevelopment());
 app.MapSetLanguage();
+app.MapTriggerCheckApi();
 
 await DbSeeder.SeedAsync(app.Services);
 
