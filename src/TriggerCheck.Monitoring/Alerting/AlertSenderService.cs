@@ -10,12 +10,16 @@ namespace TriggerCheck.Monitoring.Alerting;
 /// Drains the <see cref="AlertQueue"/> and delivers each alert through <see cref="IAlertDispatcher"/> (own DI scope).
 /// <list type="bullet">
 /// <item>Ordering: every monitor has a lane for its status alerts (DOWN/UP) and a separate one for certificate-expiry
-/// warnings, so the two never coalesce or supersede each other. A lane's alerts are delivered one at a time, in order
+/// warnings, so the two never coalesce or supersede each other (escalations: see below). A lane's alerts are delivered one at a time, in order
 /// (DOWN is finished before the following UP starts). Different lanes run in parallel.</item>
 /// <item>Coalescing: a lane keeps at most one waiting alert, the newest. Older waiting alerts that never started are
 /// recorded as superseded (0 attempts) without being sent.</item>
 /// <item>Supersede: when a newer alert for the same monitor arrives while an older one is waiting to retry, the retry
 /// is dropped and the older alert is recorded as superseded, so a stale DOWN never arrives after the UP.</item>
+/// <item>Escalations (FEAT-5) have a third lane per monitor. A status alert (UP, or a DOWN of a new incident) supersedes
+/// the monitor's waiting and retrying escalations, but an escalation never supersedes anything: it does not touch the
+/// status lane (the original DOWN is always delivered), and a newer escalation does not cancel an older one's
+/// delivery; a still waiting older escalation is merged into the newer one (its channels are added).</item>
 /// <item>Fairness: delivery attempts are throttled by <see cref="AlertDeliveryThrottle"/> (global and per customer)
 /// and retry waits hold no slot, so one tenant's failing endpoint cannot stall other tenants' alerts.</item>
 /// </list>
@@ -35,9 +39,20 @@ public sealed class AlertSenderService(
     // throw ObjectDisposedException. It holds no unmanaged resources beyond the CancelAfter timer.
     private readonly CancellationTokenSource _abort = new();
     private readonly object _lock = new();
-    private readonly Dictionary<(int MonitorId, bool Certificate), Lane> _lanes = new();
+    private readonly Dictionary<(int MonitorId, LaneKind Lane), Lane> _lanes = new();
 
-    private static (int MonitorId, bool Certificate) LaneKey(AlertMessage m) => (m.MonitorId, m.Kind == AlertKind.CertificateExpiring);
+    private enum LaneKind { Status, Certificate, Escalation }
+
+    private static (int MonitorId, LaneKind Lane) LaneKey(AlertMessage m) => (m.MonitorId, m.Kind switch
+    {
+        AlertKind.CertificateExpiring => LaneKind.Certificate,
+        AlertKind.Escalation => LaneKind.Escalation,
+        _ => LaneKind.Status
+    });
+
+    /// <summary>A waiting escalation merged into a newer one: the newer level, delivered to the channels of both.</summary>
+    private static AlertMessage MergeEscalations(AlertMessage older, AlertMessage newer) =>
+        newer with { ChannelIds = older.ChannelIds is null || newer.ChannelIds is null ? null : older.ChannelIds.Union(newer.ChannelIds).ToList() };
     private readonly ConcurrentDictionary<Task, byte> _running = new();
 
     private sealed class Lane
@@ -56,28 +71,47 @@ public sealed class AlertSenderService(
         try
         {
             // Not stoppingToken: after StopAsync the queue is completed and the alerts left in it are still delivered.
-            await foreach (var message in queue.Reader.ReadAllAsync(_abort.Token))
+            await foreach (var received in queue.Reader.ReadAllAsync(_abort.Token))
             {
+                var message = received;
+                var key = LaneKey(message);
                 Lane? started = null;
-                AlertMessage? skipped = null;
-                CancellationTokenSource? toCancel = null;
+                AlertMessage? skipped = null, merged = null, staleEscalation = null;
+                CancellationTokenSource? toCancel = null, escalationToCancel = null;
                 lock (_lock)
                 {
-                    if (_lanes.TryGetValue(LaneKey(message), out var lane))
+                    // A status alert (recovery, or a DOWN of a new incident) makes the monitor's escalations stale.
+                    if (key.Lane == LaneKind.Status && _lanes.TryGetValue((message.MonitorId, LaneKind.Escalation), out var escalations))
                     {
-                        skipped = lane.Waiting;
+                        staleEscalation = escalations.Waiting;
+                        escalations.Waiting = null;
+                        escalationToCancel = escalations.Superseded;
+                    }
+                    if (_lanes.TryGetValue(key, out var lane))
+                    {
+                        if (key.Lane == LaneKind.Escalation)
+                        {
+                            if (lane.Waiting is { } older) message = MergeEscalations(merged = older, message);
+                        }
+                        else
+                        {
+                            skipped = lane.Waiting;
+                            toCancel = lane.Superseded;
+                        }
                         lane.Waiting = message;
-                        toCancel = lane.Superseded;
                     }
                     else
                     {
                         // The token exists before the lane task runs, so an alert arriving right behind this one
                         // (e.g. UP queued back-to-back with DOWN) always cancels the DOWN's retries.
-                        _lanes[LaneKey(message)] = started = new Lane { Superseded = new CancellationTokenSource() };
+                        _lanes[key] = started = new Lane { Superseded = new CancellationTokenSource() };
                     }
                 }
                 toCancel?.Cancel();
+                escalationToCancel?.Cancel();
                 if (skipped is not null) Track(RecordSkippedAsync(skipped));
+                if (staleEscalation is not null) Track(RecordSkippedAsync(staleEscalation));
+                if (merged is not null) queue.MarkDone(merged); // delivered as part of the newer escalation
                 if (started is not null) Track(RunLaneAsync(message, started, stoppingToken));
             }
         }

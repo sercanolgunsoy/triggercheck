@@ -110,7 +110,7 @@ public class HealthEndpointTests
         Assert.Equal("Healthy", body.GetProperty("status").GetString());
 
         var dataSource = new SqliteConnectionStringBuilder(f.Services.GetRequiredService<IConfiguration>().GetConnectionString("Default")).DataSource;
-        SqliteConnection.ClearAllPools();
+        SqliteConnection.ClearPool(new SqliteConnection($"Data Source={dataSource}")); // not ClearAllPools: other tests run in parallel
         File.Delete(dataSource);
 
         var r = await client.GetAsync("/health/ready");

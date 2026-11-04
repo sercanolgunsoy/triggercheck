@@ -949,6 +949,12 @@
   <data name="Too many failed attempts. Try again in a few minutes." xml:space="preserve">
     <value>Çok fazla başarısız deneme. Birkaç dakika sonra tekrar deneyin.</value>
   </data>
+  <data name="Maintenance" xml:space="preserve">
+    <value>Bakım</value>
+  </data>
+  <data name="Escalation" xml:space="preserve">
+    <value>Eskalasyon</value>
+  </data>
   <data name="API keys" xml:space="preserve">
     <value>API anahtarları</value>
   </data>

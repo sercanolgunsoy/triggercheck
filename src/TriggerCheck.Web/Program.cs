@@ -78,6 +78,9 @@ builder.Services.Configure<MvcOptions>(o => o.Filters.Add(new MustChangePassword
 var app = builder.Build();
 app.ValidateBillingConfiguration();
 
+if (!app.Environment.IsDevelopment() && TriggerCheck.Monitoring.Escalation.IncidentAckLinks.ParseBaseUrl(app.Configuration["Site:PublicBaseUrl"]) is null)
+    app.Logger.LogWarning("Site:PublicBaseUrl is not set (or not an absolute http(s) URL): acknowledge links are omitted from alerts.");
+
 if (!app.Environment.IsDevelopment() && app.Configuration.GetValue<bool>("Monitoring:AllowPrivateTargets"))
     app.Logger.LogWarning("Monitoring:AllowPrivateTargets is enabled in {Environment}: SSRF protection is OFF and monitors/webhooks " +
                           "can reach internal addresses. Use this only for development or testing.", app.Environment.EnvironmentName);

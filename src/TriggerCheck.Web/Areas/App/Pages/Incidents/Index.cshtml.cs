@@ -10,7 +10,8 @@ public class IndexModel(AppDbContext db, ICurrentCustomer current) : PageModel
 {
     public const int PageSize = 50;
 
-    public record Row(int Id, int MonitorId, string MonitorName, DateTime StartedAtUtc, DateTime? ResolvedAtUtc, string? Cause);
+    public record Row(int Id, int MonitorId, string MonitorName, DateTime StartedAtUtc, DateTime? ResolvedAtUtc, string? Cause,
+        DateTime? AcknowledgedAtUtc, bool ResolvedDuringMaintenance);
 
     /// <summary>"open", "resolved" or empty (all).</summary>
     [BindProperty(SupportsGet = true)] public string? Filter { get; set; }
@@ -41,7 +42,7 @@ public class IndexModel(AppDbContext db, ICurrentCustomer current) : PageModel
         Items = await q
             .OrderBy(i => i.ResolvedAtUtc != null).ThenByDescending(i => i.StartedAtUtc)
             .Skip((PageNumber - 1) * PageSize).Take(PageSize)
-            .Select(i => new Row(i.Id, i.MonitorId, i.Monitor.Name, i.StartedAtUtc, i.ResolvedAtUtc, i.Cause))
+            .Select(i => new Row(i.Id, i.MonitorId, i.Monitor.Name, i.StartedAtUtc, i.ResolvedAtUtc, i.Cause, i.AcknowledgedAtUtc, i.ResolvedDuringMaintenance))
             .ToListAsync(ct);
     }
 }
