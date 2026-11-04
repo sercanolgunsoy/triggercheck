@@ -60,7 +60,8 @@ public sealed class MonitorLifecycle(IDbContextFactory<AppDbContext> dbFactory, 
         m.IsEnabled = true;
         m.ConsecutiveFailures = 0;
         m.StatusChangedAtUtc = now;
-        m.NextCheckAtUtc = now;
+        // A heartbeat gets a full interval + grace for its first ping; pings from before the pause do not count.
+        m.NextCheckAtUtc = m.Type == MonitorType.Heartbeat ? Checks.HeartbeatSchedule.FirstDeadline(m, now) : now;
         return true;
     }
 

@@ -80,6 +80,8 @@ secret store, never in the image or in `appsettings.json`.
 | `Site__ContactEmail` | no | Sales / support address shown on the marketing pages. It also receives operator alerts, such as "refund needed" for a refused payment. |
 | `Site__PublicBaseUrl` | **yes outside Development** | Public address of the app, e.g. `https://app.example.com`. Used in e-mail links (sign-up confirmation, password reset), for the iyzico callback, for the "Acknowledge" link in DOWN and escalation alerts, and for heartbeat ping URLs. **The app refuses to start without it** in any environment other than Development. The former `Billing__PublicBaseUrl` is still read as a fallback. |
 | `Escalation__CheckIntervalSeconds` (30), `Escalation__AckLinkValidHours` (72) | no | How often the escalation job runs; lifetime of acknowledge links. |
+| `Monitoring__DnsResolvers__0`, `__1`, ... | no (1.1.1.1, 8.8.8.8) | Resolvers for DNS monitors, tried in order: `ip`, `ip:port` or `[ipv6]:port`. Operator configuration (not subject to the SSRF guard). |
+| `Heartbeat__PingsPerMinutePerToken` (10), `Heartbeat__PingsPerMinutePerClient` (6000), `Heartbeat__PingsPerSecondGlobal` (1000) | no | Limits of the `/hb/{token}` ping endpoint. The per-client limit is per IPv4 address / IPv6 /64 and deliberately high (many hosts behind one NAT). **Behind a reverse proxy enable ForwardedHeaders**, otherwise all pings share the proxy's address. |
 | `Seed__DemoData` | no | Ignored outside Development. |
 
 Acknowledge links are protected with ASP.NET Core Data Protection (purpose `IncidentAck.v1`), the same key ring as

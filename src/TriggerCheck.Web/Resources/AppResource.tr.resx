@@ -748,6 +748,135 @@
   <data name="TLS certificate expiry warnings are never sent as voice calls; if voice calls are your only channel, they follow this setting as well." xml:space="preserve">
     <value>TLS sertifikası süre uyarıları hiçbir zaman sesli arama olarak gönderilmez; tek kanalınız sesli arama ise bu uyarılar da bu ayara göre gönderilir.</value>
   </data>
+  <data name="equals" xml:space="preserve">
+    <value>eşittir</value>
+  </data>
+  <data name="contains" xml:space="preserve">
+    <value>içerir</value>
+  </data>
+  <data name="exists" xml:space="preserve">
+    <value>mevcut</value>
+  </data>
+  <data name="is less than" xml:space="preserve">
+    <value>küçüktür</value>
+  </data>
+  <data name="is greater than" xml:space="preserve">
+    <value>büyüktür</value>
+  </data>
+  <data name="The target must be a host name without a scheme (e.g. example.com)." xml:space="preserve">
+    <value>Hedef, şema içermeyen bir alan adı olmalıdır (ör. example.com).</value>
+  </data>
+  <data name="Choose a DNS record type." xml:space="preserve">
+    <value>Bir DNS kayıt türü seçin.</value>
+  </data>
+  <data name="A DNS monitor can only check that a record equals or contains the expected value." xml:space="preserve">
+    <value>DNS monitörü yalnızca bir kaydın beklenen değere eşit olduğunu veya onu içerdiğini kontrol edebilir.</value>
+  </data>
+  <data name="The grace period must be between {0} and {1} seconds." xml:space="preserve">
+    <value>Tolerans süresi {0} ile {1} saniye arasında olmalıdır.</value>
+  </data>
+  <data name="A HEAD request has no response body; use GET or POST for keyword and JSON monitors." xml:space="preserve">
+    <value>HEAD isteğinin yanıt gövdesi yoktur; anahtar kelime ve JSON monitörleri için GET veya POST kullanın.</value>
+  </data>
+  <data name="Enter a JSON path like $.status or $.items[0].name (only .name, ['name'] and [index]; no wildcards or filters)." xml:space="preserve">
+    <value>$.status veya $.items[0].name gibi bir JSON yolu girin (yalnızca .ad, ['ad'] ve [indeks]; joker karakter veya filtre yok).</value>
+  </data>
+  <data name="Choose a condition." xml:space="preserve">
+    <value>Bir koşul seçin.</value>
+  </data>
+  <data name="Enter the expected value." xml:space="preserve">
+    <value>Beklenen değeri girin.</value>
+  </data>
+  <data name="For less than / greater than the expected value must be a number, e.g. 250 or 0.5." xml:space="preserve">
+    <value>Küçüktür / büyüktür için beklenen değer bir sayı olmalıdır, ör. 250 veya 0.5.</value>
+  </data>
+  <data name="The JSON path can be at most 500 characters." xml:space="preserve">
+    <value>JSON yolu en fazla 500 karakter olabilir.</value>
+  </data>
+  <data name="The expected value can be at most 500 characters." xml:space="preserve">
+    <value>Beklenen değer en fazla 500 karakter olabilir.</value>
+  </data>
+  <data name="Record type" xml:space="preserve">
+    <value>Kayıt türü</value>
+  </data>
+  <data name="JSON path" xml:space="preserve">
+    <value>JSON yolu</value>
+  </data>
+  <data name="Condition" xml:space="preserve">
+    <value>Koşul</value>
+  </data>
+  <data name="Expected value" xml:space="preserve">
+    <value>Beklenen değer</value>
+  </data>
+  <data name="Grace period (sec)" xml:space="preserve">
+    <value>Tolerans süresi (sn)</value>
+  </data>
+  <data name="A new ping URL was generated. The old URL no longer works." xml:space="preserve">
+    <value>Yeni bir ping URL'si oluşturuldu. Eski URL artık çalışmıyor.</value>
+  </data>
+  <data name="A heartbeat monitor is checked when its ping arrives or is overdue; it cannot be checked on demand." xml:space="preserve">
+    <value>Heartbeat monitörü, ping geldiğinde veya gecikince değerlendirilir; isteğe bağlı olarak kontrol edilemez.</value>
+  </data>
+  <data name="Monitor &quot;{0}&quot; was created. Call its ping URL from your job; it goes down when no ping arrives in time." xml:space="preserve">
+    <value>"{0}" monitörü oluşturuldu. İşinizden ping URL'sini çağırın; ping zamanında gelmezse monitör kapalı duruma geçer.</value>
+  </data>
+  <data name="Host name to look up, e.g. example.com" xml:space="preserve">
+    <value>Sorgulanacak alan adı, ör. example.com</value>
+  </data>
+  <data name="e.g. $.status, $.data.items[0].name or $['odd key']" xml:space="preserve">
+    <value>ör. $.status, $.data.items[0].name veya $['özel anahtar']</value>
+  </data>
+  <data name="Optional. Empty: at least one record must exist." xml:space="preserve">
+    <value>İsteğe bağlı. Boş bırakılırsa en az bir kayıt bulunması yeterlidir.</value>
+  </data>
+  <data name="Not used for &quot;exists&quot;; a number for less / greater than." xml:space="preserve">
+    <value>"mevcut" için kullanılmaz; küçüktür / büyüktür için bir sayı girin.</value>
+  </data>
+  <data name="Heartbeat monitors are not probed. Your job calls a secret ping URL (shown after saving) every interval; the monitor goes down when no ping arrives within the interval plus the grace period, or when a ping reports ?status=fail." xml:space="preserve">
+    <value>Heartbeat monitörleri yoklanmaz. İşiniz her aralıkta gizli bir ping URL'sini (kaydettikten sonra gösterilir) çağırır; aralık artı tolerans süresi içinde ping gelmezse veya bir ping ?status=fail bildirirse monitör kapalı duruma geçer.</value>
+  </data>
+  <data name="Expected ping interval" xml:space="preserve">
+    <value>Beklenen ping aralığı</value>
+  </data>
+  <data name="Extra time allowed for a late ping." xml:space="preserve">
+    <value>Geç gelen bir ping için tanınan ek süre.</value>
+  </data>
+  <data name="Ping URL" xml:space="preserve">
+    <value>Ping URL'si</value>
+  </data>
+  <data name="Copy it now: for security it is shown only once. If you lose it, generate a new one." xml:space="preserve">
+    <value>Şimdi kopyalayın: güvenlik nedeniyle yalnızca bir kez gösterilir. Kaybederseniz yenisini oluşturun.</value>
+  </data>
+  <data name="Example (cron):" xml:space="preserve">
+    <value>Örnek (cron):</value>
+  </data>
+  <data name="report a failure with ?status=fail&amp;msg=..." xml:space="preserve">
+    <value>hata bildirmek için ?status=fail&amp;msg=... ekleyin</value>
+  </data>
+  <data name="Grace period" xml:space="preserve">
+    <value>Tolerans süresi</value>
+  </data>
+  <data name="Generate a new ping URL? The current URL stops working immediately." xml:space="preserve">
+    <value>Yeni bir ping URL'si oluşturulsun mu? Mevcut URL hemen çalışmaz hale gelir.</value>
+  </data>
+  <data name="Generate new URL" xml:space="preserve">
+    <value>Yeni URL oluştur</value>
+  </data>
+  <data name="Last ping" xml:space="preserve">
+    <value>Son ping</value>
+  </data>
+  <data name="No ping received yet." xml:space="preserve">
+    <value>Henüz ping alınmadı.</value>
+  </data>
+  <data name="reported failure" xml:space="preserve">
+    <value>hata bildirdi</value>
+  </data>
+  <data name="any record" xml:space="preserve">
+    <value>herhangi bir kayıt</value>
+  </data>
+  <data name="JSON assertion" xml:space="preserve">
+    <value>JSON doğrulaması</value>
+  </data>
   <data name="A one-off window can last at most 31 days." xml:space="preserve">
     <value>Tek seferlik bir bakım penceresi en fazla 31 gün sürebilir.</value>
   </data>

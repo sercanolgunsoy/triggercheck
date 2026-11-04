@@ -44,6 +44,7 @@ public static class ApiEndpoints
             .Produces<MonitorDto>().ProducesValidationProblem().ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status409Conflict);
         writes.MapDelete("/{id:int}", DeleteMonitor).Produces(StatusCodes.Status204NoContent).ProducesProblem(StatusCodes.Status404NotFound);
         writes.MapPost("/{id:int}/pause", PauseMonitor).Produces<MonitorDto>().ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status409Conflict);
+        writes.MapPost("/{id:int}/heartbeat-token", RegenerateHeartbeatToken).Produces<MonitorDto>().ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status409Conflict);
         writes.MapPost("/{id:int}/resume", ResumeMonitor).Produces<MonitorDto>().ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status409Conflict);
 
         api.MapGet("/incidents", ListIncidents).WithTags("Incidents").Produces<List<IncidentDto>>().ProducesValidationProblem();
@@ -94,7 +95,7 @@ public static class ApiEndpoints
 
     // ---- monitors: write --------------------------------------------------------------------------------------
 
-    private static async Task<IResult> CreateMonitor(HttpContext http, MonitorCommands commands, ICurrentCustomer current, Text<AppResource> L, CancellationToken ct)
+    private static async Task<IResult> CreateMonitor(HttpContext http, MonitorCommands commands, AppDbContext db, ICurrentCustomer current, Text<AppResource> L, CancellationToken ct)
     {
         var (input, error) = await ApiProblems.ReadJsonAsync<MonitorInput>(http, ct);
         if (error is not null) return error;
@@ -111,7 +112,7 @@ public static class ApiEndpoints
         {
             MonitorCommandError.QuotaReached => QuotaReached(plan),
             MonitorCommandError.Busy => Busy(http),
-            _ => Results.Created($"{ApiSetup.BasePath}/monitors/{r.Monitor!.Id}", MonitorDto.From(r.Monitor))
+            _ => Results.Created($"{ApiSetup.BasePath}/monitors/{r.Monitor!.Id}", await WithPingUrlAsync(http, db, r, ct))
         };
     }
 
@@ -133,8 +134,29 @@ public static class ApiEndpoints
         {
             MonitorCommandError.NotFound => ApiProblems.NotFound(),
             MonitorCommandError.Conflict => ApiProblems.Conflict("The monitor was changed concurrently. Retry the request."),
-            _ => Results.Ok(await ToDtoAsync(db, r.Monitor!, ct))
+            _ => Results.Ok(await WithPingUrlAsync(http, db, r, ct))
         };
+    }
+
+    /// <summary>Heartbeat: replaces the ping token; the response carries the new <c>pingUrl</c> (shown only here).</summary>
+    private static async Task<IResult> RegenerateHeartbeatToken(int id, HttpContext http, MonitorCommands commands, AppDbContext db, ICurrentCustomer current, CancellationToken ct)
+    {
+        var r = await commands.RegenerateHeartbeatTokenAsync(current.RequiredCustomerId, id, ct);
+        return r.Error switch
+        {
+            MonitorCommandError.NotFound => ApiProblems.NotFound(),
+            MonitorCommandError.Conflict => ApiProblems.Conflict("The monitor was changed concurrently. Retry the request."),
+            _ => Results.Ok(await WithPingUrlAsync(http, db, r, ct))
+        };
+    }
+
+    /// <summary>The monitor, plus the full ping URL when this command issued a heartbeat token (then not cacheable).</summary>
+    private static async Task<MonitorDto> WithPingUrlAsync(HttpContext http, AppDbContext db, MonitorCommandResult r, CancellationToken ct)
+    {
+        var dto = await ToDtoAsync(db, r.Monitor!, ct);
+        if (r.IssuedHeartbeatToken is not { } token) return dto;
+        http.Response.Headers.CacheControl = "no-store";
+        return dto with { PingUrl = Heartbeat.HeartbeatEndpoint.PingUrl(http.Request, token) };
     }
 
     private static async Task<IResult> DeleteMonitor(int id, MonitorCommands commands, ICurrentCustomer current, CancellationToken ct) =>

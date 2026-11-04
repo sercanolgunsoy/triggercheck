@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TriggerCheck.Monitoring.Alerting;
 using TriggerCheck.Monitoring.Checks;
+using TriggerCheck.Monitoring.Checks.Dns;
 using TriggerCheck.Monitoring.Diagnostics;
 using TriggerCheck.Monitoring.Engine;
 using TriggerCheck.Monitoring.Escalation;
@@ -68,6 +69,9 @@ public static class DependencyInjection
         services.AddSingleton<IMonitorChecker, KeywordMonitorChecker>();
         services.AddSingleton<IMonitorChecker, TcpMonitorChecker>();
         services.AddSingleton<IMonitorChecker, PingMonitorChecker>();
+        services.AddSingleton<IMonitorChecker, DnsMonitorChecker>();
+        services.AddSingleton<IMonitorChecker, HeartbeatMonitorChecker>();
+        services.AddSingleton<IMonitorChecker, JsonApiMonitorChecker>();
 
         // ---- engine ----
         services.AddSingleton<MonitorRunGate>();

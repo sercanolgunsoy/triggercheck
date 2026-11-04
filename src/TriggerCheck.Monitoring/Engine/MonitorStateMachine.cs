@@ -201,9 +201,9 @@ public static class MonitorStateMachine
     /// <summary>Days before expiry of the final reminder sent when the configured warning window is larger.</summary>
     public const int FinalCertReminderDays = 7;
 
-    /// <summary>True for https Http/Keyword monitors, the only ones whose certificate is tracked.</summary>
+    /// <summary>True for https Http/Keyword/JsonApi monitors, the only ones whose certificate is tracked.</summary>
     public static bool IsHttpsMonitor(MonitorEntity monitor) =>
-        monitor.Type is MonitorType.Http or MonitorType.Keyword
+        monitor.Type is MonitorType.Http or MonitorType.Keyword or MonitorType.JsonApi
         && monitor.Target.TrimStart().StartsWith("https://", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>

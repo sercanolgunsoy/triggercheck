@@ -10,14 +10,29 @@ public sealed record MonitorDto(
     int Id, string Name, MonitorType Type, string Target, int? Port, string? Keyword, string HttpMethod, string ExpectedStatusCodes,
     int IntervalSeconds, int TimeoutSeconds, int FailureThreshold, MonitorStatus Status, bool IsPaused,
     DateTime? LastCheckedAtUtc, DateTime? NextCheckAtUtc, int? LastResponseTimeMs, string? LastError,
-    DateTime? StatusChangedAtUtc, DateTime CreatedAtUtc, bool InMaintenance = false)
+    DateTime? StatusChangedAtUtc, DateTime CreatedAtUtc, bool InMaintenance,
+    DnsRecordType? DnsRecordType, string? JsonPath, AssertionOperator? AssertionOperator, string? ExpectedValue,
+    int? GracePeriodSeconds, string? HeartbeatTokenPrefix, DateTime? LastHeartbeatAtUtc, bool? LastHeartbeatFailed, string? LastHeartbeatMessage)
 {
+    /// <summary>
+    /// Heartbeat only, and only in the response that issued the token (create as / change to Heartbeat, regeneration):
+    /// the full ping URL. It is never stored or returned again (only <see cref="HeartbeatTokenPrefix"/>).
+    /// </summary>
+    public string? PingUrl { get; init; }
+
     /// <param name="inMaintenance">The monitor is in an active maintenance window (FEAT-3).</param>
-    public static MonitorDto From(MonitorEntity m, bool inMaintenance = false) => new(
-        m.Id, m.Name, m.Type, m.Target, m.Port, m.Keyword, m.HttpMethod, m.ExpectedStatusCodes,
-        m.IntervalSeconds, m.TimeoutSeconds, m.FailureThreshold, m.Status, m.Status == MonitorStatus.Paused || !m.IsEnabled,
-        Utc.Of(m.LastCheckedAtUtc), Utc.Of(m.NextCheckAtUtc), m.LastResponseTimeMs, m.LastError,
-        Utc.Of(m.StatusChangedAtUtc), Utc.Of(m.CreatedAtUtc), inMaintenance);
+    public static MonitorDto From(MonitorEntity m, bool inMaintenance = false)
+    {
+        var hb = m.Type == MonitorType.Heartbeat;
+        return new(
+            m.Id, m.Name, m.Type, m.Target, m.Port, m.Keyword, m.HttpMethod, m.ExpectedStatusCodes,
+            m.IntervalSeconds, m.TimeoutSeconds, m.FailureThreshold, m.Status, m.Status == MonitorStatus.Paused || !m.IsEnabled,
+            Utc.Of(m.LastCheckedAtUtc), Utc.Of(m.NextCheckAtUtc), m.LastResponseTimeMs, m.LastError,
+            Utc.Of(m.StatusChangedAtUtc), Utc.Of(m.CreatedAtUtc), inMaintenance,
+            m.DnsRecordType, m.JsonPath, m.AssertionOperator, m.ExpectedValue,
+            hb ? m.GracePeriodSeconds : null, hb ? m.HeartbeatTokenPrefix : null, hb ? Utc.Of(m.LastHeartbeatAtUtc) : null,
+            hb ? m.LastHeartbeatFailed : null, hb ? m.LastHeartbeatMessage : null);
+    }
 }
 
 /// <param name="InMaintenance">Taken during a maintenance window; not counted in uptime (FEAT-3).</param>

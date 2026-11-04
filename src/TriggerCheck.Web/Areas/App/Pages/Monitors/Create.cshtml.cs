@@ -2,13 +2,14 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TriggerCheck.Domain;
 using TriggerCheck.Web.Areas.App.Support;
+using TriggerCheck.Web.Heartbeat;
 using TriggerCheck.Web.Infrastructure;
 using TriggerCheck.Web.Localization;
 
 namespace TriggerCheck.Web.Areas.App.Pages.Monitors;
 
 [Authorize(Policy = Policies.CustomerAdmin)]
-public class CreateModel(MonitorCommands commands, ICurrentCustomer current, Text<AppResource> L) : MonitorFormPageModel
+public class CreateModel(MonitorCommands commands, ICurrentCustomer current, Text<AppResource> L, HeartbeatUrlReveal reveal) : MonitorFormPageModel
 {
     public int CurrentCount { get; private set; }
     public bool QuotaReached => !PlanRules.CanAddMonitor(Plan, CurrentCount);
@@ -53,6 +54,13 @@ public class CreateModel(MonitorCommands commands, ICurrentCustomer current, Tex
                 return Page();
         }
 
+        if (r.IssuedHeartbeatToken is { } token)
+        {
+            // Only the hash is stored: the full URL is shown once on the details page (one-time server-side reveal).
+            TempData["Success"] = L["Monitor \"{0}\" was created. Call its ping URL from your job; it goes down when no ping arrives in time.", r.Monitor!.Name].Value;
+            var revealId = reveal.Park(User, current.RequiredCustomerId, r.Monitor.Id, HeartbeatEndpoint.PingUrl(Request, token));
+            return RedirectToPage("Details", new { id = r.Monitor.Id, reveal = revealId });
+        }
         TempData["Success"] = L["Monitor \"{0}\" was created. The first check will run shortly.", r.Monitor!.Name].Value;
         return RedirectToPage("Details", new { id = r.Monitor.Id });
     }
