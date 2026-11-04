@@ -77,9 +77,10 @@ app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapStaticAssets();
+// AllowAnonymous on static assets and /health also tells SessionValidator to skip its per-request DB check there.
+app.MapStaticAssets().AllowAnonymous();
 app.MapRazorPages().WithStaticAssets();
-app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+app.MapGet("/health", () => Results.Ok(new { status = "ok" })).AllowAnonymous();
 app.MapSetLanguage();
 
 await DbSeeder.SeedAsync(app.Services);

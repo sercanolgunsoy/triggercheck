@@ -2,7 +2,6 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -18,7 +17,7 @@ namespace TriggerCheck.Web.Infrastructure;
 /// session when the stamp differs, the user was deleted, the user or its customer is inactive, or the cookie's
 /// customer claim no longer matches. Cost: one primary-key lookup of three columns per authenticated page request
 /// (a zero ValidationInterval would instead rebuild the whole principal - several queries - and re-issue the cookie on
-/// every request). Static assets and /health are skipped. The standard SecurityStampValidator still runs afterwards
+/// every request). Only endpoints marked AllowAnonymous (static assets and /health) are skipped. The standard SecurityStampValidator still runs afterwards
 /// to refresh the claims periodically.
 /// The login page receives a hint: reason=inactive (deactivated / suspended) or reason=changed (stamp rotated).
 /// </summary>
@@ -41,7 +40,7 @@ public static class SessionValidator
 
     public static async Task ValidatePrincipalAsync(CookieValidatePrincipalContext context)
     {
-        if (context.Principal?.Identity?.IsAuthenticated != true || IsAnonymousNonPageEndpoint(context.HttpContext)) return;
+        if (context.Principal?.Identity?.IsAuthenticated != true || IsExplicitlyAnonymous(context.HttpContext)) return;
 
         var sp = context.HttpContext.RequestServices;
         var claims = sp.GetRequiredService<IOptions<IdentityOptions>>().Value.ClaimsIdentity;
@@ -72,12 +71,10 @@ public static class SessionValidator
         await SecurityStampValidator.ValidatePrincipalAsync(context);
     }
 
-    /// <summary>Static files, /health and similar endpoints: no page, no authorization requirement.</summary>
-    private static bool IsAnonymousNonPageEndpoint(HttpContext http)
-    {
-        var endpoint = http.GetEndpoint();
-        return endpoint is not null
-            && endpoint.Metadata.GetMetadata<ActionDescriptor>() is null
-            && endpoint.Metadata.GetMetadata<IAuthorizeData>() is null;
-    }
+    /// <summary>
+    /// Only endpoints explicitly marked anonymous (static assets and /health, see Program.cs) are skipped;
+    /// every other endpoint - pages, and any future API secured with RequireAuthorization - is validated.
+    /// </summary>
+    private static bool IsExplicitlyAnonymous(HttpContext http) =>
+        http.GetEndpoint()?.Metadata.GetMetadata<IAllowAnonymous>() is not null;
 }

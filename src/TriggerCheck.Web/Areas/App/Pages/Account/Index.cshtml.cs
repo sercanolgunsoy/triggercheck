@@ -57,12 +57,17 @@ public class IndexModel(AppDbContext db, ICurrentCustomer current, UserManager<A
         var user = await users.GetUserAsync(User);
         if (user is null || user.CustomerId != current.RequiredCustomerId) return Forbid();
 
-        var r = await users.ChangePasswordAsync(user, Password.CurrentPassword, Password.NewPassword);
-        if (await PasswordChangeLockout.RecordAsync(signIn, user, r))
+        var (outcome, r) = await PasswordChangeLockout.ChangeAsync(signIn, user, Password.CurrentPassword, Password.NewPassword);
+        if (outcome == PasswordChangeOutcome.LockedNow)
             return RedirectToPage("/Account/Login", new { area = "", reason = "locked" });
-        if (!r.Succeeded)
+        if (outcome == PasswordChangeOutcome.AlreadyLocked)
         {
-            foreach (var e in r.Errors.Select(e => IdentityErrorMessages.Describe(e, L)).Distinct())
+            ModelState.AddModelError("", L["Too many failed attempts. Try again in a few minutes."]);
+            return Page();
+        }
+        if (outcome == PasswordChangeOutcome.Failed)
+        {
+            foreach (var e in r!.Errors.Select(e => IdentityErrorMessages.Describe(e, L)).Distinct())
                 ModelState.AddModelError("", e);
             return Page();
         }

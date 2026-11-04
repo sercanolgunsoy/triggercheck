@@ -89,8 +89,13 @@ public class SessionTests(TestWebAppFactory f) : IClassFixture<TestWebAppFactory
         var id = await f.AddUserAsync(await f.DemoCustomerIdAsync(), "static@demo.local", "Static123", Roles.CustomerViewer);
         var c = await f.LoginAsync("static@demo.local", "Static123");
         await WithUserManagerAsync(async um => await um.UpdateSecurityStampAsync((await um.FindByIdAsync(id))!));
-        Assert.Equal(HttpStatusCode.OK, (await c.GetAsync("/health")).StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await c.GetAsync("/css/site.css")).StatusCode);
+        // Skipped endpoints do not validate the cookie (so they never end the session with a Set-Cookie).
+        foreach (var url in new[] { "/health", "/css/site.css" })
+        {
+            var r = await c.GetAsync(url);
+            Assert.Equal(HttpStatusCode.OK, r.StatusCode);
+            Assert.False(r.Headers.Contains("Set-Cookie"), url);
+        }
         // The stale cookie is still rejected on the next page request.
         AssertRedirect(await c.GetAsync("/App"), "/Account/Login");
     }
@@ -128,6 +133,44 @@ public class SessionTests(TestWebAppFactory f) : IClassFixture<TestWebAppFactory
         var login = await f.CreateBrowser().PostFormAsync("/Account/Login", new() { ["Input.Email"] = email, ["Input.Password"] = "Correct123" });
         Assert.Equal(HttpStatusCode.OK, login.StatusCode);
         Assert.Contains("The account is temporarily locked.", await login.ReadHtmlAsync());
+    }
+
+    [Fact]
+    public async Task Anonymous_pages_without_explicit_marker_still_validate_the_cookie()
+    {
+        var id = await f.AddUserAsync(await f.DemoCustomerIdAsync(), "pricing@demo.local", "Pricing123", Roles.CustomerViewer);
+        var c = await f.LoginAsync("pricing@demo.local", "Pricing123");
+        await WithUserManagerAsync(async um => await um.UpdateSecurityStampAsync((await um.FindByIdAsync(id))!));
+        var r = await c.GetAsync("/Pricing");
+        Assert.Equal(HttpStatusCode.OK, r.StatusCode);
+        Assert.Contains(r.Headers.GetValues("Set-Cookie"), v => v.StartsWith("TriggerCheck.Auth=;")); // session ended
+    }
+
+    [Theory]
+    [MemberData(nameof(ChangePasswordForms))]
+    public async Task Account_locked_elsewhere_keeps_the_session_and_changes_nothing(string url, string prefix, string formPage)
+    {
+        var email = $"locked-elsewhere-{Guid.NewGuid():N}@demo.local";
+        var id = await f.AddUserAsync(await f.DemoCustomerIdAsync(), email, "Correct123", Roles.CustomerViewer);
+        var c = await f.LoginAsync(email, "Correct123");
+
+        // An attacker locks the account through the login page.
+        for (var i = 0; i < 5; i++)
+            await f.CreateBrowser().PostFormAsync("/Account/Login", new() { ["Input.Email"] = email, ["Input.Password"] = $"Attack{i}2345" });
+        Assert.True(await f.WithDbAsync(db => db.Users.Where(u => u.Id == id).Select(u => u.LockoutEnd).SingleAsync()) > DateTimeOffset.UtcNow);
+
+        var hash = await f.WithDbAsync(db => db.Users.Where(u => u.Id == id).Select(u => u.PasswordHash).SingleAsync());
+        foreach (var current in new[] { "Typo12345", "Correct123" })
+        {
+            var r = await c.PostFormAsync(url, new()
+            {
+                [$"{prefix}.CurrentPassword"] = current, [$"{prefix}.NewPassword"] = "Takeover123", [$"{prefix}.ConfirmPassword"] = "Takeover123"
+            }, formPage);
+            Assert.Equal(HttpStatusCode.OK, r.StatusCode);
+            Assert.Contains("Too many failed attempts. Try again in a few minutes.", await r.ReadHtmlAsync());
+        }
+        Assert.Equal(hash, await f.WithDbAsync(db => db.Users.Where(u => u.Id == id).Select(u => u.PasswordHash).SingleAsync()));
+        Assert.Equal(HttpStatusCode.OK, (await c.GetAsync("/App")).StatusCode); // still signed in
     }
 
     [Fact]

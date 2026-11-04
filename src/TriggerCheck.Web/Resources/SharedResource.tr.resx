@@ -946,4 +946,7 @@
   <data name="The current password is incorrect." xml:space="preserve">
     <value>Mevcut şifre hatalı.</value>
   </data>
+  <data name="Too many failed attempts. Try again in a few minutes." xml:space="preserve">
+    <value>Çok fazla başarısız deneme. Birkaç dakika sonra tekrar deneyin.</value>
+  </data>
 </root>

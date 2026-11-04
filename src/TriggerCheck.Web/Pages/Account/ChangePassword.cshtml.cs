@@ -12,7 +12,7 @@ namespace TriggerCheck.Web.Pages.Account;
 
 /// <summary>Lets the signed-in user set a new password; mandatory while ApplicationUser.MustChangePassword is set.</summary>
 [Authorize]
-public class ChangePasswordModel(SignInManager<ApplicationUser> signIn, Text<SharedResource> L) : PageModel
+public class ChangePasswordModel(SignInManager<ApplicationUser> signIn, ILogger<ChangePasswordModel> logger, Text<SharedResource> L) : PageModel
 {
     [BindProperty] public InputModel Input { get; set; } = new();
     public bool Required { get; private set; }
@@ -48,18 +48,25 @@ public class ChangePasswordModel(SignInManager<ApplicationUser> signIn, Text<Sha
             ModelState.AddModelError("Input.NewPassword", L["The new password must be different from the current one."]);
         if (!ModelState.IsValid) return Page();
 
-        var result = await signIn.UserManager.ChangePasswordAsync(user, Input.CurrentPassword, Input.NewPassword);
-        if (await PasswordChangeLockout.RecordAsync(signIn, user, result))
-            return RedirectToPage("/Account/Login", new { reason = "locked" });
-        if (!result.Succeeded)
+        var (outcome, result) = await PasswordChangeLockout.ChangeAsync(signIn, user, Input.CurrentPassword, Input.NewPassword);
+        switch (outcome)
         {
-            foreach (var e in result.Errors.Select(e => IdentityErrorMessages.Describe(e, L)).Distinct()) ModelState.AddModelError("", e);
-            return Page();
+            case PasswordChangeOutcome.LockedNow:
+                return RedirectToPage("/Account/Login", new { reason = "locked" });
+            case PasswordChangeOutcome.AlreadyLocked:
+                ModelState.AddModelError("", L["Too many failed attempts. Try again in a few minutes."]);
+                return Page();
+            case PasswordChangeOutcome.Failed:
+                foreach (var e in result!.Errors.Select(e => IdentityErrorMessages.Describe(e, L)).Distinct()) ModelState.AddModelError("", e);
+                return Page();
         }
         if (user.MustChangePassword)
         {
             user.MustChangePassword = false;
-            await signIn.UserManager.UpdateAsync(user);
+            var cleared = await signIn.UserManager.UpdateAsync(user);
+            if (!cleared.Succeeded)
+                logger.LogError("Password of user {UserId} was changed but clearing MustChangePassword failed: {Errors}",
+                    user.Id, string.Join("; ", cleared.Errors.Select(e => e.Code)));
         }
 
         // Re-issue the cookie with the new security stamp and without the must_change_password claim.
