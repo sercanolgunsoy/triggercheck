@@ -57,16 +57,21 @@ public class MonitoringMetricsTests
         var c = await host.AddCustomerAsync();
         var m = await host.AddMonitorAsync(c.Id, x => { x.Type = MonitorType.Tcp; x.Target = "secret.example.test:443"; });
 
+        // Listeners are process-wide and other test classes run checks in parallel (monitor ids repeat across their
+        // databases): keep only spans in this test's own trace.
+        using var parent = new Activity("test").SetIdFormat(ActivityIdFormat.W3C).Start();
+        var traceId = parent.TraceId;
         var spans = new List<Activity>();
         using var listener = new ActivityListener
         {
             ShouldListenTo = s => s.Name == MonitoringMetrics.Name,
             Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
-            ActivityStopped = a => { if (Equals(a.GetTagItem("monitor.id"), m.Id)) lock (spans) spans.Add(a); }
+            ActivityStopped = a => { if (a.TraceId == traceId) lock (spans) spans.Add(a); }
         };
         ActivitySource.AddActivityListener(listener);
 
         await host.RunCheckAsync(m.Id);
+        parent.Stop();
 
         var span = Assert.Single(spans);
         Assert.Equal("monitor.check", span.OperationName);

@@ -10,9 +10,10 @@ on:
 permissions:
   contents: read
 
-# Superseded PR runs are cancelled; pushes to main / backlog-impl always run to completion (the main run publishes).
+# Superseded PR runs are cancelled. Every push gets its own group (by commit), so each main commit runs to
+# completion and publishes its image.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.ref }}-${{ github.event_name == 'push' && github.sha || github.event_name }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:

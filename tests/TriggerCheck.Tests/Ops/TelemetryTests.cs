@@ -1,10 +1,14 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using OpenTelemetry;
+using OpenTelemetry.Logs;
+using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Monitoring;
@@ -15,8 +19,11 @@ using MonitorEntity = TriggerCheck.Domain.Entities.Monitor;
 
 namespace TriggerCheck.Tests.Ops;
 
-/// <summary>App with an OTLP endpoint configured (unreachable) and an in-memory trace exporter next to it.</summary>
-public sealed class TracingAppFactory : TestWebAppFactory
+/// <summary>
+/// App with an OTLP endpoint configured (default: unreachable) plus the given settings, and an in-memory trace
+/// exporter next to the OTLP one.
+/// </summary>
+public sealed class TracingAppFactory(Dictionary<string, string>? settings = null) : TestWebAppFactory
 {
     public List<Activity> Spans { get; } = [];
 
@@ -24,6 +31,7 @@ public sealed class TracingAppFactory : TestWebAppFactory
     {
         base.ConfigureWebHost(builder);
         builder.UseSetting("Telemetry:OtlpEndpoint", "http://127.0.0.1:9");
+        foreach (var (key, value) in settings ?? []) builder.UseSetting(key, value);
         builder.ConfigureTestServices(s => s.ConfigureOpenTelemetryTracerProvider(b => b.AddInMemoryExporter(Spans)));
     }
 }
@@ -86,7 +94,36 @@ public class TelemetryTests
     public async Task Nothing_is_registered_without_an_exporter_endpoint()
     {
         await using var f = new TestWebAppFactory();
-        _ = f.Services; // build the host
         Assert.Null(f.Services.GetService<TracerProvider>());
+        Assert.Null(f.Services.GetService<MeterProvider>());
+        Assert.DoesNotContain(f.Services.GetServices<ILoggerProvider>(), p => p is OpenTelemetryLoggerProvider);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Logs_are_exported_only_when_ExportLogs_is_enabled(bool exportLogs)
+    {
+        var received = new ConcurrentQueue<string>();
+        await using var collector = await LocalHttpServer.StartAsync(app =>
+            app.MapPost("/{**signal}", (HttpContext ctx) => { received.Enqueue(ctx.Request.Path.Value!); return Results.Ok(); }));
+        await using var f = new TracingAppFactory(new()
+        {
+            ["Telemetry:OtlpEndpoint"] = collector.BaseUrl,
+            ["Telemetry:OtlpProtocol"] = "http/protobuf",
+            ["Telemetry:ExportLogs"] = exportLogs.ToString()
+        });
+
+        Assert.Equal(exportLogs, f.Services.GetServices<ILoggerProvider>().Any(p => p is OpenTelemetryLoggerProvider));
+        await f.CreateBrowser().GetAsync("/Account/Login");
+        f.Services.GetRequiredService<ILoggerFactory>().CreateLogger("TelemetryTest").LogWarning("alert sent to someone@example.test");
+
+        Assert.True(f.Services.GetRequiredService<TracerProvider>().ForceFlush(5000));
+        Assert.True(f.Services.GetRequiredService<MeterProvider>().ForceFlush(5000));
+        if (f.Services.GetService<LoggerProvider>() is { } logs) Assert.True(logs.ForceFlush(5000));
+
+        Assert.Contains("/v1/traces", received);
+        Assert.Contains("/v1/metrics", received);
+        Assert.Equal(exportLogs, received.Contains("/v1/logs"));
     }
 }
