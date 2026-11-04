@@ -25,7 +25,7 @@ public class EscalationTests
     private async Task<Setup> CreateAsync(bool enabled = true, params (int Minutes, string[] Channels)[] steps)
     {
         var host = await MonitoringTestHost.CreateAsync(s => s.ReplaceCheckers(_checker).ReplaceNotifiers(_email, _webhook, _slack),
-            new() { ["Escalation:PublicBaseUrl"] = "https://monitor.example.test" });
+            new() { ["Site:PublicBaseUrl"] = "https://monitor.example.test" });
         var customer = await host.AddCustomerAsync();
         var ids = await host.WithDbAsync(async db =>
         {
@@ -35,7 +35,7 @@ public class EscalationTests
             db.AlertChannels.AddRange(email, webhook, slack);
             if (steps.Length > 0)
             {
-                var policy = new EscalationPolicy { CustomerId = customer.Id, IsEnabled = enabled };
+                var policy = new EscalationPolicy { CustomerId = customer.Id, IsEnabled = enabled, EnabledAtUtc = host.Now.AddHours(-1) };
                 foreach (var (minutes, names) in steps)
                 {
                     var step = new EscalationStep { DelayMinutes = minutes };
@@ -245,7 +245,7 @@ public class EscalationTests
         var url = down.AckUrl!;
         var token = Uri.UnescapeDataString(url[(url.IndexOf("token=", StringComparison.Ordinal) + 6)..]);
         var links = host.Services.GetRequiredService<IncidentAckLinks>();
-        Assert.Equal(AckTokenStatus.Valid, links.Validate(token, out var parsed));
+        Assert.True(links.TryValidate(token, out var parsed));
         Assert.Equal(incidentId, parsed!.IncidentId);
         Assert.Equal(s.CustomerId, parsed.CustomerId);
 
@@ -278,5 +278,121 @@ public class EscalationTests
         {
             await service.StopAsync(CancellationToken.None);
         }
+    }
+
+    private static Task SetStepsAsync(Setup s, params (int Minutes, int ChannelId)[] steps) =>
+        s.Host.WithDbAsync(async db =>
+        {
+            var policy = await db.EscalationPolicies.Include(p => p.Steps).SingleAsync(p => p.CustomerId == s.CustomerId);
+            db.EscalationSteps.RemoveRange(policy.Steps);
+            foreach (var (minutes, channelId) in steps)
+            {
+                var step = new EscalationStep { DelayMinutes = minutes };
+                step.Channels.Add(await db.AlertChannels.SingleAsync(c => c.Id == channelId));
+                policy.Steps.Add(step);
+            }
+            await db.SaveChangesAsync();
+        });
+
+    [Fact]
+    public async Task Policy_enabled_after_the_incident_started_counts_delays_from_enabling()
+    {
+        var s = await CreateAsync(true, (5, ["webhook"]));
+        await using var host = s.Host;
+        await GoDownAsync(s);
+        host.Time.Advance(TimeSpan.FromHours(1));
+        // The policy is (re-)enabled now: the old incident must not be paged at once.
+        await host.WithDbAsync(db => db.EscalationPolicies.ExecuteUpdateAsync(x => x.SetProperty(p => p.EnabledAtUtc, host.Now)));
+
+        Assert.Equal(0, await EscalateAsync(s));
+        host.Time.Advance(TimeSpan.FromMinutes(4));
+        Assert.Equal(0, await EscalateAsync(s));
+        host.Time.Advance(TimeSpan.FromMinutes(1));
+        Assert.Equal(1, await EscalateAsync(s));
+    }
+
+    [Fact]
+    public async Task Editing_steps_during_an_open_incident_neither_repeats_nor_skips()
+    {
+        var s = await CreateAsync(true, (5, ["webhook"]), (10, ["webhook"]));
+        await using var host = s.Host;
+        var incidentId = await GoDownAsync(s);
+        host.Time.Advance(TimeSpan.FromMinutes(6));
+        Assert.Equal(1, await EscalateAsync(s));              // 5-minute step sent
+
+        await SetStepsAsync(s, (1, s.SlackId), (30, s.SlackId), (60, s.EmailId));
+        Assert.Equal(0, await EscalateAsync(s));              // 1 <= 5: already covered, not re-fired
+        host.Time.Advance(TimeSpan.FromMinutes(23));           // 29 min
+        Assert.Equal(0, await EscalateAsync(s));
+        host.Time.Advance(TimeSpan.FromMinutes(1));            // 30 min: the 30-minute step is not skipped
+        Assert.Equal(1, await EscalateAsync(s));
+        var thirty = Assert.Single(Escalations(_slack));
+        Assert.Equal(2, thirty.EscalationLevel);
+        host.Time.Advance(TimeSpan.FromMinutes(30));
+        Assert.Equal(1, await EscalateAsync(s));
+        Assert.Equal(3, Assert.Single(Escalations(_email)).EscalationLevel);
+
+        var incident = await host.WithDbAsync(db => db.Incidents.AsNoTracking().SingleAsync(i => i.Id == incidentId));
+        Assert.Equal(60, incident.LastEscalationDelayMinutes);
+        Assert.Equal(3, incident.LastEscalationStep);
+    }
+
+    private sealed class RefusingQueue : IAlertQueue
+    {
+        public int Attempts;
+        public bool TryEnqueue(AlertMessage message)
+        {
+            Attempts++;
+            return false;
+        }
+    }
+
+    [Fact]
+    public async Task Refused_enqueue_rolls_the_step_back_and_the_next_pass_retries()
+    {
+        var s = await CreateAsync(true, (5, ["webhook"]));
+        await using var host = s.Host;
+        var incidentId = await GoDownAsync(s);
+        host.Time.Advance(TimeSpan.FromMinutes(5));
+
+        var refusing = new RefusingQueue();
+        var queued = await host.InScopeAsync(sp => ActivatorUtilities.CreateInstance<EscalationRunner>(sp, (IAlertQueue)refusing).RunOnceAsync());
+        Assert.Equal(0, queued);
+        Assert.Equal(1, refusing.Attempts);
+        Assert.Equal(0, await host.WithDbAsync(db => db.Incidents.Where(i => i.Id == incidentId).Select(i => i.LastEscalationDelayMinutes).SingleAsync()));
+
+        Assert.Equal(1, await EscalateAsync(s));
+        Assert.Single(Escalations(_webhook));
+    }
+
+    [Fact]
+    public async Task Escalation_retry_stops_when_the_incident_is_acknowledged_meanwhile()
+    {
+        var failing = new RecordingNotifier(AlertChannelType.Webhook, _ => NotifyResult.Transient("Webhook returned HTTP 503"));
+        await using var host = await MonitoringTestHost.CreateAsync(x => x.ReplaceCheckers(_checker).ReplaceNotifiers(_email, failing));
+        var customer = await host.AddCustomerAsync();
+        var (monitor, incidentId, webhookId) = await host.WithDbAsync(async db =>
+        {
+            var m = new Domain.Entities.Monitor { CustomerId = customer.Id, Name = "Shop", Target = "http://127.0.0.1/", Status = MonitorStatus.Down };
+            var hook = new AlertChannel { CustomerId = customer.Id, Name = "hook", Type = AlertChannelType.Webhook, Target = "https://hooks.example.test/a" };
+            db.AddRange(m, hook);
+            await db.SaveChangesAsync();
+            var i = new Incident { MonitorId = m.Id, StartedAtUtc = host.Now.AddMinutes(-10) };
+            db.Incidents.Add(i);
+            await db.SaveChangesAsync();
+            return (m, i.Id, hook.Id);
+        });
+
+        Assert.True(host.Alerts.TryEnqueue(AlertMessage.ForEscalation(monitor, incidentId, host.Now.AddMinutes(-10), 1, [webhookId], host.Now)));
+        for (var i = 0; i < 500 && failing.Sent.IsEmpty; i++) await Task.Delay(10);
+        Assert.Single(failing.Sent); // first attempt failed, waiting to retry
+        await host.InScopeAsync(sp => sp.GetRequiredService<IncidentAcknowledger>().AcknowledgeAsync(incidentId, customer.Id, "u", null));
+        await host.AdvanceUntilAlertsIdleAsync();
+
+        Assert.Single(failing.Sent); // not retried
+        var n = await host.WithDbAsync(db => db.Notifications.SingleAsync());
+        Assert.False(n.Success);
+        Assert.Equal(AlertDispatcher.AcknowledgedError, n.Error);
+        Assert.Equal(1, n.Attempts);
     }
 }

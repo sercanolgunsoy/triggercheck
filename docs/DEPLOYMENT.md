@@ -77,7 +77,13 @@ secret store, never in the image or in `appsettings.json`.
 | `ForwardedHeaders__ForwardLimit` | no (1) | Number of proxy hops to unwind. |
 | `Api__RequestsPerMinute` (120), `Api__RequestsPerMinutePerCustomer` (300), `Api__RequestsPerMinutePerIp` (600) | no | REST API rate limits, see [API.md](API.md). |
 | `Site__ContactEmail` | no | Sales / support address shown on the marketing pages. |
+| `Site__PublicBaseUrl` | recommended | Public address of the app, e.g. `https://monitor.example.com`. Used for the "Acknowledge" link in DOWN and escalation alerts (FEAT-5). When it is unset, alerts carry no link (incidents can still be acknowledged in the panel) and a warning is logged at startup outside Development. |
+| `Escalation__CheckIntervalSeconds` (30), `Escalation__AckLinkValidHours` (72) | no | How often the escalation job runs; lifetime of acknowledge links. |
 | `Seed__DemoData` | no | Ignored outside Development. |
+
+Acknowledge links are protected with ASP.NET Core Data Protection (purpose `IncidentAck.v1`), the same key ring as
+the login cookies. In the container `HOME=/data`, so the keys live in `/data/.aspnet/DataProtection-Keys` and links
+stay valid across restarts; keep that directory on the persistent volume (it is part of `/data`).
 
 ## Health and telemetry
 

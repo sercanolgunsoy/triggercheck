@@ -23,8 +23,8 @@
                 <dt class="col-sm-4">@L["Monitor"]</dt><dd class="col-sm-8"><a asp-page="/Monitors/Details" asp-route-id="@i.MonitorId">@Model.MonitorName</a></dd>
                 <dt class="col-sm-4">@L["Started"]</dt><dd class="col-sm-8">@Fmt.Time(i.StartedAtUtc) @Fmt.TimeZoneLabel</dd>
                 <dt class="col-sm-4">@L["Ended"]</dt><dd class="col-sm-8">@(i.ResolvedAtUtc is null ? "—" : Fmt.Time(i.ResolvedAtUtc) + " " + Fmt.TimeZoneLabel)
-                    @if (i.ResolvedDuringMaintenance) { <div class="small text-muted" id="maintenance-note">@L["Recovered during maintenance; no UP alert was sent."]</div> }</dd>
-                <dt class="col-sm-4">@L["Duration"]</dt><dd class="col-sm-8">@Fmt.Duration((i.ResolvedAtUtc ?? DateTime.UtcNow) - i.StartedAtUtc)@(i.ResolvedAtUtc is null ? " " + L["(ongoing)"].Value : "")</dd>
+                    @if (i.ResolvedDuringMaintenance) { <div class="small text-muted" id="maintenance-note">@L["Recovered during maintenance."]</div> }</dd>
+                <dt class="col-sm-4">@L["Duration"]</dt><dd class="col-sm-8">@Fmt.Duration((i.ResolvedAtUtc ?? Model.NowUtc) - i.StartedAtUtc)@(i.ResolvedAtUtc is null ? " " + L["(ongoing)"].Value : "")</dd>
                 <dt class="col-sm-4">@L["Cause"]</dt><dd class="col-sm-8 text-danger">@(i.Cause ?? "—")</dd>
                 <dt class="col-sm-4">@L["Escalation"]</dt><dd class="col-sm-8">@(i.LastEscalationStep > 0 ? L["Escalated to step {0}", i.LastEscalationStep].Value : L["Not escalated"].Value)</dd>
                 <dt class="col-sm-4">@L["Acknowledged"]</dt>

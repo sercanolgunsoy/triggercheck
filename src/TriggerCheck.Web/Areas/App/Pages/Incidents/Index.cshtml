@@ -36,7 +36,7 @@ else
                     <td class="text-nowrap">@Fmt.Time(i.ResolvedAtUtc)</td>
                     <td class="text-nowrap">@Fmt.Duration((i.ResolvedAtUtc ?? DateTime.UtcNow) - i.StartedAtUtc)@(i.ResolvedAtUtc is null ? " " + L["(ongoing)"].Value : "")</td>
                     <td class="small">@i.Cause
-                        @if (i.ResolvedDuringMaintenance) { <div class="text-muted">@L["Recovered during maintenance; no UP alert was sent."]</div> }</td>
+                        @if (i.ResolvedDuringMaintenance) { <div class="text-muted">@L["Recovered during maintenance."]</div> }</td>
                     <td class="text-end text-nowrap">
                         @if (isAdmin && i.ResolvedAtUtc is null && i.AcknowledgedAtUtc is null)
                         {

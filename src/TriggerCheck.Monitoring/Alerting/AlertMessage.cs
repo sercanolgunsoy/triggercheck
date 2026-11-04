@@ -24,7 +24,8 @@ public enum AlertKind
 /// <param name="IncidentId">Incident of a DOWN / escalation alert (acknowledge link, escalation checks).</param>
 /// <param name="EscalationLevel">Escalation step (1-based) of an <see cref="AlertKind.Escalation"/> alert.</param>
 /// <param name="ChannelIds">Restricts delivery to these channels of the customer (escalation steps); null = all enabled channels.</param>
-/// <param name="AckUrl">Signed deep link to the acknowledge page, added by the dispatcher when configured.</param>
+/// <param name="AckUrl">Protected deep link to the acknowledge page, added by the dispatcher when configured.</param>
+/// <param name="DuringMaintenance">UP alert of a monitor that recovered during a maintenance window (FEAT-3).</param>
 public sealed record AlertMessage(
     int MonitorId,
     int CustomerId,
@@ -38,7 +39,8 @@ public sealed record AlertMessage(
     int? IncidentId = null,
     int EscalationLevel = 0,
     IReadOnlyList<int>? ChannelIds = null,
-    string? AckUrl = null)
+    string? AckUrl = null,
+    bool DuringMaintenance = false)
 {
     public string StatusText => Kind switch
     {
@@ -65,7 +67,9 @@ public sealed record AlertMessage(
     public string Headline => Kind switch
     {
         AlertKind.Down => $"Monitor \"{OneLine(MonitorName)}\" is DOWN.",
-        AlertKind.Up => $"Monitor \"{OneLine(MonitorName)}\" is UP again.",
+        AlertKind.Up => DuringMaintenance
+            ? $"Monitor \"{OneLine(MonitorName)}\" is UP again (recovered during maintenance)."
+            : $"Monitor \"{OneLine(MonitorName)}\" is UP again.",
         AlertKind.CertificateExpiring => CertificateDaysLeft is { } days
             ? $"The TLS certificate of monitor \"{OneLine(MonitorName)}\" expires in {days} day{(days == 1 ? "" : "s")}."
             : $"The TLS certificate of monitor \"{OneLine(MonitorName)}\" expires soon.",

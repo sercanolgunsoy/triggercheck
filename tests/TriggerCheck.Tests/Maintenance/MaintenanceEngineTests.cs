@@ -133,7 +133,7 @@ public class MaintenanceEngineTests
     }
 
     [Fact]
-    public async Task Monitor_down_before_the_window_keeps_its_incident_and_recovers_silently_during_it()
+    public async Task Monitor_down_before_the_window_keeps_its_incident_and_its_recovery_is_announced_as_during_maintenance()
     {
         await using var host = await CreateHostAsync();
         var customer = await host.AddCustomerAsync();
@@ -155,13 +155,17 @@ public class MaintenanceEngineTests
         _checker.Then(Ok);
         host.Time.Advance(TimeSpan.FromMinutes(1));
         var recoveredAt = host.Now;
-        await host.RunCheckAsync(monitor.Id); // recovers in the window: no UP alert
+        await host.RunCheckAsync(monitor.Id); // recovers in the window: the DOWN went out, so the UP does too (marked)
 
         Assert.Equal(MonitorStatus.Up, (await host.GetMonitorAsync(monitor.Id)).Status);
         var closed = Assert.Single(await IncidentsAsync(host, monitor.Id));
         Assert.Equal(recoveredAt, closed.ResolvedAtUtc);
         Assert.True(closed.ResolvedDuringMaintenance);
-        Assert.Equal([AlertKind.Down], _email.Sent.Select(s => s.Message.Kind));
+        Assert.Equal([AlertKind.Down, AlertKind.Up], _email.Sent.Select(s => s.Message.Kind));
+        var up = _email.Sent.Last().Message;
+        Assert.True(up.DuringMaintenance);
+        Assert.Contains("recovered during maintenance", up.Headline);
+        Assert.Equal(recoveredAt - open.StartedAtUtc, up.Downtime);
     }
 
     [Fact]

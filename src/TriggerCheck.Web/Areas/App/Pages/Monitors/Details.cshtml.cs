@@ -16,7 +16,7 @@ namespace TriggerCheck.Web.Areas.App.Pages.Monitors;
 
 /// <summary>Readable by all customer members; the POST handlers (pause/resume/check now) are CustomerAdmin only.</summary>
 public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStatsService stats, MonitorLifecycle lifecycle, ILogger<DetailsModel> logger, Text<AppResource> L,
-    ManualCheckLimiter limiter, IResponseTimeSeriesService series) : PageModel
+    ManualCheckLimiter limiter, IResponseTimeSeriesService series, TimeProvider time) : PageModel
 {
     public const int MaxChartPoints = ResponseTimeSeriesService.MaxPoints;
 
@@ -108,7 +108,7 @@ public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStat
         ChartMaintenanceBands = bands.Select(b => new ChartMaintenance(
             s.BucketIndexOf(b.StartUtc) ?? 0, s.BucketIndexOf(b.EndUtc.AddTicks(-1)) ?? s.Buckets.Count - 1,
             Label(b.StartUtc) + " – " + Label(b.EndUtc))).ToList();
-        InMaintenance = (await MaintenanceQueries.MonitorsInMaintenanceAsync(db, m.CustomerId, [id], DateTime.UtcNow, ct)).Count > 0;
+        InMaintenance = (await MaintenanceQueries.MonitorsInMaintenanceAsync(db, m.CustomerId, [id], time.GetUtcNow().UtcDateTime, ct)).Count > 0;
 
         RecentChecks = await db.CheckResults.AsNoTracking()
             .Where(c => c.MonitorId == id)

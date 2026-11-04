@@ -10,18 +10,27 @@ public sealed record MonitorDto(
     int Id, string Name, MonitorType Type, string Target, int? Port, string? Keyword, string HttpMethod, string ExpectedStatusCodes,
     int IntervalSeconds, int TimeoutSeconds, int FailureThreshold, MonitorStatus Status, bool IsPaused,
     DateTime? LastCheckedAtUtc, DateTime? NextCheckAtUtc, int? LastResponseTimeMs, string? LastError,
-    DateTime? StatusChangedAtUtc, DateTime CreatedAtUtc)
+    DateTime? StatusChangedAtUtc, DateTime CreatedAtUtc, bool InMaintenance = false)
 {
-    public static MonitorDto From(MonitorEntity m) => new(
+    /// <param name="inMaintenance">The monitor is in an active maintenance window (FEAT-3).</param>
+    public static MonitorDto From(MonitorEntity m, bool inMaintenance = false) => new(
         m.Id, m.Name, m.Type, m.Target, m.Port, m.Keyword, m.HttpMethod, m.ExpectedStatusCodes,
         m.IntervalSeconds, m.TimeoutSeconds, m.FailureThreshold, m.Status, m.Status == MonitorStatus.Paused || !m.IsEnabled,
         Utc.Of(m.LastCheckedAtUtc), Utc.Of(m.NextCheckAtUtc), m.LastResponseTimeMs, m.LastError,
-        Utc.Of(m.StatusChangedAtUtc), Utc.Of(m.CreatedAtUtc));
+        Utc.Of(m.StatusChangedAtUtc), Utc.Of(m.CreatedAtUtc), inMaintenance);
 }
 
-public sealed record CheckDto(long Id, DateTime CheckedAtUtc, bool IsUp, int? StatusCode, int ResponseTimeMs, string? Error);
+/// <param name="InMaintenance">Taken during a maintenance window; not counted in uptime (FEAT-3).</param>
+public sealed record CheckDto(long Id, DateTime CheckedAtUtc, bool IsUp, int? StatusCode, int ResponseTimeMs, string? Error, bool InMaintenance = false);
 
-public sealed record IncidentDto(int Id, int MonitorId, string MonitorName, DateTime StartedAtUtc, DateTime? ResolvedAtUtc, bool IsOpen, string? Cause);
+/// <param name="AcknowledgedAtUtc">When the incident was acknowledged (FEAT-5), null if not.</param>
+/// <param name="EscalationLevel">Escalation level last sent (0 = only the DOWN alert).</param>
+/// <param name="ResolvedDuringMaintenance">The monitor recovered during a maintenance window (FEAT-3).</param>
+public sealed record IncidentDto(int Id, int MonitorId, string MonitorName, DateTime StartedAtUtc, DateTime? ResolvedAtUtc, bool IsOpen, string? Cause,
+    DateTime? AcknowledgedAtUtc = null, string? AcknowledgeNote = null, int EscalationLevel = 0, bool ResolvedDuringMaintenance = false);
+
+/// <summary>Body of POST /incidents/{id}/acknowledge (optional).</summary>
+public sealed record AcknowledgeRequest(string? Note);
 
 public sealed record StatusCountsDto(int Total, int Up, int Down, int Paused, int Unknown);
 

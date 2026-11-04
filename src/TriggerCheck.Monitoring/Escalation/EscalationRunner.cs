@@ -13,15 +13,16 @@ namespace TriggerCheck.Monitoring.Escalation;
 
 /// <summary>
 /// One pass of the escalation job (FEAT-5). For every open, unacknowledged incident of a DOWN monitor whose customer has
-/// an enabled <see cref="EscalationPolicy"/>: when steps beyond <see cref="Incident.LastEscalationStep"/> are due
-/// (incident start + <see cref="EscalationStep.DelayMinutes"/> &lt;= now), one <see cref="AlertKind.Escalation"/> alert
-/// goes to the channels of all newly due steps (normally one step; several after downtime of the job) through
-/// <see cref="IAlertQueue"/>.
+/// an enabled <see cref="EscalationPolicy"/>: when steps with a delay beyond <see cref="Incident.LastEscalationDelayMinutes"/>
+/// are due (max(incident start, <see cref="EscalationPolicy.EnabledAtUtc"/>) + <see cref="EscalationStep.DelayMinutes"/>
+/// &lt;= now), one <see cref="AlertKind.Escalation"/> alert goes to the channels of all newly due steps (normally one
+/// step; several after downtime of the job) through <see cref="IAlertQueue"/>. Progress is kept as the largest delay
+/// sent, so policy edits during an open incident neither repeat nor skip steps.
 /// <list type="bullet">
 /// <item>Idempotent across restarts and concurrent runs: the step is claimed with a conditional UPDATE of
-/// LastEscalationStep (only if it is unchanged and the incident is still open and unacknowledged) before the alert is
-/// queued, so a step is never sent twice. An alert lost in the in-memory queue by a crash is not repeated (the queue's
-/// known limitation).</item>
+/// LastEscalationDelayMinutes (only if it is unchanged and the incident is still open and unacknowledged) before the
+/// alert is queued, so a step is never sent twice. If the queue refuses the alert the claim is rolled back and the next
+/// pass retries. An alert lost in the in-memory queue by a crash is not repeated (the queue's known limitation).</item>
 /// <item>Acknowledged or resolved incidents never escalate; the dispatcher re-checks right before delivery.</item>
 /// <item>While the monitor is in a maintenance window, escalation pauses; due steps follow once the window ends.</item>
 /// <item>No policy (or a disabled one): nothing happens, the DOWN alert remains the only notification.</item>
@@ -48,6 +49,7 @@ public sealed class EscalationRunner(
             .Select(p => new
             {
                 p.CustomerId,
+                p.EnabledAtUtc,
                 Steps = p.Steps.OrderBy(s => s.DelayMinutes).ThenBy(s => s.Id)
                     .Select(s => new { s.DelayMinutes, ChannelIds = s.Channels.Select(c => c.Id).ToList() }).ToList()
             })
@@ -59,29 +61,44 @@ public sealed class EscalationRunner(
         var incidents = await db.Incidents.AsNoTracking()
             .Where(i => i.ResolvedAtUtc == null && i.AcknowledgedAtUtc == null && customerIds.Contains(i.Monitor.CustomerId)
                         && i.Monitor.Status == MonitorStatus.Down && i.Monitor.IsEnabled)
-            .Select(i => new { i.Id, i.StartedAtUtc, i.LastEscalationStep, i.Monitor })
+            .Select(i => new { i.Id, i.StartedAtUtc, i.LastEscalationStep, i.LastEscalationDelayMinutes, i.Monitor })
             .ToListAsync(ct);
 
         var queued = 0;
         foreach (var incident in incidents)
         {
-            var steps = byCustomer[incident.Monitor.CustomerId].Steps;
-            var due = steps.Count(s => incident.StartedAtUtc.AddMinutes(s.DelayMinutes) <= now);
-            if (due <= incident.LastEscalationStep) continue;
+            var policy = byCustomer[incident.Monitor.CustomerId];
+            // Delays count from the incident start, or from when the policy was (re-)enabled if that is later.
+            var from = incident.StartedAtUtc > policy.EnabledAtUtc ? incident.StartedAtUtc : policy.EnabledAtUtc;
+            var previousDelay = incident.LastEscalationDelayMinutes;
+            var due = policy.Steps.Select((s, i) => (Step: s, Level: i + 1))
+                .Where(x => x.Step.DelayMinutes > previousDelay && from.AddMinutes(x.Step.DelayMinutes) <= now)
+                .ToList();
+            if (due.Count == 0) continue;
             if (await MaintenanceQueries.IsInMaintenanceAsync(db, incident.Monitor.CustomerId, incident.Monitor.Id, now, ct)) continue;
 
-            var previous = incident.LastEscalationStep;
+            var level = due[^1].Level;
+            var delay = due[^1].Step.DelayMinutes;
+            var previousLevel = incident.LastEscalationStep;
             var claimed = await db.Incidents
-                .Where(i => i.Id == incident.Id && i.LastEscalationStep == previous && i.ResolvedAtUtc == null && i.AcknowledgedAtUtc == null)
-                .ExecuteUpdateAsync(s => s.SetProperty(i => i.LastEscalationStep, due), ct);
+                .Where(i => i.Id == incident.Id && i.LastEscalationDelayMinutes == previousDelay && i.ResolvedAtUtc == null && i.AcknowledgedAtUtc == null)
+                .ExecuteUpdateAsync(s => s.SetProperty(i => i.LastEscalationDelayMinutes, delay).SetProperty(i => i.LastEscalationStep, level), ct);
             if (claimed != 1) continue; // acknowledged, resolved or escalated concurrently
 
-            var channelIds = steps.Skip(previous).Take(due - previous).SelectMany(s => s.ChannelIds).Distinct().ToList();
-            var message = AlertMessage.ForEscalation(incident.Monitor, incident.Id, incident.StartedAtUtc, due, channelIds, now);
+            var channelIds = due.SelectMany(x => x.Step.ChannelIds).Distinct().ToList();
+            var message = AlertMessage.ForEscalation(incident.Monitor, incident.Id, incident.StartedAtUtc, level, channelIds, now);
+            if (!alerts.TryEnqueue(message))
+            {
+                // Queue full: give the step back so the next pass tries again.
+                await db.Incidents
+                    .Where(i => i.Id == incident.Id && i.LastEscalationDelayMinutes == delay)
+                    .ExecuteUpdateAsync(s => s.SetProperty(i => i.LastEscalationDelayMinutes, previousDelay).SetProperty(i => i.LastEscalationStep, previousLevel), CancellationToken.None);
+                continue;
+            }
             logger.LogWarning("Incident {IncidentId} of monitor {MonitorId} is unacknowledged after {Minutes} min: escalation level {Level}",
-                incident.Id, incident.Monitor.Id, (int)(now - incident.StartedAtUtc).TotalMinutes, due);
+                incident.Id, incident.Monitor.Id, (int)(now - incident.StartedAtUtc).TotalMinutes, level);
             metrics.RecordEscalation();
-            if (alerts.TryEnqueue(message)) queued++;
+            queued++;
         }
         return queued;
     }

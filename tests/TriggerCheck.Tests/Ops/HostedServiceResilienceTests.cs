@@ -71,7 +71,7 @@ public class HostedServiceUnitResilienceTests
         SqliteConnection.ClearPool(new SqliteConnection($"Data Source={dataSource}")); // not ClearAllPools: other tests run in parallel
         File.WriteAllBytes(dataSource, [1, 2, 3]); // every query fails from now on
 
-        var services = host.Services.GetServices<IHostedService>().Cast<BackgroundService>().ToList();
+        var services = host.Services.GetServices<IHostedService>().OfType<BackgroundService>().ToList();
         Assert.Equal(4, services.Count); // alert sender, scheduler, retention, escalation (FEAT-5)
         foreach (var s in services) await s.StartAsync(CancellationToken.None);
 
@@ -91,7 +91,7 @@ public class HostedServiceUnitResilienceTests
     public async Task Hosted_services_can_be_stopped_again_after_dispose()
     {
         await using var host = await MonitoringTestHost.CreateAsync(settings: new() { ["Monitoring:Enabled"] = "true" });
-        foreach (var s in host.Services.GetServices<IHostedService>().Cast<BackgroundService>())
+        foreach (var s in host.Services.GetServices<IHostedService>().OfType<BackgroundService>())
         {
             await s.StartAsync(CancellationToken.None);
             await s.StopAsync(CancellationToken.None);

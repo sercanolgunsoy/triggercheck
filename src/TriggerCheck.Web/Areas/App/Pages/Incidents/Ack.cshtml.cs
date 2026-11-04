@@ -12,7 +12,7 @@ namespace TriggerCheck.Web.Areas.App.Pages.Incidents;
 
 /// <summary>
 /// Target of the acknowledge link in DOWN / escalation alerts (FEAT-5). The area requires a signed-in customer member
-/// (anonymous visitors are sent to the login page and come back here). The signed token must be valid, not expired and
+/// (anonymous visitors are sent to the login page and come back here). The protected token must be valid, not expired and
 /// issued for the signed-in user's own customer; acknowledging still needs an admin and an explicit POST (antiforgery),
 /// so the link itself never changes anything.
 /// </summary>
@@ -47,14 +47,8 @@ public class AckModel(AppDbContext db, ICurrentCustomer current, IncidentAckLink
     /// <summary>Validates the token against the signed-in customer and loads the incident. False (with <see cref="Problem"/>) when unusable.</summary>
     private async Task<bool> LoadAsync(CancellationToken ct)
     {
-        var status = links.Validate(Token, out var token);
-        if (status == AckTokenStatus.Expired)
-        {
-            Problem = L["This acknowledge link has expired. Open the incident from the incidents page instead."].Value;
-            return false;
-        }
-        // Another tenant's link is reported like a broken one: nothing about that incident is revealed.
-        var incident = status == AckTokenStatus.Valid && token!.CustomerId == current.RequiredCustomerId
+        // Tampered, expired and other tenants' links all look the same: nothing about that incident is revealed.
+        var incident = links.TryValidate(Token, out var token) && token!.CustomerId == current.RequiredCustomerId
             ? await db.Incidents.AsNoTracking()
                 .Where(i => i.Id == token.IncidentId && i.Monitor.CustomerId == token.CustomerId)
                 .Select(i => new { i.Id, i.Monitor.Name, i.StartedAtUtc, i.ResolvedAtUtc, i.AcknowledgedAtUtc })
@@ -62,7 +56,7 @@ public class AckModel(AppDbContext db, ICurrentCustomer current, IncidentAckLink
             : null;
         if (incident is null)
         {
-            Problem = L["This acknowledge link is not valid for your account."].Value;
+            Problem = L["This acknowledge link is invalid, has expired or belongs to another account. Open the incident from the incidents page instead."].Value;
             return false;
         }
         IncidentId = incident.Id;

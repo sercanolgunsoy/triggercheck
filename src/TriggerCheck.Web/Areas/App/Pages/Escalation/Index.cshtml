@@ -12,11 +12,17 @@
     </div>
 </div>
 
-<div class="alert alert-light border small">@L["Acknowledge an incident from the incidents page or with the link in the DOWN alert. Acknowledged or resolved incidents are not escalated; escalation also pauses while a monitor is in maintenance."]</div>
+<div class="alert alert-light border small">@L["Acknowledge an incident from the incidents page or with the link in the DOWN alert. Acknowledged or resolved incidents are not escalated; escalation also pauses while a monitor is in maintenance."]
+    @L["Delays count from the start of the incident, or from when the policy was turned on if that is later."]</div>
 
 @if (Model.Channels.Count == 0)
 {
     <div class="alert alert-warning">@L["Add alert channels first; escalation steps notify channels you choose."]</div>
+}
+
+@foreach (var step in Model.StepsWithoutChannel)
+{
+    <div class="alert alert-warning step-warning">@L["Step {0} has no enabled alert channel left; its alert goes to the account contact e-mail instead (if that fallback is on).", step]</div>
 }
 
 <form method="post">

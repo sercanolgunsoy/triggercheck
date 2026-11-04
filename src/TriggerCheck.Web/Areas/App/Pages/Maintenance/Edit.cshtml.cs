@@ -34,7 +34,7 @@ public class EditModel(AppDbContext db, ICurrentCustomer current, TimeProvider t
         if (w is null) return NotFound();
         Id = id;
 
-        var monitors = await Input.ValidateAsync(ModelState, L, db, cid, time.GetUtcNow().UtcDateTime, ct);
+        var monitors = await Input.ValidateAsync(ModelState, L, db, cid, time.GetUtcNow().UtcDateTime, ct, existing: w);
         if (!ModelState.IsValid)
         {
             Monitors = await CreateModel.MonitorChoicesAsync(db, cid, ct);

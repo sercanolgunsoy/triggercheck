@@ -80,11 +80,16 @@ public class MaintenanceInput
     }
 
     /// <summary>Validates the input (adds model errors) and returns the monitors it selects (only the customer's own).</summary>
+    /// <param name="existing">The window being edited (null when creating): an unchanged one-off period may already be over.</param>
     public async Task<List<Domain.Entities.Monitor>> ValidateAsync(ModelStateDictionary ms, IStringLocalizer L, AppDbContext db, int customerId,
-        DateTime nowUtc, CancellationToken ct, string prefix = "Input.")
+        DateTime nowUtc, CancellationToken ct, MaintenanceWindow? existing = null, string prefix = "Input.")
     {
         Name = Name?.Trim() ?? "";
-        var tz = MaintenanceSchedule.FindTimeZone(TimeZoneId);
+        TimeZoneId = TimeZoneId?.Trim() ?? "";
+        // Only zones offered in the form (IANA ids known on this host).
+        var tz = TimeZoneId.Length <= MaintenanceSchedule.MaxTimeZoneIdLength && TimeZoneIds.Contains(TimeZoneId, StringComparer.Ordinal)
+            ? MaintenanceSchedule.FindTimeZone(TimeZoneId)
+            : null;
         if (tz is null) ms.AddModelError(prefix + nameof(TimeZoneId), L["Choose a valid time zone."]);
 
         if (IsRecurring)
@@ -104,7 +109,8 @@ public class MaintenanceInput
             var endUtc = MaintenanceSchedule.LocalToUtc(end, tz);
             if (endUtc <= startUtc) ms.AddModelError(prefix + nameof(EndsLocal), L["The end must be after the start."]);
             else if (endUtc - startUtc > MaintenanceSchedule.MaxOneOffDuration) ms.AddModelError(prefix + nameof(EndsLocal), L["A one-off window can last at most 31 days."]);
-            else if (endUtc <= nowUtc) ms.AddModelError(prefix + nameof(EndsLocal), L["The end must be in the future."]);
+            else if (endUtc <= nowUtc && !(existing is { IsRecurring: false } && existing.StartsAtUtc == startUtc && existing.EndsAtUtc == endUtc))
+                ms.AddModelError(prefix + nameof(EndsLocal), L["The end must be in the future."]);
         }
 
         var monitors = new List<Domain.Entities.Monitor>();

@@ -61,9 +61,10 @@ namespace TriggerCheck.Monitoring.Engine;
 /// <para>
 /// Maintenance windows (FEAT-3, <see cref="MaintenanceQueries.IsInMaintenanceAsync"/>, evaluated at the probe start):
 /// the probe is recorded with <see cref="CheckResult.InMaintenance"/> and applied by
-/// <see cref="MonitorStateMachine.ApplyInMaintenance"/>: no incident is opened and no DOWN / UP / certificate alert is
-/// sent. A monitor already DOWN keeps its incident open; if it recovers during the window the incident is closed
-/// silently (<see cref="Incident.ResolvedDuringMaintenance"/>). A pending confirmation is dropped, so a monitor still
+/// <see cref="MonitorStateMachine.ApplyInMaintenance"/>: no incident is opened and no DOWN / certificate alert is sent.
+/// A monitor already DOWN keeps its incident open; if it recovers during the window the incident is closed
+/// (<see cref="Incident.ResolvedDuringMaintenance"/>) and the UP alert is still sent (its DOWN went out), marked as
+/// recovered during maintenance. A pending confirmation is dropped, so a monitor still
 /// failing after the window goes through the normal flow from its first probe after the window.
 /// </para>
 /// </summary>
@@ -217,7 +218,7 @@ public sealed class MonitorCheckRunner(
                     transition = MonitorStateMachine.Apply(monitor, outcome, checkedAt);
             }
             if (inMaintenance)
-                await RecoverInMaintenanceAsync(db, monitor, transition, checkedAt, ct);
+                alert = await RecoverInMaintenanceAsync(db, monitor, transition, checkedAt, ct);
             else
                 alert = await ApplyTransitionAsync(db, monitor, transition, transitionAt, ct);
             // Status changed (and possibly an incident opened/closed): make concurrent user writers retry.
@@ -243,17 +244,22 @@ public sealed class MonitorCheckRunner(
         return (alert, certAlert);
     }
 
-    /// <summary>FEAT-3: a monitor that was DOWN recovered during maintenance: close its incident silently (no UP alert).</summary>
-    private async Task RecoverInMaintenanceAsync(AppDbContext db, MonitorEntity monitor, StatusTransition transition, DateTime now, CancellationToken ct)
+    /// <summary>
+    /// FEAT-3: a monitor that was DOWN recovered during maintenance: its incident is closed (flagged) and, since its DOWN
+    /// alert went out before the window, the UP alert is still sent, marked as recovered during maintenance.
+    /// </summary>
+    private async Task<AlertMessage?> RecoverInMaintenanceAsync(AppDbContext db, MonitorEntity monitor, StatusTransition transition, DateTime now, CancellationToken ct)
     {
-        if (transition != StatusTransition.Recovered) return;
+        if (transition != StatusTransition.Recovered) return null;
         var open = await db.Incidents.Where(i => i.MonitorId == monitor.Id && i.ResolvedAtUtc == null).ToListAsync(ct);
         foreach (var incident in open)
         {
             incident.ResolvedAtUtc = now;
             incident.ResolvedDuringMaintenance = true;
         }
-        logger.LogInformation("Monitor {MonitorId} '{Name}' recovered during maintenance; incident closed without an UP alert", monitor.Id, monitor.Name);
+        logger.LogInformation("Monitor {MonitorId} '{Name}' recovered during maintenance", monitor.Id, monitor.Name);
+        TimeSpan? downtime = open.Count > 0 ? now - open.Min(i => i.StartedAtUtc) : null;
+        return AlertMessage.For(monitor, AlertKind.Up, now, downtime) with { DuringMaintenance = true };
     }
 
     private async Task<CheckOutcome> ProbeAsync(MonitorEntity monitor, CancellationToken ct)

@@ -78,7 +78,8 @@ public sealed class EmailNotifier(IOptionsMonitor<SmtpOptions> options, ILogger<
 /// <summary>
 /// Webhook: POST application/json <c>{ monitorId, monitorName, target, status: "down"|"up"|"test"|"certificate_expiring"|"escalation",
 /// error, occurredAtUtc, certificateExpiresAtUtc, incidentId, escalationLevel, acknowledgeUrl }</c> (certificateExpiresAtUtc
-/// is only set for "certificate_expiring"; incidentId / acknowledgeUrl for "down" and "escalation"; escalationLevel for "escalation").
+/// is only set for "certificate_expiring"; incidentId / acknowledgeUrl for "down" and "escalation"; escalationLevel for "escalation";
+/// duringMaintenance = true for an "up" of a monitor that recovered during a maintenance window).
 /// Any 2xx response is success. Redirects are not followed; timeout 10s (configured on the named client).
 /// </summary>
 public sealed class WebhookNotifier(IHttpClientFactory httpClientFactory) : INotifier
@@ -89,14 +90,16 @@ public sealed class WebhookNotifier(IHttpClientFactory httpClientFactory) : INot
     {
         var payload = new WebhookPayload(message.MonitorId, message.MonitorName, message.Target, message.StatusText,
             message.Error, message.OccurredAtUtc, message.CertificateExpiresAtUtc,
-            message.IsDownLike ? message.IncidentId : null, message.Kind == AlertKind.Escalation ? message.EscalationLevel : null, message.AckLink);
+            message.IsDownLike ? message.IncidentId : null, message.Kind == AlertKind.Escalation ? message.EscalationLevel : null, message.AckLink,
+            message.Kind == AlertKind.Up && message.DuringMaintenance ? true : null);
         return WebhookPost.JsonAsync(httpClientFactory, target.Address, payload, "Webhook", ct);
     }
 }
 
 /// <summary>Webhook body; serialized with web (camelCase) defaults.</summary>
 public sealed record WebhookPayload(int MonitorId, string MonitorName, string Target, string Status, string? Error, DateTime OccurredAtUtc,
-    DateTime? CertificateExpiresAtUtc = null, int? IncidentId = null, int? EscalationLevel = null, string? AcknowledgeUrl = null);
+    DateTime? CertificateExpiresAtUtc = null, int? IncidentId = null, int? EscalationLevel = null, string? AcknowledgeUrl = null,
+    bool? DuringMaintenance = null);
 
 /// <summary>
 /// Shared POST logic for every HTTP-based channel. Always uses the guarded <see cref="MonitoringHttpClients.Webhook"/>

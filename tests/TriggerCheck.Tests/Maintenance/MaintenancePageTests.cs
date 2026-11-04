@@ -219,4 +219,43 @@ public class MaintenancePageTests(MaintenancePageTests.Fixture f) : IClassFixtur
         var outside = await f.AddMonitorAsync(cid, "MW-Badge-Out", m => m.Status = MonitorStatus.Up);
         Assert.DoesNotContain("id=\"maintenance-badge\"", await admin.GetHtmlAsync($"/App/Monitors/Details/{outside}"));
     }
+
+    [Theory]
+    [InlineData("America")]
+    [InlineData("Europe/../../etc")]
+    [InlineData("Not/AZone")]
+    public async Task Unknown_or_partial_time_zones_are_rejected(string zone)
+    {
+        var admin = await f.LoginAsync(TestWebAppFactory.DemoAdminEmail, TestWebAppFactory.DemoAdminPassword);
+        var start = DateTime.UtcNow.AddDays(1);
+        var name = "TZ " + Guid.NewGuid().ToString("N")[..6];
+        var r = await admin.PostFormAsync("/App/Maintenance/Create", new()
+        {
+            ["Input.Name"] = name, ["Input.TimeZoneId"] = zone, ["Input.IsRecurring"] = "false",
+            ["Input.StartsLocal"] = Local(start), ["Input.EndsLocal"] = Local(start.AddHours(1)), ["Input.AllMonitors"] = "true"
+        });
+        Assert.Equal(HttpStatusCode.OK, r.StatusCode);
+        Assert.Contains("Choose a valid time zone.", await r.ReadHtmlAsync());
+        Assert.Null(await FindAsync(name));
+    }
+
+    [Fact]
+    public async Task An_ended_window_can_be_renamed_but_not_moved_into_the_past()
+    {
+        var start = DateTime.UtcNow.Date.AddDays(-3).AddHours(10);
+        var id = await AddWindowAsync(await f.DemoCustomerIdAsync(), "Ended " + Guid.NewGuid().ToString("N")[..6], start, start.AddHours(1));
+        var admin = await f.LoginAsync(TestWebAppFactory.DemoAdminEmail, TestWebAppFactory.DemoAdminPassword);
+        var form = new Dictionary<string, string>
+        {
+            ["Input.Name"] = "Renamed ended window", ["Input.TimeZoneId"] = "UTC", ["Input.IsRecurring"] = "false",
+            ["Input.StartsLocal"] = Local(start), ["Input.EndsLocal"] = Local(start.AddHours(1)), ["Input.AllMonitors"] = "true"
+        };
+        AssertRedirect(await admin.PostFormAsync($"/App/Maintenance/Edit/{id}", form), "/App/Maintenance");
+        Assert.NotNull(await FindAsync("Renamed ended window"));
+
+        form["Input.EndsLocal"] = Local(start.AddHours(2)); // changed, still in the past
+        var r = await admin.PostFormAsync($"/App/Maintenance/Edit/{id}", form);
+        Assert.Equal(HttpStatusCode.OK, r.StatusCode);
+        Assert.Contains("The end must be in the future.", await r.ReadHtmlAsync());
+    }
 }

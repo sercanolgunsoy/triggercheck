@@ -2,9 +2,7 @@ using System.Net;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
-using Microsoft.Extensions.Time.Testing;
+using Microsoft.AspNetCore.DataProtection;
 using TriggerCheck.Domain;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Monitoring.Escalation;
@@ -17,8 +15,8 @@ namespace TriggerCheck.Tests.Escalation;
 /// <summary>FEAT-5: acknowledging from the incident pages and through the signed link; escalation policy page.</summary>
 public class IncidentAckPageTests(IncidentAckPageTests.Fixture f) : IClassFixture<IncidentAckPageTests.Fixture>
 {
-    public const string Secret = "web-test-ack-secret-0123456789abcdef01";
     public const string ViewerEmail = "ack-viewer@demo.local";
+    private const string Refused = "This acknowledge link is invalid, has expired or belongs to another account.";
     public const string ViewerPassword = "Viewer123!";
 
     public class Fixture : TestWebAppFactory
@@ -29,8 +27,7 @@ public class IncidentAckPageTests(IncidentAckPageTests.Fixture f) : IClassFixtur
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             base.ConfigureWebHost(builder);
-            builder.UseSetting("Escalation:AckLinkSecret", Secret);
-            builder.UseSetting("Escalation:PublicBaseUrl", "https://monitor.example.test");
+            builder.UseSetting("Site:PublicBaseUrl", "https://monitor.example.test");
         }
 
         public async Task EnsureSeededAsync()
@@ -155,21 +152,21 @@ public class IncidentAckPageTests(IncidentAckPageTests.Fixture f) : IClassFixtur
         var foreign = await AddIncidentAsync(other);
         var admin = await AdminAsync();
 
-        // Signature still valid for the original incident, but the id was changed.
-        var parts = Token(id, cid).Split('.');
-        parts[0] = foreign.ToString();
-        var tampered = string.Join('.', parts);
-        // Signed with the same key, but issued two weeks ago with the default validity.
-        var past = new FakeTimeProvider(DateTimeOffset.UtcNow.AddDays(-14));
-        var expired = new IncidentAckLinks(Options.Create(new EscalationOptions { AckLinkSecret = Secret }), past, NullLogger<IncidentAckLinks>.Instance).CreateToken(id, cid);
+        // One character of the protected token changed.
+        var genuine = Token(id, cid);
+        var middle = genuine.Length / 2;
+        var tampered = genuine[..middle] + (genuine[middle] == 'A' ? 'B' : 'A') + genuine[(middle + 1)..];
+        // Same key ring and purpose, but already expired.
+        var expired = f.Services.GetRequiredService<IDataProtectionProvider>().CreateProtector(IncidentAckLinks.Purpose).ToTimeLimitedDataProtector()
+            .Protect(IncidentAckLinks.Payload(id, cid), DateTimeOffset.UtcNow.AddMinutes(-1));
         // A genuine link of another tenant.
         var otherTenant = Token(foreign, other);
 
         foreach (var (token, message) in new[]
                  {
-                     (tampered, "This acknowledge link is not valid for your account."),
-                     (expired, "This acknowledge link has expired."),
-                     (otherTenant, "This acknowledge link is not valid for your account.")
+                     (tampered, Refused),
+                     (expired, Refused),
+                     (otherTenant, Refused)
                  })
         {
             var url = $"/App/Incidents/Ack?token={Uri.EscapeDataString(token)}";
@@ -238,5 +235,39 @@ public class IncidentAckPageTests(IncidentAckPageTests.Fixture f) : IClassFixtur
         Assert.Contains("Esc-A", await viewer.GetHtmlAsync("/App/Escalation"));
         AssertAccessDenied(await viewer.PostFormAsync("/App/Escalation", new() { ["IsEnabled"] = "false" }));
         Assert.True(await f.WithDbAsync(db => db.EscalationPolicies.Where(p => p.CustomerId == cid).Select(p => p.IsEnabled).SingleAsync()));
+    }
+
+    [Fact]
+    public async Task Re_enabling_the_policy_restarts_its_clock_and_a_step_without_enabled_channels_is_flagged()
+    {
+        var cid = await f.AddCustomerAsync("Esc Clock " + Guid.NewGuid().ToString("N")[..6]);
+        var email = "esc-clock-" + Guid.NewGuid().ToString("N")[..6] + "@demo.local";
+        await f.AddUserAsync(cid, email, "Admin123!", Roles.CustomerAdmin);
+        var channel = await f.WithDbAsync(async db =>
+        {
+            var c = new AlertChannel { CustomerId = cid, Name = "Clock-A", Type = AlertChannelType.Email, Target = "a@clock.local" };
+            db.AlertChannels.Add(c);
+            await db.SaveChangesAsync();
+            return c.Id;
+        });
+        var admin = await f.LoginAsync(email, "Admin123!");
+        Dictionary<string, string> Form(bool enabled) => new()
+        {
+            ["IsEnabled"] = enabled ? "true" : "false", ["Steps[0].DelayMinutes"] = "5", ["Steps[0].ChannelIds"] = channel.ToString()
+        };
+        Task<DateTime> EnabledAtAsync() => f.WithDbAsync(db => db.EscalationPolicies.Where(p => p.CustomerId == cid).Select(p => p.EnabledAtUtc).SingleAsync());
+
+        AssertRedirect(await admin.PostFormAsync("/App/Escalation", Form(true)), "/App/Escalation");
+        var created = await EnabledAtAsync();
+        await f.WithDbAsync(db => db.EscalationPolicies.Where(p => p.CustomerId == cid).ExecuteUpdateAsync(x => x.SetProperty(p => p.EnabledAtUtc, created.AddHours(-2))));
+        AssertRedirect(await admin.PostFormAsync("/App/Escalation", Form(true)), "/App/Escalation");
+        Assert.Equal(created.AddHours(-2), await EnabledAtAsync()); // saving an enabled policy keeps its clock
+        AssertRedirect(await admin.PostFormAsync("/App/Escalation", Form(false)), "/App/Escalation");
+        AssertRedirect(await admin.PostFormAsync("/App/Escalation", Form(true)), "/App/Escalation");
+        Assert.True(await EnabledAtAsync() >= created); // re-enabled: counts from now
+
+        Assert.DoesNotContain("step-warning", await admin.GetHtmlAsync("/App/Escalation"));
+        await f.WithDbAsync(db => db.AlertChannels.Where(c => c.Id == channel).ExecuteUpdateAsync(x => x.SetProperty(c => c.IsEnabled, false)));
+        Assert.Contains("Step 1 has no enabled alert channel left", await admin.GetHtmlAsync("/App/Escalation"));
     }
 }

@@ -51,7 +51,8 @@ public interface IAlertDispatcher
 /// not urgent enough to phone someone (SMS is fine). A customer whose only channel is a voice call gets them by the
 /// contact e-mail fallback.
 /// Escalation alerts (FEAT-5) go only to their step's channels (<see cref="AlertMessage.ChannelIds"/>, same fallback when
-/// none of them can deliver) and are dropped when the incident was acknowledged or resolved before delivery. DOWN and
+/// none of them can deliver) and are dropped when the incident was acknowledged or resolved before delivery or before a
+/// retry. DOWN and
 /// escalation alerts get the signed acknowledge link (<see cref="IncidentAckLinks"/>) when it is configured.
 /// Every final per-channel delivery outcome is counted in <see cref="MonitoringMetrics.RecordAlert"/> (not channel
 /// tests and not alerts superseded before they were sent).
@@ -72,6 +73,7 @@ public sealed class AlertDispatcher(
     public const string SupersededError = "Superseded by a newer alert for this monitor";
     public const string DailyLimitError = "Daily SMS / voice call limit reached";
     public const string UsageUnavailableError = "SMS / voice limit could not be checked; not sent";
+    public const string AcknowledgedError = "Not retried: the incident was acknowledged or resolved";
 
     public async Task<IReadOnlyList<Notification>> DispatchAsync(AlertMessage message, CancellationToken ct = default,
         CancellationToken stopRetrying = default, CancellationToken superseded = default)
@@ -110,6 +112,12 @@ public sealed class AlertDispatcher(
         }).ToArray();
         logger.LogInformation("Alert '{Subject}' for monitor {MonitorId} superseded by a newer alert before it was sent", message.Subject, message.MonitorId);
         await SaveAsync(db, message, notifications);
+    }
+
+    private async Task<bool> IsStillUnacknowledgedAsync(AlertMessage message, CancellationToken ct)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        return await IsStillUnacknowledgedAsync(db, message, ct);
     }
 
     /// <summary>FEAT-5: an escalation is only delivered while its incident is still open and unacknowledged.</summary>
@@ -287,6 +295,12 @@ public sealed class AlertDispatcher(
                     if (superseded.IsCancellationRequested && !ct.IsCancellationRequested && !stopRetrying.IsCancellationRequested)
                         result = Superseded(result);
                     break; // shutting down or superseded: record the last failure
+                }
+                // FEAT-5: an escalation acknowledged or resolved while waiting is not retried.
+                if (message.Kind == AlertKind.Escalation && !await IsStillUnacknowledgedAsync(message, ct))
+                {
+                    result = NotifyResult.Fail(AcknowledgedError);
+                    break;
                 }
             }
         }

@@ -19,8 +19,14 @@ public class Incident
     /// <summary>Identity user id of the admin who acknowledged it (no FK: the user may be deleted later).</summary>
     public string? AcknowledgedByUserId { get; set; }
     public string? AcknowledgeNote { get; set; }
-    /// <summary>Last escalation step sent for this incident (0 = only the DOWN alert). Persisted so restarts never repeat a step.</summary>
+    /// <summary>Escalation level last sent for this incident (position in the policy at that time; 0 = only the DOWN alert). Display only.</summary>
     public int LastEscalationStep { get; set; }
+    /// <summary>
+    /// Escalation progress: the largest step delay (minutes) already sent, 0 = none. Steps with a delay up to this value
+    /// count as done, so editing the policy during an open incident neither repeats nor skips steps, and restarts
+    /// never repeat one.
+    /// </summary>
+    public int LastEscalationDelayMinutes { get; set; }
 
     public bool IsOpen => ResolvedAtUtc == null;
 }

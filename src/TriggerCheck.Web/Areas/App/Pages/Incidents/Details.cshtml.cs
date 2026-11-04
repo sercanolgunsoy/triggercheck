@@ -14,8 +14,11 @@ using TriggerCheck.Web.Localization;
 namespace TriggerCheck.Web.Areas.App.Pages.Incidents;
 
 /// <summary>One incident with its acknowledgement and escalation state (FEAT-5). Acknowledging is CustomerAdmin only.</summary>
-public class DetailsModel(AppDbContext db, ICurrentCustomer current, IncidentAcknowledger acknowledger, Text<AppResource> L) : PageModel
+public class DetailsModel(AppDbContext db, ICurrentCustomer current, IncidentAcknowledger acknowledger, TimeProvider time, Text<AppResource> L) : PageModel
 {
+    public const string ApiKeyUserPrefix = "api-key:";
+
+    public DateTime NowUtc => time.GetUtcNow().UtcDateTime;
     public Incident Incident { get; private set; } = null!;
     public string MonitorName { get; private set; } = "";
     /// <summary>Name or e-mail of the user who acknowledged it (null when unknown / deleted).</summary>
@@ -31,7 +34,7 @@ public class DetailsModel(AppDbContext db, ICurrentCustomer current, IncidentAck
         if (row is null) return NotFound();
         Incident = row.Incident;
         MonitorName = row.Name;
-        AcknowledgedBy = await UserNameAsync(db, cid, Incident.AcknowledgedByUserId, ct);
+        AcknowledgedBy = await AcknowledgedByAsync(db, cid, Incident.AcknowledgedByUserId, L, ct);
         return Page();
     }
 
@@ -54,9 +57,16 @@ public class DetailsModel(AppDbContext db, ICurrentCustomer current, IncidentAck
         }
     }
 
-    public static async Task<string?> UserNameAsync(AppDbContext db, int customerId, string? userId, CancellationToken ct)
+    /// <summary>The user's name / e-mail, or 'API key "name"' for acknowledgements made through the REST API.</summary>
+    public static async Task<string?> AcknowledgedByAsync(AppDbContext db, int customerId, string? userId, IStringLocalizer L, CancellationToken ct)
     {
         if (userId is null) return null;
+        if (userId.StartsWith(ApiKeyUserPrefix, StringComparison.Ordinal))
+        {
+            var keyId = int.TryParse(userId[ApiKeyUserPrefix.Length..], out var k) ? k : 0;
+            var key = await db.ApiKeys.AsNoTracking().Where(x => x.Id == keyId && x.CustomerId == customerId).Select(x => x.Name).FirstOrDefaultAsync(ct);
+            return key is null ? null : L["API key \"{0}\"", key].Value;
+        }
         var u = await db.Users.AsNoTracking().Where(x => x.Id == userId && x.CustomerId == customerId)
             .Select(x => new { x.FullName, x.Email }).FirstOrDefaultAsync(ct);
         return u is null ? null : string.IsNullOrWhiteSpace(u.FullName) ? u.Email : u.FullName;

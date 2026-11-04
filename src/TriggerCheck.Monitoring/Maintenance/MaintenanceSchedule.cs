@@ -25,13 +25,15 @@ public static class MaintenanceSchedule
     /// <summary>Upper bound for the range scanned by <see cref="Occurrences"/> (guards against unbounded loops).</summary>
     private static readonly TimeSpan MaxScanRange = TimeSpan.FromDays(400);
 
+    public const int MaxTimeZoneIdLength = 100;
+
     /// <summary>Finds an IANA (or, on Windows, system) time zone; null when it is unknown on this host.</summary>
     public static TimeZoneInfo? FindTimeZone(string? id)
     {
-        if (string.IsNullOrWhiteSpace(id)) return null;
+        if (string.IsNullOrWhiteSpace(id) || id.Length > MaxTimeZoneIdLength) return null;
+        // Any failure means "unknown": on Linux a partial id such as "America" names a directory and throws I/O errors.
         try { return TimeZoneInfo.FindSystemTimeZoneById(id.Trim()); }
-        catch (TimeZoneNotFoundException) { return null; }
-        catch (InvalidTimeZoneException) { return null; }
+        catch (Exception) { return null; }
     }
 
     /// <summary>Occurrences of <paramref name="window"/> that overlap [fromUtc, toUtc), in start order.</summary>

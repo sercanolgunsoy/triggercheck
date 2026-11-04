@@ -87,6 +87,7 @@ public sealed class TwilioSmsNotifier(IHttpClientFactory f, IOptionsMonitor<Twil
                                     + (m.DowntimeText is { } down ? $", down for {down}" : ""),
             _ => $"TriggerCheck UP: {AlertMessage.OneLine(m.MonitorName)} ({m.MaskedTarget}) {m.OccurredAtUtc:HH:mm} UTC"
                  + (m.DowntimeText is { } d ? $", down for {d}" : "")
+                 + (m.DuringMaintenance ? " (during maintenance)" : "")
         };
         return AlertText.Cut(text, MaxLength);
     }

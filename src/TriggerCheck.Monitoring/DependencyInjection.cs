@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.DataProtection;
 using System.Net;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -93,6 +94,7 @@ public static class DependencyInjection
         services.AddHostedService(sp => sp.GetRequiredService<AlertSenderService>());
 
         // ---- incidents: acknowledgement + escalation (FEAT-5) ----
+        services.AddDataProtection(); // idempotent; the web app's key ring (also used by Identity) signs acknowledge links
         services.AddSingleton<IncidentAckLinks>();
         services.AddScoped<IncidentAcknowledger>();
         services.AddScoped<EscalationRunner>();

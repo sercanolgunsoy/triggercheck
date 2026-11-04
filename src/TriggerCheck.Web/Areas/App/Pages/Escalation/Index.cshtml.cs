@@ -14,7 +14,7 @@ namespace TriggerCheck.Web.Areas.App.Pages.Escalation;
 /// FEAT-5: the customer's escalation policy. Visible to all members; saving is CustomerAdmin only. Without a policy
 /// (or with no steps / disabled) only the normal DOWN alert is sent.
 /// </summary>
-public class IndexModel(AppDbContext db, ICurrentCustomer current, Text<AppResource> L) : PageModel
+public class IndexModel(AppDbContext db, ICurrentCustomer current, TimeProvider time, Text<AppResource> L) : PageModel
 {
     public class StepInput
     {
@@ -26,6 +26,8 @@ public class IndexModel(AppDbContext db, ICurrentCustomer current, Text<AppResou
     [BindProperty] public List<StepInput> Steps { get; set; } = [];
 
     public List<AlertChannel> Channels { get; private set; } = [];
+    /// <summary>Saved steps (1-based) none of whose channels is enabled any more: their alert goes to the fallback.</summary>
+    public List<int> StepsWithoutChannel { get; private set; } = [];
 
     public async Task OnGetAsync(CancellationToken ct)
     {
@@ -42,6 +44,8 @@ public class IndexModel(AppDbContext db, ICurrentCustomer current, Text<AppResou
             .FirstOrDefaultAsync(ct);
         IsEnabled = policy?.IsEnabled ?? true;
         Steps = policy?.Steps ?? [];
+        var enabled = Channels.Where(c => c.IsEnabled).Select(c => c.Id).ToHashSet();
+        StepsWithoutChannel = Steps.Select((s, i) => (s, i)).Where(x => !x.s.ChannelIds.Any(enabled.Contains)).Select(x => x.i + 1).ToList();
         Pad();
     }
 
@@ -72,8 +76,30 @@ public class IndexModel(AppDbContext db, ICurrentCustomer current, Text<AppResou
             return Page();
         }
 
+        // Two admins saving the first policy at once: the loser hits the unique index and retries as an update.
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                await SaveAsync(cid, used, ct);
+                break;
+            }
+            catch (DbUpdateException) when (attempt < 2)
+            {
+                db.ChangeTracker.Clear();
+            }
+        }
+        TempData["Success"] = L["The escalation policy was saved."].Value;
+        return RedirectToPage("Index");
+    }
+
+    private async Task SaveAsync(int cid, List<StepInput> used, CancellationToken ct)
+    {
+        var now = time.GetUtcNow().UtcDateTime;
         var policy = await db.EscalationPolicies.Include(p => p.Steps).FirstOrDefaultAsync(p => p.CustomerId == cid, ct);
-        if (policy is null) db.EscalationPolicies.Add(policy = new EscalationPolicy { CustomerId = cid });
+        if (policy is null) db.EscalationPolicies.Add(policy = new EscalationPolicy { CustomerId = cid, IsEnabled = IsEnabled, EnabledAtUtc = now });
+        // Turning the policy on starts the clock now: incidents that are already old are not paged at once.
+        if (IsEnabled && !policy.IsEnabled) policy.EnabledAtUtc = now;
         policy.IsEnabled = IsEnabled;
         db.EscalationSteps.RemoveRange(policy.Steps);
         var channels = await db.AlertChannels.Where(c => c.CustomerId == cid).ToListAsync(ct);
@@ -84,8 +110,6 @@ public class IndexModel(AppDbContext db, ICurrentCustomer current, Text<AppResou
             policy.Steps.Add(step);
         }
         await db.SaveChangesAsync(ct);
-        TempData["Success"] = L["The escalation policy was saved."].Value;
-        return RedirectToPage("Index");
     }
 
     private async Task LoadChannelsAsync(int cid, CancellationToken ct) =>

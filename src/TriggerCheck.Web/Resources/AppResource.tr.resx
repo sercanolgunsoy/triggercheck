@@ -877,9 +877,6 @@
   <data name="Only account admins can acknowledge incidents." xml:space="preserve">
     <value>Olayları yalnızca hesap yöneticileri onaylayabilir.</value>
   </data>
-  <data name="Recovered during maintenance; no UP alert was sent." xml:space="preserve">
-    <value>Bakım sırasında düzeldi; UP bildirimi gönderilmedi.</value>
-  </data>
   <data name="Repeats weekly" xml:space="preserve">
     <value>Her hafta tekrarlanır</value>
   </data>
@@ -927,12 +924,6 @@
   </data>
   <data name="The incident was already acknowledged." xml:space="preserve">
     <value>Olay zaten onaylanmış.</value>
-  </data>
-  <data name="This acknowledge link has expired. Open the incident from the incidents page instead." xml:space="preserve">
-    <value>Bu onay bağlantısının süresi dolmuş. Olayı bunun yerine olaylar sayfasından açın.</value>
-  </data>
-  <data name="This acknowledge link is not valid for your account." xml:space="preserve">
-    <value>Bu onay bağlantısı hesabınız için geçerli değil.</value>
   </data>
   <data name="Time zone" xml:space="preserve">
     <value>Saat dilimi</value>
@@ -1035,5 +1026,20 @@
   </data>
   <data name="You can have at most {0} active API keys. Revoke one you no longer use first." xml:space="preserve">
     <value>En fazla {0} etkin API anahtarınız olabilir. Önce artık kullanmadığınız birini iptal edin.</value>
+  </data>
+  <data name="API key &quot;{0}&quot;" xml:space="preserve">
+    <value>"{0}" API anahtarı</value>
+  </data>
+  <data name="Delays count from the start of the incident, or from when the policy was turned on if that is later." xml:space="preserve">
+    <value>Gecikmeler olayın başlangıcından, politika daha sonra etkinleştirildiyse etkinleştirildiği andan itibaren sayılır.</value>
+  </data>
+  <data name="Recovered during maintenance." xml:space="preserve">
+    <value>Bakım sırasında düzeldi.</value>
+  </data>
+  <data name="Step {0} has no enabled alert channel left; its alert goes to the account contact e-mail instead (if that fallback is on)." xml:space="preserve">
+    <value>Adım {0} için etkin bildirim kanalı kalmadı; bu adımın bildirimi bunun yerine hesabın iletişim e-postasına gider (bu yedek ayar açıksa).</value>
+  </data>
+  <data name="This acknowledge link is invalid, has expired or belongs to another account. Open the incident from the incidents page instead." xml:space="preserve">
+    <value>Bu onay bağlantısı geçersiz, süresi dolmuş veya başka bir hesaba ait. Olayı bunun yerine olaylar sayfasından açın.</value>
   </data>
 </root>
