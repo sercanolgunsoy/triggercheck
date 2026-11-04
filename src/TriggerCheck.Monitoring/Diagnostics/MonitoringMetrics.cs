@@ -99,8 +99,7 @@ public sealed class MonitoringMetrics
     }
 
     /// <summary>
-    /// Hook for the alerting code: call once per delivery attempt (per channel) with its outcome.
-    /// Not yet called from AlertDispatcher (being reworked separately); wire it in where each NotifyResult is known.
+    /// Final outcome of one alert delivery to one channel (after retries); recorded by AlertDispatcher.
     /// </summary>
     public void RecordAlert(AlertChannelType channelType, bool success) =>
         _alerts.Add(1, new TagList { { "channel.type", channelType.ToString().ToLowerInvariant() }, { "result", success ? "sent" : "failed" } });

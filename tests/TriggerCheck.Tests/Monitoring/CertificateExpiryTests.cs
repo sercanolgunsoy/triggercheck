@@ -98,7 +98,9 @@ public class CertificateExpiryTests
         Assert.Equal(AlertKind.CertificateExpiring, msg.Kind);
         Assert.Equal("[TriggerCheck] CERTIFICATE EXPIRING: Shop", msg.Subject);
         Assert.Equal("certificate_expiring", msg.StatusText);
-        Assert.Contains("2026-01-11 12:00:00 (10 days left)", msg.Body);
+        Assert.Equal(10, msg.CertificateDaysLeft);
+        Assert.Contains("expires in 10 days", msg.Headline);
+        Assert.Contains("Certificate expires (UTC): 2026-01-11 12:00:00", msg.Body);
     }
 
     [Fact]

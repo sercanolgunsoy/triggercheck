@@ -66,6 +66,13 @@ public static class MonitorStateMachine
         return nowUtc - since <= maxAge;
     }
 
+    /// <summary>
+    /// A confirmation is pending for the current Version (nobody changed the monitor) but it is older than allowed by
+    /// <see cref="HasValidPendingConfirmation"/>. Call only when that returned false.
+    /// </summary>
+    public static bool HasExpiredPendingConfirmation(MonitorEntity monitor) =>
+        monitor.PendingConfirmationSinceUtc is not null && monitor.PendingConfirmationVersion == monitor.Version;
+
     public static void ClearPendingConfirmation(MonitorEntity monitor)
     {
         monitor.PendingConfirmationSinceUtc = null;

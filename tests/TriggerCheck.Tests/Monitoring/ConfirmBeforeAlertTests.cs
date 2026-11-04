@@ -265,7 +265,7 @@ public class ConfirmBeforeAlertTests
     }
 
     [Fact]
-    public async Task Too_old_pending_confirmation_is_evaluated_from_scratch()
+    public async Task Too_old_pending_confirmation_that_fails_goes_down_dated_from_the_late_probe()
     {
         await using var host = await CreateHostAsync();
         var customer = await host.AddCustomerAsync();
@@ -273,22 +273,54 @@ public class ConfirmBeforeAlertTests
         _checker.Then(Refused);
 
         await host.RunCheckAsync(monitor.Id);
-        // e.g. the process was down: the confirmation runs much later than delay + interval + timeout + slack.
+        // Sustained scheduler lag / downtime: the confirmation runs later than delay + interval + timeout + slack.
         host.Time.Advance(TimeSpan.FromSeconds(DelaySeconds + 60 + 10) + MonitorStateMachine.PendingConfirmationSlack + TimeSpan.FromSeconds(1));
         var lateAt = host.Now;
         await host.RunCheckAsync(monitor.Id);
 
+        // Not restarted (that could postpone the DOWN forever under lag) and not backdated to the old failure.
         var m = await host.GetMonitorAsync(monitor.Id);
-        Assert.Equal(MonitorStatus.Up, m.Status);          // no outage backdated to the old failure
-        Assert.Equal(lateAt, m.PendingConfirmationSinceUtc); // a fresh confirmation instead
-        Assert.Equal(0, await host.WithDbAsync(db => db.Incidents.CountAsync()));
-        Assert.DoesNotContain(await ResultsAsync(host, monitor.Id), r => r.IsConfirmation);
-
-        // Just inside the limit it still confirms.
-        host.Time.Advance(TimeSpan.FromSeconds(DelaySeconds + 60 + 10) + MonitorStateMachine.PendingConfirmationSlack);
-        await host.RunCheckAsync(monitor.Id);
-        Assert.Equal(MonitorStatus.Down, (await host.GetMonitorAsync(monitor.Id)).Status);
+        Assert.Equal(MonitorStatus.Down, m.Status);
+        Assert.Equal(lateAt, m.StatusChangedAtUtc);
+        Assert.Null(m.PendingConfirmationSinceUtc);
         Assert.Equal(lateAt, (await host.WithDbAsync(db => db.Incidents.SingleAsync())).StartedAtUtc);
+        Assert.DoesNotContain(await ResultsAsync(host, monitor.Id), r => r.IsConfirmation); // a regular, counted check
+    }
+
+    [Fact]
+    public async Task Too_old_pending_confirmation_that_succeeds_is_just_an_up_check()
+    {
+        await using var host = await CreateHostAsync();
+        var customer = await host.AddCustomerAsync();
+        var monitor = await host.AddMonitorAsync(customer.Id, m => { m.FailureThreshold = 1; m.Status = MonitorStatus.Up; });
+        _checker.Then(Refused, Ok);
+
+        await host.RunCheckAsync(monitor.Id);
+        host.Time.Advance(TimeSpan.FromHours(1));
+        await host.RunCheckAsync(monitor.Id);
+
+        var m = await host.GetMonitorAsync(monitor.Id);
+        Assert.Equal(MonitorStatus.Up, m.Status);
+        Assert.Null(m.PendingConfirmationSinceUtc);
+        Assert.Equal(0, await host.WithDbAsync(db => db.Incidents.CountAsync()));
+    }
+
+    [Fact]
+    public async Task Sustained_lag_still_reports_an_outage()
+    {
+        await using var host = await CreateHostAsync();
+        var customer = await host.AddCustomerAsync();
+        var monitor = await host.AddMonitorAsync(customer.Id, m => { m.FailureThreshold = 2; m.Status = MonitorStatus.Up; m.IntervalSeconds = 30; });
+        _checker.Then(Refused);
+
+        // Every run arrives 10 minutes late.
+        for (var i = 0; i < 4; i++)
+        {
+            await host.RunCheckAsync(monitor.Id);
+            host.Time.Advance(TimeSpan.FromMinutes(10));
+        }
+        Assert.Equal(MonitorStatus.Down, (await host.GetMonitorAsync(monitor.Id)).Status);
+        Assert.Equal(1, await host.WithDbAsync(db => db.Incidents.CountAsync()));
     }
 
     [Fact]

@@ -27,7 +27,7 @@ public class ProbeTimingTests
         await using var server = await LocalHttpServer.StartAsync(app => app.MapGet("/ok", async ctx =>
         {
             await ctx.Response.Body.FlushAsync(); // headers first
-            await Task.Delay(30);
+            await Task.Delay(300);
             await ctx.Response.WriteAsync("hello world");
         }));
         await using var host = await MonitoringTestHost.CreateAsync();
@@ -43,8 +43,9 @@ public class ProbeTimingTests
         Assert.False(t.ReusedConnection);
         Assert.True(t.TtfbMs >= t.DnsMs + t.ConnectMs);
         Assert.True(first.ResponseTimeMs >= t.TtfbMs);
-        // (No lower bound on total - ttfb: under thread-pool pressure the headers continuation can run after the
-        // server's delay, which made such an assertion flaky.)
+        // The 300 ms the server waits between headers and body is transfer time, not time to first byte. (Generous
+        // margin: under load the client may see the headers late, eating into the measured transfer time.)
+        Assert.True(first.ResponseTimeMs - t.TtfbMs >= 100, $"total {first.ResponseTimeMs}, ttfb {t.TtfbMs}");
         Assert.Null(first.Certificate);
 
         var second = await Checker(host, MonitorType.Keyword).CheckAsync(monitor, CancellationToken.None);
