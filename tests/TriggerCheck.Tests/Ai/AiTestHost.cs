@@ -41,7 +41,7 @@ public sealed class AiTestHost : IAsyncDisposable
 
     public DateTime Now => Time.GetUtcNow().UtcDateTime;
 
-    public static async Task<AiTestHost> CreateAsync(Dictionary<string, string?>? settings = null, IAiClient? client = null)
+    public static async Task<AiTestHost> CreateAsync(Dictionary<string, string?>? settings = null, IAiClient? client = null, Action<IServiceCollection>? configure = null)
     {
         var dbPath = Path.Combine(Path.GetTempPath(), $"triggercheck-ai-{Guid.NewGuid():N}.db");
         var all = new Dictionary<string, string?>
@@ -67,6 +67,7 @@ public sealed class AiTestHost : IAsyncDisposable
         services.RemoveAll<IAiClient>();
         services.AddSingleton(client ?? fake);
         services.AddSingleton<IAiContextProvider>(provider);
+        configure?.Invoke(services);
 
         var sp = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = true });
         provider.Services = sp;

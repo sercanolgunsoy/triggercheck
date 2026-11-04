@@ -8,6 +8,7 @@ using TriggerCheck.Ai.Budget;
 using TriggerCheck.Ai.Client;
 using TriggerCheck.Ai.Context;
 using TriggerCheck.Ai.Execution;
+using TriggerCheck.Ai.Interpretation;
 
 namespace TriggerCheck.Ai;
 
@@ -37,6 +38,7 @@ public static class DependencyInjection
             return new UnavailableAiClient();
         });
 
+        services.TryAddSingleton<IAiOutputValidator, AiOutputValidator>();
         services.AddScoped<AiTenantData>();
         services.AddScoped<IAiUsage, AiUsageService>();
         services.AddScoped<IAiInterpreter, AiInterpreter>();

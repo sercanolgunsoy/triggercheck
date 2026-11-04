@@ -30,7 +30,15 @@ public sealed partial class AiContextBuilder
         return this;
     }
 
-    public AiContextBuilder Fact(string key, object? value)
+    public AiContextBuilder Fact(string key, object? value) => Fact(key, value, identifier: false);
+
+    /// <summary>
+    /// A system-generated identifier (monitor name, id, feature code): masked like any fact except for the long-token
+    /// heuristic, so a long name is not replaced by "[secret]". Never use it for text that came from outside.
+    /// </summary>
+    public AiContextBuilder Identifier(string key, object? value) => Fact(key, value, identifier: true);
+
+    private AiContextBuilder Fact(string key, object? value, bool identifier)
     {
         var text = value switch
         {
@@ -39,7 +47,7 @@ public sealed partial class AiContextBuilder
             IFormattable f => f.ToString(null, CultureInfo.InvariantCulture),
             _ => value.ToString() ?? "",
         };
-        _sb.Append(Clean(key)).Append(": ").AppendLine(Clean(AiMasker.MaskText(text)));
+        _sb.Append(Clean(key)).Append(": ").AppendLine(Clean(AiMasker.MaskText(text, longTokens: !identifier)));
         return this;
     }
 

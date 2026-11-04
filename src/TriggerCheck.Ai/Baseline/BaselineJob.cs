@@ -124,6 +124,9 @@ public sealed class BaselineJob(AppDbContext db, IOptions<AiOptions> options, Ti
             .Where(s => s.EndedAtUtc == null && !db.Monitors.Any(m => m.Id == s.MonitorId && m.IsEnabled && m.Customer.IsActive))
             .ExecuteUpdateAsync(u => u.SetProperty(s => s.EndedAtUtc, now).SetProperty(s => s.UpdatedAtUtc, now), ct);
 
+        // Housekeeping for the AI layer: close AI budget reservations abandoned by a crash.
+        await Execution.AiInterpreter.SweepAbandonedAsync(db, options.Value, now, ct);
+
         if (opened + closed > 0)
             logger.LogInformation("Baseline job: {Opened} anomaly signal(s) opened, {Closed} closed ({Monitors} monitors)", opened, closed, monitors);
         return new RunSummary(monitors, rebuilt, opened, closed);

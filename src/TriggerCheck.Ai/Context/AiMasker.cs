@@ -43,13 +43,14 @@ public static partial class AiMasker
         @"|(?<![A-Z0-9])(?:AKIA|ASIA)[A-Z0-9]{16}(?![A-Z0-9])" +                      // AWS access key id
         @"|(?<![0-9])\d{6,}:[A-Za-z0-9_\-]{30,}" +                                     // Telegram bot token
         @"|(?<![A-Za-z0-9])(?:ghp|gho|ghs|ghu|ghr|github_pat)_[A-Za-z0-9_]{20,}" +     // GitHub
-        @"|(?<![A-Za-z0-9])xox[abposr]-[A-Za-z0-9\-]{10,}")]                         // Slack
+        @"|(?<![A-Za-z0-9])xox[abposr]-[A-Za-z0-9\-]{10,}" +                          // Slack
+        @"|(?<![A-Za-z0-9])glpat-[A-Za-z0-9_\-]{20,}" +                               // GitLab; next line: dot-separated JWT-like tokens without "eyJ", signed cookies (3+ chunks of 8+ characters)
+        @"|(?<![A-Za-z0-9_\-./@])(?=[A-Za-z0-9_\-.]*\d)(?=[A-Za-z0-9_\-.]*[A-Za-z])[A-Za-z0-9_\-]{8,}(?:\.[A-Za-z0-9_\-]{8,}){2,}(?![A-Za-z0-9_\-.])")]
     private static partial Regex CredentialShape();
 
-    // Candidate opaque tokens: 32+ chars of base64 / base64url / hex alphabet (no '/' or '.', so URLs and host names
-    // are not candidates). Filtered in code: must mix letters and digits and have at most 4 separators (UUIDs yes,
-    // hyphenated slugs no).
-    [GeneratedRegex(@"(?<![A-Za-z0-9+_=\-])[A-Za-z0-9+_=\-]{32,}(?![A-Za-z0-9+_=\-])")]
+    // Candidate opaque tokens: 32+ chars of the base64 / base64url / hex alphabet ('/' and '+' included; no '.' or ':',
+    // so host names are not candidates and URLs are already reduced to the host). Filtered in LooksLikeToken.
+    [GeneratedRegex(@"(?<![A-Za-z0-9+/_=\-])[A-Za-z0-9+/_=\-]{32,}(?![A-Za-z0-9+/_=\-])")]
     private static partial Regex LongToken();
 
     [GeneratedRegex(@"(?i)\b[a-z][a-z0-9+.\-]*://[^\s""'<>]+")]
@@ -70,7 +71,11 @@ public static partial class AiMasker
     /// Normalizes (NFKC: fullwidth and other compatibility look-alikes become ASCII), then masks secrets, credentials,
     /// URLs (to scheme + host), e-mail addresses and phone numbers.
     /// </summary>
-    public static string MaskText(string? text)
+    /// <param name="longTokens">
+    /// False only for system-generated identifiers (monitor names, ids): skips the 32+ character token heuristic, which
+    /// could otherwise eat a long name. Free text always uses the full masking.
+    /// </param>
+    public static string MaskText(string? text, bool longTokens = true)
     {
         if (string.IsNullOrEmpty(text)) return "";
         var s = text.Normalize(NormalizationForm.FormKC);
@@ -81,7 +86,7 @@ public static partial class AiMasker
         s = Url().Replace(s, m => HostOnly(m.Value));
         s = EmailAddress().Replace(s, Email);
         s = PhoneNumber().Replace(s, Phone);
-        s = LongToken().Replace(s, m => LooksLikeToken(m.Value) ? Secret : m.Value);
+        if (longTokens) s = LongToken().Replace(s, m => LooksLikeToken(m.Value) ? Secret : m.Value);
         return s;
     }
 
@@ -120,15 +125,26 @@ public static partial class AiMasker
         return url[..start] + authority + (end < 0 ? "" : PathMarker);
     }
 
-    private static bool LooksLikeToken(string s)
+    /// <summary>
+    /// Mixes letters and digits, and either has at most 4 '-'/'_' separators (UUIDs) or up to 8 separators between
+    /// chunks of equal length (grouped keys such as "ABCD-1234-EFGH-..."); hyphenated words of varying length are not
+    /// tokens. With '/' (base64) it must also mix upper and lower case and not look like a path (leading '/').
+    /// </summary>
+    internal static bool LooksLikeToken(string s)
     {
-        int letters = 0, digits = 0, separators = 0;
+        int letters = 0, digits = 0, upper = 0, lower = 0, slashes = 0;
         foreach (var c in s)
         {
-            if (char.IsAsciiLetter(c)) letters++;
+            if (char.IsAsciiLetter(c)) { letters++; if (char.IsAsciiLetterUpper(c)) upper++; else lower++; }
             else if (char.IsAsciiDigit(c)) digits++;
-            else if (c is '-' or '_') separators++;
+            else if (c == '/') slashes++;
         }
-        return letters > 0 && digits > 0 && separators <= 4;
+        if (letters == 0 || digits == 0) return false;
+        if (slashes > 0 && (s[0] == '/' || upper == 0 || lower == 0 || slashes > 4)) return false;
+
+        var chunks = s.Split(['-', '_'], StringSplitOptions.RemoveEmptyEntries);
+        var separators = chunks.Length - 1;
+        if (separators <= 4) return true;
+        return separators <= 8 && chunks.Select(c => c.Length).Distinct().Count() == 1;
     }
 }

@@ -63,3 +63,15 @@ public static class AiInterpretationValidator
         return s[..cut] + "…";
     }
 }
+
+/// <summary>The L3 output policy as a service (default: <see cref="AiInterpretationValidator"/>); replaceable in tests.</summary>
+public interface IAiOutputValidator
+{
+    AiInterpretationValidator.Result? Validate(AiInterpretation raw, IReadOnlyCollection<string> allowedActions, AiAutonomy maxAutonomy);
+}
+
+public sealed class AiOutputValidator : IAiOutputValidator
+{
+    public AiInterpretationValidator.Result? Validate(AiInterpretation raw, IReadOnlyCollection<string> allowedActions, AiAutonomy maxAutonomy) =>
+        AiInterpretationValidator.Validate(raw, allowedActions, maxAutonomy);
+}

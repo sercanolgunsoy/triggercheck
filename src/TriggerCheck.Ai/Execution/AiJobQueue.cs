@@ -78,13 +78,30 @@ public sealed class AiJobQueue : IAiJobQueue
 /// so AI calls never hold a request thread or a monitoring check slot. Always registered; when AI is off the jobs are
 /// recorded as skipped without calling out.
 /// </summary>
-public sealed class AiWorkerService(AiJobQueue queue, IServiceScopeFactory scopes, IOptions<AiOptions> options, ILogger<AiWorkerService> logger)
+public sealed class AiWorkerService(AiJobQueue queue, IServiceScopeFactory scopes, IOptions<AiOptions> options, TimeProvider time, ILogger<AiWorkerService> logger)
     : BackgroundService
 {
-    protected override Task ExecuteAsync(CancellationToken stoppingToken)
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        await SweepAsync(stoppingToken);
         var workers = Enumerable.Range(0, Math.Max(1, options.Value.MaxConcurrency)).Select(_ => RunWorkerAsync(stoppingToken));
-        return Task.WhenAll(workers);
+        await Task.WhenAll(workers);
+    }
+
+    /// <summary>Reservations left Pending by a previous process are closed at startup.</summary>
+    private async Task SweepAsync(CancellationToken ct)
+    {
+        try
+        {
+            using var scope = scopes.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<Infrastructure.Data.AppDbContext>();
+            var n = await AiInterpreter.SweepAbandonedAsync(db, options.Value, time.GetUtcNow().UtcDateTime, ct);
+            if (n > 0) logger.LogWarning("Closed {Count} abandoned AI reservation(s)", n);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogError(ex, "Could not sweep abandoned AI reservations");
+        }
     }
 
     private async Task RunWorkerAsync(CancellationToken ct)

@@ -1,10 +1,12 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using TriggerCheck.Ai.Budget;
 using TriggerCheck.Ai.Client;
 using TriggerCheck.Ai.Context;
 using TriggerCheck.Ai.Execution;
+using TriggerCheck.Ai.Interpretation;
 using TriggerCheck.Domain;
 using TriggerCheck.Domain.Entities;
 
@@ -410,6 +412,93 @@ public class AiInterpreterTests
         Assert.True(queue.TryEnqueue(AiTestHost.Job(1, "1")));
         Assert.True(queue.TryEnqueue(AiTestHost.Job(1, "1") with { Language = "tr" }));
         Assert.False(queue.TryEnqueue(AiTestHost.Job(1, "1") with { Language = "tr" }));
+    }
+
+    [Fact]
+    public async Task Shutdown_during_a_call_completes_the_reservation()
+    {
+        await using var h = await AiTestHost.CreateAsync(client: new HangingClient());
+        var c = await h.AddCustomerAsync();
+        var m = await h.AddMonitorAsync(c.Id);
+        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(300));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            h.InScopeAsync(sp => sp.GetRequiredService<IAiInterpreter>().RunAsync(AiTestHost.Job(c.Id, m.Id.ToString()), cts.Token)));
+
+        var d = await h.WithDbAsync(db => db.AiDecisions.AsNoTracking().SingleAsync());
+        Assert.Equal((AiDecisionStatus.Failed, "shutdown"), (d.Status, d.ErrorCode));
+        Assert.True(d.LatencyMs > 0);
+    }
+
+    [Fact]
+    public async Task Unexpected_exception_after_the_call_completes_the_reservation_with_usage()
+    {
+        await using var h = await AiTestHost.CreateAsync(configure: s =>
+        {
+            s.RemoveAll<IAiOutputValidator>();
+            s.AddSingleton<IAiOutputValidator, ThrowingValidator>();
+        });
+        var c = await h.AddCustomerAsync();
+        var m = await h.AddMonitorAsync(c.Id);
+
+        var d = await h.RunAsync(AiTestHost.Job(c.Id, m.Id.ToString()));
+
+        Assert.Equal((AiDecisionStatus.Failed, "error"), (d!.Status, d.ErrorCode));
+        var stored = await h.WithDbAsync(db => db.AiDecisions.AsNoTracking().SingleAsync());
+        Assert.Equal((AiDecisionStatus.Failed, 1200L, 300L), (stored.Status, stored.InputTokens, stored.OutputTokens));
+        Assert.Null(stored.OutputJson);
+    }
+
+    [Fact]
+    public async Task Abandoned_reservations_are_swept()
+    {
+        await using var h = await AiTestHost.CreateAsync(new() { ["Ai:TimeoutSeconds"] = "60" });
+        var c = await h.AddCustomerAsync();
+        await h.WithDbAsync(async db =>
+        {
+            db.AiDecisions.AddRange(
+                new AiDecision { CustomerId = c.Id, Feature = AiFeatures.IncidentInterpretation, Status = AiDecisionStatus.Pending, CreatedAtUtc = h.Now.AddMinutes(-3) },
+                new AiDecision { CustomerId = c.Id, Feature = AiFeatures.IncidentInterpretation, Status = AiDecisionStatus.Pending, CreatedAtUtc = h.Now.AddSeconds(-30) });
+            await db.SaveChangesAsync();
+        });
+
+        // Swept by the baseline job tick (and by the AI worker at startup).
+        await h.InScopeAsync(sp => sp.GetRequiredService<TriggerCheck.Ai.Baseline.BaselineJob>().RunAsync());
+
+        var rows = await h.WithDbAsync(db => db.AiDecisions.AsNoTracking().OrderBy(d => d.CreatedAtUtc).ToListAsync());
+        Assert.Equal((AiDecisionStatus.Failed, "abandoned"), (rows[0].Status, rows[0].ErrorCode));
+        Assert.Equal(AiDecisionStatus.Pending, rows[1].Status); // may still be running
+    }
+
+    [Fact]
+    public async Task Worker_sweeps_abandoned_reservations_at_startup()
+    {
+        await using var h = await AiTestHost.CreateAsync();
+        var c = await h.AddCustomerAsync();
+        await h.WithDbAsync(async db =>
+        {
+            db.AiDecisions.Add(new AiDecision { CustomerId = c.Id, Feature = AiFeatures.IncidentInterpretation, Status = AiDecisionStatus.Pending, CreatedAtUtc = h.Now.AddHours(-1) });
+            await db.SaveChangesAsync();
+        });
+        var worker = h.Services.GetServices<Microsoft.Extensions.Hosting.IHostedService>().OfType<AiWorkerService>().Single();
+        await worker.StartAsync(CancellationToken.None);
+        try
+        {
+            var deadline = DateTime.UtcNow.AddSeconds(10);
+            while (await h.WithDbAsync(db => db.AiDecisions.AnyAsync(d => d.Status == AiDecisionStatus.Pending)) && DateTime.UtcNow < deadline)
+                await Task.Delay(20);
+        }
+        finally
+        {
+            await worker.StopAsync(CancellationToken.None);
+        }
+        Assert.Equal("abandoned", await h.WithDbAsync(db => db.AiDecisions.Select(d => d.ErrorCode).SingleAsync()));
+    }
+
+    private sealed class ThrowingValidator : IAiOutputValidator
+    {
+        public AiInterpretationValidator.Result? Validate(AiInterpretation raw, IReadOnlyCollection<string> allowedActions, AiAutonomy maxAutonomy) =>
+            throw new InvalidOperationException("validator bug");
     }
 
     private sealed class SlowClient : IAiClient

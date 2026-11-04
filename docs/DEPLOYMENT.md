@@ -299,7 +299,7 @@ Opt-out, not-in-plan and over-budget jobs are recorded in `AiDecisions` with a `
 shows no AI content, or "AI summary unavailable this month" when the budget is used up.
 
 The budget is reserved before each call: a `Pending` row is written in the same database transaction as the check, so
-parallel calls cannot overshoot the call limit. The token limit can be exceeded by the calls in flight, at most
+parallel calls cannot overshoot the call limit. A reservation is always completed, also on shutdown or an unexpected error (`shutdown` / `error`); rows left `Pending` by a crash become `abandoned` after twice `Ai__TimeoutSeconds` (swept at startup and by the baseline job). The token limit can be exceeded by the calls in flight, at most
 `MaxConcurrency × MaxTokens`. These count towards the budget:
 
 - **Calls:** calls that returned token usage, plus pending calls. Calls that failed before the model answered (network, rate limit) are free.
@@ -311,7 +311,7 @@ parallel calls cannot overshoot the call limit. The token limit can be exceeded 
 - URL credentials and webhook URLs;
 - e-mail addresses and phone numbers;
 - key/value secrets (`Authorization`, `api_key`, `*_password`, `client_secret`, quoted JSON values, ...);
-- bare credential shapes: JWTs, `sk-…` keys, AWS keys, Telegram / GitHub / Slack tokens, and any long letter+digit token.
+- bare credential shapes: JWTs and other dot-separated opaque tokens, `sk-…` keys, AWS keys, Telegram / GitHub / GitLab / Slack tokens, grouped license-style keys, and any long letter+digit token (base64 included). System-generated identifiers such as monitor names skip only this last rule.
 
 Probe error texts and response snippets are normalized (NFKC), stripped of control characters, truncated and sent in
 delimited `<untrusted_data>` blocks that the prompt declares to be data, never instructions. Model output is validated

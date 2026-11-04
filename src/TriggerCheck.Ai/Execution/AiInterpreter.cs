@@ -39,6 +39,7 @@ public sealed class AiInterpreter(
     IAiClient client,
     IAiUsage usage,
     IEnumerable<IAiContextProvider> providers,
+    IAiOutputValidator validator,
     IOptions<AiOptions> options,
     TimeProvider time,
     ILogger<AiInterpreter> logger) : IAiInterpreter
@@ -115,68 +116,106 @@ public sealed class AiInterpreter(
 
         var request = new AiCallRequest(feature.Name, decision.Model, decision.Effort, o.MaxTokensFor(feature.Name), system, prompt.UserContent, schema);
         var sw = Stopwatch.StartNew();
-        AiCallResult result;
-        using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct))
+        try
         {
-            timeout.CancelAfter(TimeSpan.FromSeconds(Math.Max(1, o.TimeoutSeconds)));
+            AiCallResult result;
+            using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct))
+            {
+                timeout.CancelAfter(TimeSpan.FromSeconds(Math.Max(1, o.TimeoutSeconds)));
+                try
+                {
+                    result = await client.CompleteAsync(request, timeout.Token);
+                }
+                catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+                {
+                    result = AiCallResult.Fail("timeout");
+                }
+            }
+            decision.InputTokens = result.InputTokens;
+            decision.OutputTokens = result.OutputTokens;
+            decision.CacheReadTokens = result.CacheReadTokens;
+            decision.CacheWriteTokens = result.CacheWriteTokens;
+            decision.CostEstimate = decimal.Round(o.PriceFor(decision.Model).Estimate(result.InputTokens, result.OutputTokens, result.CacheReadTokens, result.CacheWriteTokens), 6);
+            decision.ErrorCode = result.ErrorCode;
+
+            switch (result.Outcome)
+            {
+                case AiCallOutcome.Succeeded:
+                    var parsed = AiInterpretation.TryParse(result.Json);
+                    var valid = parsed is null ? null : validator.Validate(parsed, prompt.AllowedActions, feature.MaxAutonomy);
+                    if (valid is null)
+                    {
+                        logger.LogWarning("AI output for {Feature} {SubjectType} {SubjectId} did not match the contract", feature.Name, job.SubjectType, job.SubjectId);
+                        decision.Status = AiDecisionStatus.Failed;
+                        decision.ErrorCode = "invalid_output";
+                        break;
+                    }
+                    decision.OutputJson = valid.Interpretation.ToJson();
+                    decision.MaxConfidence = valid.MaxConfidence;
+                    decision.AutonomyLevel = valid.AutonomyLevel;
+                    decision.Status = AiDecisionStatus.Succeeded;
+                    break;
+                case AiCallOutcome.Refused:
+                    decision.Status = AiDecisionStatus.Refused;
+                    break;
+                case AiCallOutcome.Unavailable:
+                    decision.Status = AiDecisionStatus.Failed;
+                    decision.ErrorCode = "unavailable";
+                    break;
+                case AiCallOutcome.MaxTokens:
+                    logger.LogWarning("AI output for {Feature} {SubjectType} {SubjectId} was truncated at {MaxTokens} tokens", feature.Name, job.SubjectType, job.SubjectId, request.MaxTokens);
+                    decision.Status = AiDecisionStatus.Truncated;
+                    decision.ErrorCode = "max_tokens";
+                    break;
+                default: // Failed
+                    decision.Status = AiDecisionStatus.Failed;
+                    decision.ErrorCode ??= "failed";
+                    break;
+            }
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            decision.Status = AiDecisionStatus.Failed;
+            decision.ErrorCode = "shutdown";
+            throw; // the finally block still completes the row
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "AI call failed for {Feature} {SubjectType} {SubjectId}", feature.Name, job.SubjectType, job.SubjectId);
+            decision.Status = AiDecisionStatus.Failed;
+            decision.ErrorCode = "error";
+        }
+        finally
+        {
+            // Never leave the reservation Pending: whatever happened, the row is completed (with any usage recorded).
+            if (decision.Status == AiDecisionStatus.Pending)
+            {
+                decision.Status = AiDecisionStatus.Failed;
+                decision.ErrorCode ??= "error";
+            }
+            decision.LatencyMs = (int)Math.Min(int.MaxValue, sw.ElapsedMilliseconds);
             try
             {
-                result = await client.CompleteAsync(request, timeout.Token);
+                await db.SaveChangesAsync(CancellationToken.None); // paid for: record it even when shutting down
             }
-            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+            catch (Exception ex)
             {
-                result = AiCallResult.Fail("timeout");
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                logger.LogError(ex, "AI client failed for {Feature} {SubjectType} {SubjectId}", feature.Name, job.SubjectType, job.SubjectId);
-                result = AiCallResult.Fail("error");
+                logger.LogError(ex, "Could not complete AI decision {DecisionId}; the Pending sweep will close it", decision.Id);
             }
         }
-        decision.LatencyMs = (int)Math.Min(int.MaxValue, sw.ElapsedMilliseconds);
-        decision.InputTokens = result.InputTokens;
-        decision.OutputTokens = result.OutputTokens;
-        decision.CacheReadTokens = result.CacheReadTokens;
-        decision.CacheWriteTokens = result.CacheWriteTokens;
-        decision.CostEstimate = decimal.Round(o.PriceFor(decision.Model).Estimate(result.InputTokens, result.OutputTokens, result.CacheReadTokens, result.CacheWriteTokens), 6);
-        decision.ErrorCode = result.ErrorCode;
-
-        switch (result.Outcome)
-        {
-            case AiCallOutcome.Succeeded:
-                var parsed = AiInterpretation.TryParse(result.Json);
-                var valid = parsed is null ? null : AiInterpretationValidator.Validate(parsed, prompt.AllowedActions, feature.MaxAutonomy);
-                if (valid is null)
-                {
-                    logger.LogWarning("AI output for {Feature} {SubjectType} {SubjectId} did not match the contract", feature.Name, job.SubjectType, job.SubjectId);
-                    decision.Status = AiDecisionStatus.Failed;
-                    decision.ErrorCode = "invalid_output";
-                    break;
-                }
-                decision.Status = AiDecisionStatus.Succeeded;
-                decision.OutputJson = valid.Interpretation.ToJson();
-                decision.MaxConfidence = valid.MaxConfidence;
-                decision.AutonomyLevel = valid.AutonomyLevel;
-                break;
-            case AiCallOutcome.Refused:
-                decision.Status = AiDecisionStatus.Refused;
-                break;
-            case AiCallOutcome.Unavailable:
-                decision.Status = AiDecisionStatus.Failed;
-                decision.ErrorCode = "unavailable";
-                break;
-            case AiCallOutcome.MaxTokens:
-                logger.LogWarning("AI output for {Feature} {SubjectType} {SubjectId} was truncated at {MaxTokens} tokens", feature.Name, job.SubjectType, job.SubjectId, request.MaxTokens);
-                decision.Status = AiDecisionStatus.Truncated;
-                decision.ErrorCode = "max_tokens";
-                break;
-            default: // Failed
-                decision.Status = AiDecisionStatus.Failed;
-                decision.ErrorCode ??= "failed";
-                break;
-        }
-        await db.SaveChangesAsync(CancellationToken.None); // the call is paid for: record it even when shutting down
         return decision;
+    }
+
+    /// <summary>
+    /// Closes reservations that were never completed (process crash): Pending rows older than twice the call timeout
+    /// become Failed / "abandoned". Run at startup by the AI worker and on every baseline job tick.
+    /// </summary>
+    public static Task<int> SweepAbandonedAsync(AppDbContext db, AiOptions o, DateTime nowUtc, CancellationToken ct = default)
+    {
+        var cutoff = nowUtc.AddSeconds(-2 * Math.Max(1, o.TimeoutSeconds));
+        return db.AiDecisions
+            .Where(d => d.Status == AiDecisionStatus.Pending && d.CreatedAtUtc < cutoff)
+            .ExecuteUpdateAsync(u => u.SetProperty(d => d.Status, AiDecisionStatus.Failed).SetProperty(d => d.ErrorCode, "abandoned"), ct);
     }
 
     private async Task<AiDecision> SaveAsync(AiDecision decision, CancellationToken ct)
