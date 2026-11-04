@@ -52,6 +52,7 @@
                     <div class="sidebar-section">@L["Settings"]</div>
                     <ul class="sidebar-nav">
                         @if (isCustomerAdmin) { @NavItem("/App/Users", "users", L["Users"]) }
+                        @NavItem("/App/Billing", "layers", L["Billing"])
                         @NavItem("/App/Account", "card", L["Account & plan"])
                     </ul>
                 </div>

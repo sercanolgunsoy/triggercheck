@@ -16,6 +16,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
     public DbSet<AlertChannel> AlertChannels => Set<AlertChannel>();
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<SmsVoiceUsage> SmsVoiceUsage => Set<SmsVoiceUsage>();
+    public DbSet<Subscription> Subscriptions => Set<Subscription>();
+    public DbSet<PaymentEvent> PaymentEvents => Set<PaymentEvent>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -26,6 +28,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
             e.Property(x => x.Name).HasMaxLength(100).IsRequired();
             e.HasIndex(x => x.Name).IsUnique();
             e.Property(x => x.MonthlyPrice).HasConversion<double>();
+            e.Property(x => x.IyzicoProductReferenceCode).HasMaxLength(100);
+            e.Property(x => x.IyzicoPricingPlanReferenceCode).HasMaxLength(100);
         });
 
         b.Entity<Customer>(e =>
@@ -76,6 +80,33 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
         {
             e.HasKey(x => new { x.CustomerId, x.DayUtc });
             e.HasOne<Customer>().WithMany().HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<Subscription>(e =>
+        {
+            e.HasOne(x => x.Customer).WithMany(c => c.Subscriptions).HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Plan).WithMany().HasForeignKey(x => x.PlanId).OnDelete(DeleteBehavior.Restrict);
+            e.Property(x => x.Provider).HasMaxLength(32);
+            e.Property(x => x.ProviderReference).HasMaxLength(100);
+            e.Property(x => x.ProviderCustomerReference).HasMaxLength(100);
+            e.Property(x => x.CheckoutToken).HasMaxLength(200);
+            e.Property(x => x.CheckoutUrl).HasMaxLength(2048);
+            e.HasIndex(x => x.ProviderReference);
+            e.HasIndex(x => x.CheckoutToken);
+            e.HasIndex(x => new { x.CustomerId, x.Status });
+        });
+
+        b.Entity<PaymentEvent>(e =>
+        {
+            e.HasOne<Customer>().WithMany().HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<Subscription>().WithMany().HasForeignKey(x => x.SubscriptionId).OnDelete(DeleteBehavior.SetNull);
+            e.Property(x => x.ProviderEventId).HasMaxLength(200).IsRequired();
+            e.HasIndex(x => x.ProviderEventId).IsUnique();
+            e.Property(x => x.EventType).HasMaxLength(64);
+            e.Property(x => x.OrderReference).HasMaxLength(100);
+            e.Property(x => x.PlanName).HasMaxLength(100);
+            e.Property(x => x.Amount).HasConversion<double?>();
+            e.HasIndex(x => new { x.CustomerId, x.OccurredAtUtc });
         });
 
         b.Entity<Notification>(e =>

@@ -5,6 +5,7 @@ using TriggerCheck.Infrastructure;
 using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Infrastructure.Identity;
 using TriggerCheck.Monitoring;
+using TriggerCheck.Web.Billing;
 using TriggerCheck.Web.Infrastructure;
 using TriggerCheck.Web.Localization;
 
@@ -54,6 +55,8 @@ builder.Services.AddAuthorization(o =>
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentCustomer, CurrentCustomer>();
 builder.Services.AddSingleton<ManualCheckLimiter>();
+// BIZ-1/2/3: self-service sign-up, trial, iyzico subscriptions, usage meters (+ their rate limits and background job).
+builder.Services.AddBilling(builder.Configuration);
 builder.Services.AddSingleton<TriggerCheck.Web.Areas.App.Pages.Alerts.TestNotificationLimiter>();
 
 builder.Services.AddRazorPages(o =>
@@ -87,12 +90,14 @@ app.UseAppLocalization();
 app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 
 // AllowAnonymous on static assets and the health endpoints also tells SessionValidator to skip its per-request DB check there.
 app.MapStaticAssets().AllowAnonymous();
 app.MapRazorPages().WithStaticAssets();
 app.MapAppHealthChecks(includeDetails: app.Environment.IsDevelopment());
 app.MapSetLanguage();
+app.MapBillingEndpoints();
 
 await DbSeeder.SeedAsync(app.Services);
 

@@ -22,6 +22,9 @@ public class DetailsModel(AppDbContext db, UserManager<ApplicationUser> users, T
     public List<MonitorEntity> Monitors { get; private set; } = [];
     public List<Incident> OpenIncidents { get; private set; } = [];
     public int AlertChannelCount { get; private set; }
+    /// <summary>Latest subscription that was ever activated (BIZ-2), if any.</summary>
+    public Subscription? Subscription { get; private set; }
+    public List<PaymentEvent> PaymentEvents { get; private set; } = [];
 
     public record UserRow(string Id, string Email, string FullName, string Role, bool IsActive, DateTime CreatedAtUtc, bool LockedOut);
 
@@ -46,6 +49,11 @@ public class DetailsModel(AppDbContext db, UserManager<ApplicationUser> users, T
             .Where(i => i.Monitor.CustomerId == id && i.ResolvedAtUtc == null)
             .OrderByDescending(i => i.StartedAtUtc).ToListAsync();
         AlertChannelCount = await db.AlertChannels.CountAsync(a => a.CustomerId == id);
+        Subscription = await db.Subscriptions.AsNoTracking().Include(s => s.Plan)
+            .Where(s => s.CustomerId == id && s.Status != SubscriptionStatus.Pending && s.Status != SubscriptionStatus.Failed)
+            .OrderByDescending(s => s.Id).FirstOrDefaultAsync();
+        PaymentEvents = await db.PaymentEvents.AsNoTracking().Where(e => e.CustomerId == id)
+            .OrderByDescending(e => e.OccurredAtUtc).Take(10).ToListAsync();
         return Page();
     }
 

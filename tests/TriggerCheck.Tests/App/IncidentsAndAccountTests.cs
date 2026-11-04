@@ -56,7 +56,7 @@ public class IncidentsAndAccountTests : IClassFixture<TestWebAppFactory>
         var html = await (await AdminAsync()).GetHtmlAsync("/App/Account/Index");
         Assert.Contains("Standard", html);
         Assert.Contains("Demo Company", html);
-        Assert.Contains("Contact support to change your plan", html);
+        Assert.Contains("managed on the Billing page", html);
         Assert.Contains("1 min", html);
         Assert.Contains("5 min", html);
         Assert.Contains("90 days", html);

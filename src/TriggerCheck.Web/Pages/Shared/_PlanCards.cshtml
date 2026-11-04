@@ -28,8 +28,17 @@ else
                     @if (p.MonthlyPrice == 0) { <b>@L["Free"]</b> }
                     else { <b>@Fmt.Price(p.MonthlyPrice)</b><span>@L["/ month"]</span> }
                 </div>
-                <a class="btn @(isFeatured ? "btn-primary" : "btn-outline-secondary") w-100"
-                   href="mailto:@Model.ContactEmail?subject=@Uri.EscapeDataString("TriggerCheck " + p.Name)">@(p.MonthlyPrice == 0 ? L["Start for free"] : L["Get {0}", p.Name])</a>
+                @if (p.AllowsSelfSignup)
+                {
+                    <a class="btn @(isFeatured ? "btn-primary" : "btn-outline-secondary") w-100"
+                       href="/Account/Register?plan=@p.Id">@(p.MonthlyPrice == 0 ? L["Start for free"] : L["Start free trial"])</a>
+                }
+                else
+                {
+                    @* Sales-led plans (e.g. Enterprise): contact instead of self-service sign-up. *@
+                    <a class="btn @(isFeatured ? "btn-primary" : "btn-outline-secondary") w-100"
+                       href="mailto:@Model.ContactEmail?subject=@Uri.EscapeDataString("TriggerCheck " + p.Name)">@L["Contact sales"]</a>
+                }
                 <ul>
                     <li>@Icons.Get("check", 16) <span>@L["Up to {0} monitors", Fmt.Number(p.MaxMonitors)]</span></li>
                     <li>@Icons.Get("check", 16) <span>@L["Checks every {0}", Fmt.Interval(p.MinIntervalSeconds)]</span></li>

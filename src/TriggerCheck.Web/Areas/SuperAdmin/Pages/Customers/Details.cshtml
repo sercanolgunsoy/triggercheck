@@ -71,6 +71,42 @@
     </div>
 </div>
 
+<div class="card mb-4" data-testid="billing">
+    <div class="card-header fw-semibold">@L["Billing"] <partial name="_BillingStatusBadge" model="c.BillingStatus" /></div>
+    <div class="card-body">
+        <dl class="row mb-0">
+            @if (c.TrialEndsAtUtc is DateTime trialEnd)
+            {
+                <dt class="col-sm-3">@L["Trial ends"]</dt><dd class="col-sm-9">@Fmt.Time(trialEnd) @Fmt.TimeZoneLabel</dd>
+            }
+            @if (Model.Subscription is { } s)
+            {
+                <dt class="col-sm-3">@L["Subscription"]</dt>
+                <dd class="col-sm-9">@s.Plan.Name · @s.Provider <span class="font-monospace small">@s.ProviderReference</span></dd>
+                <dt class="col-sm-3">@L["Paid until"]</dt><dd class="col-sm-9">@Fmt.Date(s.CurrentPeriodEndUtc)</dd>
+                @if (s.PastDueSinceUtc is DateTime pd) { <dt class="col-sm-3">@L["Past due since"]</dt><dd class="col-sm-9 text-danger">@Fmt.Date(pd)</dd> }
+            }
+            else if (c.TrialEndsAtUtc is null)
+            {
+                <dd class="col-12 text-muted">@L["Plan assigned by an administrator; no online subscription."]</dd>
+            }
+        </dl>
+        @if (Model.PaymentEvents.Count > 0)
+        {
+            <table class="table table-sm mt-3 mb-0">
+                <thead><tr><th>@L["Date"]</th><th>@L["Event"]</th><th>@L["Plan"]</th><th>@L["Result"]</th></tr></thead>
+                <tbody>
+                @foreach (var e in Model.PaymentEvents)
+                {
+                    <tr><td>@Fmt.Time(e.OccurredAtUtc)</td><td class="font-monospace small">@e.EventType</td><td>@e.PlanName</td>
+                        <td>@if (e.Succeeded) { <span class="badge bg-success">@L["Paid"]</span> } else { <span class="badge bg-danger">@L["Failed"]</span> }</td></tr>
+                }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>
+
 <div class="card mb-4">
     <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
         <span>@L["Users"] (@Model.Users.Count)</span>

@@ -17,6 +17,14 @@ public class Customer
     public bool AlertContactEmailWhenNoChannel { get; set; } = true;
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 
+    /// <summary>Self-service billing state (BIZ-1/BIZ-2). <see cref="BillingStatus.None"/> = plan managed by the operator or free plan.</summary>
+    public BillingStatus BillingStatus { get; set; } = BillingStatus.None;
+    /// <summary>End of the free trial (set at sign-up). When it passes without a subscription the customer moves to the fallback plan.</summary>
+    public DateTime? TrialEndsAtUtc { get; set; }
+    /// <summary>When the "trial ends soon" e-mail was sent (sent once).</summary>
+    public DateTime? TrialReminderSentAtUtc { get; set; }
+
     public ICollection<Monitor> Monitors { get; set; } = new List<Monitor>();
     public ICollection<AlertChannel> AlertChannels { get; set; } = new List<AlertChannel>();
+    public ICollection<Subscription> Subscriptions { get; set; } = new List<Subscription>();
 }
