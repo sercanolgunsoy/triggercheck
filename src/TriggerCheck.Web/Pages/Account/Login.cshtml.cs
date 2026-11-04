@@ -51,7 +51,13 @@ public class LoginModel(SignInManager<ApplicationUser> signIn, Text<SharedResour
         }
 
         Microsoft.AspNetCore.Identity.SignInResult result;
-        if (!user.IsActive || (user.Customer is not null && !user.Customer.IsActive))
+        if (!user.EmailConfirmed)
+        {
+            // Self-service sign-ups must confirm their address first; told only after a correct password (no enumeration).
+            result = await signIn.CheckPasswordSignInAsync(user, Input.Password, lockoutOnFailure: true);
+            if (result.Succeeded) { ModelState.AddModelError("", L["Please confirm your e-mail address first. Check your inbox for the link."]); return Page(); }
+        }
+        else if (!user.IsActive || (user.Customer is not null && !user.Customer.IsActive))
         {
             // Inactive user or suspended customer: never sign in. The specific message is shown only after a correct
             // password, so a wrong password still gets the generic message (no account enumeration).

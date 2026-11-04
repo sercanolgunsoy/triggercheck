@@ -41,7 +41,7 @@
                     <dt class="col-sm-4">@L["Data retention"]</dt><dd class="col-sm-8">@L["{0} days", plan.RetentionDays]</dd>
                     <dt class="col-sm-4">@L["Monthly price"]</dt><dd class="col-sm-8">@(plan.MonthlyPrice == 0 ? L["Free"].Value : Fmt.Money(plan.MonthlyPrice))</dd>
                 </dl>
-                <div class="alert alert-info mb-0">@L["Contact support to change your plan."]</div>
+                <div class="alert alert-info mb-0">@L["Plan, subscription and payments are managed on the Billing page."] <a href="/App/Billing">@L["Billing"]</a></div>
             </div>
         </div>
     </div>

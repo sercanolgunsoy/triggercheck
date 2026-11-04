@@ -1,0 +1,30 @@
+@model TriggerCheck.Web.Billing.PlanUsage
+@* BIZ-3 quota meters (dashboard and Billing page). Warning from UsageMeter.WarningPercent (80 %). *@
+@{
+    var meters = new List<(string Label, TriggerCheck.Web.Billing.UsageMeter Meter, string Id)> { (L["Monitors"].Value, Model.Monitors, "monitors") };
+    if (Model.AiRequests is { } ai) { meters.Add((L["AI requests this month"].Value, ai, "ai")); }
+}
+<div class="card mb-4" data-testid="usage">
+    <div class="card-header">@L["Plan usage"]</div>
+    <div class="card-body">
+        @foreach (var (label, m, id) in meters)
+        {
+            <div class="mb-2" data-usage="@id" data-percent="@m.Percent" data-warning="@(m.IsWarning ? "true" : "false")">
+                <div class="d-flex justify-content-between small">
+                    <span>@label</span>
+                    <span class="@(m.IsWarning ? "fw-semibold text-danger" : "text-muted")">@Fmt.Number(m.Used) / @Fmt.Number(m.Max)</span>
+                </div>
+                <div class="progress mt-1" style="height: 6px" role="progressbar" aria-label="@label" aria-valuenow="@m.Percent" aria-valuemin="0" aria-valuemax="100">
+                    <div class="progress-bar @(m.IsFull ? "bg-danger" : m.IsWarning ? "bg-warning" : "bg-success")" style="width: @m.Percent%"></div>
+                </div>
+                @if (m.IsWarning)
+                {
+                    <div class="small text-danger mt-1" data-testid="usage-warning">
+                        @(m.IsFull ? L["Limit reached."] : L["{0}% of your plan limit is used.", m.Percent])
+                        @if (User.IsInRole(Roles.CustomerAdmin)) { <a href="/App/Billing">@L["Upgrade"]</a> }
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>

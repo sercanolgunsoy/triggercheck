@@ -955,4 +955,211 @@
   <data name="Read-only" xml:space="preserve">
     <value>Salt okunur</value>
   </data>
+  <data name="Yes. Upgrade, downgrade or cancel at any time on the Billing page; your monitors and history stay as they are." xml:space="preserve">
+    <value>Evet. Faturalandırma sayfasından istediğiniz zaman plan yükseltebilir, düşürebilir veya aboneliği iptal edebilirsiniz; monitörleriniz ve geçmişiniz olduğu gibi kalır.</value>
+  </data>
+  <data name="How does the free trial work?" xml:space="preserve">
+    <value>Ücretsiz deneme nasıl işler?</value>
+  </data>
+  <data name="Paid plans start with a {0}-day free trial, no credit card required. Subscribe before it ends to keep the plan; otherwise your workspace moves to the free plan." xml:space="preserve">
+    <value>Ücretli planlar {0} günlük ücretsiz denemeyle başlar, kredi kartı gerekmez. Planı korumak için deneme bitmeden abone olun; aksi halde çalışma alanınız ücretsiz plana geçer.</value>
+  </data>
+  <data name="Start free trial" xml:space="preserve">
+    <value>Ücretsiz denemeyi başlat</value>
+  </data>
+  <data name="Create your workspace in a minute, or tell us what you need and we'll help you set it up." xml:space="preserve">
+    <value>Çalışma alanınızı bir dakikada oluşturun ya da ihtiyacınızı anlatın, kurulumda yardımcı olalım.</value>
+  </data>
+  <data name="Confirm your TriggerCheck account" xml:space="preserve">
+    <value>TriggerCheck hesabınızı doğrulayın</value>
+  </data>
+  <data name="Hello {0}," xml:space="preserve">
+    <value>Merhaba {0},</value>
+  </data>
+  <data name="Please confirm your e-mail address to activate your TriggerCheck account:" xml:space="preserve">
+    <value>TriggerCheck hesabınızı etkinleştirmek için lütfen e-posta adresinizi doğrulayın:</value>
+  </data>
+  <data name="If you did not sign up, you can ignore this e-mail." xml:space="preserve">
+    <value>Kaydı siz yapmadıysanız bu e-postayı yok sayabilirsiniz.</value>
+  </data>
+  <data name="Your TriggerCheck account" xml:space="preserve">
+    <value>TriggerCheck hesabınız</value>
+  </data>
+  <data name="Someone (hopefully you) tried to create a TriggerCheck account with this e-mail address, but an account already exists." xml:space="preserve">
+    <value>Birisi (umarız siz) bu e-posta adresiyle bir TriggerCheck hesabı oluşturmaya çalıştı, ancak bu adresle bir hesap zaten var.</value>
+  </data>
+  <data name="Sign in here: {0}" xml:space="preserve">
+    <value>Buradan giriş yapın: {0}</value>
+  </data>
+  <data name="If this was not you, you can ignore this e-mail." xml:space="preserve">
+    <value>Bu siz değilseniz bu e-postayı yok sayabilirsiniz.</value>
+  </data>
+  <data name="Your TriggerCheck trial ends soon" xml:space="preserve">
+    <value>TriggerCheck deneme süreniz yakında bitiyor</value>
+  </data>
+  <data name="Your free trial of the {0} plan ends on {1} (UTC). Subscribe on the Billing page to keep your plan; otherwise your workspace moves to the {2} plan." xml:space="preserve">
+    <value>{0} planı ücretsiz denemeniz {1} (UTC) tarihinde bitiyor. Planınızı korumak için Faturalandırma sayfasından abone olun; aksi halde çalışma alanınız {2} planına geçer.</value>
+  </data>
+  <data name="Your TriggerCheck plan changed to {0}" xml:space="preserve">
+    <value>TriggerCheck planınız {0} olarak değişti</value>
+  </data>
+  <data name="{0} Your workspace is now on the {1} plan: monitors faster than {2} were slowed down and you can have at most {3} monitors. You can subscribe again on the Billing page." xml:space="preserve">
+    <value>{0} Çalışma alanınız artık {1} planında: {2} süresinden sık kontrol edilen monitörler yavaşlatıldı ve en fazla {3} monitörünüz olabilir. Faturalandırma sayfasından yeniden abone olabilirsiniz.</value>
+  </data>
+  <data name="Your free trial has ended." xml:space="preserve">
+    <value>Ücretsiz deneme süreniz sona erdi.</value>
+  </data>
+  <data name="Your subscription payment could not be collected." xml:space="preserve">
+    <value>Abonelik ödemeniz tahsil edilemedi.</value>
+  </data>
+  <data name="Your cancelled subscription has ended." xml:space="preserve">
+    <value>İptal ettiğiniz abonelik sona erdi.</value>
+  </data>
+  <data name="TriggerCheck payment failed" xml:space="preserve">
+    <value>TriggerCheck ödemesi başarısız oldu</value>
+  </data>
+  <data name="We could not collect your subscription payment. Please update your card at iyzico within {0} days; after that your workspace moves to the {1} plan." xml:space="preserve">
+    <value>Abonelik ödemenizi tahsil edemedik. Lütfen {0} gün içinde iyzico'daki kartınızı güncelleyin; aksi halde çalışma alanınız {1} planına geçer.</value>
+  </data>
+  <data name="Billing" xml:space="preserve">
+    <value>Faturalandırma</value>
+  </data>
+  <data name="Contact sales" xml:space="preserve">
+    <value>Satış ekibiyle görüşün</value>
+  </data>
+  <data name="Trial" xml:space="preserve">
+    <value>Deneme</value>
+  </data>
+  <data name="Subscribed" xml:space="preserve">
+    <value>Abone</value>
+  </data>
+  <data name="Past due" xml:space="preserve">
+    <value>Ödeme gecikmiş</value>
+  </data>
+  <data name="Cancelled" xml:space="preserve">
+    <value>İptal edildi</value>
+  </data>
+  <data name="No subscription" xml:space="preserve">
+    <value>Abonelik yok</value>
+  </data>
+  <data name="Create your account" xml:space="preserve">
+    <value>Hesabınızı oluşturun</value>
+  </data>
+  <data name="Try any plan free for {0} days. No credit card required." xml:space="preserve">
+    <value>Dilediğiniz planı {0} gün ücretsiz deneyin. Kredi kartı gerekmez.</value>
+  </data>
+  <data name="Company name" xml:space="preserve">
+    <value>Şirket adı</value>
+  </data>
+  <data name="Your name" xml:space="preserve">
+    <value>Adınız</value>
+  </data>
+  <data name="At least 8 characters, with an uppercase letter, a lowercase letter and a digit." xml:space="preserve">
+    <value>En az 8 karakter; bir büyük harf, bir küçük harf ve bir rakam içermeli.</value>
+  </data>
+  <data name="Paid plans start with a free trial; you can subscribe or change the plan later on the Billing page." xml:space="preserve">
+    <value>Ücretli planlar ücretsiz denemeyle başlar; daha sonra Faturalandırma sayfasından abone olabilir veya planı değiştirebilirsiniz.</value>
+  </data>
+  <data name="I accept the terms of service and the privacy policy" xml:space="preserve">
+    <value>Hizmet koşullarını ve gizlilik politikasını kabul ediyorum</value>
+  </data>
+  <data name="Create account" xml:space="preserve">
+    <value>Hesap oluştur</value>
+  </data>
+  <data name="Already have an account?" xml:space="preserve">
+    <value>Zaten hesabınız var mı?</value>
+  </data>
+  <data name="Please confirm your e-mail address first. Check your inbox for the link." xml:space="preserve">
+    <value>Lütfen önce e-posta adresinizi doğrulayın. Bağlantı için gelen kutunuzu kontrol edin.</value>
+  </data>
+  <data name="Confirm e-mail" xml:space="preserve">
+    <value>E-postayı doğrula</value>
+  </data>
+  <data name="E-mail confirmed" xml:space="preserve">
+    <value>E-posta doğrulandı</value>
+  </data>
+  <data name="Thank you. Your account is ready: sign in to set up your first monitor." xml:space="preserve">
+    <value>Teşekkürler. Hesabınız hazır: ilk monitörünüzü kurmak için giriş yapın.</value>
+  </data>
+  <data name="Link not valid" xml:space="preserve">
+    <value>Bağlantı geçersiz</value>
+  </data>
+  <data name="This confirmation link is invalid or has expired. Sign up again with the same address to get a new link." xml:space="preserve">
+    <value>Bu doğrulama bağlantısı geçersiz veya süresi dolmuş. Yeni bir bağlantı almak için aynı adresle yeniden kaydolun.</value>
+  </data>
+  <data name="Choose a plan." xml:space="preserve">
+    <value>Bir plan seçin.</value>
+  </data>
+  <data name="You must accept the terms to continue." xml:space="preserve">
+    <value>Devam etmek için koşulları kabul etmelisiniz.</value>
+  </data>
+  <data name="Company name is required." xml:space="preserve">
+    <value>Şirket adı zorunludur.</value>
+  </data>
+  <data name="At most {1} characters." xml:space="preserve">
+    <value>En fazla {1} karakter.</value>
+  </data>
+  <data name="Name is required." xml:space="preserve">
+    <value>Ad zorunludur.</value>
+  </data>
+  <data name="Check your inbox" xml:space="preserve">
+    <value>Gelen kutunuzu kontrol edin</value>
+  </data>
+  <data name="If the address can be used, we have sent you an e-mail. Open the link in it to confirm your address, then sign in." xml:space="preserve">
+    <value>Adres kullanılabiliyorsa size bir e-posta gönderdik. Adresinizi doğrulamak için içindeki bağlantıyı açın, ardından giriş yapın.</value>
+  </data>
+  <data name="Nothing arrived after a few minutes? Check your spam folder or sign up again to get a new link." xml:space="preserve">
+    <value>Birkaç dakika sonra hâlâ bir şey gelmedi mi? İstenmeyen klasörünü kontrol edin veya yeni bir bağlantı için yeniden kaydolun.</value>
+  </data>
+  <data name="Start your free trial" xml:space="preserve">
+    <value>Ücretsiz denemenizi başlatın</value>
+  </data>
+  <data name="Date" xml:space="preserve">
+    <value>Tarih</value>
+  </data>
+  <data name="Paid" xml:space="preserve">
+    <value>Ödendi</value>
+  </data>
+  <data name="Failed" xml:space="preserve">
+    <value>Başarısız</value>
+  </data>
+  <data name="Trial ends" xml:space="preserve">
+    <value>Deneme bitişi</value>
+  </data>
+  <data name="If you did not ask for this, you can ignore this e-mail." xml:space="preserve">
+    <value>Bunu siz istemediyseniz bu e-postayı yok sayabilirsiniz.</value>
+  </data>
+  <data name="Open this link to choose a new password (valid for one day):" xml:space="preserve">
+    <value>Yeni bir parola belirlemek için bu bağlantıyı açın (bir gün geçerlidir):</value>
+  </data>
+  <data name="Reset your TriggerCheck password" xml:space="preserve">
+    <value>TriggerCheck parolanızı sıfırlayın</value>
+  </data>
+  <data name="Back to sign in" xml:space="preserve">
+    <value>Girişe dön</value>
+  </data>
+  <data name="Enter your e-mail address and we will send you a link to choose a new password." xml:space="preserve">
+    <value>E-posta adresinizi girin; yeni bir parola belirlemeniz için size bir bağlantı gönderelim.</value>
+  </data>
+  <data name="Forgot password" xml:space="preserve">
+    <value>Parolamı unuttum</value>
+  </data>
+  <data name="If an account exists for this address, we have sent a link to choose a new password. The link is valid for one day." xml:space="preserve">
+    <value>Bu adresle bir hesap varsa yeni parola belirlemeniz için bir bağlantı gönderdik. Bağlantı bir gün geçerlidir.</value>
+  </data>
+  <data name="Send reset link" xml:space="preserve">
+    <value>Sıfırlama bağlantısı gönder</value>
+  </data>
+  <data name="Forgot password?" xml:space="preserve">
+    <value>Parolanızı mı unuttunuz?</value>
+  </data>
+  <data name="This link is invalid or has expired. Request a new one." xml:space="preserve">
+    <value>Bu bağlantı geçersiz veya süresi dolmuş. Yeni bir bağlantı isteyin.</value>
+  </data>
+  <data name="Choose a new password" xml:space="preserve">
+    <value>Yeni parola belirleyin</value>
+  </data>
+  <data name="Your password was changed. You can sign in now." xml:space="preserve">
+    <value>Parolanız değiştirildi. Artık giriş yapabilirsiniz.</value>
+  </data>
 </root>
