@@ -157,6 +157,37 @@ public class AiWebTests(TestWebAppFactory f) : IClassFixture<TestWebAppFactory>
     }
 
     [Fact]
+    public async Task Each_user_has_one_vote_and_only_succeeded_decisions_take_feedback()
+    {
+        var cid = await f.DemoCustomerIdAsync();
+        var id = await AddDecisionAsync(cid);
+        var failed = await AddDecisionAsync(cid, AiDecisionStatus.Failed);
+        var viewer = await ViewerAsync();
+        var admin = await f.LoginAsync(TestWebAppFactory.DemoAdminEmail, TestWebAppFactory.DemoAdminPassword);
+        Dictionary<string, string> Vote(long d, int v) => new() { ["decisionId"] = d.ToString(), ["value"] = v.ToString(), ["returnUrl"] = "/App/Ai" };
+
+        await viewer.PostFormAsync("/App/Ai/Feedback", Vote(id, 1), formPageUrl: "/App/Ai");
+        await viewer.PostFormAsync("/App/Ai/Feedback", Vote(id, -1), formPageUrl: "/App/Ai"); // replaces the viewer's vote
+        await admin.PostFormAsync("/App/Ai/Feedback", Vote(id, 1), formPageUrl: "/App/Ai");
+
+        var votes = await f.WithDbAsync(db => db.AiFeedback.AsNoTracking().Where(x => x.DecisionId == id).ToListAsync());
+        Assert.Equal(2, votes.Count);
+        var viewerId = await f.UserIdAsync(ViewerEmail);
+        var adminId = await f.UserIdAsync(TestWebAppFactory.DemoAdminEmail);
+        Assert.Equal(-1, votes.Single(v => v.UserId == viewerId).Value);
+        Assert.Equal(1, votes.Single(v => v.UserId == adminId).Value);
+        Assert.Equal(1, await f.WithDbAsync(db => db.AiDecisions.Where(x => x.Id == id).Select(x => x.UserFeedback).SingleAsync())); // latest
+
+        // The page shows each user's own vote.
+        var viewerHtml = await viewer.GetHtmlAsync("/App/Ai");
+        var block = viewerHtml[viewerHtml.IndexOf($"data-ai-decision=\"{id}\"", StringComparison.Ordinal)..];
+        Assert.Matches("title=\"Not helpful\" aria-label=\"Not helpful\" aria-pressed=\"true\"", block[..block.IndexOf("</section>", StringComparison.Ordinal)]);
+
+        var r = await viewer.PostFormAsync("/App/Ai/Feedback", Vote(failed, 1), formPageUrl: "/App/Ai");
+        Assert.Equal(HttpStatusCode.NotFound, r.StatusCode);
+    }
+
+    [Fact]
     public async Task Over_budget_customers_see_the_quota_message()
     {
         var cid = await f.AddCustomerAsync("AI Budget Co", planName: "Basic");
@@ -165,7 +196,7 @@ public class AiWebTests(TestWebAppFactory f) : IClassFixture<TestWebAppFactory>
             var c = await db.Customers.Include(x => x.Plan).SingleAsync(x => x.Id == cid);
             c.AiEnabled = true;
             for (var i = 0; i < c.Plan.AiMonthlyCallLimit; i++)
-                db.AiDecisions.Add(new AiDecision { CustomerId = cid, Feature = AiFeatures.IncidentInterpretation, Model = "claude-opus-5-5", Status = AiDecisionStatus.Failed, CreatedAtUtc = DateTime.UtcNow });
+                db.AiDecisions.Add(new AiDecision { CustomerId = cid, Feature = AiFeatures.IncidentInterpretation, Model = "claude-opus-5-5", Status = AiDecisionStatus.Failed, InputTokens = 10, CreatedAtUtc = DateTime.UtcNow });
             db.AiDecisions.Add(new AiDecision { CustomerId = cid, Feature = AiFeatures.IncidentInterpretation, Status = AiDecisionStatus.SkippedBudget, CreatedAtUtc = DateTime.UtcNow });
             await db.SaveChangesAsync();
         });

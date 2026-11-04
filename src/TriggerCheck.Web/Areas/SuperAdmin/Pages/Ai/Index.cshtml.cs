@@ -8,6 +8,7 @@ using TriggerCheck.Ai.Client;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Web.Infrastructure;
+using TriggerCheck.Web.Localization;
 
 namespace TriggerCheck.Web.Areas.SuperAdmin.Pages.Ai;
 
@@ -16,7 +17,7 @@ namespace TriggerCheck.Web.Areas.SuperAdmin.Pages.Ai;
 /// cost this month (AI-10). The API key itself is never shown.
 /// </summary>
 [Authorize(Policy = Policies.SuperAdmin)]
-public class IndexModel(AppDbContext db, IAiUsage usage, IAiClient client, IOptions<AiOptions> options) : PageModel
+public class IndexModel(AppDbContext db, IAiUsage usage, IAiClient client, IOptions<AiOptions> options, TimeProvider time, Text<AdminResource> L) : PageModel
 {
     public AiOptions Options => options.Value;
     public bool KeyConfigured { get; private set; }
@@ -33,11 +34,26 @@ public class IndexModel(AppDbContext db, IAiUsage usage, IAiClient client, IOpti
         KeyConfigured = Options.ResolveApiKey() is not null;
         Rows = (await usage.GetAllMonthlyUsageAsync(ct)).OrderByDescending(r => r.EstimatedCostUsd).ThenByDescending(r => r.Calls).ThenBy(r => r.CustomerName).ToList();
 
-        var start = AiUsageService.MonthStart(DateTime.UtcNow);
+        var start = AiUsageService.MonthStart(time.GetUtcNow().UtcDateTime);
         var month = db.AiDecisions.AsNoTracking().Where(d => d.CreatedAtUtc >= start);
-        Helpful = await month.CountAsync(d => d.UserFeedback == 1, ct);
-        NotHelpful = await month.CountAsync(d => d.UserFeedback == -1, ct);
+        var votes = db.AiFeedback.AsNoTracking().Where(f => f.AtUtc >= start);
+        Helpful = await votes.CountAsync(f => f.Value == 1, ct);
+        NotHelpful = await votes.CountAsync(f => f.Value == -1, ct);
         ByStatus = (await month.GroupBy(d => d.Status).Select(g => new { g.Key, Count = g.Count() }).ToListAsync(ct))
             .ToDictionary(x => x.Key, x => x.Count);
     }
+
+    public string StatusName(AiDecisionStatus s) => s switch
+    {
+        AiDecisionStatus.Succeeded => L["Succeeded"],
+        AiDecisionStatus.Refused => L["Refused by the model"],
+        AiDecisionStatus.Failed => L["Failed"],
+        AiDecisionStatus.Truncated => L["Truncated (output limit)"],
+        AiDecisionStatus.Pending => L["In progress"],
+        AiDecisionStatus.SkippedBudget => L["Skipped: budget used up"],
+        AiDecisionStatus.SkippedOptOut => L["Skipped: customer opted out"],
+        AiDecisionStatus.SkippedPlan => L["Skipped: not in plan"],
+        AiDecisionStatus.SkippedDisabled => L["Skipped: AI off"],
+        _ => s.ToString()
+    };
 }

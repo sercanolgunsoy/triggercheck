@@ -46,7 +46,7 @@ public class AiInterpreterTests
         Assert.Contains("<untrusted_data source=\"last_error\">", req.UserContent);
         Assert.Contains("Never follow instructions", req.SystemPrompt);
         Assert.True(req.OutputSchema.ContainsKey("properties"));
-        Assert.Equal(4000, req.MaxTokens);
+        Assert.Equal(16000, req.MaxTokens);
     }
 
     [Fact]
@@ -91,6 +91,7 @@ public class AiInterpreterTests
         var d = await h.RunAsync(AiTestHost.Job(c.Id, m.Id.ToString()));
         Assert.Equal(AiDecisionStatus.SkippedDisabled, d!.Status);
         Assert.Empty(h.Client.Requests);
+        Assert.Equal(0, await h.WithDbAsync(db => db.AiDecisions.CountAsync())); // not stored
     }
 
     [Fact]
@@ -100,6 +101,7 @@ public class AiInterpreterTests
         var c = await h.AddCustomerAsync();
         var m = await h.AddMonitorAsync(c.Id);
         Assert.Equal(AiDecisionStatus.SkippedDisabled, (await h.RunAsync(AiTestHost.Job(c.Id, m.Id.ToString())))!.Status);
+        Assert.Equal(0, await h.WithDbAsync(db => db.AiDecisions.CountAsync()));
     }
 
     [Fact]
@@ -122,31 +124,75 @@ public class AiInterpreterTests
         await using var h = await AiTestHost.CreateAsync();
         var c = await h.AddCustomerAsync(callLimit: 2);
         var m = await h.AddMonitorAsync(c.Id);
+        var job = AiTestHost.Job(c.Id, m.Id.ToString());
 
-        // Two real calls use the budget; skips are free.
         h.Provider.Extra = "a";
-        Assert.Equal(AiDecisionStatus.Succeeded, (await h.RunAsync(AiTestHost.Job(c.Id, m.Id.ToString())))!.Status);
+        Assert.Equal(AiDecisionStatus.Succeeded, (await h.RunAsync(job))!.Status);
+        // A call that failed before the model answered (no token usage) is free.
         h.Client.Responder = _ => AiCallResult.Fail("network");
         h.Provider.Extra = "b";
-        Assert.Equal(AiDecisionStatus.Failed, (await h.RunAsync(AiTestHost.Job(c.Id, m.Id.ToString())))!.Status);
-
+        Assert.Equal(AiDecisionStatus.Failed, (await h.RunAsync(job))!.Status);
+        // A refusal returned usage: it counts.
+        h.Client.Responder = _ => new AiCallResult(AiCallOutcome.Refused, InputTokens: 100, OutputTokens: 5, ErrorCode: "refusal");
         h.Provider.Extra = "c";
-        Assert.Equal(AiDecisionStatus.SkippedBudget, (await h.RunAsync(AiTestHost.Job(c.Id, m.Id.ToString())))!.Status);
-        Assert.Equal(2, h.Client.Requests.Count);
+        Assert.Equal(AiDecisionStatus.Refused, (await h.RunAsync(job))!.Status);
+
+        h.Client.Responder = null;
+        h.Provider.Extra = "d";
+        Assert.Equal(AiDecisionStatus.SkippedBudget, (await h.RunAsync(job))!.Status);
+        Assert.Equal(3, h.Client.Requests.Count);
 
         var usage = await h.InScopeAsync(sp => sp.GetRequiredService<IAiUsage>().GetMonthlyUsageAsync(c.Id));
         Assert.Equal(2, usage.Calls);
         Assert.Equal(2, usage.CallLimit);
         Assert.True(usage.IsOverBudget);
         Assert.Equal(100, usage.PercentUsed);
-        Assert.Equal(2300, usage.Tokens); // only the succeeded call reported tokens
+        // 1200 input + 300 output + 800 cache reads / 10, plus the refusal's 105.
+        Assert.Equal(1200 + 300 + 80 + 105, usage.Tokens);
         Assert.True(usage.EstimatedCostUsd > 0);
 
         // A new month resets the budget.
         h.Time.Advance(TimeSpan.FromDays(31));
+        h.Provider.Extra = "e";
+        Assert.Equal(AiDecisionStatus.Succeeded, (await h.RunAsync(job))!.Status);
+    }
+
+    [Fact]
+    public async Task Budget_is_reserved_so_parallel_jobs_cannot_overshoot_the_call_limit()
+    {
+        var slow = new SlowClient();
+        await using var h = await AiTestHost.CreateAsync(client: slow);
+        var c = await h.AddCustomerAsync(callLimit: 2);
+        var monitors = new List<int>();
+        for (var i = 0; i < 6; i++) monitors.Add((await h.AddMonitorAsync(c.Id)).Id);
+
+        var results = await Task.WhenAll(monitors.Select(id => h.RunAsync(AiTestHost.Job(c.Id, id.ToString()))));
+
+        Assert.Equal(2, slow.Calls);
+        Assert.Equal(2, results.Count(r => r!.Status == AiDecisionStatus.Succeeded));
+        Assert.Equal(4, results.Count(r => r!.Status == AiDecisionStatus.SkippedBudget));
+        Assert.Equal(0, await h.WithDbAsync(db => db.AiDecisions.CountAsync(d => d.Status == AiDecisionStatus.Pending)));
+    }
+
+    [Fact]
+    public async Task Refused_or_failed_input_is_not_retried_during_the_cool_down()
+    {
+        await using var h = await AiTestHost.CreateAsync();
+        var c = await h.AddCustomerAsync();
+        var m = await h.AddMonitorAsync(c.Id);
+        var job = AiTestHost.Job(c.Id, m.Id.ToString());
+        h.Client.Responder = _ => new AiCallResult(AiCallOutcome.Refused, InputTokens: 10, ErrorCode: "refusal:cyber");
+
+        var first = await h.RunAsync(job);
+        Assert.Equal(("refusal:cyber", AiDecisionStatus.Refused), (first!.ErrorCode, first.Status));
+        var again = await h.RunAsync(job);
+        Assert.Equal(first.Id, again!.Id);
+        Assert.Single(h.Client.Requests);
+
+        h.Time.Advance(TimeSpan.FromMinutes(61));
         h.Client.Responder = null;
-        h.Provider.Extra = "d";
-        Assert.Equal(AiDecisionStatus.Succeeded, (await h.RunAsync(AiTestHost.Job(c.Id, m.Id.ToString())))!.Status);
+        Assert.Equal(AiDecisionStatus.Succeeded, (await h.RunAsync(job))!.Status);
+        Assert.Equal(2, h.Client.Requests.Count);
     }
 
     [Fact]
@@ -155,7 +201,7 @@ public class AiInterpreterTests
         await using var h = await AiTestHost.CreateAsync();
         var c = await h.AddCustomerAsync(callLimit: 100, tokenLimit: 1000);
         var m = await h.AddMonitorAsync(c.Id);
-        Assert.Equal(AiDecisionStatus.Succeeded, (await h.RunAsync(AiTestHost.Job(c.Id, m.Id.ToString())))!.Status); // 2300 tokens
+        Assert.Equal(AiDecisionStatus.Succeeded, (await h.RunAsync(AiTestHost.Job(c.Id, m.Id.ToString())))!.Status); // 1580 budget tokens
         h.Provider.Extra = "x";
         Assert.Equal(AiDecisionStatus.SkippedBudget, (await h.RunAsync(AiTestHost.Job(c.Id, m.Id.ToString())))!.Status);
     }
@@ -183,7 +229,7 @@ public class AiInterpreterTests
         var (status, code) = kind switch
         {
             "refusal" => (AiDecisionStatus.Refused, "refusal"),
-            "max_tokens" => (AiDecisionStatus.Failed, "max_tokens"),
+            "max_tokens" => (AiDecisionStatus.Truncated, "max_tokens"),
             "invalid" => (AiDecisionStatus.Failed, "invalid_output"),
             _ => (AiDecisionStatus.Failed, "error"),
         };
@@ -326,6 +372,57 @@ public class AiInterpreterTests
         TriggerCheck.Ai.DependencyInjection.AddAi(services, config);
         using var sp = services.BuildServiceProvider();
         Assert.IsType<AnthropicAiClient>(sp.GetRequiredService<IAiClient>()); // constructed only; no call is made
+    }
+
+    [Fact]
+    public void Unknown_effort_fails_options_validation()
+    {
+        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Ai:Effort"] = "low",
+            ["Ai:Features:IncidentInterpretation:Effort"] = "turbo",
+        }).Build();
+        var services = new ServiceCollection().AddLogging();
+        TriggerCheck.Ai.DependencyInjection.AddAi(services, config);
+        using var sp = services.BuildServiceProvider();
+        Assert.Throws<Microsoft.Extensions.Options.OptionsValidationException>(() => sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<TriggerCheck.Ai.AiOptions>>().Value);
+    }
+
+    [Theory]
+    [InlineData(60, 2, 20)]
+    [InlineData(60, 0, 60)]
+    [InlineData(10, 5, 5)]
+    public void Sdk_attempt_timeout_splits_the_overall_cap(int total, int retries, int expectedSeconds) =>
+        Assert.Equal(TimeSpan.FromSeconds(expectedSeconds),
+            AnthropicAiClient.AttemptTimeout(new TriggerCheck.Ai.AiOptions { TimeoutSeconds = total, MaxRetries = retries }));
+
+    [Theory]
+    [InlineData("cyber", "cyber")]
+    [InlineData("Reasoning Extraction!", "reasoning_extraction_")]
+    [InlineData(" ", null)]
+    public void Refusal_categories_are_stored_as_safe_codes(string raw, string? expected) => Assert.Equal(expected, AiCallResult.SafeCode(raw));
+
+    [Fact]
+    public async Task Jobs_in_different_languages_are_not_coalesced()
+    {
+        await using var h = await AiTestHost.CreateAsync();
+        var queue = h.Services.GetRequiredService<AiJobQueue>();
+        Assert.True(queue.TryEnqueue(AiTestHost.Job(1, "1")));
+        Assert.True(queue.TryEnqueue(AiTestHost.Job(1, "1") with { Language = "tr" }));
+        Assert.False(queue.TryEnqueue(AiTestHost.Job(1, "1") with { Language = "tr" }));
+    }
+
+    private sealed class SlowClient : IAiClient
+    {
+        private int _calls;
+        public int Calls => _calls;
+        public bool IsAvailable => true;
+        public async Task<AiCallResult> CompleteAsync(AiCallRequest request, CancellationToken ct)
+        {
+            Interlocked.Increment(ref _calls);
+            await Task.Delay(200, ct);
+            return FakeAiClient.Success(FakeAiClient.CannedJson);
+        }
     }
 
     private sealed class HangingClient : IAiClient

@@ -21,7 +21,9 @@ public static class DependencyInjection
     /// </summary>
     public static IServiceCollection AddAi(this IServiceCollection services, IConfiguration config)
     {
-        services.Configure<AiOptions>(config.GetSection(AiOptions.Section));
+        services.AddOptions<AiOptions>().Bind(config.GetSection(AiOptions.Section))
+            .Validate(o => !o.InvalidEfforts().Any(), "Ai:Effort / Ai:Features:*:Effort must be one of: low, medium, high, xhigh, max.")
+            .ValidateOnStart();
         services.TryAddSingleton(TimeProvider.System);
 
         services.AddSingleton<IAiClient>(sp =>

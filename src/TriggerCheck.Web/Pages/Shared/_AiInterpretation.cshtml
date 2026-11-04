@@ -25,7 +25,7 @@
 {
     <div class="ai-content ai-unavailable small text-muted" data-ai-status="budget">@Icons.Get("sparkles", 14) @L["AI summary unavailable this month."]</div>
 }
-else if (Model.Status is AiDecisionStatus.Failed or AiDecisionStatus.Refused || (Model.Status == AiDecisionStatus.Succeeded && i is null))
+else if (Model.Status is AiDecisionStatus.Failed or AiDecisionStatus.Refused or AiDecisionStatus.Truncated || (Model.Status == AiDecisionStatus.Succeeded && i is null))
 {
     <div class="ai-content ai-unavailable small text-muted" data-ai-status="failed">@Icons.Get("sparkles", 14) @L["The AI summary could not be generated."]</div>
 }

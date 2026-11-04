@@ -57,6 +57,9 @@ public static class AiInterpretationValidator
     private static string Clip(string? s, int max)
     {
         s = (s ?? "").Trim();
-        return s.Length <= max ? s : s[..(max - 1)] + "…";
+        if (s.Length <= max) return s;
+        var cut = max - 1;
+        if (char.IsHighSurrogate(s[cut - 1])) cut--; // never split a surrogate pair (emoji etc.)
+        return s[..cut] + "…";
     }
 }

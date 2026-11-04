@@ -49,6 +49,14 @@ public sealed record AiCallResult(
 {
     public static AiCallResult Unavailable { get; } = new(AiCallOutcome.Unavailable, ErrorCode: "unavailable");
     public static AiCallResult Fail(string code) => new(AiCallOutcome.Failed, ErrorCode: code);
+
+    /// <summary>Lower-case [a-z0-9_] code of at most 40 characters (null when empty), safe to store and show.</summary>
+    public static string? SafeCode(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+        var code = new string(raw.Trim().ToLowerInvariant().Select(c => char.IsAsciiLetterOrDigit(c) ? c : '_').ToArray());
+        return code.Length > 40 ? code[..40] : code;
+    }
 }
 
 /// <summary>Registered when AI is off or no key is configured: reports "AI unavailable" and never calls out.</summary>

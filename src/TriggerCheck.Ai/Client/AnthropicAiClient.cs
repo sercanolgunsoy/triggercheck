@@ -28,11 +28,16 @@ public sealed class AnthropicAiClient : IAiClient
         {
             ApiKey = o.ResolveApiKey() ?? throw new InvalidOperationException("No Claude API key configured."),
             MaxRetries = Math.Max(0, o.MaxRetries),
-            Timeout = TimeSpan.FromSeconds(Math.Max(5, o.TimeoutSeconds)),
+            // Per attempt: the SDK retries inside the overall Ai:TimeoutSeconds cap enforced by the interpreter.
+            Timeout = AttemptTimeout(o),
         };
     }
 
     public bool IsAvailable => true;
+
+    /// <summary>Ai:TimeoutSeconds split over the attempts (1 + Ai:MaxRetries), at least 5 seconds each.</summary>
+    public static TimeSpan AttemptTimeout(AiOptions o) =>
+        TimeSpan.FromSeconds(Math.Max(5, o.TimeoutSeconds / (Math.Max(0, o.MaxRetries) + 1)));
 
     public async Task<AiCallResult> CompleteAsync(AiCallRequest request, CancellationToken ct)
     {
@@ -99,8 +104,9 @@ public sealed class AnthropicAiClient : IAiClient
 
         if (response.StopReason == StopReason.Refusal)
         {
-            _logger.LogWarning("Claude declined the {Feature} request (category {Category})", request.Feature, response.StopDetails?.Category);
-            return new AiCallResult(AiCallOutcome.Refused, null, input, output, cacheRead, cacheWrite, "refusal");
+            var category = AiCallResult.SafeCode(response.StopDetails?.Category?.Raw());
+            _logger.LogWarning("Claude declined the {Feature} request (category {Category})", request.Feature, category);
+            return new AiCallResult(AiCallOutcome.Refused, null, input, output, cacheRead, cacheWrite, category is null ? "refusal" : "refusal:" + category);
         }
         if (response.StopReason == StopReason.MaxTokens)
         {

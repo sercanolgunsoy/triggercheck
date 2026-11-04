@@ -634,4 +634,31 @@
   <data name="Monthly AI budget per customer on this plan. When it is used up, AI output is skipped until next month; monitoring is not affected. 0 AI calls = no AI." xml:space="preserve">
     <value>Bu plandaki her müşteri için aylık yapay zekâ bütçesi. Bütçe dolduğunda yapay zekâ çıktısı gelecek aya kadar atlanır; izleme etkilenmez. 0 yapay zekâ çağrısı = yapay zekâ yok.</value>
   </data>
+  <data name="Succeeded" xml:space="preserve">
+    <value>Başarılı</value>
+  </data>
+  <data name="Refused by the model" xml:space="preserve">
+    <value>Model reddetti</value>
+  </data>
+  <data name="Failed" xml:space="preserve">
+    <value>Başarısız</value>
+  </data>
+  <data name="Truncated (output limit)" xml:space="preserve">
+    <value>Kesildi (çıktı sınırı)</value>
+  </data>
+  <data name="In progress" xml:space="preserve">
+    <value>Devam ediyor</value>
+  </data>
+  <data name="Skipped: budget used up" xml:space="preserve">
+    <value>Atlandı: bütçe doldu</value>
+  </data>
+  <data name="Skipped: customer opted out" xml:space="preserve">
+    <value>Atlandı: müşteri katılmadı</value>
+  </data>
+  <data name="Skipped: not in plan" xml:space="preserve">
+    <value>Atlandı: planda yok</value>
+  </data>
+  <data name="Skipped: AI off" xml:space="preserve">
+    <value>Atlandı: yapay zekâ kapalı</value>
+  </data>
 </root>

@@ -185,6 +185,126 @@ public class BaselineTests
         Assert.Equal(0, await h.WithDbAsync(db => db.Incidents.CountAsync()));
     }
 
+    private static async Task AddChecksAsync(AiTestHost h, int monitorId, IEnumerable<Sample> samples) =>
+        await h.WithDbAsync(async db =>
+        {
+            db.CheckResults.AddRange(samples.Select(x => new CheckResult { MonitorId = monitorId, CheckedAtUtc = x.AtUtc, IsUp = true, ResponseTimeMs = (int)x.Ms, StatusCode = 200 }));
+            await db.SaveChangesAsync();
+        });
+
+    private static Task<int> CleanupAsync(AiTestHost h) => h.InScopeAsync(sp => new TriggerCheck.Monitoring.Retention.RetentionCleaner(
+        sp.GetRequiredService<IDbContextFactory<TriggerCheck.Infrastructure.Data.AppDbContext>>(), h.Time,
+        Microsoft.Extensions.Logging.Abstractions.NullLogger<TriggerCheck.Monitoring.Retention.RetentionCleaner>.Instance).CleanupAsync());
+
+    private static Task<BaselineJob.RunSummary> RunJobAsync(AiTestHost h) => h.InScopeAsync(sp => sp.GetRequiredService<BaselineJob>().RunAsync());
+
+    /// <summary>A monitor with a learned week and an open slowdown signal (3 slow checks after the week).</summary>
+    private static async Task<(int MonitorId, DateTime Next)> OpenSignalAsync(AiTestHost h, int customerId, int seed)
+    {
+        var rnd = new Random(seed);
+        var m = await h.AddMonitorAsync(customerId, x => x.IntervalSeconds = 300);
+        var now = h.Now;
+        await AddChecksAsync(h, m.Id, Generate(rnd, now.AddDays(-7), now, TimeSpan.FromMinutes(5)));
+        await RunJobAsync(h);
+        await AddChecksAsync(h, m.Id, Generate(rnd, now.AddMinutes(5), now.AddMinutes(20), TimeSpan.FromMinutes(5), _ => 3));
+        h.Time.Advance(TimeSpan.FromMinutes(15));
+        Assert.Equal(1, (await RunJobAsync(h)).SignalsOpened);
+        return (m.Id, now.AddMinutes(20));
+    }
+
+    [Fact]
+    public async Task Open_signal_has_hysteresis()
+    {
+        await using var h = await AiTestHost.CreateAsync();
+        var c = await h.AddCustomerAsync();
+        var (id, next) = await OpenSignalAsync(h, c.Id, 11);
+        var rnd = new Random(12);
+
+        // Last 5 = 3 slow + 2 normal, then 2 slow + 3 normal: below K (3) but above CloseAtMost (1): stays open.
+        await AddChecksAsync(h, id, Generate(rnd, next, next.AddMinutes(10), TimeSpan.FromMinutes(5)));
+        h.Time.Advance(TimeSpan.FromMinutes(10));
+        Assert.Equal(0, (await RunJobAsync(h)).SignalsClosed);
+        await AddChecksAsync(h, id, Generate(rnd, next.AddMinutes(10), next.AddMinutes(15), TimeSpan.FromMinutes(5)));
+        h.Time.Advance(TimeSpan.FromMinutes(5));
+        Assert.Equal(0, (await RunJobAsync(h)).SignalsClosed); // 2 of 5 anomalous
+        Assert.Null(await h.WithDbAsync(db => db.AnomalySignals.Select(x => x.EndedAtUtc).SingleAsync()));
+
+        // One more normal check: 1 of 5 anomalous -> closed.
+        await AddChecksAsync(h, id, Generate(rnd, next.AddMinutes(15), next.AddMinutes(20), TimeSpan.FromMinutes(5)));
+        h.Time.Advance(TimeSpan.FromMinutes(5));
+        Assert.Equal(1, (await RunJobAsync(h)).SignalsClosed);
+    }
+
+    [Fact]
+    public async Task Open_signals_close_when_the_monitor_leaves_the_evaluated_set()
+    {
+        await using var h = await AiTestHost.CreateAsync();
+        var c = await h.AddCustomerAsync();
+        var (id, _) = await OpenSignalAsync(h, c.Id, 21);
+
+        await h.WithDbAsync(db => db.Monitors.Where(m => m.Id == id).ExecuteUpdateAsync(u => u.SetProperty(m => m.IsEnabled, false)));
+        Assert.Equal(1, (await RunJobAsync(h)).SignalsClosed);
+        Assert.Equal(h.Now, await h.WithDbAsync(db => db.AnomalySignals.Select(x => x.EndedAtUtc).SingleAsync()));
+    }
+
+    [Fact]
+    public async Task Baseline_rebuilds_are_spread_over_the_refresh_period()
+    {
+        await using var h = await AiTestHost.CreateAsync(new() { ["Ai:Baseline:IntervalSeconds"] = "300", ["Ai:Baseline:RefreshMinutes"] = "60" });
+        var c = await h.AddCustomerAsync();
+        for (var i = 0; i < 24; i++) await h.AddMonitorAsync(c.Id);
+        Assert.Equal(24, (await RunJobAsync(h)).BaselinesRebuilt); // first run: all missing
+
+        h.Time.Advance(TimeSpan.FromMinutes(61));
+        var perTick = new List<int>();
+        for (var t = 0; t < 12; t++)
+        {
+            perTick.Add((await RunJobAsync(h)).BaselinesRebuilt);
+            h.Time.Advance(TimeSpan.FromMinutes(5));
+        }
+        Assert.Equal(24, perTick.Sum()); // each monitor once per period (12 ticks of 5 minutes)
+        Assert.True(perTick.Max() <= 4, string.Join(",", perTick));
+    }
+
+    [Fact]
+    public async Task Retention_removes_old_AI_records_but_keeps_the_current_month()
+    {
+        await using var h = await AiTestHost.CreateAsync();
+        var c = await h.AddCustomerAsync(); // plan retention 30 days
+        var m = await h.AddMonitorAsync(c.Id);
+        var now = h.Now; // 2026-03-10
+        await h.WithDbAsync(async db =>
+        {
+            AiDecision D(DateTime at) => new() { CustomerId = c.Id, Feature = "IncidentInterpretation", Status = AiDecisionStatus.Succeeded, CreatedAtUtc = at };
+            db.AiDecisions.AddRange(D(now.AddDays(-40)), D(now.AddDays(-5)), D(new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc)));
+            db.AnomalySignals.AddRange(
+                new AnomalySignal { MonitorId = m.Id, CustomerId = c.Id, Metric = "ResponseTimeMs", StartedAtUtc = now.AddDays(-41), EndedAtUtc = now.AddDays(-40) },
+                new AnomalySignal { MonitorId = m.Id, CustomerId = c.Id, Metric = "ResponseTimeMs", StartedAtUtc = now.AddDays(-41) }, // open: kept
+                new AnomalySignal { MonitorId = m.Id, CustomerId = c.Id, Metric = "ResponseTimeMs", StartedAtUtc = now.AddDays(-3), EndedAtUtc = now.AddDays(-2) });
+            await db.SaveChangesAsync();
+        });
+
+        await CleanupAsync(h);
+
+        Assert.Equal(2, await h.WithDbAsync(db => db.AiDecisions.CountAsync()));
+        Assert.Equal(2, await h.WithDbAsync(db => db.AnomalySignals.CountAsync()));
+    }
+
+    [Fact]
+    public async Task Decisions_of_the_current_month_survive_a_short_retention()
+    {
+        await using var h = await AiTestHost.CreateAsync();
+        var c = await h.AddCustomerAsync();
+        await h.WithDbAsync(db => db.Plans.ExecuteUpdateAsync(u => u.SetProperty(p => p.RetentionDays, 1)));
+        await h.WithDbAsync(async db =>
+        {
+            db.AiDecisions.Add(new AiDecision { CustomerId = c.Id, Feature = "IncidentInterpretation", Status = AiDecisionStatus.Succeeded, CreatedAtUtc = h.Now.AddDays(-5) });
+            await db.SaveChangesAsync();
+        });
+        await CleanupAsync(h);
+        Assert.Equal(1, await h.WithDbAsync(db => db.AiDecisions.CountAsync())); // still counted by this month's budget
+    }
+
     [Fact]
     public async Task Job_skips_disabled_monitors_and_suspended_customers()
     {

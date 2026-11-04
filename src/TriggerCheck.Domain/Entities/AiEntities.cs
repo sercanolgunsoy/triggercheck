@@ -29,12 +29,19 @@ public enum AiDecisionStatus
     Failed = 2,
     /// <summary>Monthly AI budget of the customer's plan is used up.</summary>
     SkippedBudget = 3,
-    /// <summary>AI is switched off globally (Ai:Enabled) or no API key is configured.</summary>
+    /// <summary>
+    /// AI is switched off globally (Ai:Enabled) or no API key is configured. Returned to the caller but not stored
+    /// (it would add a row for every job while AI is off).
+    /// </summary>
     SkippedDisabled = 4,
     /// <summary>The customer has not opted in (Customer.AiEnabled = false).</summary>
     SkippedOptOut = 5,
     /// <summary>The feature is not included in the customer's plan.</summary>
-    SkippedPlan = 6
+    SkippedPlan = 6,
+    /// <summary>stop_reason max_tokens: the output was cut off (raise Ai:MaxTokens / the feature's MaxTokens).</summary>
+    Truncated = 7,
+    /// <summary>Budget reserved, call in progress (a row left Pending by a crash still counts as a call).</summary>
+    Pending = 8
 }
 
 /// <summary>
@@ -70,10 +77,24 @@ public class AiDecision
     public decimal CostEstimate { get; set; }
     public int LatencyMs { get; set; }
     public DateTime CreatedAtUtc { get; set; }
-    /// <summary>+1 (helpful), -1 (not helpful) or null (no feedback yet).</summary>
+    /// <summary>
+    /// Most recent feedback on the decision: +1 (helpful), -1 (not helpful) or null. Every user's own vote is kept in
+    /// <see cref="AiFeedback"/>; these three fields mirror the latest one.
+    /// </summary>
     public int? UserFeedback { get; set; }
     public string? FeedbackByUserId { get; set; }
     public DateTime? FeedbackAtUtc { get; set; }
+}
+
+/// <summary>Helpful / not helpful vote of one user on one AI decision. Key: (DecisionId, UserId).</summary>
+public class AiFeedback
+{
+    public long DecisionId { get; set; }
+    public string UserId { get; set; } = "";
+    public int CustomerId { get; set; }
+    /// <summary>+1 or -1.</summary>
+    public int Value { get; set; }
+    public DateTime AtUtc { get; set; }
 }
 
 /// <summary>

@@ -21,17 +21,18 @@ namespace TriggerCheck.Ai.Execution;
 public interface IAiInterpreter
 {
     /// <summary>
-    /// Returns the recorded decision (one row per call, including skips and failures), an earlier succeeded decision
-    /// for the identical input (idempotency), or null when the subject is gone / the feature has no provider.
+    /// Returns the recorded decision (one row per call, including failures and opt-out / plan / budget skips; a
+    /// SkippedDisabled decision is returned but not stored), an earlier decision
+    /// for the identical input (idempotency / cool-down), or null when the subject is gone / the feature has no provider.
     /// </summary>
     Task<AiDecision?> RunAsync(AiJob job, CancellationToken ct = default);
 }
 
 /// <summary>
-/// Gates (in order): global switch + key → customer opt-in → plan feature → monthly budget. Then: context from the
-/// feature's provider → idempotency check on (Feature, Subject, InputHash) → Claude call with timeout → validation
-/// (<see cref="AiInterpretationValidator"/>) → <see cref="AiDecision"/> row. Failures never throw to the caller and
-/// never leak exception text.
+/// Order: global switch + key (not stored) → customer opt-in → plan feature → context from the feature's provider →
+/// idempotency on (Feature, Subject, InputHash), including a cool-down after refusals / failures → budget check and
+/// reservation (Pending row) → Claude call with timeout → validation (<see cref="AiInterpretationValidator"/>) → the
+/// row is completed. Failures never throw to the caller and never leak exception text.
 /// </summary>
 public sealed class AiInterpreter(
     AppDbContext db,
@@ -60,12 +61,16 @@ public sealed class AiInterpreter(
             CreatedAtUtc = time.GetUtcNow().UtcDateTime,
         };
 
+        // AI off: nothing is stored (a row per job would only record that the switch is off).
+        if (!o.Enabled || !client.IsAvailable)
+        {
+            decision.Status = AiDecisionStatus.SkippedDisabled;
+            return decision;
+        }
         AiDecisionStatus? skip =
-            !o.Enabled || !client.IsAvailable ? AiDecisionStatus.SkippedDisabled
-            : !customer.AiEnabled ? AiDecisionStatus.SkippedOptOut
+            !customer.AiEnabled ? AiDecisionStatus.SkippedOptOut
             : !AiFeatures.PlanAllows(customer.Plan, feature.Name) ? AiDecisionStatus.SkippedPlan
             : null;
-        if (skip is null && (await usage.GetMonthlyUsageAsync(customer.Id, ct)).IsOverBudget) skip = AiDecisionStatus.SkippedBudget;
         if (skip is not null)
         {
             decision.Status = skip.Value;
@@ -85,12 +90,28 @@ public sealed class AiInterpreter(
         var schema = AiInterpretationSchema.Build(prompt.AllowedActions);
         decision.InputHash = Hash(decision.Model, decision.Effort, system, JsonSerializer.Serialize(schema), prompt.UserContent);
 
+        // Identical input: reuse the succeeded answer, or wait out the cool-down after a refusal / failure.
+        var cooldownStart = decision.CreatedAtUtc.AddMinutes(-Math.Max(0, o.RetryCooldownMinutes));
         var existing = await db.AiDecisions.AsNoTracking()
             .Where(d => d.CustomerId == customer.Id && d.Feature == decision.Feature && d.SubjectType == decision.SubjectType
-                        && d.SubjectId == decision.SubjectId && d.InputHash == decision.InputHash && d.Status == AiDecisionStatus.Succeeded)
-            .OrderByDescending(d => d.Id)
+                        && d.SubjectId == decision.SubjectId && d.InputHash == decision.InputHash
+                        && (d.Status == AiDecisionStatus.Succeeded
+                            || ((d.Status == AiDecisionStatus.Refused || d.Status == AiDecisionStatus.Failed || d.Status == AiDecisionStatus.Truncated)
+                                && d.CreatedAtUtc >= cooldownStart)))
+            .OrderByDescending(d => d.Status == AiDecisionStatus.Succeeded).ThenByDescending(d => d.Id)
             .FirstOrDefaultAsync(ct);
         if (existing is not null) return existing;
+
+        // Reserve the budget atomically: the check and the Pending row are written in one (SQLite: IMMEDIATE)
+        // transaction, so parallel jobs cannot all pass the check. The token budget can still be exceeded by the calls
+        // in flight (at most Ai:MaxConcurrency x MaxTokens).
+        await using (var tx = await db.Database.BeginTransactionAsync(ct))
+        {
+            decision.Status = (await usage.GetMonthlyUsageAsync(customer.Id, ct)).IsOverBudget ? AiDecisionStatus.SkippedBudget : AiDecisionStatus.Pending;
+            await SaveAsync(decision, ct);
+            await tx.CommitAsync(ct);
+        }
+        if (decision.Status == AiDecisionStatus.SkippedBudget) return decision;
 
         var request = new AiCallRequest(feature.Name, decision.Model, decision.Effort, o.MaxTokensFor(feature.Name), system, prompt.UserContent, schema);
         var sw = Stopwatch.StartNew();
@@ -141,14 +162,21 @@ public sealed class AiInterpreter(
                 decision.Status = AiDecisionStatus.Refused;
                 break;
             case AiCallOutcome.Unavailable:
-                decision.Status = AiDecisionStatus.SkippedDisabled;
+                decision.Status = AiDecisionStatus.Failed;
+                decision.ErrorCode = "unavailable";
                 break;
-            default: // MaxTokens, Failed
+            case AiCallOutcome.MaxTokens:
+                logger.LogWarning("AI output for {Feature} {SubjectType} {SubjectId} was truncated at {MaxTokens} tokens", feature.Name, job.SubjectType, job.SubjectId, request.MaxTokens);
+                decision.Status = AiDecisionStatus.Truncated;
+                decision.ErrorCode = "max_tokens";
+                break;
+            default: // Failed
                 decision.Status = AiDecisionStatus.Failed;
                 decision.ErrorCode ??= "failed";
                 break;
         }
-        return await SaveAsync(decision, ct);
+        await db.SaveChangesAsync(CancellationToken.None); // the call is paid for: record it even when shutting down
+        return decision;
     }
 
     private async Task<AiDecision> SaveAsync(AiDecision decision, CancellationToken ct)

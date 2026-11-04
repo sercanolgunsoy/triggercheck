@@ -17,6 +17,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<SmsVoiceUsage> SmsVoiceUsage => Set<SmsVoiceUsage>();
     public DbSet<AiDecision> AiDecisions => Set<AiDecision>();
+    public DbSet<AiFeedback> AiFeedback => Set<AiFeedback>();
     public DbSet<MonitorBaseline> MonitorBaselines => Set<MonitorBaseline>();
     public DbSet<AnomalySignal> AnomalySignals => Set<AnomalySignal>();
     public DbSet<ApiKey> ApiKeys => Set<ApiKey>();
@@ -106,6 +107,14 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
             e.Property(x => x.CostEstimate).HasConversion<double>();
             e.HasIndex(x => new { x.CustomerId, x.CreatedAtUtc });
             e.HasIndex(x => new { x.Feature, x.SubjectType, x.SubjectId, x.InputHash });
+        });
+
+        b.Entity<AiFeedback>(e =>
+        {
+            e.HasKey(x => new { x.DecisionId, x.UserId });
+            e.HasOne<AiDecision>().WithMany().HasForeignKey(x => x.DecisionId).OnDelete(DeleteBehavior.Cascade);
+            e.Property(x => x.UserId).HasMaxLength(450);
+            e.HasIndex(x => x.CustomerId);
         });
 
         b.Entity<MonitorBaseline>(e =>

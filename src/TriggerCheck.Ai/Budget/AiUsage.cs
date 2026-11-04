@@ -19,8 +19,13 @@ public interface IAiUsage
     Task<IReadOnlyList<AiUsageSnapshot>> GetAllMonthlyUsageAsync(CancellationToken ct = default);
 }
 
-/// <param name="Calls">Calls actually made this month (succeeded, refused or failed; skips are free).</param>
-/// <param name="Tokens">Input (incl. cache reads/writes) + output tokens.</param>
+/// <param name="Calls">
+/// Calls that reached the model this month (they returned token usage), plus calls in progress (budget reserved).
+/// Skips and calls that failed before the model answered (network, rate limit, timeout without usage) are free.
+/// </param>
+/// <param name="Tokens">
+/// Budget tokens: input + cache writes + output, with cache reads weighted at 1/10 (their price ratio to input).
+/// </param>
 /// <param name="AiAvailable">Global switch on and a key configured.</param>
 public sealed record AiUsageSnapshot(
     int CustomerId,
@@ -56,7 +61,11 @@ public sealed record AiUsageSnapshot(
 
 public sealed class AiUsageService(AppDbContext db, IAiClient client, IOptions<AiOptions> options, TimeProvider time) : IAiUsage
 {
-    private static readonly AiDecisionStatus[] CallStatuses = [AiDecisionStatus.Succeeded, AiDecisionStatus.Refused, AiDecisionStatus.Failed];
+    private static readonly AiDecisionStatus[] CallStatuses =
+        [AiDecisionStatus.Succeeded, AiDecisionStatus.Refused, AiDecisionStatus.Failed, AiDecisionStatus.Truncated, AiDecisionStatus.Pending];
+
+    /// <summary>Cache reads count 1/10 towards the token budget.</summary>
+    public const int CacheReadWeightDivisor = 10;
 
     public static DateTime MonthStart(DateTime utcNow) => new(utcNow.Year, utcNow.Month, 1, 0, 0, 0, DateTimeKind.Utc);
 
@@ -81,7 +90,8 @@ public sealed class AiUsageService(AppDbContext db, IAiClient client, IOptions<A
             .GroupBy(d => new { d.CustomerId, d.Model })
             .Select(g => new
             {
-                g.Key.CustomerId, g.Key.Model, Calls = g.Count(),
+                g.Key.CustomerId, g.Key.Model,
+                Calls = g.Count(x => x.Status == AiDecisionStatus.Pending || x.InputTokens + x.OutputTokens > 0),
                 Input = g.Sum(x => x.InputTokens), Output = g.Sum(x => x.OutputTokens),
                 CacheRead = g.Sum(x => x.CacheReadTokens), CacheWrite = g.Sum(x => x.CacheWriteTokens)
             })
@@ -95,7 +105,7 @@ public sealed class AiUsageService(AppDbContext db, IAiClient client, IOptions<A
             var cost = rows.Sum(r => o.PriceFor(r.Model).Estimate(r.Input, r.Output, r.CacheRead, r.CacheWrite));
             return new AiUsageSnapshot(c.Id, c.Name, c.Plan, start,
                 rows.Sum(r => r.Calls), c.AiMonthlyCallLimit,
-                rows.Sum(r => r.Input + r.Output + r.CacheRead + r.CacheWrite), c.AiMonthlyTokenLimit,
+                rows.Sum(r => r.Input + r.Output + r.CacheWrite + r.CacheRead / CacheReadWeightDivisor), c.AiMonthlyTokenLimit,
                 decimal.Round(cost, 4), available, c.AiEnabled, Domain.AiFeatures.Parse(c.AiFeatures));
         }).ToList();
     }

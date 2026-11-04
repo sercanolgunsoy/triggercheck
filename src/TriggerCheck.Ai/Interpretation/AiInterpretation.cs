@@ -17,7 +17,12 @@ public sealed record AiInterpretation(
     public static readonly JsonSerializerOptions Json = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
-        Converters = { new JsonStringEnumConverter<AiConfidence>(JsonNamingPolicy.SnakeCaseLower), new JsonStringEnumConverter<AiAutonomy>() },
+        // Names only: "0" / 2 are not valid confidence or autonomy values.
+        Converters =
+        {
+            new JsonStringEnumConverter<AiConfidence>(JsonNamingPolicy.SnakeCaseLower, allowIntegerValues: false),
+            new JsonStringEnumConverter<AiAutonomy>(namingPolicy: null, allowIntegerValues: false),
+        },
     };
 
     public string ToJson() => JsonSerializer.Serialize(this, Json);

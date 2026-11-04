@@ -12,7 +12,7 @@ public interface IAiJobQueue
 {
     /// <summary>
     /// Queues the job. Returns false when the queue is full or shut down (logged; the feature simply has no AI output)
-    /// or when the same job (feature + customer + subject) is already waiting.
+    /// or when the same job (feature + customer + subject + language) is already waiting.
     /// </summary>
     bool TryEnqueue(AiJob job);
 }
@@ -26,7 +26,7 @@ public interface IAiJobQueue
 public sealed class AiJobQueue : IAiJobQueue
 {
     private readonly Channel<AiJob> _channel;
-    private readonly ConcurrentDictionary<(string, int, string, string), byte> _waiting = new();
+    private readonly ConcurrentDictionary<(string, int, string, string, string), byte> _waiting = new();
     private readonly ILogger<AiJobQueue> _logger;
     private int _pending;
 
@@ -44,7 +44,7 @@ public sealed class AiJobQueue : IAiJobQueue
     /// <summary>Jobs queued or running.</summary>
     public int Pending => Volatile.Read(ref _pending);
 
-    private static (string, int, string, string) Key(AiJob j) => (j.Feature, j.CustomerId, j.SubjectType, j.SubjectId);
+    private static (string, int, string, string, string) Key(AiJob j) => (j.Feature, j.CustomerId, j.SubjectType, j.SubjectId, j.Language);
 
     public bool TryEnqueue(AiJob job)
     {

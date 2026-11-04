@@ -46,7 +46,7 @@
                     <dt class="col-sm-6">@L["Feedback (helpful / not helpful)"]</dt><dd class="col-sm-6">@Fmt.Number(Model.Helpful) / @Fmt.Number(Model.NotHelpful)</dd>
                     @foreach (var s in Model.ByStatus.OrderBy(s => s.Key))
                     {
-                        <dt class="col-sm-6 fw-normal text-muted">@s.Key</dt><dd class="col-sm-6">@Fmt.Number(s.Value)</dd>
+                        <dt class="col-sm-6 fw-normal text-muted">@Model.StatusName(s.Key)</dt><dd class="col-sm-6">@Fmt.Number(s.Value)</dd>
                     }
                 </dl>
             </div>
