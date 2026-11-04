@@ -48,6 +48,7 @@ builder.Services.AddAuthorization(o =>
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentCustomer, CurrentCustomer>();
 builder.Services.AddScoped<ActiveAccountFilter>();
+builder.Services.AddSingleton<ManualCheckLimiter>();
 
 builder.Services.AddRazorPages(o =>
 {
@@ -59,6 +60,8 @@ builder.Services.AddRazorPages(o =>
 }).AddAppDataAnnotationsLocalization();
 
 var app = builder.Build();
+
+app.UseSecurityHeaders();
 
 if (!app.Environment.IsDevelopment())
 {
