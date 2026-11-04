@@ -21,7 +21,10 @@ public static class AiFeaturePrompts
         - Give the most likely primary cause the highest confidence. In "evidence" describe what shows it, for example
           "check #1234: status 503" or "check #1240: DNS 2400 ms, 12 ms before the incident"; in "evidence_refs" list
           the keys of those input lines exactly as written before the colon ("check #1234", "validation_error",
-          "error E1", "monitor B", "median_ms"). A hypothesis without a valid reference is discarded.
+          "error E1", "monitor B", "median_ms"). Cite the items that show this cause (failing checks or their error
+          for DNS / HTTP / connection causes, the certificate facts for TLS, the other monitors for a host-wide
+          outage); general settings such as "interval_seconds" do not count. A hypothesis without a valid reference is
+          discarded.
         - Other monitors on the same host that are also down point to a host-wide outage; healthy ones point to a
           problem specific to this endpoint.
         - A slowdown signal shortly before the incident suggests overload or degradation; mention it only when the

@@ -33,5 +33,11 @@ public class Plan
     /// <summary>Regions a monitor may be checked from, including the central one (1 = central only). 0 = all enabled regions.</summary>
     public int MaxRegions { get; set; } = 1;
 
+    // ---- public status pages (FEAT-4) ----
+    /// <summary>Status pages a customer on this plan may create; null = unlimited.</summary>
+    public int? MaxStatusPages { get; set; } = 1;
+    /// <summary>Status pages may be served on the customer's own (verified) domain.</summary>
+    public bool AllowsStatusPageCustomDomain { get; set; }
+
     public ICollection<Customer> Customers { get; set; } = new List<Customer>();
 }

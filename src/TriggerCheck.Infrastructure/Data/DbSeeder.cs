@@ -36,7 +36,11 @@ public static class DbSeeder
                 new Plan { Name = "Standard",   MinIntervalSeconds = 60,  MaxMonitors = 50,  RetentionDays = 90,  MonthlyPrice = 15m, AllowsSelfSignup = true },
                 new Plan { Name = "Pro",        MinIntervalSeconds = 30,  MaxMonitors = 200, RetentionDays = 180, MonthlyPrice = 49m, AllowsSelfSignup = true },
                 new Plan { Name = "Enterprise", MinIntervalSeconds = 15,  MaxMonitors = 1000, RetentionDays = 365, MonthlyPrice = 199m, AllowsSmsVoice = true });
-            foreach (var p in db.Plans.Local) ApplyDefaultAiQuota(p);
+            foreach (var p in db.Plans.Local)
+            {
+                ApplyDefaultAiQuota(p);
+                ApplyDefaultStatusPageQuota(p);
+            }
             // FEAT-6: multi-region checks (central + 2 remote regions on Pro, all regions on Enterprise).
             foreach (var p in db.Plans.Local) p.MaxRegions = p.Name switch { "Pro" => 3, "Enterprise" => 0, _ => 1 };
             await db.SaveChangesAsync();
@@ -91,6 +95,22 @@ public static class DbSeeder
         plan.AiFeatures = AiFeatures.Format(features);
         plan.AiMonthlyCallLimit = calls;
         plan.AiMonthlyTokenLimit = tokens;
+    }
+
+    /// <summary>
+    /// Status pages of the default plans (FEAT-4): Basic 1, Standard 3, Pro 10, Enterprise unlimited; custom domains on
+    /// Pro and Enterprise. SuperAdmins edit these on the Plans page.
+    /// </summary>
+    public static void ApplyDefaultStatusPageQuota(Plan plan)
+    {
+        (plan.MaxStatusPages, plan.AllowsStatusPageCustomDomain) = plan.Name switch
+        {
+            "Basic" => (1, false),
+            "Standard" => (3, false),
+            "Pro" => ((int?)10, true),
+            "Enterprise" => (null, true),
+            _ => (1, false)
+        };
     }
 
     /// <summary>

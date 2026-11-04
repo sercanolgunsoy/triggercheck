@@ -30,6 +30,9 @@ public class Monitor
 
     public bool IsEnabled { get; set; } = true;
 
+    /// <summary>Optional SLA target in percent (e.g. 99.9) the monthly report compares the uptime with (FEAT-10).</summary>
+    public double? SlaTarget { get; set; }
+
     // ---- Dns / JsonApi assertion ----
     /// <summary>Dns only: record type to query.</summary>
     public DnsRecordType? DnsRecordType { get; set; }

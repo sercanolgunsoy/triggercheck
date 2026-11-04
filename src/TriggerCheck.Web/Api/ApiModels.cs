@@ -20,6 +20,9 @@ public sealed record MonitorDto(
     /// </summary>
     public string? PingUrl { get; init; }
 
+    /// <summary>Optional SLA target in percent used by the monthly SLA report (FEAT-10).</summary>
+    public double? SlaTarget { get; init; }
+
     /// <param name="inMaintenance">The monitor is in an active maintenance window (FEAT-3).</param>
     public static MonitorDto From(MonitorEntity m, bool inMaintenance = false)
     {
@@ -31,7 +34,8 @@ public sealed record MonitorDto(
             Utc.Of(m.StatusChangedAtUtc), Utc.Of(m.CreatedAtUtc), inMaintenance,
             m.DnsRecordType, m.JsonPath, m.AssertionOperator, m.ExpectedValue,
             hb ? m.GracePeriodSeconds : null, hb ? m.HeartbeatTokenPrefix : null, hb ? Utc.Of(m.LastHeartbeatAtUtc) : null,
-            hb ? m.LastHeartbeatFailed : null, hb ? m.LastHeartbeatMessage : null);
+            hb ? m.LastHeartbeatFailed : null, hb ? m.LastHeartbeatMessage : null)
+        { SlaTarget = m.SlaTarget };
     }
 }
 

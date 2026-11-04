@@ -53,7 +53,7 @@ public sealed class SlowdownExplanationProvider(AiTenantData data) : IAiContextP
             b.Fact(phase.Name, phase.Describe());
 
         return new AiPrompt(AiFeaturePrompts.SlowdownInstructions, b.Build(), AiFeaturePrompts.SlowdownActions,
-            AiFeaturePrompts.SlowdownCategories, AiFeaturePrompts.EvidenceKeys(b));
+            AiFeaturePrompts.SlowdownCategories, AiFeaturePrompts.EvidenceKeys(b), AiEvidenceRules.IsAllowed);
     }
 
     /// <summary>Evidence points written by the baseline job: "at=… ms=… baseline_median_ms=… ratio=… anomalous=…".</summary>

@@ -5,6 +5,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
+    <!-- Explicit, so an incomplete restore (missing Microsoft.NET.Test.Sdk props) fails loudly instead of `dotnet test`
+         silently skipping the project and reporting success. -->
+    <IsTestProject>true</IsTestProject>
   </PropertyGroup>
 
   <ItemGroup>

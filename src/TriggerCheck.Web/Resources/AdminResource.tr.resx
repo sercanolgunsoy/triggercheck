@@ -871,4 +871,16 @@
   <data name="e.g. Frankfurt" xml:space="preserve">
     <value>ör. Frankfurt</value>
   </data>
+  <data name="Status pages" xml:space="preserve">
+    <value>Durum sayfaları</value>
+  </data>
+  <data name="The status page limit must be 0 or greater." xml:space="preserve">
+    <value>Durum sayfası sınırı 0 veya daha büyük olmalıdır.</value>
+  </data>
+  <data name="Status pages (empty = unlimited)" xml:space="preserve">
+    <value>Durum sayfaları (boş = sınırsız)</value>
+  </data>
+  <data name="Status pages on custom domains" xml:space="preserve">
+    <value>Özel alan adlarında durum sayfaları</value>
+  </data>
 </root>

@@ -71,6 +71,11 @@ public class MonitorInput : IValidatableObject
     [Display(Name = "Certificate expiry warning")]
     public int CertWarnDays { get; set; } = 14;
 
+    /// <summary>Optional SLA target in percent for the monthly report (FEAT-10).</summary>
+    [Range(0.0, 100.0, ErrorMessage = "The SLA target must be between 0 and 100.")]
+    [Display(Name = "SLA target (%)")]
+    public double? SlaTarget { get; set; }
+
     [Display(Name = "Record type")]
     public DnsRecordType? DnsRecordType { get; set; }
 
@@ -132,7 +137,7 @@ public class MonitorInput : IValidatableObject
         Name = m.Name, Type = m.Type, Target = m.Type == MonitorType.Heartbeat ? "" : m.Target, Port = m.Port, Keyword = m.Keyword,
         HttpMethod = m.HttpMethod, ExpectedStatusCodes = m.ExpectedStatusCodes,
         IntervalSeconds = m.IntervalSeconds, TimeoutSeconds = m.TimeoutSeconds, FailureThreshold = m.FailureThreshold,
-        CertWarnDays = m.CertWarnDays,
+        CertWarnDays = m.CertWarnDays, SlaTarget = m.SlaTarget,
         DnsRecordType = m.DnsRecordType, JsonPath = m.JsonPath, AssertionOperator = m.AssertionOperator, ExpectedValue = m.ExpectedValue,
         GracePeriodSeconds = m.Type == MonitorType.Heartbeat ? m.GracePeriodSeconds : DefaultGracePeriodSeconds
     };
@@ -288,6 +293,7 @@ public class MonitorInput : IValidatableObject
             m.CertWarningSentDays = null;
         }
         m.CertWarnDays = isHttp ? CertWarnDays : 0;
+        m.SlaTarget = SlaTarget is { } sla ? Math.Round(sla, 3) : null;
         m.Name = Name;
         if (isHeartbeat)
         {

@@ -564,3 +564,21 @@ dl.row dd { margin-bottom: .6rem; }
 
 /* Monitor details charts (UI-4) */
 .tc-chart { position: relative; height: 260px; }
+
+/* ---- public status page (FEAT-4): script-free, so any cached copy works with any CSP nonce ---- */
+.status-public { max-width: 880px; margin: 0 auto; padding: 2rem 1rem 3rem; }
+.status-public .status-banner { border-radius: .75rem; padding: 1rem 1.25rem; font-weight: 600; color: #fff; background: var(--tc-up); }
+.status-public .status-banner.partial_outage { background: var(--tc-warn); }
+.status-public .status-banner.major_outage { background: var(--tc-down); }
+.status-public .status-banner.maintenance { background: #0284c7; }
+.status-public .status-banner.unknown { background: var(--tc-muted); }
+.status-public .uptime-bars { display: flex; gap: 2px; height: 28px; margin: .35rem 0 .15rem; }
+.status-public .uptime-bars span { flex: 1 1 0; border-radius: 2px; background: var(--tc-up); min-width: 2px; }
+.status-public .uptime-bars span.warn { background: var(--tc-warn); }
+.status-public .uptime-bars span.down { background: var(--tc-down); }
+.status-public .uptime-bars span.none { background: var(--tc-border); }
+.status-public .state-operational { color: var(--tc-up); }
+.status-public .state-major_outage { color: var(--tc-down); }
+.status-public .state-maintenance { color: #0284c7; }
+.status-public .state-unknown { color: var(--tc-muted); }
+.status-public .note { white-space: pre-line; }

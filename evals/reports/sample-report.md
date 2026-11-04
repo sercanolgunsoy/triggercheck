@@ -1,7 +1,7 @@
 # AI eval report
 
 - Mode: **fake** (canned outputs: checks the harness, not model quality)
-- Run: 2026-11-04 18:19:21 UTC, 1.9 s
+- Run: 2026-11-04 19:14:32 UTC, 8.4 s
 - Threshold: 80 %
 - Gate: **PASSED**
 
