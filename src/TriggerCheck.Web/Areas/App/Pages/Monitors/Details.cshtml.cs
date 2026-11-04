@@ -13,7 +13,8 @@ using MonitorEntity = TriggerCheck.Domain.Entities.Monitor;
 namespace TriggerCheck.Web.Areas.App.Pages.Monitors;
 
 /// <summary>Readable by all customer members; the POST handlers (pause/resume/check now) are CustomerAdmin only.</summary>
-public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStatsService stats, ILogger<DetailsModel> logger, Text<AppResource> L) : PageModel
+public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStatsService stats, ILogger<DetailsModel> logger, Text<AppResource> L,
+    ManualCheckLimiter limiter) : PageModel
 {
     public const int MaxChartPoints = 300;
 
@@ -142,6 +143,18 @@ public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStat
         if (runner is null)
         {
             TempData["Error"] = L["The on-demand check service is currently unavailable."].Value;
+            return Back(id, null);
+        }
+
+        // Rate limit (per monitor cooldown + per customer quota): no probe is executed when denied.
+        var minInterval = await db.Customers.AsNoTracking().Where(c => c.Id == m.CustomerId)
+            .Select(c => c.Plan.MinIntervalSeconds).FirstOrDefaultAsync(ct);
+        var decision = limiter.TryAcquire(m.CustomerId, m.Id, m.LastCheckedAtUtc, minInterval);
+        if (!decision.Allowed)
+        {
+            TempData["Error"] = decision.Denial == ManualCheckLimiter.Denial.MonitorCooldown
+                ? L["This monitor was checked moments ago. Try again in {0} seconds.", decision.RetryAfterSeconds].Value
+                : L["Too many manual checks for your account. Try again in {0} seconds.", decision.RetryAfterSeconds].Value;
             return Back(id, null);
         }
 
