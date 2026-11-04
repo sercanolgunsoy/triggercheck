@@ -49,14 +49,9 @@ public class BillingTestFactory : TestWebAppFactory
         builder.UseSetting("Iyzico:MerchantId", MerchantId);
         builder.ConfigureTestServices(s =>
         {
-            // The real queue and background sender stay; only the SMTP transport is replaced.
+            // The real outbox and background sender stay; only the SMTP transport is replaced.
             s.RemoveAll<IAppEmailTransport>();
-            s.AddSingleton<IAppEmailTransport>(sp =>
-            {
-                // Derived hosts (WithWebHostBuilder) share this transport but have their own queue: wait for all of them.
-                Emails.Queues.Add(sp.GetRequiredService<AppEmailQueue>());
-                return Emails;
-            });
+            s.AddSingleton<IAppEmailTransport>(Emails);
             s.RemoveAll<IPaymentProvider>();
             s.AddSingleton<IPaymentProvider>(sp =>
             {
@@ -70,6 +65,18 @@ public class BillingTestFactory : TestWebAppFactory
     }
 
     public DateTime Now => Time.GetUtcNow().UtcDateTime;
+
+    public BillingTestFactory()
+    {
+        // Reads of captured e-mails wait until the outbox has nothing due (all hosts share the database file).
+        Emails.IsIdle = () =>
+        {
+            using var scope = Services.CreateScope();
+            var now = Now;
+            return !scope.ServiceProvider.GetRequiredService<TriggerCheck.Infrastructure.Data.AppDbContext>().EmailOutbox
+                .Any(m => m.SentAtUtc == null && m.FailedAtUtc == null && (m.NextAttemptAtUtc == null || m.NextAttemptAtUtc <= now));
+        };
+    }
 
     /// <summary>Creates a customer with a CustomerAdmin (confirmed) on <paramref name="planName"/>.</summary>
     public async Task<(int CustomerId, string Email)> AddCustomerWithAdminAsync(string planName, Action<Customer>? configure = null)
@@ -138,25 +145,28 @@ public class BillingTestFactory : TestWebAppFactory
 public sealed record SentEmail(string To, string Subject, string Body);
 
 /// <summary>
-/// Test SMTP transport behind the real e-mail queue. Reads wait (up to 10 s) until the queue is empty, so assertions see
+/// Test SMTP transport behind the real e-mail outbox. Reads wait (up to 10 s) until nothing is due, so assertions see
 /// every e-mail queued so far. <see cref="Gate"/> holds deliveries to prove that requests do not wait for sending.
 /// </summary>
 public sealed class CapturingEmailSender : IAppEmailTransport
 {
     public ConcurrentQueue<SentEmail> Sent { get; } = new();
-    public ConcurrentBag<AppEmailQueue> Queues { get; } = [];
-    private bool IsIdle() => Queues.All(q => q.Pending == 0);
+    public Func<bool> IsIdle { get; set; } = () => true;
+    /// <summary>When set, deliveries throw (SMTP down).</summary>
+    public Exception? FailWith { get; set; }
     public TaskCompletionSource? Gate { get; set; }
 
     public async Task SendAsync(string to, string subject, string body, CancellationToken ct = default)
     {
         if (Gate is { } gate) await gate.Task.WaitAsync(ct);
+        if (FailWith is { } error) throw error;
         Sent.Enqueue(new SentEmail(to, subject, body));
     }
 
     public List<SentEmail> To(string address)
     {
-        SpinWait.SpinUntil(IsIdle, TimeSpan.FromSeconds(10));
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (!IsIdle() && DateTime.UtcNow < deadline) Thread.Sleep(20);
         return Sent.Where(e => string.Equals(e.To, address, StringComparison.OrdinalIgnoreCase)).ToList();
     }
 

@@ -19,6 +19,8 @@ public class IndexModel(AppDbContext db) : PageModel
     public int ChecksLastHour { get; private set; }
     public int ChecksLast24h { get; private set; }
     public int OpenIncidentCount { get; private set; }
+    /// <summary>Refused paid subscriptions not yet marked as refunded (BIZ-2).</summary>
+    public int RefundsNeeded { get; private set; }
     public List<IncidentRow> OpenIncidents { get; private set; } = [];
     public decimal EstimatedMrr { get; private set; }
     public int EnabledMonitors { get; private set; }
@@ -33,6 +35,7 @@ public class IndexModel(AppDbContext db) : PageModel
         var now = DateTime.UtcNow;
 
         CustomersTotal = await db.Customers.CountAsync();
+        RefundsNeeded = await db.Subscriptions.CountAsync(s => s.RefundNeededAtUtc != null && s.RefundHandledAtUtc == null);
         CustomersActive = await db.Customers.CountAsync(c => c.IsActive);
 
         var statusCounts = await db.Monitors.GroupBy(m => m.Status).Select(g => new { g.Key, Count = g.Count() }).ToListAsync();

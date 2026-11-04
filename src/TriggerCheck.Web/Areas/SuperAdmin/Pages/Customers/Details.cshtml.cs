@@ -81,6 +81,8 @@ public class DetailsModel(AppDbContext db, UserManager<ApplicationUser> users, T
     {
         var c = await db.Customers.Include(x => x.Plan).FirstOrDefaultAsync(x => x.Id == id);
         if (c is null) return NotFound();
+        // Saved on its own: the downgrade below may be skipped or rolled back.
+        await db.Customers.Where(x => x.Id == id).ExecuteUpdateAsync(u => u.SetProperty(x => x.SignupPending, false));
         c.SignupPending = false;
         if (c.BillingStatus != BillingStatus.Trial || !await billing.DowngradeToFallbackAsync(c, null, BillingStatus.Trial, mailer.TrialEndedReason, HttpContext.RequestAborted))
             TempData["Error"] = L["The customer is not in trial."].Value;

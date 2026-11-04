@@ -6,7 +6,7 @@ using TriggerCheck.Web.Areas.SuperAdmin.Services;
 
 namespace TriggerCheck.Web.Billing;
 
-public enum BillingError { None, PlanNotAvailable, TooManyMonitors, ProviderUnavailable, ProviderFailed, InvalidState }
+public enum BillingError { None, PlanNotAvailable, TooManyMonitors, ProviderUnavailable, ProviderFailed, InvalidState, TooManyCheckouts }
 
 /// <param name="MonitorsToDelete">For <see cref="BillingError.TooManyMonitors"/>: how many monitors must be deleted first.</param>
 /// <param name="EffectiveAtUtc">For a downgrade: when the new plan takes effect (end of the paid period).</param>
@@ -83,6 +83,9 @@ public sealed class BillingService(AppDbContext db, IPaymentProvider provider, T
         // An existing subscription is changed in place (ChangePlanAsync); only a cancelled one can be replaced by a new checkout.
         if (current is not null && current.Status != SubscriptionStatus.Cancelled) return new(BillingError.InvalidState);
         if (await MonitorsOverLimitAsync(customerId, plan, ct) is > 0 and var over) return new(BillingError.TooManyMonitors, over);
+        // Every open checkout is re-checked with the provider until it times out: keep their number small.
+        if (await db.Subscriptions.CountAsync(s => s.CustomerId == customerId && Open.Contains(s.Status), ct) >= options.CurrentValue.MaxOpenCheckouts)
+            return new(BillingError.TooManyCheckouts);
 
         var session = await provider.StartCheckoutAsync(new CheckoutRequest(Guid.NewGuid().ToString("N"), plan.IyzicoPricingPlanReferenceCode!,
             callbackUrl, locale, contact), ct);
@@ -211,6 +214,8 @@ public sealed class BillingService(AppDbContext db, IPaymentProvider provider, T
     private async Task CancelUnwantedAsync(Subscription sub, string eventType, CancellationToken ct)
     {
         var cancelled = await provider.CancelAsync(sub.ProviderReference!, ct);
+        // Persisted: the SuperAdmin "Refunds" list shows it until an operator marks the refund as done.
+        sub.RefundNeededAtUtc = Now;
         logger.LogError("Paid subscription {Reference} of customer {CustomerId} was refused ({Reason}); cancel at provider {Cancelled}. Refund it in the iyzico panel.",
             sub.ProviderReference, sub.CustomerId, eventType, cancelled.Succeeded ? "succeeded" : "FAILED - cancel it manually");
         await CloseAsFailedAsync(sub, eventType, ct);
@@ -348,6 +353,21 @@ public sealed class BillingService(AppDbContext db, IPaymentProvider provider, T
     public const string IgnoredUnknownSubscription = "unknown-subscription";
     public const string IgnoredOutOfOrder = "out-of-order";
     public const string IgnoredTimeWindow = "time-window";
+    /// <summary>Unknown subscription and no checkout left that could be it: no longer re-checked (manual reconciliation).</summary>
+    public const string IgnoredUnmatched = "unmatched";
+
+    /// <summary>Checkouts that can belong to an event: started before it (5 min clock slack), still open or failed unpaid.</summary>
+    private IQueryable<Subscription> Candidates(WebhookEvent e)
+    {
+        var since = Now - ReconcileWindow;
+        var before = e.OccurredAtUtc.AddMinutes(5);
+        return db.Subscriptions.Where(s => s.CheckoutToken != null && s.CreatedAtUtc >= since && s.CreatedAtUtc <= before
+            && (Open.Contains(s.Status) || (s.Status == SubscriptionStatus.Failed && s.ProviderReference == null)));
+    }
+
+    private Task<bool> HasCandidatesAsync(WebhookEvent e, CancellationToken ct) => Candidates(e).AnyAsync(ct);
+
+    public bool OverBudget(System.Diagnostics.Stopwatch budget) => budget.Elapsed > TimeSpan.FromSeconds(Math.Max(1, options.CurrentValue.ReconcileBudgetSeconds));
 
     /// <summary>State change of one event; <paramref name="row"/> is the stored (previously ignored) event when reconciling.</summary>
     private async Task<bool> ApplyToSubscriptionAsync(Subscription sub, WebhookEvent e, PaymentEvent? row, CancellationToken ct)
@@ -407,6 +427,7 @@ public sealed class BillingService(AppDbContext db, IPaymentProvider provider, T
     /// </summary>
     public async Task<int> ReconcileIgnoredEventsAsync(int max, CancellationToken ct)
     {
+        var budget = System.Diagnostics.Stopwatch.StartNew();
         var now = Now;
         var since = now - ReconcileWindow;
         var recheckBefore = now.AddHours(-1);
@@ -416,12 +437,25 @@ public sealed class BillingService(AppDbContext db, IPaymentProvider provider, T
         var applied = 0;
         foreach (var id in ids)
         {
+            if (OverBudget(budget)) break;
             var row = await db.PaymentEvents.FirstAsync(x => x.Id == id, ct);
             row.LastCheckedAtUtc = now;
             await db.SaveChangesAsync(ct);
             if (row.SubscriptionReference is not { } reference) continue;
             var e = new WebhookEvent(row.ProviderEventId, row.EventType, KindOf(row.EventType), reference, row.OrderReference, row.CustomerReference, row.OccurredAtUtc);
-            var sub = await FindSubscriptionAsync(reference, ct) ?? await ReconcileAsync(e, ct);
+            var sub = await FindSubscriptionAsync(reference, ct);
+            if (sub is null)
+            {
+                if (!await HasCandidatesAsync(e, ct))
+                {
+                    // No checkout started before the event is still open or unconfirmed: nothing can match it any more.
+                    row.IgnoredReason = IgnoredUnmatched;
+                    await db.SaveChangesAsync(ct);
+                    logger.LogWarning("Webhook event {EventId} for unknown subscription {Reference} could not be matched; left for manual reconciliation.", row.Id, reference);
+                    continue;
+                }
+                sub = await ReconcileAsync(e, ct);
+            }
             db.ChangeTracker.Clear();
             sub = sub is null ? null : await FindSubscriptionAsync(reference, ct);
             if (sub is null || sub.Status == SubscriptionStatus.Failed) continue;
@@ -446,6 +480,7 @@ public sealed class BillingService(AppDbContext db, IPaymentProvider provider, T
     /// </summary>
     public async Task<int> RescanFailedCheckoutsAsync(int max, CancellationToken ct)
     {
+        var budget = System.Diagnostics.Stopwatch.StartNew();
         var now = Now;
         var since = now - ReconcileWindow;
         var recheckBefore = now.AddHours(-6);
@@ -456,6 +491,7 @@ public sealed class BillingService(AppDbContext db, IPaymentProvider provider, T
         var activated = 0;
         foreach (var token in tokens)
         {
+            if (OverBudget(budget)) break;
             if ((await CompleteCheckoutAsync(token, ct)).Result == CheckoutCompletion.Activated) activated++;
             db.ChangeTracker.Clear();
         }
@@ -468,9 +504,7 @@ public sealed class BillingService(AppDbContext db, IPaymentProvider provider, T
     /// </summary>
     private async Task<Subscription?> ReconcileAsync(WebhookEvent e, CancellationToken ct)
     {
-        var since = Now - ReconcileWindow;
-        var candidates = db.Subscriptions.Where(s => s.CheckoutToken != null && s.CreatedAtUtc >= since
-            && (Open.Contains(s.Status) || (s.Status == SubscriptionStatus.Failed && s.ProviderReference == null)));
+        var candidates = Candidates(e);
         List<string> tokens = [];
         if (e.CustomerReference is { } customerRef)
         {

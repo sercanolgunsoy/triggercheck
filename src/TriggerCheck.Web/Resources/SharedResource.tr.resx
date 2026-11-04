@@ -1255,4 +1255,7 @@
   <data name="reversible" xml:space="preserve">
     <value>geri alınabilir</value>
   </data>
+  <data name="Refunds" xml:space="preserve">
+    <value>İadeler</value>
+  </data>
 </root>

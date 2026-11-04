@@ -1309,4 +1309,7 @@
   <data name="Only masked technical data is sent to the AI provider (Anthropic, Claude): monitor type, host name, status codes, error types and timings. URL paths and query strings, credentials and tokens, webhook URLs, e-mail addresses and phone numbers are removed first. Your data is not shared with other customers." xml:space="preserve">
     <value>Yapay zekâ sağlayıcısına (Anthropic, Claude) yalnızca maskelenmiş teknik veri gönderilir: monitör türü, sunucu adı, durum kodları, hata türleri ve süreler. URL yolları ve sorgu parametreleri, kimlik bilgileri ve token'lar, webhook adresleri, e-posta adresleri ve telefon numaraları önceden çıkarılır. Verileriniz başka müşterilerle paylaşılmaz.</value>
   </data>
+  <data name="You have several unfinished checkouts. Complete one of them or try again in an hour." xml:space="preserve">
+    <value>Tamamlanmamış birkaç ödeme işleminiz var. Bunlardan birini tamamlayın veya bir saat sonra tekrar deneyin.</value>
+  </data>
 </root>

@@ -1,6 +1,7 @@
 using System.Net;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Tests.Infrastructure;
 using TriggerCheck.Web.Billing;
@@ -58,6 +59,37 @@ public class AccountSecurityTests(BillingTestFactory f) : IClassFixture<BillingT
         var mails = f.Emails.To(email);
         Assert.Contains(mails, m => m.Subject.Contains("Reset your TriggerCheck password"));
         Assert.Contains(mails, m => m.Body.Contains("already exists"));
+    }
+
+    [Fact]
+    public async Task Operator_touched_unconfirmed_account_is_not_taken_over_by_a_new_sign_up()
+    {
+        var email = NewEmail();
+        await SignUpAsync(email, "Original1!");
+        var cid = await f.WithDbAsync(db => db.Customers.Where(c => c.ContactEmail == email).Select(c => c.Id).SingleAsync());
+        var sa = await f.LoginAsync(TestWebAppFactory.SuperAdminEmail, TestWebAppFactory.SuperAdminPassword);
+        await sa.PostFormAsync($"/SuperAdmin/Customers/Edit/{cid}", EditForm(cid, await PlanIdAsync("Standard")));
+
+        AssertRedirect(await SignUpAsync(email, "Takeover1!", company: "Other"), "RegisterConfirmation");
+        Assert.Contains(f.Emails.To(email), m => m.Body.Contains("already exists"));
+        using var scope = f.Services.CreateScope();
+        var um = scope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Identity.UserManager<TriggerCheck.Infrastructure.Identity.ApplicationUser>>();
+        var user = (await um.FindByEmailAsync(email))!;
+        Assert.True(await um.CheckPasswordAsync(user, "Original1!"));
+        Assert.False(await um.CheckPasswordAsync(user, "Takeover1!"));
+        Assert.Equal("Edited " + cid, (await f.GetCustomerAsync(cid)).Name);
+    }
+
+    [Fact]
+    public async Task End_trial_always_clears_the_pending_sign_up_flag()
+    {
+        var email = NewEmail();
+        await SignUpAsync(email, "Signup123!", plan: "Basic"); // free plan: no trial
+        var cid = await f.WithDbAsync(db => db.Customers.Where(c => c.ContactEmail == email).Select(c => c.Id).SingleAsync());
+        Assert.True(await f.WithDbAsync(db => db.Customers.Where(c => c.Id == cid).Select(c => c.SignupPending).SingleAsync()));
+        var sa = await f.LoginAsync(TestWebAppFactory.SuperAdminEmail, TestWebAppFactory.SuperAdminPassword);
+        await sa.PostFormAsync($"/SuperAdmin/Customers/Details/{cid}?handler=EndTrial", new(), $"/SuperAdmin/Customers/Details/{cid}");
+        Assert.False(await f.WithDbAsync(db => db.Customers.Where(c => c.Id == cid).Select(c => c.SignupPending).SingleAsync()));
     }
 
     [Fact]
