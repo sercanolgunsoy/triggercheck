@@ -1267,4 +1267,13 @@
   <data name="Refunds" xml:space="preserve">
     <value>İadeler</value>
   </data>
+  <data name="Probe regions" xml:space="preserve">
+    <value>Kontrol bölgeleri</value>
+  </data>
+  <data name="Agent stale" xml:space="preserve">
+    <value>Ajan yanıt vermiyor</value>
+  </data>
+  <data name="Region" xml:space="preserve">
+    <value>Bölge</value>
+  </data>
 </root>

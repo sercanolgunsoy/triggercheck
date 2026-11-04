@@ -191,6 +191,8 @@
     </div>
 </div>
 
+<partial name="_MonitorRegions" model="Model.Regions" />
+
 <div class="row g-3">
     <div class="col-lg-7">
         <div class="card">
@@ -239,6 +241,7 @@
                             <span class="text-muted">@Fmt.Duration((i.ResolvedAtUtc ?? DateTime.UtcNow) - i.StartedAtUtc)</span>
                         </div>
                         @if (!string.IsNullOrEmpty(i.Cause)) { <div class="small text-muted">@i.Cause</div> }
+                        @if (!string.IsNullOrEmpty(i.FailedRegions)) { <div class="small text-muted">@L["Failing regions: {0}", i.FailedRegions]</div> }
                         @if (i.ResolvedDuringMaintenance) { <div class="small text-muted">@L["Recovered during maintenance."]</div> }
                     </li>
                 }

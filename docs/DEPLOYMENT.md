@@ -82,6 +82,7 @@ secret store, never in the image or in `appsettings.json`.
 | `Escalation__CheckIntervalSeconds` (30), `Escalation__AckLinkValidHours` (72) | no | How often the escalation job runs; lifetime of acknowledge links. |
 | `Monitoring__DnsResolvers__0`, `__1`, ... | no (1.1.1.1, 8.8.8.8) | Resolvers for DNS monitors, tried in order: `ip`, `ip:port` or `[ipv6]:port`. Operator configuration (not subject to the SSRF guard). |
 | `Heartbeat__PingsPerMinutePerToken` (10), `Heartbeat__PingsPerMinutePerClient` (6000), `Heartbeat__PingsPerSecondGlobal` (1000) | no | Limits of the `/hb/{token}` ping endpoint. The per-client limit is per IPv4 address / IPv6 /64 and deliberately high (many hosts behind one NAT). **Behind a reverse proxy enable ForwardedHeaders**, otherwise all pings share the proxy's address. |
+| `Regions__AgentStaleAfterSeconds` (90), `Regions__VoteWindowFactor` (2), `Regions__LeaseGraceSeconds` (30), `Regions__ClockSkewSeconds` (30), `Regions__AgentRequestsPerMinute` (300) | no | Multi-region checks, see [Probe agents](#probe-agents-multi-region-checks). |
 | `Seed__DemoData` | no | Ignored outside Development. |
 
 Acknowledge links are protected with ASP.NET Core Data Protection (purpose `IncidentAck.v1`), the same key ring as
@@ -374,3 +375,95 @@ after the plan's `RetentionDays`:
 - AI decisions, except the current month's, which the budget needs;
 - their feedback;
 - closed anomaly signals.
+
+## Probe agents (multi-region checks)
+
+FEAT-6. By default every monitor is checked only by the main app (the region `central`). Probe agents add remote
+regions: a small worker (`src/TriggerCheck.ProbeAgent`, image built from `Dockerfile.probe`) that runs in another
+network / cloud region, asks the main app for due checks, runs them and posts the results back. **Deploying and
+operating the agents is the operator's job**; the main app only manages their credentials and uses their results.
+
+How it works:
+
+- **Pull only.** The agent opens no ports. Every few seconds it calls `POST /api/agent/v1/lease` and receives the
+  checks due in its region (type, target, port, keyword, expected codes, method, timeout, DNS / JSON assertion
+  fields). It never receives customer or monitor names or ids, alert channels, webhook URLs or other secrets. It
+  posts outcomes (incl. phase timings) to `POST /api/agent/v1/results`, quoting each lease item id.
+- **Same probe code and SSRF rules.** The agent uses the main app's checkers and `TargetGuard`, with
+  `Monitoring__AllowPrivateTargets=false` (the image sets it explicitly). Do not enable it in production: probes could
+  then reach the agent network's internal addresses.
+- **Majority vote.** A monitor with regions is decided by the regions that currently vote (central + every enabled
+  region whose agent called in within `Regions__AgentStaleAfterSeconds` and whose last result for the monitor is
+  younger than `VoteWindowFactor` x interval + timeout + `LeaseGraceSeconds`). It goes DOWN only when **more than
+  half** fail and comes back UP when more than half succeed; otherwise the status is kept (with two regions both must
+  agree). The second region replaces the confirmation probe of the single-region rules: a region that starts failing
+  makes the other regions (and central) check again within `Monitoring__ConfirmationDelaySeconds`. The incident
+  records the failing regions. When fewer than two regions vote (agents down, region disabled), the monitor falls
+  back to the single-region rules (FailureThreshold + confirmation probe), so it is never left unmonitored.
+- **Uptime** of a multi-region monitor follows the central check timeline, each check counting as up unless the voted
+  status after it was DOWN. Remote results are stored per region (shown in the monitor's "Regions" card: latest
+  result, 24 h average response time and failures) and are not counted in uptime or the main response-time chart.
+- **Plans.** `Plan.MaxRegions` (SuperAdmin > Plans) limits the regions per monitor, central included: 1 = central only
+  (Basic, Standard), Pro 3, Enterprise 0 = all. Customers choose regions per monitor (monitor page > Regions > Manage
+  regions, CustomerAdmin). Heartbeat monitors are push based and have no regions; DNS monitors can use them (each
+  agent uses its own `Monitoring__DnsResolvers`). A plan downgrade to 1 region stops remote checks at once; regions
+  beyond a lowered limit (>1) stay assigned until the customer changes them.
+- **Not shared:** TLS certificate tracking and expiry alerts use the central probe only.
+
+### Setting up a region
+
+1. SuperAdmin > **Probe regions** > New region: a code (`eu-central`, lower-case letters, digits, dashes) and a
+   name. The agent credential (`tcr_...`) is shown **once**; only its SHA-256 hash is stored.
+2. Run the agent in the target region:
+
+   ```bash
+   docker build -f Dockerfile.probe -t triggercheck-probe .
+   docker run -d --name tc-probe-eu --restart unless-stopped \
+     -e Agent__CentralUrl=https://app.example.com \
+     -e Agent__RegionId=eu-central \
+     -e Agent__Credential="$TC_AGENT_CREDENTIAL" \
+     triggercheck-probe
+   ```
+
+3. The region shows "Active" with a recent "Agent last seen" time. Customers can now add it to monitors.
+
+| Variable | Required | Purpose |
+|---|---|---|
+| `Agent__CentralUrl` | **yes** | Public base URL of the main app (https; a path base is kept). |
+| `Agent__RegionId` | **yes** | Region code. Must match the credential's region, otherwise every request gets 401. |
+| `Agent__Credential` | **yes** | The `tcr_...` credential. Keep it in a secret store. |
+| `Agent__PollIntervalSeconds` (2), `Agent__MaxConcurrency` (20) | no | Poll frequency; probes in parallel (also the lease size). |
+| `Agent__ClientCertificatePath`, `Agent__ClientCertificatePassword` | no | PFX client certificate for mutual TLS (see below). |
+| `Agent__AllowInsecureCentral` | development only | Allows an http `CentralUrl`. |
+| `Monitoring__DnsResolvers__0`, ... | no | Resolvers of DNS monitors in this region. |
+| `Monitoring__AllowPrivateTargets` | **never in production** | Turns the agent's SSRF protection off. |
+
+The agent exits at start with a log line per invalid setting. Rejected credentials are logged (without the
+credential) and retried with backoff up to 60 s.
+
+**Network:** the agent needs outbound HTTPS to the main app and outbound access to whatever customers monitor
+(HTTP(S) 80/443 and other ports, TCP to any port for TCP monitors, UDP/TCP 53 to its DNS resolvers, ICMP for ping
+monitors: in containers ICMP usually needs `--cap-add NET_RAW`, otherwise ping monitors report DOWN from that
+region). No inbound rules are needed.
+
+**Time sync:** run NTP (chrony / systemd-timesyncd) on agent hosts. Probe times are taken from the agent clock; a
+reported time outside the lease (+/- `Regions__ClockSkewSeconds`) is replaced by the server's estimate, and a large
+skew makes the region's results look stale (they then stop voting).
+
+**Rotation and disabling:** SuperAdmin > Probe regions > *Rotate credential* issues a new credential (shown once)
+and the old one is rejected from the next request; update `Agent__Credential` and restart the agent. *Disable*
+rejects the agent immediately, cancels its outstanding leases and removes the region from all votes (assignments
+are kept, so *Enable* restores them). Rotate after any suspected leak and when an operator with access leaves.
+
+**Mutual TLS (optional):** the agent API also works with the bearer credential alone. For defense in depth, put the
+main app behind a reverse proxy that requires a client certificate on `/api/agent/` only, and give each agent a
+certificate via `Agent__ClientCertificatePath` / `Agent__ClientCertificatePassword` (PFX). Behind a proxy enable
+`ForwardedHeaders__*` so the per-IP limit sees the agent's address.
+
+**Limits:** the agent API allows `Regions__AgentRequestsPerMinute` requests per region (plus the per-IP limit of all
+`/api` requests), bodies of at most 1 KB (lease) / 256 KB (results) and 100 results per request. A result is accepted
+only for the region's own, unexpired lease item, once; foreign, replayed or late results are ignored, and a result for
+a monitor that was edited, paused or deleted after the lease is discarded.
+
+**Scaling note:** results are applied in the main app process (single instance on SQLite, like the scheduler).
+

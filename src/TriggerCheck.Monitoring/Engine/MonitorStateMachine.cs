@@ -133,6 +133,45 @@ public static class MonitorStateMachine
         return transition;
     }
 
+    /// <summary>
+    /// FEAT-6: applies the central probe of a monitor decided by region quorum. Runtime fields and schedule are updated
+    /// as usual; ConsecutiveFailures tracks central's own streak (reset in maintenance unless DOWN, as in
+    /// <see cref="ApplyInMaintenance"/>), and the status follows <see cref="ApplyVote"/>.
+    /// </summary>
+    public static StatusTransition ApplyQuorumProbe(MonitorEntity monitor, CheckOutcome outcome, DateTime checkedAtUtc, Regions.QuorumDecision vote, bool inMaintenance)
+    {
+        RecordProbe(monitor, outcome, checkedAtUtc);
+        monitor.NextCheckAtUtc = NextCheckAfter(monitor.NextCheckAtUtc, monitor.IntervalSeconds, checkedAtUtc);
+        if (outcome.IsUp) monitor.ConsecutiveFailures = 0;
+        else if (inMaintenance && monitor.Status != MonitorStatus.Down) monitor.ConsecutiveFailures = 0;
+        else monitor.ConsecutiveFailures++;
+        return ApplyVote(monitor, vote, checkedAtUtc, inMaintenance);
+    }
+
+    /// <summary>
+    /// FEAT-6: status by majority of the active regions (see <see cref="Regions.RegionQuorum"/>). Majority up: UP (a
+    /// recovery when it was DOWN). Majority failing: DOWN, dated from the earliest failing vote - never in maintenance.
+    /// Otherwise the status is kept.
+    /// </summary>
+    public static StatusTransition ApplyVote(MonitorEntity monitor, Regions.QuorumDecision vote, DateTime nowUtc, bool inMaintenance)
+    {
+        if (vote.UpMajority)
+        {
+            if (monitor.Status == MonitorStatus.Up) return StatusTransition.None;
+            var wasDown = monitor.Status == MonitorStatus.Down || monitor.DownWhenPaused;
+            monitor.DownWhenPaused = false;
+            SetStatus(monitor, MonitorStatus.Up, nowUtc);
+            return wasDown ? StatusTransition.Recovered : StatusTransition.BecameUp;
+        }
+        if (vote.DownMajority && !inMaintenance && monitor.Status != MonitorStatus.Down)
+        {
+            monitor.DownWhenPaused = false;
+            SetStatus(monitor, MonitorStatus.Down, vote.FailingSinceUtc ?? nowUtc);
+            return StatusTransition.WentDown;
+        }
+        return StatusTransition.None;
+    }
+
     private static StatusTransition Transition(MonitorEntity monitor, bool isUp, DateTime checkedAtUtc)
     {
         if (isUp)

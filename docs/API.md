@@ -7,6 +7,9 @@ customers answer `404`.
 - Base URL: `https://<host>/api/v1`
 - OpenAPI document: [`/api/v1/openapi.json`](/api/v1/openapi.json) (anonymous, contains no data)
 - Messages in API responses are English.
+- `/api/agent/v1/*` is the **internal** probe agent protocol (FEAT-6, multi-region checks): it accepts only probe
+  agent credentials (`tcr_...`, issued under SuperAdmin > Probe regions), never customer API keys, is not part of the
+  OpenAPI document and may change without notice. See [DEPLOYMENT.md](DEPLOYMENT.md#probe-agents-multi-region-checks).
 
 ## API keys
 

@@ -90,3 +90,11 @@
     }
     <div class="form-text">@L["Monthly AI budget per customer on this plan. When it is used up, AI output is skipped until next month; monitoring is not affected. 0 AI calls = no AI."]</div>
 </fieldset>
+
+<fieldset class="border rounded p-3 mb-3" id="plan-regions">
+    <legend class="fs-6 fw-semibold w-auto px-1 mb-1">@L["Multi-region checks"]</legend>
+    <label asp-for="MaxRegions" class="form-label"></label>
+    <input asp-for="MaxRegions" class="form-control" type="number" min="0" max="100" />
+    <span asp-validation-for="MaxRegions" class="text-danger small"></span>
+    <div class="form-text">@L["1 = checked by the main app only. Higher values let customers add probe regions to a monitor; its status is then decided by majority vote."]</div>
+</fieldset>

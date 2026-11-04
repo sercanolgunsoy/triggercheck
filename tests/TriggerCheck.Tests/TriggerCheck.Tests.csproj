@@ -25,6 +25,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\TriggerCheck.Web\TriggerCheck.Web.csproj" />
     <ProjectReference Include="..\..\src\TriggerCheck.Monitoring\TriggerCheck.Monitoring.csproj" />
+    <ProjectReference Include="..\..\src\TriggerCheck.ProbeAgent\TriggerCheck.ProbeAgent.csproj" />
   </ItemGroup>
 
 </Project>

@@ -11,6 +11,7 @@ using TriggerCheck.Monitoring.Checks.Dns;
 using TriggerCheck.Monitoring.Diagnostics;
 using TriggerCheck.Monitoring.Engine;
 using TriggerCheck.Monitoring.Escalation;
+using TriggerCheck.Monitoring.Regions;
 using TriggerCheck.Monitoring.Retention;
 using TriggerCheck.Monitoring.Scheduling;
 using TriggerCheck.Monitoring.Security;
@@ -28,13 +29,13 @@ public static class DependencyInjection
     /// </summary>
     public static IServiceCollection AddMonitoringEngine(this IServiceCollection services, IConfiguration config)
     {
-        services.Configure<MonitoringOptions>(config.GetSection(MonitoringOptions.Section));
+        services.AddProbeCheckers(config);
+        services.Configure<RegionOptions>(config.GetSection(RegionOptions.Section));
         services.Configure<SmtpOptions>(config.GetSection(SmtpOptions.Section));
         services.Configure<AlertingOptions>(config.GetSection(AlertingOptions.Section));
         services.Configure<TelegramOptions>(config.GetSection(TelegramOptions.Section));
         services.Configure<TwilioOptions>(config.GetSection(TwilioOptions.Section));
         services.Configure<EscalationOptions>(config.GetSection(EscalationOptions.Section));
-        services.TryAddSingleton(TimeProvider.System);
         services.AddMetrics();
         services.TryAddSingleton<MonitoringMetrics>();
 
@@ -42,13 +43,7 @@ public static class DependencyInjection
         services.AddMemoryCache();
         services.AddScoped<IResponseTimeSeriesService, ResponseTimeSeriesService>();
 
-        // ---- HTTP clients ----
-        // Every connection (incl. redirect hops) goes through TargetGuard, which resolves DNS itself and refuses
-        // private/internal addresses unless Monitoring:AllowPrivateTargets is set (SSRF protection).
-        services.AddHttpClient(MonitoringHttpClients.Probe, ConfigureProbeClient)
-            .ConfigurePrimaryHttpMessageHandler(sp => CreateProbeHandler(sp, followRedirects: true));
-        services.AddHttpClient(MonitoringHttpClients.ProbeNoRedirect, ConfigureProbeClient)
-            .ConfigurePrimaryHttpMessageHandler(sp => CreateProbeHandler(sp, followRedirects: false));
+        // ---- HTTP clients (probe clients: see AddProbeCheckers) ----
         services.AddHttpClient(MonitoringHttpClients.Webhook, c =>
             {
                 c.Timeout = TimeSpan.FromSeconds(10);
@@ -64,14 +59,8 @@ public static class DependencyInjection
             // Alert URLs carry secrets (Slack/Teams webhook paths, Telegram bot tokens): no request URI logging.
             .RemoveAllLoggers();
 
-        // ---- checkers ----
-        services.AddSingleton<IMonitorChecker, HttpMonitorChecker>();
-        services.AddSingleton<IMonitorChecker, KeywordMonitorChecker>();
-        services.AddSingleton<IMonitorChecker, TcpMonitorChecker>();
-        services.AddSingleton<IMonitorChecker, PingMonitorChecker>();
-        services.AddSingleton<IMonitorChecker, DnsMonitorChecker>();
+        // ---- checkers (the probing ones are registered by AddProbeCheckers) ----
         services.AddSingleton<IMonitorChecker, HeartbeatMonitorChecker>();
-        services.AddSingleton<IMonitorChecker, JsonApiMonitorChecker>();
 
         // ---- engine ----
         services.AddSingleton<MonitorRunGate>();
@@ -79,6 +68,10 @@ public static class DependencyInjection
         services.AddScoped<IMonitorCheckRunner>(sp => ActivatorUtilities.CreateInstance<MonitorCheckRunner>(sp, InstrumentedMonitorChecker.Wrap(
             sp.GetServices<IMonitorChecker>(), sp.GetRequiredService<MonitoringMetrics>(), sp.GetRequiredService<TimeProvider>())));
         services.AddScoped<MonitorLifecycle>();
+
+        // ---- FEAT-6: remote probe regions (agents lease checks and post results; see ProbeLeaseService) ----
+        services.AddSingleton<ProbeResultGate>();
+        services.AddScoped<ProbeLeaseService>();
 
         // ---- alerting ----
         services.AddSingleton<INotifier, EmailNotifier>();
@@ -110,6 +103,32 @@ public static class DependencyInjection
         services.AddHostedService(sp => sp.GetRequiredService<MonitorScheduler>());
         services.AddHostedService<RetentionCleanupService>();
 
+        return services;
+    }
+
+    /// <summary>
+    /// The probing checkers (Http, Keyword, Tcp, Ping, Dns, JsonApi) and their SSRF-guarded HTTP clients, bound to the
+    /// <c>Monitoring</c> section (<see cref="MonitoringOptions.AllowPrivateTargets"/>, DNS resolvers). Shared by the main
+    /// app's engine and the probe agent (FEAT-6), so every region applies exactly the same probe and TargetGuard rules.
+    /// </summary>
+    public static IServiceCollection AddProbeCheckers(this IServiceCollection services, IConfiguration config)
+    {
+        services.Configure<MonitoringOptions>(config.GetSection(MonitoringOptions.Section));
+        services.TryAddSingleton(TimeProvider.System);
+
+        // Every connection (incl. redirect hops) goes through TargetGuard, which resolves DNS itself and refuses
+        // private/internal addresses unless Monitoring:AllowPrivateTargets is set (SSRF protection).
+        services.AddHttpClient(MonitoringHttpClients.Probe, ConfigureProbeClient)
+            .ConfigurePrimaryHttpMessageHandler(sp => CreateProbeHandler(sp, followRedirects: true));
+        services.AddHttpClient(MonitoringHttpClients.ProbeNoRedirect, ConfigureProbeClient)
+            .ConfigurePrimaryHttpMessageHandler(sp => CreateProbeHandler(sp, followRedirects: false));
+
+        services.AddSingleton<IMonitorChecker, HttpMonitorChecker>();
+        services.AddSingleton<IMonitorChecker, KeywordMonitorChecker>();
+        services.AddSingleton<IMonitorChecker, TcpMonitorChecker>();
+        services.AddSingleton<IMonitorChecker, PingMonitorChecker>();
+        services.AddSingleton<IMonitorChecker, DnsMonitorChecker>();
+        services.AddSingleton<IMonitorChecker, JsonApiMonitorChecker>();
         return services;
     }
 

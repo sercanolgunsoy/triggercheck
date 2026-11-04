@@ -29,5 +29,9 @@ public class Plan
     /// <summary>Maximum AI tokens (input + output) per customer per calendar month (UTC). 0 = no limit besides the call limit.</summary>
     public long AiMonthlyTokenLimit { get; set; }
 
+    // ---- FEAT-6: multi-region checks ----
+    /// <summary>Regions a monitor may be checked from, including the central one (1 = central only). 0 = all enabled regions.</summary>
+    public int MaxRegions { get; set; } = 1;
+
     public ICollection<Customer> Customers { get; set; } = new List<Customer>();
 }

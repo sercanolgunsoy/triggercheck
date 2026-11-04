@@ -37,6 +37,8 @@ public static class DbSeeder
                 new Plan { Name = "Pro",        MinIntervalSeconds = 30,  MaxMonitors = 200, RetentionDays = 180, MonthlyPrice = 49m, AllowsSelfSignup = true },
                 new Plan { Name = "Enterprise", MinIntervalSeconds = 15,  MaxMonitors = 1000, RetentionDays = 365, MonthlyPrice = 199m, AllowsSmsVoice = true });
             foreach (var p in db.Plans.Local) ApplyDefaultAiQuota(p);
+            // FEAT-6: multi-region checks (central + 2 remote regions on Pro, all regions on Enterprise).
+            foreach (var p in db.Plans.Local) p.MaxRegions = p.Name switch { "Pro" => 3, "Enterprise" => 0, _ => 1 };
             await db.SaveChangesAsync();
         }
 

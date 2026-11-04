@@ -9,6 +9,8 @@ public class Incident
     public DateTime StartedAtUtc { get; set; }
     public DateTime? ResolvedAtUtc { get; set; }
     public string? Cause { get; set; }
+    /// <summary>FEAT-6: comma separated codes of the regions that reported the failure ("central" = central scheduler); null for single-region decisions.</summary>
+    public string? FailedRegions { get; set; }
 
     /// <summary>The monitor recovered while it was in maintenance: the incident was closed without an UP alert.</summary>
     public bool ResolvedDuringMaintenance { get; set; }

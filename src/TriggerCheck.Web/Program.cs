@@ -6,6 +6,7 @@ using TriggerCheck.Infrastructure;
 using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Infrastructure.Identity;
 using TriggerCheck.Monitoring;
+using TriggerCheck.Web.Agents;
 using TriggerCheck.Web.Api;
 using TriggerCheck.Web.Billing;
 using TriggerCheck.Web.Heartbeat;
@@ -54,6 +55,8 @@ builder.Services.ConfigureApplicationCookie(o =>
 });
 // FEAT-8: REST API (API key scheme + policies, per-key rate limit, OpenAPI document).
 builder.Services.AddTriggerCheckApi(builder.Configuration);
+// FEAT-6: internal probe agent API (/api/agent/v1, own auth scheme and per-region rate limit).
+builder.Services.AddProbeAgentApi(builder.Configuration);
 
 builder.Services.AddAuthorization(o =>
 {
@@ -120,6 +123,7 @@ app.MapHeartbeatEndpoint();
 app.MapSetLanguage();
 app.MapBillingEndpoints();
 app.MapTriggerCheckApi();
+app.MapProbeAgentApi();
 
 await DbSeeder.SeedAsync(app.Services);
 
