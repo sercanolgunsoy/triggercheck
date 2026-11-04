@@ -31,6 +31,8 @@ public sealed class AlertSenderService(
     IOptions<AlertingOptions> options,
     ILogger<AlertSenderService> logger) : BackgroundService
 {
+    // Never disposed: StopAsync may run again after Dispose (StopApplication, then disposing the host) and must not
+    // throw ObjectDisposedException. It holds no unmanaged resources beyond the CancelAfter timer.
     private readonly CancellationTokenSource _abort = new();
     private readonly object _lock = new();
     private readonly Dictionary<(int MonitorId, bool Certificate), Lane> _lanes = new();
@@ -182,9 +184,4 @@ public sealed class AlertSenderService(
         await base.StopAsync(cancellationToken); // signals stoppingToken = stop retrying, then waits for the drain
     }
 
-    public override void Dispose()
-    {
-        _abort.Dispose();
-        base.Dispose();
-    }
 }

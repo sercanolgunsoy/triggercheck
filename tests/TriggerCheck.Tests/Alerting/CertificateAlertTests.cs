@@ -152,11 +152,13 @@ public class CertificateAlertTests
         var monitor = await host.AddMonitorAsync(customer.Id);
         await AddChannelAsync(host, customer.Id, AlertChannelType.Webhook, "https://hooks.example.test/x");
         await AddChannelAsync(host, customer.Id, AlertChannelType.Slack, "https://hooks.slack.com/services/T/B/x");
+        await AddChannelAsync(host, customer.Id, AlertChannelType.Sms, "+15005550006"); // plan has no SMS: never attempted
 
         await host.InScopeAsync(sp => sp.GetRequiredService<IAlertDispatcher>().DispatchAsync(Cert with { MonitorId = monitor.Id, CustomerId = customer.Id }));
 
         var points = alerts.GetMeasurementSnapshot();
-        Assert.Equal(2, points.Count);
+        Assert.Equal(3, points.Count);
+        Assert.Contains(points, p => (string)p.Tags["channel.type"]! == "sms" && (string)p.Tags["result"]! == "skipped");
         Assert.Contains(points, p => (string)p.Tags["channel.type"]! == "webhook" && (string)p.Tags["result"]! == "sent");
         Assert.Contains(points, p => (string)p.Tags["channel.type"]! == "slack" && (string)p.Tags["result"]! == "failed");
     }

@@ -306,6 +306,43 @@ public class ConfirmBeforeAlertTests
     }
 
     [Fact]
+    public async Task Pending_confirmation_from_before_a_long_restart_starts_over()
+    {
+        await using var host = await CreateHostAsync();
+        var customer = await host.AddCustomerAsync();
+        var monitor = await host.AddMonitorAsync(customer.Id, m => { m.FailureThreshold = 1; m.Status = MonitorStatus.Up; m.IntervalSeconds = 60; m.TimeoutSeconds = 10; });
+        _checker.Then(Refused);
+
+        await host.RunCheckAsync(monitor.Id);
+        host.Time.Advance(TimeSpan.FromHours(6)); // process was down
+        var afterRestart = host.Now;
+        await host.RunCheckAsync(monitor.Id);
+
+        var m = await host.GetMonitorAsync(monitor.Id);
+        Assert.Equal(MonitorStatus.Up, m.Status);                  // not DOWN on the strength of a 6 hour old failure
+        Assert.Equal(afterRestart, m.PendingConfirmationSinceUtc); // a fresh confirmation instead
+        Assert.Equal(0, await host.WithDbAsync(db => db.Incidents.CountAsync()));
+
+        host.Time.Advance(TimeSpan.FromSeconds(DelaySeconds));
+        await host.RunCheckAsync(monitor.Id);
+        Assert.Equal(afterRestart, (await host.WithDbAsync(db => db.Incidents.SingleAsync())).StartedAtUtc);
+    }
+
+    [Fact]
+    public void Late_confirmation_window_is_three_times_the_max_age()
+    {
+        var m = Active(MonitorStatus.Up, 0, 1);
+        var t0 = new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+        var delay = TimeSpan.FromSeconds(5);
+        MonitorStateMachine.BeginConfirmation(m, Refused, t0, t0 + delay);
+        // max age: delay 5 + interval 60 + timeout (default 10) + slack 30 = 105 s
+        Assert.False(MonitorStateMachine.HasValidPendingConfirmation(m, t0.AddSeconds(106), delay));
+        Assert.True(MonitorStateMachine.HasExpiredPendingConfirmation(m, t0.AddSeconds(106), delay));
+        Assert.True(MonitorStateMachine.HasExpiredPendingConfirmation(m, t0.AddSeconds(315), delay));
+        Assert.False(MonitorStateMachine.HasExpiredPendingConfirmation(m, t0.AddSeconds(316), delay));
+    }
+
+    [Fact]
     public async Task Sustained_lag_still_reports_an_outage()
     {
         await using var host = await CreateHostAsync();
@@ -313,11 +350,11 @@ public class ConfirmBeforeAlertTests
         var monitor = await host.AddMonitorAsync(customer.Id, m => { m.FailureThreshold = 2; m.Status = MonitorStatus.Up; m.IntervalSeconds = 30; });
         _checker.Then(Refused);
 
-        // Every run arrives 10 minutes late.
+        // Every run arrives 2 minutes late: past the max age (5 + 30 + 10 + 30 = 75 s) but within 3x of it.
         for (var i = 0; i < 4; i++)
         {
             await host.RunCheckAsync(monitor.Id);
-            host.Time.Advance(TimeSpan.FromMinutes(10));
+            host.Time.Advance(TimeSpan.FromMinutes(2));
         }
         Assert.Equal(MonitorStatus.Down, (await host.GetMonitorAsync(monitor.Id)).Status);
         Assert.Equal(1, await host.WithDbAsync(db => db.Incidents.CountAsync()));

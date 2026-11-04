@@ -282,7 +282,7 @@ public sealed class AlertDispatcher(
         }
 
         Log(target, message, result, attempts);
-        metrics.RecordAlert(target.Type, result.Success);
+        metrics.RecordAlert(target.Type, result.Success, attempted: attempts > 0);
         return new Notification
         {
             MonitorId = message.MonitorId,

@@ -101,8 +101,14 @@ public sealed class MonitoringMetrics
     /// <summary>
     /// Final outcome of one alert delivery to one channel (after retries); recorded by AlertDispatcher.
     /// </summary>
-    public void RecordAlert(AlertChannelType channelType, bool success) =>
-        _alerts.Add(1, new TagList { { "channel.type", channelType.ToString().ToLowerInvariant() }, { "result", success ? "sent" : "failed" } });
+    /// <param name="attempted">False when the channel was never tried (not in plan, Twilio not configured, daily SMS /
+    /// voice limit): counted as "skipped" rather than "failed".</param>
+    public void RecordAlert(AlertChannelType channelType, bool success, bool attempted = true) =>
+        _alerts.Add(1, new TagList
+        {
+            { "channel.type", channelType.ToString().ToLowerInvariant() },
+            { "result", success ? "sent" : attempted ? "failed" : "skipped" }
+        });
 
     /// <summary>Starts the span of one probe (null when nobody listens). Never tagged with the target: it may carry credentials.</summary>
     public static Activity? StartCheckActivity(MonitorEntity monitor)

@@ -745,4 +745,7 @@
   <data name="Some enabled channels cannot deliver: SMS and voice call alerts are not available for your plan or not set up for this service. They are skipped, and if no other channel is enabled the setting below applies." xml:space="preserve">
     <value>Bazı etkin kanallar bildirim iletemez: SMS ve sesli arama bildirimleri planınızda bulunmuyor veya bu hizmette yapılandırılmamış. Bu kanallar atlanır; başka etkin kanal yoksa aşağıdaki ayar uygulanır.</value>
   </data>
+  <data name="TLS certificate expiry warnings are never sent as voice calls; if voice calls are your only channel, they follow this setting as well." xml:space="preserve">
+    <value>TLS sertifikası süre uyarıları hiçbir zaman sesli arama olarak gönderilmez; tek kanalınız sesli arama ise bu uyarılar da bu ayara göre gönderilir.</value>
+  </data>
 </root>

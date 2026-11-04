@@ -59,19 +59,25 @@ public static class MonitorStateMachine
     /// confirmation run later than delay + interval + timeout (+ slack) after the failure (process down, backlog)
     /// would backdate an outage to an old failure, so the probe is then evaluated from scratch.
     /// </summary>
-    public static bool HasValidPendingConfirmation(MonitorEntity monitor, DateTime nowUtc, TimeSpan delay)
-    {
-        if (monitor.PendingConfirmationSinceUtc is not { } since || monitor.PendingConfirmationVersion != monitor.Version) return false;
-        var maxAge = delay + TimeSpan.FromSeconds(Math.Max(1, monitor.IntervalSeconds)) + TimeSpan.FromSeconds(Math.Max(1, monitor.TimeoutSeconds)) + PendingConfirmationSlack;
-        return nowUtc - since <= maxAge;
-    }
+    public static bool HasValidPendingConfirmation(MonitorEntity monitor, DateTime nowUtc, TimeSpan delay) =>
+        IsPendingForCurrentVersion(monitor) && nowUtc - monitor.PendingConfirmationSinceUtc!.Value <= MaxPendingAge(monitor, delay);
+
+    /// <summary>How many max ages a late confirmation may be and still count as one (see <see cref="HasExpiredPendingConfirmation"/>).</summary>
+    public const int LateConfirmationFactor = 3;
 
     /// <summary>
-    /// A confirmation is pending for the current Version (nobody changed the monitor) but it is older than allowed by
-    /// <see cref="HasValidPendingConfirmation"/>. Call only when that returned false.
+    /// The confirmation is late (older than <see cref="HasValidPendingConfirmation"/> allows, e.g. sustained scheduler
+    /// lag) but not ancient: up to <see cref="LateConfirmationFactor"/> x the max age. A failing late probe then still
+    /// confirms the outage (dated from that probe). Anything older (e.g. after a long restart) starts over.
     /// </summary>
-    public static bool HasExpiredPendingConfirmation(MonitorEntity monitor) =>
+    public static bool HasExpiredPendingConfirmation(MonitorEntity monitor, DateTime nowUtc, TimeSpan delay) =>
+        IsPendingForCurrentVersion(monitor) && nowUtc - monitor.PendingConfirmationSinceUtc!.Value <= MaxPendingAge(monitor, delay) * LateConfirmationFactor;
+
+    private static bool IsPendingForCurrentVersion(MonitorEntity monitor) =>
         monitor.PendingConfirmationSinceUtc is not null && monitor.PendingConfirmationVersion == monitor.Version;
+
+    private static TimeSpan MaxPendingAge(MonitorEntity monitor, TimeSpan delay) =>
+        delay + TimeSpan.FromSeconds(Math.Max(1, monitor.IntervalSeconds)) + TimeSpan.FromSeconds(Math.Max(1, monitor.TimeoutSeconds)) + PendingConfirmationSlack;
 
     public static void ClearPendingConfirmation(MonitorEntity monitor)
     {

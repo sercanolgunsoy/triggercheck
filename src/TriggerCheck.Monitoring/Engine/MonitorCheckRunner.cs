@@ -181,7 +181,7 @@ public sealed class MonitorCheckRunner(
                 if (transition == StatusTransition.WentDown) transitionAt = failedAt; // the outage started at the first failure
                 logger.LogInformation("Monitor {MonitorId} confirmation probe: {Result}", monitor.Id, outcome.IsUp ? "up (transient failure)" : "failed");
             }
-            else if (MonitorStateMachine.HasExpiredPendingConfirmation(monitor) && !outcome.IsUp)
+            else if (!outcome.IsUp && MonitorStateMachine.HasExpiredPendingConfirmation(monitor, checkedAt, delay))
             {
                 // The confirmation came too late (sustained scheduler lag, downtime) but this probe fails too: two
                 // failures in a row are a confirmed outage. Dated from this probe, not the old failure; restarting the
