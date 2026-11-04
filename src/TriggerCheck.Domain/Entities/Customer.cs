@@ -10,6 +10,11 @@ public class Customer
     public Plan Plan { get; set; } = null!;
     /// <summary>Suspended customers cannot log in and their monitors are not checked.</summary>
     public bool IsActive { get; set; } = true;
+    /// <summary>
+    /// What happens to an alert when the customer has no enabled alert channel: true (default) = e-mail it to
+    /// <see cref="ContactEmail"/> so outages are never silently missed; false = do not send it.
+    /// </summary>
+    public bool AlertContactEmailWhenNoChannel { get; set; } = true;
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 
     public ICollection<Monitor> Monitors { get; set; } = new List<Monitor>();

@@ -32,6 +32,10 @@ public static class SecretMasker
         return Authority(uri) + uri.AbsolutePath + (hasExtra ? "?" + Ellipsis : "");
     }
 
+    /// <summary>Removes every occurrence of <paramref name="secret"/> from <paramref name="text"/> (e.g. an error message).</summary>
+    public static string? Redact(string? text, string? secret) =>
+        string.IsNullOrEmpty(text) || string.IsNullOrEmpty(secret) ? text : text.Replace(secret, Ellipsis, StringComparison.Ordinal);
+
     private static bool TryParse(string? url, out Uri uri) =>
         Uri.TryCreate(url?.Trim(), UriKind.Absolute, out uri!) && !string.IsNullOrEmpty(uri.Host);
 

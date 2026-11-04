@@ -15,6 +15,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
     public DbSet<Incident> Incidents => Set<Incident>();
     public DbSet<AlertChannel> AlertChannels => Set<AlertChannel>();
     public DbSet<Notification> Notifications => Set<Notification>();
+    public DbSet<SmsVoiceUsage> SmsVoiceUsage => Set<SmsVoiceUsage>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -68,6 +69,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
         {
             e.HasOne(x => x.Customer).WithMany(c => c.AlertChannels).HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Cascade);
             e.Property(x => x.Target).HasMaxLength(2048).IsRequired();
+            e.Property(x => x.Secret).HasMaxLength(512);
+        });
+
+        b.Entity<SmsVoiceUsage>(e =>
+        {
+            e.HasKey(x => new { x.CustomerId, x.DayUtc });
+            e.HasOne<Customer>().WithMany().HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Cascade);
         });
 
         b.Entity<Notification>(e =>
