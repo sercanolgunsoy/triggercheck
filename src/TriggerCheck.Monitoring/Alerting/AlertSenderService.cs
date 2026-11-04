@@ -11,6 +11,8 @@ namespace TriggerCheck.Monitoring.Alerting;
 /// <list type="bullet">
 /// <item>Ordering: every monitor has a lane; its alerts are delivered one at a time, in order (DOWN is finished before
 /// the following UP starts). Different monitors run in parallel.</item>
+/// <item>Coalescing: a lane keeps at most one waiting alert, the newest. Older waiting alerts that never started are
+/// recorded as superseded (0 attempts) without being sent.</item>
 /// <item>Supersede: when a newer alert for the same monitor arrives while an older one is waiting to retry, the retry
 /// is dropped and the older alert is recorded as superseded, so a stale DOWN never arrives after the UP.</item>
 /// <item>Fairness: delivery attempts are throttled by <see cref="AlertDeliveryThrottle"/> (global and per customer)
@@ -31,41 +33,45 @@ public sealed class AlertSenderService(
     private readonly CancellationTokenSource _abort = new();
     private readonly object _lock = new();
     private readonly Dictionary<int, Lane> _lanes = new();
+    private readonly ConcurrentDictionary<Task, byte> _running = new();
 
     private sealed class Lane
     {
-        public readonly Queue<AlertMessage> Items = new();
-        /// <summary>Cancelled when a newer alert for the same monitor is waiting behind the current one.</summary>
+        /// <summary>The newest alert waiting behind the one in delivery (null = none).</summary>
+        public AlertMessage? Waiting;
+        /// <summary>
+        /// Cancelled when a newer alert arrives behind the one in delivery. Never disposed: it has no timer, and the
+        /// reader may still cancel it after the delivery finished.
+        /// </summary>
         public CancellationTokenSource? Superseded;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var running = new ConcurrentDictionary<Task, byte>();
         try
         {
             // Not stoppingToken: after StopAsync the queue is completed and the alerts left in it are still delivered.
             await foreach (var message in queue.Reader.ReadAllAsync(_abort.Token))
             {
                 Lane? started = null;
+                AlertMessage? skipped = null;
+                CancellationTokenSource? toCancel = null;
                 lock (_lock)
                 {
                     if (_lanes.TryGetValue(message.MonitorId, out var lane))
                     {
-                        lane.Items.Enqueue(message);
-                        lane.Superseded?.Cancel();
+                        skipped = lane.Waiting;
+                        lane.Waiting = message;
+                        toCancel = lane.Superseded;
                     }
                     else
                     {
-                        started = new Lane();
-                        started.Items.Enqueue(message);
-                        _lanes[message.MonitorId] = started;
+                        _lanes[message.MonitorId] = started = new Lane();
                     }
                 }
-                if (started is null) continue;
-                var task = RunLaneAsync(message.MonitorId, started, stoppingToken);
-                running.TryAdd(task, 0);
-                _ = task.ContinueWith(t => running.TryRemove(t, out _), TaskScheduler.Default);
+                toCancel?.Cancel();
+                if (skipped is not null) Track(RecordSkippedAsync(skipped));
+                if (started is not null) Track(RunLaneAsync(message, started, stoppingToken));
             }
         }
         catch (OperationCanceledException) when (_abort.IsCancellationRequested)
@@ -73,44 +79,50 @@ public sealed class AlertSenderService(
             // drain time is over
         }
 
-        await Task.WhenAll(running.Keys);
+        await Task.WhenAll(_running.Keys);
 
         var dropped = 0;
-        while (queue.Reader.TryRead(out _))
+        while (queue.Reader.TryRead(out var m))
         {
             dropped++;
-            queue.MarkDone();
+            queue.MarkDone(m);
         }
         if (dropped > 0) logger.LogWarning("{Count} queued alert(s) were dropped at shutdown", dropped);
     }
 
-    private async Task RunLaneAsync(int monitorId, Lane lane, CancellationToken stopRetrying)
+    private void Track(Task task)
+    {
+        _running.TryAdd(task, 0);
+        _ = task.ContinueWith(t => _running.TryRemove(t, out _), TaskScheduler.Default);
+    }
+
+    private async Task RunLaneAsync(AlertMessage first, Lane lane, CancellationToken stopRetrying)
     {
         await Task.Yield(); // never deliver on the reader loop
+        var message = first;
         while (true)
         {
-            AlertMessage message;
-            CancellationTokenSource superseded;
-            lock (_lock)
-            {
-                if (lane.Items.Count == 0)
-                {
-                    _lanes.Remove(monitorId);
-                    return;
-                }
-                message = lane.Items.Dequeue();
-                lane.Superseded = superseded = new CancellationTokenSource();
-                if (lane.Items.Count > 0) superseded.Cancel(); // a newer alert is already waiting: no retries
-            }
+            var superseded = new CancellationTokenSource();
+            lock (_lock) lane.Superseded = superseded;
             try
             {
                 await DeliverAsync(message, stopRetrying, superseded.Token);
             }
             finally
             {
-                lock (_lock) lane.Superseded = null;
-                superseded.Dispose();
-                queue.MarkDone();
+                queue.MarkDone(message);
+            }
+
+            lock (_lock)
+            {
+                lane.Superseded = null;
+                if (lane.Waiting is null)
+                {
+                    _lanes.Remove(message.MonitorId);
+                    return;
+                }
+                message = lane.Waiting;
+                lane.Waiting = null;
             }
         }
     }
@@ -130,6 +142,28 @@ public sealed class AlertSenderService(
         catch (Exception ex)
         {
             logger.LogError(ex, "Alert delivery failed for monitor {MonitorId}", message.MonitorId);
+        }
+    }
+
+    private async Task RecordSkippedAsync(AlertMessage message)
+    {
+        try
+        {
+            await Task.Yield();
+            using var scope = scopes.CreateScope();
+            await scope.ServiceProvider.GetRequiredService<IAlertDispatcher>().RecordSupersededAsync(message, _abort.Token);
+        }
+        catch (Exception ex) when (!_abort.IsCancellationRequested)
+        {
+            logger.LogError(ex, "Could not record superseded alert for monitor {MonitorId}", message.MonitorId);
+        }
+        catch (OperationCanceledException)
+        {
+            // shutting down
+        }
+        finally
+        {
+            queue.MarkDone(message);
         }
     }
 

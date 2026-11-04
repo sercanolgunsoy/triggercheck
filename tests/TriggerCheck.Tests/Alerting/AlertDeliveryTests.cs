@@ -266,6 +266,114 @@ public class AlertDeliveryTests
     }
 
     [Fact]
+    public async Task Concurrent_dispatches_respect_the_daily_sms_limit_exactly_and_deletions_do_not_reset_it()
+    {
+        var sms = new RecordingNotifier(AlertChannelType.Sms);
+        await using var host = await MonitoringTestHost.CreateAsync(s => s.ReplaceNotifiers(sms),
+            new(Twilio) { ["Alerting:SmsVoiceDailyLimitPerCustomer"] = "3" });
+        var customer = await host.AddCustomerAsync();
+        var monitor = await host.AddMonitorAsync(customer.Id);
+        await host.WithDbAsync(db => db.Plans.ExecuteUpdateAsync(s => s.SetProperty(p => p.AllowsSmsVoice, true)));
+        await AddChannelAsync(host, customer.Id, AlertChannelType.Sms, "+905551234567");
+
+        await Task.WhenAll(Enumerable.Range(0, 10).Select(_ =>
+            host.InScopeAsync(sp => sp.GetRequiredService<IAlertDispatcher>().DispatchAsync(Down(monitor.Id, customer.Id)))));
+
+        Assert.Equal(3, sms.Sent.Count);
+        Assert.Equal(7, await host.WithDbAsync(db => db.Notifications.CountAsync(n => n.Error == AlertDispatcher.DailyLimitError)));
+
+        // Deleting the channel, its notifications and the monitor does not give the budget back.
+        await host.WithDbAsync(async db =>
+        {
+            await db.Notifications.ExecuteDeleteAsync();
+            await db.AlertChannels.ExecuteDeleteAsync();
+        });
+        await AddChannelAsync(host, customer.Id, AlertChannelType.VoiceCall, "+905551234567");
+        await host.InScopeAsync(sp => sp.GetRequiredService<IAlertDispatcher>().DispatchAsync(Down(monitor.Id, customer.Id)));
+        Assert.Equal(AlertDispatcher.DailyLimitError, (await host.WithDbAsync(db => db.Notifications.SingleAsync())).Error);
+    }
+
+    [Fact]
+    public async Task Sms_slot_is_given_back_when_the_request_never_reached_the_provider()
+    {
+        var sms = new ScriptedNotifier(AlertChannelType.Sms, (_, _, _) => Task.FromResult(NotifyResult.Transient("Connection refused"))) { Idempotent = false };
+        await using var host = await MonitoringTestHost.CreateAsync(s => s.ReplaceNotifiers(sms), Twilio);
+        var customer = await host.AddCustomerAsync();
+        var monitor = await host.AddMonitorAsync(customer.Id);
+        await host.WithDbAsync(db => db.Plans.ExecuteUpdateAsync(s => s.SetProperty(p => p.AllowsSmsVoice, true)));
+        await AddChannelAsync(host, customer.Id, AlertChannelType.Sms, "+905551234567");
+
+        // stopRetrying already set: one attempt, then the failure is recorded.
+        await host.InScopeAsync(sp => sp.GetRequiredService<IAlertDispatcher>().DispatchAsync(Down(monitor.Id, customer.Id), default, new CancellationToken(true)));
+
+        Assert.Single(sms.Calls);
+        Assert.Equal(0, await host.WithDbAsync(db => db.SmsVoiceUsage.SumAsync(u => u.Count)));
+    }
+
+    [Fact]
+    public async Task Waiting_alerts_of_a_monitor_are_coalesced_to_the_newest()
+    {
+        var release = new TaskCompletionSource<NotifyResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var first = true;
+        var notifier = new ScriptedNotifier(AlertChannelType.Webhook, (_, _, _) =>
+        {
+            if (!first) return Task.FromResult(NotifyResult.Ok);
+            first = false;
+            return release.Task;
+        });
+        await using var host = await MonitoringTestHost.CreateAsync(s => s.ReplaceNotifiers(notifier));
+        var customer = await host.AddCustomerAsync();
+        var monitor = await host.AddMonitorAsync(customer.Id);
+        await AddChannelAsync(host, customer.Id, AlertChannelType.Webhook, "https://hooks.example.test/x");
+        var down = Down(monitor.Id, customer.Id);
+        var up = down with { Kind = AlertKind.Up, Error = null };
+
+        host.Alerts.TryEnqueue(down);
+        await WaitUntilAsync(() => notifier.Calls.Count == 1); // first DOWN in delivery
+        host.Alerts.TryEnqueue(up);
+        host.Alerts.TryEnqueue(down);
+        host.Alerts.TryEnqueue(up);                           // only this one is still worth sending
+        await WaitUntilAsync(() => host.Alerts.Pending == 2); // the two skipped ones are recorded
+        release.SetResult(NotifyResult.Ok);
+        await host.AlertsIdleAsync();
+
+        Assert.Equal([AlertKind.Down, AlertKind.Up], notifier.Calls.Select(c => c.Kind));
+        var rows = await host.WithDbAsync(db => db.Notifications.ToListAsync());
+        Assert.Equal(4, rows.Count);
+        Assert.Equal(2, rows.Count(n => n.Error == AlertDispatcher.SupersededError && n.Attempts == 0));
+    }
+
+    [Fact]
+    public async Task A_noisy_customer_cannot_fill_the_queue_for_everybody()
+    {
+        var notifier = new ScriptedNotifier(AlertChannelType.Webhook, (t, _, _) => t.Address.Contains("broken")
+            ? new TaskCompletionSource<NotifyResult>().Task
+            : Task.FromResult(NotifyResult.Ok));
+        await using var host = await MonitoringTestHost.CreateAsync(s => s.ReplaceNotifiers(notifier),
+            new() { ["Alerting:QueueCapacityPerCustomer"] = "5", ["Alerting:QueueCapacity"] = "8" });
+        var noisy = await host.AddCustomerAsync();
+        var quiet = await host.AddCustomerAsync();
+        await AddChannelAsync(host, noisy.Id, AlertChannelType.Webhook, "https://broken.example.test/x");
+        await AddChannelAsync(host, quiet.Id, AlertChannelType.Webhook, "https://ok.example.test/x");
+
+        var accepted = 0;
+        for (var i = 0; i < 10; i++)
+        {
+            var m = await host.AddMonitorAsync(noisy.Id);
+            if (host.Alerts.TryEnqueue(Down(m.Id, noisy.Id))) accepted++;
+        }
+        Assert.Equal(5, accepted);
+
+        var quietMonitor = await host.AddMonitorAsync(quiet.Id);
+        Assert.True(host.Alerts.TryEnqueue(Down(quietMonitor.Id, quiet.Id)));
+        await WaitUntilAsync(() => notifier.Calls.Any(c => c.Target.Contains("ok.example")));
+
+        await host.AdvanceUntilAlertsIdleAsync(maxSimulated: TimeSpan.FromHours(2));
+        Assert.True(await host.WithDbAsync(db => db.Notifications.AnyAsync(n => n.MonitorId == quietMonitor.Id && n.Success)));
+        Assert.Equal(0, host.Services.GetRequiredService<AlertDeliveryThrottle>().CustomerCount); // idle semaphores evicted
+    }
+
+    [Fact]
     public async Task Non_idempotent_channel_is_not_retried_after_a_timeout()
     {
         var hanging = new ScriptedNotifier(AlertChannelType.Webhook, (_, _, _) => new TaskCompletionSource<NotifyResult>().Task) { Idempotent = false };

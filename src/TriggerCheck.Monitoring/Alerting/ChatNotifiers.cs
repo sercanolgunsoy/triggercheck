@@ -50,7 +50,7 @@ public sealed partial class SlackNotifier(IHttpClientFactory httpClientFactory) 
     /// <summary>Slack limits: section text 3000 characters, each field 2000 (kept below with some margin).</summary>
     public const int MaxSectionText = 3000, MaxFieldText = 1900;
 
-    private static string Cut(string s, int max) => s.Length <= max ? s : s[..(max - 1)] + "…";
+    private static string Cut(string s, int max) => AlertText.Cut(s, max);
 
     private static JsonObject Section(string text) => new() { ["type"] = "section", ["text"] = Mrkdwn(text) };
     private static JsonObject Mrkdwn(string text) => new() { ["type"] = "mrkdwn", ["text"] = text };
@@ -150,4 +150,36 @@ public sealed partial class TelegramNotifier(IHttpClientFactory httpClientFactor
         ["text"] = m.Subject + "\n\n" + m.MaskedBody,
         ["disable_web_page_preview"] = true
     };
+}
+
+public static class AlertText
+{
+    /// <summary>
+    /// Shortens <paramref name="s"/> to at most <paramref name="max"/> characters (ending in "…") without splitting a
+    /// surrogate pair or an HTML entity such as <c>&amp;amp;</c> produced by escaping.
+    /// </summary>
+    public static string Cut(string s, int max)
+    {
+        if (s.Length <= max) return s;
+        var end = Math.Max(0, max - 1);
+        if (end > 0 && char.IsHighSurrogate(s[end - 1])) end--;
+        if (end > 0)
+        {
+            var amp = s.LastIndexOf('&', end - 1, Math.Min(end, 4)); // escaped entities are at most 5 chars long
+            if (amp >= 0 && s.IndexOf(';', amp, end - amp) < 0) end = amp;
+        }
+        return s[..end] + "…";
+    }
+
+    /// <summary>Drops characters XML does not allow (control characters, lone surrogates); keeps valid surrogate pairs.</summary>
+    public static string XmlSafe(string s)
+    {
+        var sb = new System.Text.StringBuilder(s.Length);
+        for (var i = 0; i < s.Length; i++)
+        {
+            if (char.IsSurrogatePair(s, i)) { sb.Append(s, i, 2); i++; }
+            else if (System.Xml.XmlConvert.IsXmlChar(s[i])) sb.Append(s[i]);
+        }
+        return sb.ToString();
+    }
 }

@@ -7,6 +7,8 @@ public class AlertingOptions
 
     /// <summary>Alerts queued or in delivery (incl. retry waits). When reached, new alerts are dropped and logged as errors.</summary>
     public int QueueCapacity { get; set; } = 1000;
+    /// <summary>Same as <see cref="QueueCapacity"/> but per customer, so one tenant cannot fill the queue for everybody.</summary>
+    public int QueueCapacityPerCustomer { get; set; } = 100;
     /// <summary>Delivery attempts running at the same time, over all customers. Retry waits do not hold a slot.</summary>
     public int MaxConcurrency { get; set; } = 10;
     /// <summary>Delivery attempts of one customer running at the same time (keeps one tenant's broken endpoint from taking every slot).</summary>

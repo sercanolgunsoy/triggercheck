@@ -84,7 +84,7 @@ public sealed class TwilioSmsNotifier(IHttpClientFactory f, IOptionsMonitor<Twil
             _ => $"TriggerCheck UP: {AlertMessage.OneLine(m.MonitorName)} ({m.MaskedTarget}) {m.OccurredAtUtc:HH:mm} UTC"
                  + (m.DowntimeText is { } d ? $", down for {d}" : "")
         };
-        return text.Length <= MaxLength ? text : text[..(MaxLength - 1)] + "…";
+        return AlertText.Cut(text, MaxLength);
     }
 }
 
@@ -106,7 +106,7 @@ public sealed class TwilioVoiceNotifier(IHttpClientFactory f, IOptionsMonitor<Tw
             _ => "This is a test call from TriggerCheck. Your alert channel works."
         };
         // Control characters are not allowed in XML at all (escaping does not help): drop them.
-        var clean = new string(speech.Where(System.Xml.XmlConvert.IsXmlChar).ToArray());
+        var clean = AlertText.XmlSafe(speech);
         return $"<Response><Say loop=\"2\">{SecurityElement.Escape(clean)}</Say></Response>";
     }
 }

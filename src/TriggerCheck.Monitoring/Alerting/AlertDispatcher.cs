@@ -21,6 +21,12 @@ public interface IAlertDispatcher
         CancellationToken stopRetrying = default, CancellationToken superseded = default);
 
     /// <summary>
+    /// Records an alert that was never sent because a newer alert for the same monitor replaced it while it was still
+    /// waiting: one failed Notification (0 attempts) per channel it would have gone to.
+    /// </summary>
+    Task RecordSupersededAsync(AlertMessage message, CancellationToken ct = default);
+
+    /// <summary>
     /// "Send test notification": one attempt (with timeout) to the customer's channel, enabled or not. Nothing is
     /// recorded. Returns null when the channel does not exist or belongs to another customer.
     /// </summary>
@@ -36,7 +42,9 @@ public interface IAlertDispatcher
 /// recorded as failed. If no deliverable channel is enabled, the alert is e-mailed to <c>Customer.ContactEmail</c>
 /// (Notification.AlertChannelId = null) unless the customer turned that off
 /// (<see cref="Customer.AlertContactEmailWhenNoChannel"/>).
-/// SMS / voice deliveries are capped per customer and UTC day (<see cref="AlertingOptions.SmsVoiceDailyLimitPerCustomer"/>).
+/// SMS / voice deliveries are capped per customer and UTC day (<see cref="AlertingOptions.SmsVoiceDailyLimitPerCustomer"/>):
+/// a slot is reserved atomically in <see cref="SmsVoiceUsage"/> before sending and given back only when the request
+/// certainly did not reach the provider.
 /// </summary>
 public sealed class AlertDispatcher(
     IDbContextFactory<AppDbContext> dbFactory,
@@ -56,7 +64,36 @@ public sealed class AlertDispatcher(
         CancellationToken stopRetrying = default, CancellationToken superseded = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var deliveries = await ResolveAsync(db, message, ct);
+        if (deliveries.Count == 0) return [];
 
+        var notifications = await Task.WhenAll(deliveries.Select(d => DeliverAsync(d.Target, d.Blocked, message, ct, stopRetrying, superseded)));
+        await SaveAsync(db, message, notifications);
+        return notifications;
+    }
+
+    public async Task RecordSupersededAsync(AlertMessage message, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var deliveries = await ResolveAsync(db, message, ct);
+        var now = time.GetUtcNow().UtcDateTime;
+        var notifications = deliveries.Select(d => new Notification
+        {
+            MonitorId = message.MonitorId,
+            AlertChannelId = d.Target.ChannelId,
+            SentAtUtc = now,
+            Subject = message.Subject,
+            Success = false,
+            Error = SupersededError,
+            Attempts = 0
+        }).ToArray();
+        logger.LogInformation("Alert '{Subject}' for monitor {MonitorId} superseded by a newer alert before it was sent", message.Subject, message.MonitorId);
+        await SaveAsync(db, message, notifications);
+    }
+
+    /// <summary>The channels an alert goes to, each with the reason it cannot be delivered (null = deliverable).</summary>
+    private async Task<List<(Target Target, string? Blocked)>> ResolveAsync(AppDbContext db, AlertMessage message, CancellationToken ct)
+    {
         var customer = await db.Customers.AsNoTracking()
             .Where(c => c.Id == message.CustomerId)
             .Select(c => new { c.ContactEmail, c.AlertContactEmailWhenNoChannel, c.Plan.AllowsSmsVoice })
@@ -73,9 +110,7 @@ public sealed class AlertDispatcher(
             .Select(c => new Target((int?)c.Id, c.Type, c.Target, c.Secret))
             .ToListAsync(ct);
 
-        var smsVoiceAllowed = customer.AllowsSmsVoice;
-        var deliveries = channels.Select(t => (Target: t, Blocked: Undeliverable(t.Type, smsVoiceAllowed, twilio.CurrentValue))).ToList();
-
+        var deliveries = channels.Select(t => (Target: t, Blocked: Undeliverable(t.Type, customer.AllowsSmsVoice, twilio.CurrentValue))).ToList();
         if (deliveries.All(d => d.Blocked is not null))
         {
             if (!customer.AlertContactEmailWhenNoChannel)
@@ -87,29 +122,20 @@ public sealed class AlertDispatcher(
             else
                 deliveries.Add((new Target(null, AlertChannelType.Email, customer.ContactEmail, null), null));
         }
-        if (deliveries.Count == 0) return [];
+        return deliveries;
+    }
 
-        // Daily SMS / voice budget (cost protection). Concurrent alerts of one customer may overshoot it slightly.
-        var smsVoice = deliveries.Count(d => d.Blocked is null && IsSmsOrVoice(d.Target.Type));
-        if (smsVoice > 0)
-        {
-            var left = options.Value.SmsVoiceDailyLimitPerCustomer - await CountSmsVoiceTodayAsync(db, message.CustomerId, ct);
-            for (var i = 0; i < deliveries.Count; i++)
-                if (deliveries[i].Blocked is null && IsSmsOrVoice(deliveries[i].Target.Type) && left-- <= 0)
-                    deliveries[i] = (deliveries[i].Target, DailyLimitError);
-        }
-
-        var notifications = await Task.WhenAll(deliveries.Select(d => DeliverAsync(d.Target, d.Blocked, message, ct, stopRetrying, superseded)));
-
+    private async Task SaveAsync(AppDbContext db, AlertMessage message, Notification[] notifications)
+    {
+        if (notifications.Length == 0) return;
         // The monitor may have been deleted while we were sending (Notifications have no FK): do not leave orphans.
         if (message.MonitorId != 0 && !await db.Monitors.AnyAsync(m => m.Id == message.MonitorId, CancellationToken.None))
         {
             logger.LogDebug("Monitor {MonitorId} was deleted during alert delivery; notifications not recorded", message.MonitorId);
-            return notifications;
+            return;
         }
         db.Notifications.AddRange(notifications);
         await db.SaveChangesAsync(CancellationToken.None);
-        return notifications;
     }
 
     public async Task<NotifyResult?> SendTestAsync(int customerId, int channelId, CancellationToken ct = default)
@@ -137,15 +163,42 @@ public sealed class AlertDispatcher(
         : !twilio.IsConfigured ? TwilioNotifier.NotConfiguredError
         : null;
 
-    /// <summary>SMS / voice deliveries actually attempted today (UTC) for the customer.</summary>
-    private async Task<int> CountSmsVoiceTodayAsync(AppDbContext db, int customerId, CancellationToken ct)
+    /// <summary>
+    /// Takes one SMS / voice slot of today's budget atomically (SQLite serializes the conditional UPDATE, so concurrent
+    /// deliveries cannot overshoot). Returns the UTC day charged, or null when the limit is reached.
+    /// </summary>
+    private async Task<DateTime?> TryReserveSmsVoiceAsync(int customerId, CancellationToken ct)
     {
-        var dayStart = time.GetUtcNow().UtcDateTime.Date;
-        return await db.Notifications
-            .Where(n => n.SentAtUtc >= dayStart && n.Attempts > 0)
-            .Join(db.AlertChannels.Where(c => c.CustomerId == customerId && (c.Type == AlertChannelType.Sms || c.Type == AlertChannelType.VoiceCall)),
-                n => n.AlertChannelId, c => (int?)c.Id, (n, c) => n.Id)
-            .CountAsync(ct);
+        var limit = options.Value.SmsVoiceDailyLimitPerCustomer;
+        var day = time.GetUtcNow().UtcDateTime.Date;
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        for (var i = 0; i < 2; i++)
+        {
+            var taken = await db.SmsVoiceUsage
+                .Where(u => u.CustomerId == customerId && u.DayUtc == day && u.Count < limit)
+                .ExecuteUpdateAsync(s => s.SetProperty(u => u.Count, u => u.Count + 1), ct);
+            if (taken == 1) return day;
+            if (await db.SmsVoiceUsage.AnyAsync(u => u.CustomerId == customerId && u.DayUtc == day, ct)) return null;
+            try
+            {
+                db.SmsVoiceUsage.Add(new SmsVoiceUsage { CustomerId = customerId, DayUtc = day, Count = 0 });
+                await db.SaveChangesAsync(ct);
+            }
+            catch (DbUpdateException)
+            {
+                // created concurrently: retry the update
+            }
+            db.ChangeTracker.Clear();
+        }
+        return null;
+    }
+
+    private async Task ReleaseSmsVoiceAsync(int customerId, DateTime day)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(CancellationToken.None);
+        await db.SmsVoiceUsage
+            .Where(u => u.CustomerId == customerId && u.DayUtc == day && u.Count > 0)
+            .ExecuteUpdateAsync(s => s.SetProperty(u => u.Count, u => u.Count - 1));
     }
 
     private async Task<Notification> DeliverAsync(Target target, string? blocked, AlertMessage message,
@@ -153,6 +206,13 @@ public sealed class AlertDispatcher(
     {
         NotifyResult result;
         var attempts = 0;
+        DateTime? reservedDay = null;
+        var maybeSent = false; // some attempt may have reached the provider (success or an unknown / final outcome)
+        if (blocked is null && IsSmsOrVoice(target.Type))
+        {
+            reservedDay = await TryReserveSmsVoiceAsync(message.CustomerId, ct);
+            if (reservedDay is null) blocked = DailyLimitError;
+        }
         if (blocked is not null)
         {
             result = NotifyResult.Fail(blocked);
@@ -163,6 +223,7 @@ public sealed class AlertDispatcher(
             {
                 attempts++;
                 result = await AttemptAsync(target, message, ct, throttled: true);
+                maybeSent |= result.Success || !result.Retryable;
                 if (result.Success || !result.Retryable || attempts >= AlertingOptions.MaxAttempts
                     || ct.IsCancellationRequested || stopRetrying.IsCancellationRequested)
                     break;
@@ -187,6 +248,10 @@ public sealed class AlertDispatcher(
                 }
             }
         }
+
+        // Only failures that certainly did not reach the provider (retryable for a non-idempotent channel means
+        // 429 / 503 / not sent at all) give the SMS / voice slot back.
+        if (reservedDay is { } day && !maybeSent) await ReleaseSmsVoiceAsync(message.CustomerId, day);
 
         Log(target, message, result, attempts);
         return new Notification

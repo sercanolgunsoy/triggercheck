@@ -251,6 +251,25 @@ public class ChannelPayloadTests
         System.Xml.Linq.XDocument.Parse(twiml); // well-formed
     }
 
+    [Theory]
+    [InlineData("abcdef&amp;gh", 9, "abcdef…")]   // would split "&amp;"
+    [InlineData("abcdef&amp;gh", 12, "abcdef&amp;…")]
+    [InlineData("abcd\U0001F600xyz", 6, "abcd…")]  // would split the emoji's surrogate pair
+    [InlineData("short", 10, "short")]
+    public void Cut_never_splits_entities_or_surrogate_pairs(string input, int max, string expected)
+    {
+        var cut = AlertText.Cut(input, max);
+        Assert.Equal(expected, cut);
+        Assert.True(cut.Length <= max);
+    }
+
+    [Fact]
+    public void Xml_safe_text_keeps_surrogate_pairs_and_drops_control_characters()
+    {
+        Assert.Equal("a\U0001F600b", AlertText.XmlSafe("a\u0001\U0001F600\u0007b"));
+        Assert.Equal("ab", AlertText.XmlSafe("a\uD800b")); // lone surrogate dropped
+    }
+
     [Fact]
     public async Task Http_status_decides_whether_to_retry()
     {
