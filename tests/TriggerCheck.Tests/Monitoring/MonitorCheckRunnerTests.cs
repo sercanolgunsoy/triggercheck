@@ -182,7 +182,8 @@ public class MonitorCheckRunnerTests
         var result = await host.RunCheckAsync(monitor.Id);
 
         Assert.False(result.IsUp);
-        Assert.Contains("boom", result.Error);
+        Assert.Equal("Internal checker error", result.Error); // exception details stay in the log
+        Assert.DoesNotContain("boom", (await host.GetMonitorAsync(monitor.Id)).LastError);
         Assert.Equal(MonitorStatus.Down, (await host.GetMonitorAsync(monitor.Id)).Status);
         var n = await host.WithDbAsync(db => db.Notifications.SingleAsync());
         Assert.False(n.Success);

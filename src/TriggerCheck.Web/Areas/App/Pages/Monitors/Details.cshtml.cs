@@ -5,6 +5,7 @@ using TriggerCheck.Domain;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Monitoring;
+using TriggerCheck.Monitoring.Engine;
 using TriggerCheck.Monitoring.Stats;
 using TriggerCheck.Web.Infrastructure;
 using TriggerCheck.Web.Localization;
@@ -13,7 +14,7 @@ using MonitorEntity = TriggerCheck.Domain.Entities.Monitor;
 namespace TriggerCheck.Web.Areas.App.Pages.Monitors;
 
 /// <summary>Readable by all customer members; the POST handlers (pause/resume/check now) are CustomerAdmin only.</summary>
-public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStatsService stats, ILogger<DetailsModel> logger, Text<AppResource> L,
+public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStatsService stats, MonitorLifecycle lifecycle, ILogger<DetailsModel> logger, Text<AppResource> L,
     ManualCheckLimiter limiter) : PageModel
 {
     public const int MaxChartPoints = 300;
@@ -86,44 +87,33 @@ public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStat
     private IActionResult Back(int id, string? returnTo) =>
         returnTo == "list" ? RedirectToPage("Index") : RedirectToPage("Details", new { id });
 
+    /// <summary>Pause/resume kept losing optimistic-concurrency races (very unlikely): ask the user to retry.</summary>
+    private IActionResult ConcurrencyConflict(int id, string? returnTo)
+    {
+        TempData["Error"] = L["This monitor was changed in the meantime (for example paused or edited by someone else). Reload the page and try again."].Value;
+        return Back(id, returnTo);
+    }
+
     public async Task<IActionResult> OnPostPauseAsync(int id, string? returnTo, CancellationToken ct)
     {
         if (!IsAdmin) return Forbid();
-        var m = await FindAsync(id, ct);
-        if (m is null) return NotFound();
-
-        if (m.Status != MonitorStatus.Paused)
-        {
-            var now = DateTime.UtcNow;
-            m.Status = MonitorStatus.Paused;
-            m.IsEnabled = false;
-            m.StatusChangedAtUtc = now;
-            // A paused monitor is no longer observed: close any open downtime so it doesn't stay open forever.
-            var open = await db.Incidents.Where(i => i.MonitorId == m.Id && i.ResolvedAtUtc == null).ToListAsync(ct);
-            foreach (var i in open) i.ResolvedAtUtc = now;
-            await db.SaveChangesAsync(ct);
-        }
-        TempData["Success"] = L["\"{0}\" was paused. It will not be checked until it is resumed.", m.Name].Value;
+        // Closes any open incident; see MonitorLifecycle for the shared pause/resume semantics.
+        MonitorLifecycleResult? r;
+        try { r = await lifecycle.PauseAsync(id, current.RequiredCustomerId, ct); }
+        catch (DbUpdateConcurrencyException) { return ConcurrencyConflict(id, returnTo); }
+        if (r is null) return NotFound();
+        TempData["Success"] = L["\"{0}\" was paused. It will not be checked until it is resumed.", r.Name].Value;
         return Back(id, returnTo);
     }
 
     public async Task<IActionResult> OnPostResumeAsync(int id, string? returnTo, CancellationToken ct)
     {
         if (!IsAdmin) return Forbid();
-        var m = await FindAsync(id, ct);
-        if (m is null) return NotFound();
-
-        var now = DateTime.UtcNow;
-        if (m.Status == MonitorStatus.Paused || !m.IsEnabled)
-        {
-            m.Status = MonitorStatus.Unknown;
-            m.IsEnabled = true;
-            m.ConsecutiveFailures = 0;
-            m.StatusChangedAtUtc = now;
-            m.NextCheckAtUtc = now;
-            await db.SaveChangesAsync(ct);
-        }
-        TempData["Success"] = L["\"{0}\" is being monitored again.", m.Name].Value;
+        MonitorLifecycleResult? r;
+        try { r = await lifecycle.ResumeAsync(id, current.RequiredCustomerId, ct); }
+        catch (DbUpdateConcurrencyException) { return ConcurrencyConflict(id, returnTo); }
+        if (r is null) return NotFound();
+        TempData["Success"] = L["\"{0}\" is being monitored again.", r.Name].Value;
         return Back(id, returnTo);
     }
 
@@ -164,6 +154,15 @@ public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStat
             var http = r.StatusCode is int sc ? $" (HTTP {sc})" : "";
             if (r.IsUp) TempData["Success"] = L["Check succeeded: {0}{1}.", Fmt.Ms(r.ResponseTimeMs), http].Value;
             else TempData["Error"] = L["Check failed: {0}{1}.", r.Error ?? L["an unknown error"].Value, http].Value;
+        }
+        catch (MonitorCheckDiscardedException ex) when (ex.MonitorDeleted)
+        {
+            TempData["Error"] = L["The monitor was deleted while it was being checked."].Value;
+            return RedirectToPage("Index");
+        }
+        catch (MonitorCheckDiscardedException)
+        {
+            TempData["Error"] = L["The monitor settings were changed while it was being checked. The result was discarded; run the check again."].Value;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

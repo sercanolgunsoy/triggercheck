@@ -35,6 +35,18 @@ public class Monitor
     public int? LastResponseTimeMs { get; set; }
     public string? LastError { get; set; }
     public DateTime? StatusChangedAtUtc { get; set; }
+    /// <summary>
+    /// Set when the monitor was paused while it was Down (its incident is closed on pause). The first successful
+    /// check after resuming then sends an UP alert, so subscribers are not left with a DOWN as the last word.
+    /// </summary>
+    public bool DownWhenPaused { get; set; }
+
+    /// <summary>
+    /// Application-managed optimistic concurrency token (SQLite has no rowversion). Bumped by user changes (edit,
+    /// pause, resume, SuperAdmin interval clamp / reactivation) and by the check runner whenever it changes Status or
+    /// opens/closes an incident. Writers that lose the race get a concurrency exception and retry on fresh state.
+    /// </summary>
+    public int Version { get; set; }
 
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 

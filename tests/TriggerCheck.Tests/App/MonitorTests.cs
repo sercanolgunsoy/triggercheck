@@ -1,8 +1,14 @@
 using System.Net;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using TriggerCheck.Infrastructure.Data;
+using TriggerCheck.Tests.Monitoring;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Tests.Infrastructure;
 using static TriggerCheck.Tests.App.AppTestData;
+using MonitorEntity = TriggerCheck.Domain.Entities.Monitor;
 
 namespace TriggerCheck.Tests.App;
 
@@ -281,5 +287,59 @@ public class MonitorTests : IClassFixture<TestWebAppFactory>
         Assert.Contains("DashDown", html);
         Assert.Contains("DashCause", html);
         Assert.Contains("http-equiv=\"refresh\"", html);
+    }
+}
+
+/// <summary>Edit page retry on the Monitor concurrency token (a check or delete lands between its read and save).</summary>
+public class MonitorEditConcurrencyTests
+{
+    private sealed class HookedFactory(SaveHook hook) : TestWebAppFactory
+    {
+        protected override void ConfigureWebHost(IWebHostBuilder builder)
+        {
+            base.ConfigureWebHost(builder);
+            builder.ConfigureTestServices(s => s.ConfigureDbContext<AppDbContext>(o => o.AddInterceptors(hook)));
+        }
+    }
+
+    private static SaveHook HookOnEditSave() =>
+        new(db => db.ChangeTracker.Entries<MonitorEntity>().Any(e => e.State == EntityState.Modified && e.Entity.Name.StartsWith("Edited")));
+
+    [Fact]
+    public async Task Edit_retries_on_concurrent_status_change_and_keeps_both_changes()
+    {
+        var hook = HookOnEditSave();
+        using var f = new HookedFactory(hook);
+        var id = await f.AddMonitorAsync(await f.DemoCustomerIdAsync(), "Racy", m => m.Status = MonitorStatus.Up);
+        // Simulates a check that takes the monitor Down (and bumps the token) right before the edit is saved.
+        hook.Action = () => f.WithDbAsync(db => db.Monitors.Where(m => m.Id == id).ExecuteUpdateAsync(s => s
+            .SetProperty(m => m.Status, MonitorStatus.Down).SetProperty(m => m.Version, m => m.Version + 1)));
+        var c = await f.LoginAsync(TestWebAppFactory.DemoAdminEmail, TestWebAppFactory.DemoAdminPassword);
+        var target = (await f.GetMonitorAsync(id))!.Target;
+
+        var r = await c.PostFormAsync($"/App/Monitors/Edit/{id}", MonitorForm("Edited-Racy", ("Input.Target", target), ("Input.IntervalSeconds", "300")));
+
+        AssertRedirect(r, "/Details/");
+        Assert.True(hook.Fired);
+        var m = (await f.GetMonitorAsync(id))!;
+        Assert.Equal("Edited-Racy", m.Name);           // form applied on the retry
+        Assert.Equal(MonitorStatus.Down, m.Status);    // concurrent runtime change preserved
+        Assert.Equal(2, m.Version);                    // concurrent bump + edit bump
+    }
+
+    [Fact]
+    public async Task Edit_of_monitor_deleted_meanwhile_returns_not_found()
+    {
+        var hook = HookOnEditSave();
+        using var f = new HookedFactory(hook);
+        var id = await f.AddMonitorAsync(await f.DemoCustomerIdAsync(), "Doomed");
+        hook.Action = () => f.WithDbAsync(db => db.Monitors.Where(m => m.Id == id).ExecuteDeleteAsync());
+        var c = await f.LoginAsync(TestWebAppFactory.DemoAdminEmail, TestWebAppFactory.DemoAdminPassword);
+
+        var r = await c.PostFormAsync($"/App/Monitors/Edit/{id}", MonitorForm("Edited-Doomed", ("Input.IntervalSeconds", "300")));
+
+        Assert.True(hook.Fired);
+        Assert.Equal(HttpStatusCode.NotFound, r.StatusCode);
+        Assert.Null(await f.GetMonitorAsync(id));
     }
 }

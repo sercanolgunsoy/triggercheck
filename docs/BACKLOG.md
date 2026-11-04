@@ -58,7 +58,7 @@ ID formatı: `<EPIC>-<no>`. Bağımlılıklar "→" ile gösterilir.
 
 | ID | İş | Öncelik | Boyut | Kabul kriteri | Ref |
 |----|----|---------|-------|---------------|-----|
-| OPS-1 | **EF Core migrations.** `EnsureCreated` kaldırılır, ilk migration oluşturulur; başlangıçta migrate (veya ayrı adım). | P0 | S | Boş DB ve mevcut DB üzerinde migrate sorunsuz. | PLAN |
+| OPS-1 | **EF Core migrations.** `EnsureCreated` kaldırılır, ilk migration oluşturulur; başlangıçta migrate (veya ayrı adım). Paralel geliştirmede snapshot çakışmalarını önlemek için bilinçli olarak en sona bırakıldı. **O zamana kadar** dalga 1 yeni kolon eklediği için (`Monitor.Version`, `Monitor.DownWhenPaused`, `AspNetUsers.MustChangePassword`) mevcut yerel `triggercheck.db` silinmelidir. | P0 | S | Boş DB ve `EnsureCreated` ile oluşturulmuş mevcut DB üzerinde migrate sorunsuz (mevcut DB baseline'lanır). | PLAN |
 | OPS-2 | **PostgreSQL desteği.** Provider seçimi config ile; testler iki provider'da da koşar. | P1 | M | CI'da Postgres container'ı ile testler yeşil. | PLAN |
 | OPS-3 | **Çoklu instance scheduler.** DB tabanlı lease (`NextCheckAtUtc` + `LeasedUntil` + `SELECT … FOR UPDATE SKIP LOCKED`) veya kuyruk. | P2 | L | 2 instance'ta aynı monitör iki kez kontrol edilmez. | PLAN |
 | OPS-4 | **Gözlemlenebilirlik.** OpenTelemetry (trace + metric): kontrol sayısı, gecikme, kuyruk derinliği, bildirim hataları. Health endpoint (`/healthz`, scheduler heartbeat dahil). | P1 | M | Dashboard'da "scheduler son tur" metriği; 2 dk tur yoksa health kırmızı. | n/a |

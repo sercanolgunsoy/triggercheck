@@ -64,7 +64,11 @@ public sealed class MonitoringTestHost : IAsyncDisposable
 
         var sp = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = true });
         using (var scope = sp.CreateScope())
-            await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.EnsureCreatedAsync();
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await db.Database.EnsureCreatedAsync(); // same startup steps as DbSeeder
+            await db.EnableSqliteWalAsync();
+        }
         return new MonitoringTestHost(dbPath, time, sp);
     }
 
@@ -115,6 +119,26 @@ public sealed class MonitoringTestHost : IAsyncDisposable
         await Services.DisposeAsync();
         SqliteConnection.ClearAllPools();
         try { File.Delete(_dbPath); } catch { /* ignore */ }
+    }
+}
+
+/// <summary>
+/// Runs <see cref="Action"/> once, inside the first SaveChanges matching the predicate, before it executes.
+/// Used to make a concurrent change land deterministically between a read and the following save.
+/// </summary>
+public sealed class SaveHook(Func<DbContext, bool> when) : Microsoft.EntityFrameworkCore.Diagnostics.SaveChangesInterceptor
+{
+    private int _fired;
+    public Func<Task>? Action { get; set; }
+    public bool Fired => _fired == 1;
+
+    public override async ValueTask<Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<int>> SavingChangesAsync(
+        Microsoft.EntityFrameworkCore.Diagnostics.DbContextEventData eventData,
+        Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<int> result, CancellationToken cancellationToken = default)
+    {
+        if (Action is not null && eventData.Context is { } db && when(db) && Interlocked.Exchange(ref _fired, 1) == 0)
+            await Action();
+        return result;
     }
 }
 

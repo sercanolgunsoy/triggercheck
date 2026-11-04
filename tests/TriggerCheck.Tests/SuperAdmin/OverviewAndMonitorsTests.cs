@@ -109,4 +109,27 @@ public class OverviewAndMonitorsTests
         Assert.Equal(MonitorStatus.Unknown, m.Status);
         Assert.NotNull(m.NextCheckAtUtc);
     }
+
+    [Fact]
+    public async Task Superadmin_pause_closes_open_incident_like_the_customer_panel()
+    {
+        using var f = new TestWebAppFactory();
+        var demo = await f.DemoCustomerAsync();
+        var monitorId = await f.WithDbAsync(async db =>
+        {
+            var m = await db.Monitors.FirstAsync(x => x.CustomerId == demo.Id);
+            m.Status = MonitorStatus.Down;
+            db.Incidents.Add(new Incident { MonitorId = m.Id, StartedAtUtc = DateTime.UtcNow.AddMinutes(-5) });
+            await db.SaveChangesAsync();
+            return m.Id;
+        });
+        var sa = await f.LoginSuperAdminAsync();
+
+        await sa.PostFormAsync($"/SuperAdmin/Monitors/Index?handler=Pause&id={monitorId}", [], "/SuperAdmin/Monitors/Index");
+
+        var m = await f.WithDbAsync(db => db.Monitors.SingleAsync(x => x.Id == monitorId));
+        Assert.Equal(MonitorStatus.Paused, m.Status);
+        Assert.True(m.DownWhenPaused);
+        Assert.False(await f.WithDbAsync(db => db.Incidents.AnyAsync(i => i.MonitorId == monitorId && i.ResolvedAtUtc == null)));
+    }
 }

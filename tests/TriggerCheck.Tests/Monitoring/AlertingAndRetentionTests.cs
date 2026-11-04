@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Monitoring.Alerting;
+using TriggerCheck.Monitoring.Engine;
 using TriggerCheck.Monitoring.Retention;
 
 namespace TriggerCheck.Tests.Monitoring;
@@ -113,5 +114,94 @@ public class AlertingAndRetentionTests
         Assert.Equal(2, remaining.Count(r => r.MonitorId == m1.Id));
         Assert.Equal(2, remaining.Count(r => r.MonitorId == m2.Id));
         Assert.All(remaining.Where(r => r.MonitorId == m1.Id), r => Assert.True(r.CheckedAtUtc >= now.AddDays(-30)));
+    }
+
+    [Fact]
+    public async Task Retention_purges_old_resolved_incidents_and_notifications_but_never_open_incidents()
+    {
+        await using var host = await MonitoringTestHost.CreateAsync();
+        var shortPlan = await host.AddCustomerAsync(retentionDays: 30);
+        var forever = await host.AddCustomerAsync(retentionDays: 0);
+        var m1 = await host.AddMonitorAsync(shortPlan.Id);
+        var m2 = await host.AddMonitorAsync(forever.Id);
+        var now = host.Now;
+
+        await host.WithDbAsync(async db =>
+        {
+            db.Incidents.AddRange(
+                new Incident { MonitorId = m1.Id, StartedAtUtc = now.AddDays(-400), ResolvedAtUtc = now.AddDays(-399), Cause = "old" },
+                new Incident { MonitorId = m1.Id, StartedAtUtc = now.AddDays(-40), ResolvedAtUtc = now.AddDays(-10), Cause = "recent resolution" },
+                new Incident { MonitorId = m1.Id, StartedAtUtc = now.AddDays(-400), Cause = "still open" },
+                new Incident { MonitorId = m2.Id, StartedAtUtc = now.AddDays(-400), ResolvedAtUtc = now.AddDays(-399), Cause = "keep forever" });
+            db.Notifications.AddRange(
+                new Notification { MonitorId = m1.Id, SentAtUtc = now.AddDays(-31), Subject = "old" },
+                new Notification { MonitorId = m1.Id, SentAtUtc = now.AddDays(-1), Subject = "new" },
+                new Notification { MonitorId = m2.Id, SentAtUtc = now.AddDays(-400), Subject = "keep forever" });
+            await db.SaveChangesAsync();
+        });
+
+        var deleted = await host.InScopeAsync(sp => sp.GetRequiredService<RetentionCleaner>().CleanupAsync());
+
+        Assert.Equal(2, deleted);
+        var incidents = await host.WithDbAsync(db => db.Incidents.Select(i => i.Cause).ToListAsync());
+        Assert.Equal(new[] { "keep forever", "recent resolution", "still open" }, incidents.Order());
+        var notifications = await host.WithDbAsync(db => db.Notifications.Select(n => n.Subject).ToListAsync());
+        Assert.Equal(new[] { "keep forever", "new" }, notifications.Order());
+    }
+
+    [Fact]
+    public async Task Run_gate_drops_semaphores_when_idle()
+    {
+        var gate = new MonitorRunGate();
+        var a = await gate.AcquireAsync(1, CancellationToken.None);
+        var waiting = gate.AcquireAsync(1, CancellationToken.None);
+        var b = await gate.AcquireAsync(2, CancellationToken.None);
+        Assert.Equal(2, gate.Count);
+        Assert.False(waiting.IsCompleted);
+
+        a.Dispose();
+        var second = await waiting.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(2, gate.Count);
+        second.Dispose();
+        b.Dispose();
+        b.Dispose(); // double dispose is harmless
+        Assert.Equal(0, gate.Count);
+
+        // A cancelled waiter does not leak its entry either.
+        using var held = await gate.AcquireAsync(3, CancellationToken.None);
+        using var cts = new CancellationTokenSource();
+        var cancelled = gate.AcquireAsync(3, cts.Token);
+        cts.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => cancelled);
+        held.Dispose();
+        Assert.Equal(0, gate.Count);
+    }
+
+    [Fact]
+    public async Task Run_gate_does_not_grow_with_checked_and_deleted_monitors()
+    {
+        await using var host = await MonitoringTestHost.CreateAsync(s => s.ReplaceCheckers(new ScriptedChecker(MonitorType.Http)));
+        var c = await host.AddCustomerAsync();
+        for (var i = 0; i < 20; i++)
+        {
+            var m = await host.AddMonitorAsync(c.Id);
+            await host.RunCheckAsync(m.Id);
+            await host.WithDbAsync(db => db.Monitors.Where(x => x.Id == m.Id).ExecuteDeleteAsync());
+        }
+        Assert.Equal(0, host.Services.GetRequiredService<MonitorRunGate>().Count);
+    }
+
+    [Fact]
+    public async Task Sqlite_database_uses_wal_journal_mode()
+    {
+        await using var host = await MonitoringTestHost.CreateAsync();
+        var mode = await host.WithDbAsync(async db =>
+        {
+            await db.Database.OpenConnectionAsync();
+            await using var cmd = db.Database.GetDbConnection().CreateCommand();
+            cmd.CommandText = "PRAGMA journal_mode";
+            return (string?)await cmd.ExecuteScalarAsync();
+        });
+        Assert.Equal("wal", mode);
     }
 }
