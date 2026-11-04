@@ -33,7 +33,7 @@ public class TestWebAppFactory : WebApplicationFactory<Program>
         // Tests sign in as the seeded SuperAdmin directly; the forced change is covered in Accounts/PasswordChangeTests.
         builder.UseSetting("Seed:SuperAdminMustChangePassword", "false");
         // Required outside Development (tests also run the app as Production / Staging).
-        builder.UseSetting("Billing:PublicBaseUrl", "https://localhost");
+        builder.UseSetting("Site:PublicBaseUrl", "https://localhost");
     }
 
     public HttpClient CreateBrowser() => CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, HandleCookies = true });

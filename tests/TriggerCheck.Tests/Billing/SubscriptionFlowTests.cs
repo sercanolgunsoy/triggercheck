@@ -107,7 +107,7 @@ public class SubscriptionFlowTests : IClassFixture<BillingTestFactory>, IAsyncLi
         var token = await StartCheckoutAsync(client, cid, "Pro");
         var reference = "mm-" + cid;
         _f.Payments.Results[token] = new CheckoutResult(ProviderSubscriptionState.Active, reference, "c-" + cid, reportedPlan);
-        AssertRedirect(await CallbackAsync(token), "checkout=failed");
+        AssertRedirect(await CallbackAsync(token), "checkout=refused");
         Assert.Equal(BillingStatus.Trial, (await _f.GetCustomerAsync(cid)).BillingStatus);
         Assert.Contains(reference, _f.Payments.Cancels); // nobody keeps paying for a plan they did not get
         Assert.Equal(SubscriptionStatus.Failed, await StatusOfAsync(token));
@@ -125,12 +125,19 @@ public class SubscriptionFlowTests : IClassFixture<BillingTestFactory>, IAsyncLi
         // No callback: the customer closed the tab. The first order webhook arrives for a subscription we do not know yet.
         var r = await WebhookTests.SendSignedAsync(_f, "subscription.order.success", reference, "o-" + cid, "cust-" + reference);
         Assert.Equal(System.Net.HttpStatusCode.OK, r.StatusCode);
+        // The webhook request only records the event; the billing job does the provider re-check and applies it.
+        Assert.Equal(BillingStatus.Trial, (await _f.GetCustomerAsync(cid)).BillingStatus);
+        var result = await _f.RunMaintenanceAsync();
+        Assert.Equal(1, result.EventsReconciled);
         var c = await _f.GetCustomerAsync(cid);
         Assert.Equal(BillingStatus.Active, c.BillingStatus);
         Assert.Equal("Pro", c.Plan.Name);
         var sub = await _f.WithDbAsync(db => db.Subscriptions.AsNoTracking().FirstAsync(s => s.CheckoutToken == token));
         Assert.Equal(reference, sub.ProviderReference);
         Assert.Equal("cust-" + reference, sub.ProviderCustomerReference);
+        var e = await _f.WithDbAsync(db => db.PaymentEvents.AsNoTracking().SingleAsync(x => x.OrderReference == "o-" + cid));
+        Assert.False(e.Ignored);
+        Assert.Equal(cid, e.CustomerId);
     }
 
     [Fact]
@@ -169,6 +176,65 @@ public class SubscriptionFlowTests : IClassFixture<BillingTestFactory>, IAsyncLi
     }
 
     [Fact]
+    public async Task No_answer_at_the_timeout_is_asked_again_and_a_late_payment_is_still_found()
+    {
+        var (cid, client) = await TrialAdminAsync();
+        var token = await StartCheckoutAsync(client, cid, "Pro");
+        _f.Payments.Unreachable = true;
+        try
+        {
+            _f.Time.Advance(TimeSpan.FromMinutes(61));
+            _f.Payments.Retrievals.Clear();
+            await _f.RunMaintenanceAsync();
+            Assert.Equal(2, _f.Payments.Retrievals[token]); // final check retried once before closing
+            Assert.Equal(SubscriptionStatus.Failed, await StatusOfAsync(token));
+        }
+        finally { _f.Payments.Unreachable = false; }
+
+        // iyzico confirms the payment later: the job re-scans failed checkouts (every 6 h, for 30 days).
+        _f.Payments.Approve(token, "pp-pro", "late-" + cid);
+        await _f.RunMaintenanceAsync();
+        Assert.Equal(SubscriptionStatus.Failed, await StatusOfAsync(token)); // throttled: checked less than 6 h ago
+        _f.Time.Advance(TimeSpan.FromHours(7));
+        var result = await _f.RunMaintenanceAsync();
+        Assert.True(result.LateCheckoutsActivated >= 1);
+        Assert.Equal(SubscriptionStatus.Active, await StatusOfAsync(token));
+        Assert.Equal(BillingStatus.Active, (await _f.GetCustomerAsync(cid)).BillingStatus);
+    }
+
+    [Fact]
+    public async Task Booked_downgrade_rechecks_the_monitor_count_when_it_applies()
+    {
+        var (cid, email) = await _f.AddCustomerWithAdminAsync("Pro");
+        await _f.AddActiveSubscriptionAsync(cid, "Pro", "ol-" + cid);
+        var client = await _f.LoginAsync(email, BillingTestFactory.Password);
+        await _f.WithDbAsync(async db => { (await db.Plans.FirstAsync(p => p.Name == "Standard")).MaxMonitors = 2; await db.SaveChangesAsync(); });
+        try
+        {
+            await _f.AddMonitorAsync(cid, "Keep-1");
+            AssertRedirect(await client.PostFormAsync($"/App/Billing/Index?handler=ChangePlan&planId={await PlanIdAsync("Standard")}", new(), "/App/Billing"), "/App/Billing");
+            // Monitors added after the downgrade was booked.
+            await _f.AddMonitorAsync(cid, "Keep-2");
+            var fast = await _f.AddMonitorAsync(cid, "Extra-3", m => m.IntervalSeconds = 30);
+            await _f.AddMonitorAsync(cid, "Extra-4");
+
+            _f.Time.Advance(TimeSpan.FromDays(21));
+            await _f.RunMaintenanceAsync();
+            Assert.Equal("Standard", (await _f.GetCustomerAsync(cid)).Plan.Name);
+            Assert.Equal(4, await _f.WithDbAsync(db => db.Monitors.CountAsync(m => m.CustomerId == cid))); // nothing deleted
+            Assert.Equal(60, (await _f.GetMonitorAsync(fast))!.IntervalSeconds);
+            var mail = Assert.Single(_f.Emails.To(email), m => m.Body.Contains("over the limit"));
+            Assert.Contains("Extra-3", mail.Body);
+            Assert.Contains("Extra-4", mail.Body);
+            Assert.DoesNotContain("Keep-1", mail.Body);
+        }
+        finally
+        {
+            await _f.WithDbAsync(async db => { (await db.Plans.FirstAsync(p => p.Name == "Standard")).MaxMonitors = 50; await db.SaveChangesAsync(); });
+        }
+    }
+
+    [Fact]
     public async Task Two_tabs_paid_twice_keep_one_subscription_and_cancel_the_other()
     {
         var (cid, client) = await TrialAdminAsync();
@@ -180,7 +246,11 @@ public class SubscriptionFlowTests : IClassFixture<BillingTestFactory>, IAsyncLi
         _f.Payments.Approve(first, "pp-pro", "tab1-" + cid);
         _f.Payments.Approve(second, "pp-pro", "tab2-" + cid);
         AssertRedirect(await CallbackAsync(second), "checkout=success");
-        AssertRedirect(await CallbackAsync(first), "checkout=success");
+        // The second payment is refused (never "success"), cancelled, and both operators and customer are told.
+        AssertRedirect(await CallbackAsync(first), "checkout=refused");
+        Assert.Contains(_f.Emails.To("hello@triggercheck.local"), m => m.Subject.Contains("Refund needed") && m.Body.Contains("tab1-" + cid));
+        var adminEmail = await _f.WithDbAsync(db => db.Customers.Where(x => x.Id == cid).Select(x => x.ContactEmail).FirstAsync());
+        Assert.Contains(_f.Emails.To(adminEmail), m => m.Body.Contains("will be refunded"));
 
         Assert.Equal(SubscriptionStatus.Active, await StatusOfAsync(second));
         Assert.Equal(SubscriptionStatus.Failed, await StatusOfAsync(first));

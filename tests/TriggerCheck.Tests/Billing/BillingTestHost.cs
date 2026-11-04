@@ -42,15 +42,21 @@ public class BillingTestFactory : TestWebAppFactory
         base.ConfigureWebHost(builder);
         builder.UseSetting("Billing:MaintenanceIntervalMinutes", "0");
         builder.UseSetting("Billing:RegistrationsPerHourPerIp", RegistrationLimit.ToString());
-        builder.UseSetting("Billing:PublicBaseUrl", "https://app.test");
+        builder.UseSetting("Site:PublicBaseUrl", "https://app.test");
         builder.UseSetting("Billing:PaidCheckoutEnabled", "true");
         builder.UseSetting("Iyzico:ApiKey", "test-api-key");
         builder.UseSetting("Iyzico:SecretKey", SecretKey);
         builder.UseSetting("Iyzico:MerchantId", MerchantId);
         builder.ConfigureTestServices(s =>
         {
-            s.RemoveAll<IAppEmailSender>();
-            s.AddSingleton<IAppEmailSender>(Emails);
+            // The real queue and background sender stay; only the SMTP transport is replaced.
+            s.RemoveAll<IAppEmailTransport>();
+            s.AddSingleton<IAppEmailTransport>(sp =>
+            {
+                // Derived hosts (WithWebHostBuilder) share this transport but have their own queue: wait for all of them.
+                Emails.Queues.Add(sp.GetRequiredService<AppEmailQueue>());
+                return Emails;
+            });
             s.RemoveAll<IPaymentProvider>();
             s.AddSingleton<IPaymentProvider>(sp =>
             {
@@ -131,17 +137,28 @@ public class BillingTestFactory : TestWebAppFactory
 
 public sealed record SentEmail(string To, string Subject, string Body);
 
-public sealed class CapturingEmailSender : IAppEmailSender
+/// <summary>
+/// Test SMTP transport behind the real e-mail queue. Reads wait (up to 10 s) until the queue is empty, so assertions see
+/// every e-mail queued so far. <see cref="Gate"/> holds deliveries to prove that requests do not wait for sending.
+/// </summary>
+public sealed class CapturingEmailSender : IAppEmailTransport
 {
     public ConcurrentQueue<SentEmail> Sent { get; } = new();
+    public ConcurrentBag<AppEmailQueue> Queues { get; } = [];
+    private bool IsIdle() => Queues.All(q => q.Pending == 0);
+    public TaskCompletionSource? Gate { get; set; }
 
-    public Task SendAsync(string to, string subject, string body, CancellationToken ct = default)
+    public async Task SendAsync(string to, string subject, string body, CancellationToken ct = default)
     {
+        if (Gate is { } gate) await gate.Task.WaitAsync(ct);
         Sent.Enqueue(new SentEmail(to, subject, body));
-        return Task.CompletedTask;
     }
 
-    public List<SentEmail> To(string address) => Sent.Where(e => string.Equals(e.To, address, StringComparison.OrdinalIgnoreCase)).ToList();
+    public List<SentEmail> To(string address)
+    {
+        SpinWait.SpinUntil(IsIdle, TimeSpan.FromSeconds(10));
+        return Sent.Where(e => string.Equals(e.To, address, StringComparison.OrdinalIgnoreCase)).ToList();
+    }
 
     private static readonly Regex LinkRx = new(@"https://app\.test(/\S+)", RegexOptions.Compiled);
 
@@ -175,8 +192,10 @@ public sealed class FakePaymentProvider : IPaymentProvider
         return Task.FromResult<CheckoutSession?>(new CheckoutSession(token, "https://sandbox-cpp.iyzipay.test/?token=" + token));
     }
 
+    public ConcurrentDictionary<string, int> Retrievals { get; } = new();
+
     public Task<CheckoutResult> GetCheckoutResultAsync(string token, CancellationToken ct) =>
-        Task.FromResult(Unreachable ? new CheckoutResult(ProviderSubscriptionState.Unknown)
+        Task.FromResult(Retrievals.AddOrUpdate(token, 1, (_, n) => n + 1) > 0 && Unreachable ? new CheckoutResult(ProviderSubscriptionState.Unknown)
             : Results.TryGetValue(token, out var r) ? r : new CheckoutResult(ProviderSubscriptionState.Pending));
 
     public Task<ProviderResult> ChangePlanAsync(string subscriptionReference, string newPricingPlanReferenceCode, bool immediately, CancellationToken ct)

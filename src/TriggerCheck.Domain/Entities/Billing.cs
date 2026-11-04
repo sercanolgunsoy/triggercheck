@@ -48,6 +48,8 @@ public class Subscription
     public int? ScheduledPlanId { get; set; }
     /// <summary>Time of the newest webhook event applied; older (out-of-order) events are ignored.</summary>
     public DateTime? LastEventAtUtc { get; set; }
+    /// <summary>Last time a failed/open checkout was checked with the provider (re-scan throttle).</summary>
+    public DateTime? LastCheckedAtUtc { get; set; }
     public DateTime CreatedAtUtc { get; set; }
     public DateTime? ActivatedAtUtc { get; set; }
     public DateTime? EndedAtUtc { get; set; }
@@ -70,6 +72,10 @@ public class PaymentEvent
     public bool Succeeded { get; set; }
     /// <summary>Not applied (unknown subscription, out of order or outside the accepted time window).</summary>
     public bool Ignored { get; set; }
+    /// <summary>Why an event was not applied: <c>unknown-subscription</c> (re-checked by the job), <c>out-of-order</c>, <c>time-window</c>.</summary>
+    public string? IgnoredReason { get; set; }
+    /// <summary>Last reconciliation attempt of an ignored event (re-scan throttle).</summary>
+    public DateTime? LastCheckedAtUtc { get; set; }
     public string? SubscriptionReference { get; set; }
     public string? CustomerReference { get; set; }
     public string? OrderReference { get; set; }

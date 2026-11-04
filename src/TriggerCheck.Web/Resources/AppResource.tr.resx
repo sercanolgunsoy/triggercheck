@@ -1231,4 +1231,7 @@
   <data name="This acknowledge link is invalid, has expired or belongs to another account. Open the incident from the incidents page instead." xml:space="preserve">
     <value>Bu onay bağlantısı geçersiz, süresi dolmuş veya başka bir hesaba ait. Olayı bunun yerine olaylar sayfasından açın.</value>
   </data>
+  <data name="This payment could not be used: your workspace already has a subscription or the plan did not match. It was cancelled and the amount will be refunded to your card." xml:space="preserve">
+    <value>Bu ödeme kullanılamadı: çalışma alanınızın zaten bir aboneliği var veya plan eşleşmedi. Ödeme iptal edildi ve tutar kartınıza iade edilecek.</value>
+  </data>
 </root>

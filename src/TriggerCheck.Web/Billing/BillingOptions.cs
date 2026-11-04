@@ -18,10 +18,7 @@ public class BillingOptions
     public int RegistrationsPerHourPerIp { get; set; } = 5;
     /// <summary>Webhook requests allowed per client IP per minute.</summary>
     public int WebhooksPerMinutePerIp { get; set; } = 120;
-    /// <summary>
-    /// Public base URL (e.g. https://app.example.com) used in e-mail links and the payment callback. Required outside
-    /// Development (the app refuses to start without it); in Development an empty value means "taken from the request".
-    /// </summary>
+    /// <summary>Deprecated: use <c>Site:PublicBaseUrl</c>. Still read as a fallback (see <see cref="Infrastructure.PublicUrls"/>).</summary>
     public string PublicBaseUrl { get; set; } = "";
     /// <summary>
     /// Online paid checkout and plan changes through the payment provider. Off by default until the iyzico integration
@@ -41,8 +38,10 @@ public class BillingOptions
     /// <summary>Mail providers whose domain is shared by unrelated people: only the per-address trial limit applies.</summary>
     public string[] PublicEmailDomains { get; set; } =
     [
-        "gmail.com", "googlemail.com", "outlook.com", "hotmail.com", "live.com", "msn.com", "yahoo.com", "icloud.com", "me.com",
-        "yandex.com", "yandex.com.tr", "proton.me", "protonmail.com", "gmx.com", "gmx.net", "mail.com", "aol.com", "hotmail.com.tr"
+        "gmail.com", "googlemail.com", "outlook.com", "outlook.com.tr", "hotmail.com", "hotmail.com.tr", "hotmail.co.uk", "live.com",
+        "live.co.uk", "windowslive.com", "msn.com", "yahoo.com", "yahoo.com.tr", "yahoo.co.uk", "ymail.com", "icloud.com", "me.com",
+        "mac.com", "yandex.com", "yandex.com.tr", "yandex.ru", "proton.me", "protonmail.com", "pm.me", "gmx.com", "gmx.net", "gmx.de",
+        "web.de", "mail.com", "aol.com", "mynet.com", "mail.ru", "zoho.com", "tutanota.com", "fastmail.com", "hey.com", "qq.com"
     ];
 }
 
@@ -63,6 +62,13 @@ public class IyzicoOptions
     /// </summary>
     public string CheckoutPageUrl { get; set; } = "https://sandbox-cpp.iyzipay.com";
     public int TimeoutSeconds { get; set; } = 20;
+    /// <summary>
+    /// iyzico error codes of a checkout-result retrieval that mean "not paid / token not found" and close the checkout as
+    /// failed. Empty by default: the codes are not documented for the subscription checkout form (TODO-verify in the
+    /// sandbox); until then an unpaid checkout is closed only at <see cref="BillingOptions.CheckoutTimeoutMinutes"/> and
+    /// still re-checked for 30 days.
+    /// </summary>
+    public string[] DefinitiveCheckoutErrorCodes { get; set; } = [];
 
     public bool IsConfigured => ApiKey.Length > 0 && SecretKey.Length > 0;
 }

@@ -177,6 +177,7 @@ public class WebhookTests(BillingTestFactory f) : IClassFixture<BillingTestFacto
         Assert.Contains("ignored", await r.Content.ReadAsStringAsync());
         var e = await f.WithDbAsync(db => db.PaymentEvents.AsNoTracking().SingleAsync(x => x.SubscriptionReference == "ghost-ref"));
         Assert.True(e.Ignored);
+        Assert.Equal("unknown-subscription", e.IgnoredReason);
         Assert.Null(e.CustomerId);
         Assert.Equal("ghost-customer", e.CustomerReference);
     }

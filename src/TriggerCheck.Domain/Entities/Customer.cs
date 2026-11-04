@@ -25,6 +25,11 @@ public class Customer
     public DateTime? TrialReminderSentAtUtc { get; set; }
     /// <summary>Normalized sign-up address (lower case, no +tag) used to limit free trials per address and domain.</summary>
     public string? TrialKey { get; set; }
+    /// <summary>
+    /// Self-service sign-up still in its initial state: set at sign-up, cleared when the address is confirmed or a
+    /// SuperAdmin changes the customer. Only such customers are purged when the address is never confirmed.
+    /// </summary>
+    public bool SignupPending { get; set; }
 
     public ICollection<Monitor> Monitors { get; set; } = new List<Monitor>();
     public ICollection<AlertChannel> AlertChannels { get; set; } = new List<AlertChannel>();

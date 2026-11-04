@@ -16,8 +16,12 @@ public sealed record BillingOutcome(BillingError Error, int MonitorsToDelete = 0
     public bool Succeeded => Error == BillingError.None;
 }
 
-/// <summary><see cref="Pending"/>: the provider has not confirmed the checkout yet; it is checked again later.</summary>
-public enum CheckoutCompletion { Activated, AlreadyProcessed, Pending, Failed, NotFound }
+/// <summary>
+/// <see cref="Pending"/>: the provider has not confirmed the checkout yet; it is checked again later.
+/// <see cref="Refused"/>: paid, but not activated (second subscription or unexpected plan); cancelled at the provider,
+/// the customer and the operators are told that the payment is refunded.
+/// </summary>
+public enum CheckoutCompletion { Activated, AlreadyProcessed, Pending, Failed, Refused, NotFound }
 
 public enum WebhookOutcome { Processed, Duplicate, Ignored }
 
@@ -118,11 +122,17 @@ public sealed class BillingService(AppDbContext db, IPaymentProvider provider, T
         if (!Open.Contains(sub.Status) && !wasFailed) return (CheckoutCompletion.AlreadyProcessed, sub.CustomerId);
 
         var result = await provider.GetCheckoutResultAsync(token, ct);
+        // Never close on "no answer" without asking once more.
+        if (finalCheck && result.State == ProviderSubscriptionState.Unknown) result = await provider.GetCheckoutResultAsync(token, ct);
         var now = Now;
+        sub.LastCheckedAtUtc = now;
         if (!result.Succeeded)
         {
-            if (wasFailed) return (CheckoutCompletion.Failed, sub.CustomerId);
-            if (!result.IsDefinitive && !finalCheck) return (CheckoutCompletion.Pending, sub.CustomerId);
+            if (wasFailed || (!result.IsDefinitive && !finalCheck))
+            {
+                await db.SaveChangesAsync(ct);
+                return (wasFailed ? CheckoutCompletion.Failed : CheckoutCompletion.Pending, sub.CustomerId);
+            }
             logger.LogWarning("Checkout {SubscriptionId} of customer {CustomerId} was not completed (state {State}).", sub.Id, sub.CustomerId, result.State);
             await CloseAsFailedAsync(sub, "checkout.failure", ct);
             return (CheckoutCompletion.Failed, sub.CustomerId);
@@ -136,41 +146,50 @@ public sealed class BillingService(AppDbContext db, IPaymentProvider provider, T
             logger.LogWarning("Checkout {SubscriptionId}: provider reports pricing plan {Code}, expected {Expected}; cancelling it at the provider.",
                 sub.Id, result.PricingPlanReferenceCode, sub.Plan.IyzicoPricingPlanReferenceCode);
             await CancelUnwantedAsync(sub, "checkout.mismatch", ct);
-            return (CheckoutCompletion.Failed, sub.CustomerId);
+            return (CheckoutCompletion.Refused, sub.CustomerId);
         }
 
         var customer = sub.Customer;
-        var existing = await db.Subscriptions.Where(s => s.CustomerId == customer.Id && s.Id != sub.Id && Current.Contains(s.Status)).ToListAsync(ct);
-        if (existing.Any(s => s.Status is SubscriptionStatus.Active or SubscriptionStatus.PastDue))
-        {
-            logger.LogWarning("Checkout {SubscriptionId}: customer {CustomerId} already has a subscription; cancelling the duplicate at the provider.", sub.Id, customer.Id);
-            await CancelUnwantedAsync(sub, "checkout.duplicate", ct);
-            return (CheckoutCompletion.AlreadyProcessed, sub.CustomerId);
-        }
-
+        var duplicate = false;
         try
         {
+            // The "already subscribed" check runs inside the (write-locking) transaction, so two concurrent activations
+            // of the same customer cannot both pass it.
             await using var tx = await db.Database.BeginTransactionAsync(ct);
-            // A cancelled-at-period-end subscription is replaced by the new one.
-            foreach (var p in existing) { p.Status = SubscriptionStatus.Expired; p.EndedAtUtc = now; }
-            await db.Subscriptions.Where(s => s.CustomerId == customer.Id && s.Id != sub.Id && s.Status == SubscriptionStatus.Pending)
-                .ExecuteUpdateAsync(u => u.SetProperty(s => s.Status, SubscriptionStatus.Superseded), ct);
-            sub.Status = SubscriptionStatus.Active;
-            sub.ActivatedAtUtc = now;
-            sub.EndedAtUtc = null;
-            sub.CurrentPeriodEndUtc = now.AddMonths(1);
-            await SuperAdminOps.ChangePlanAsync(db, customer, sub.Plan);
-            customer.BillingStatus = BillingStatus.Active;
-            customer.TrialEndsAtUtc = null;
-            AddEvent(sub, $"checkout:{token}", "checkout.success", true, null, now);
-            await db.SaveChangesAsync(ct);
-            await tx.CommitAsync(ct);
+            var existing = await db.Subscriptions.Where(s => s.CustomerId == customer.Id && s.Id != sub.Id && Current.Contains(s.Status)).ToListAsync(ct);
+            if (existing.Any(s => s.Status is SubscriptionStatus.Active or SubscriptionStatus.PastDue))
+            {
+                duplicate = true;
+                await tx.RollbackAsync(ct);
+            }
+            else
+            {
+                // A cancelled-at-period-end subscription is replaced by the new one.
+                foreach (var p in existing) { p.Status = SubscriptionStatus.Expired; p.EndedAtUtc = now; }
+                await db.Subscriptions.Where(s => s.CustomerId == customer.Id && s.Id != sub.Id && s.Status == SubscriptionStatus.Pending)
+                    .ExecuteUpdateAsync(u => u.SetProperty(s => s.Status, SubscriptionStatus.Superseded), ct);
+                sub.Status = SubscriptionStatus.Active;
+                sub.ActivatedAtUtc = now;
+                sub.EndedAtUtc = null;
+                sub.CurrentPeriodEndUtc = now.AddMonths(1);
+                await SuperAdminOps.ChangePlanAsync(db, customer, sub.Plan);
+                customer.BillingStatus = BillingStatus.Active;
+                customer.TrialEndsAtUtc = null;
+                AddEvent(sub, $"checkout:{token}", "checkout.success", true, null, now);
+                await db.SaveChangesAsync(ct);
+                await tx.CommitAsync(ct);
+            }
         }
         catch (DbUpdateException ex) when (IsUniqueViolation(ex))
         {
             // A concurrent callback / re-check activated it first.
             db.ChangeTracker.Clear();
             return (CheckoutCompletion.AlreadyProcessed, sub.CustomerId);
+        }
+        if (duplicate)
+        {
+            await CancelUnwantedAsync(sub, "checkout.duplicate", ct);
+            return (CheckoutCompletion.Refused, sub.CustomerId);
         }
         logger.LogInformation("Subscription {SubscriptionId} of customer {CustomerId} activated on plan {Plan}.", sub.Id, customer.Id, sub.Plan.Name);
         return (CheckoutCompletion.Activated, customer.Id);
@@ -184,14 +203,18 @@ public sealed class BillingService(AppDbContext db, IPaymentProvider provider, T
         await SaveIgnoringDuplicateEventAsync(ct);
     }
 
-    /// <summary>A paid checkout we do not activate (duplicate or mismatch): stop it at the provider and keep a record.</summary>
+    /// <summary>
+    /// A paid checkout we do not activate (second subscription or unexpected plan): stop it at the provider, keep a
+    /// record and tell the operators (refund) and the customer. Refunds are done manually in the iyzico panel until the
+    /// subscription refund API is verified (TODO-verify, see the sandbox checklist).
+    /// </summary>
     private async Task CancelUnwantedAsync(Subscription sub, string eventType, CancellationToken ct)
     {
         var cancelled = await provider.CancelAsync(sub.ProviderReference!, ct);
-        if (!cancelled.Succeeded)
-            logger.LogError("Cancelling unwanted subscription {Reference} (customer {CustomerId}) at the provider failed: cancel it manually.",
-                sub.ProviderReference, sub.CustomerId);
+        logger.LogError("Paid subscription {Reference} of customer {CustomerId} was refused ({Reason}); cancel at provider {Cancelled}. Refund it in the iyzico panel.",
+            sub.ProviderReference, sub.CustomerId, eventType, cancelled.Succeeded ? "succeeded" : "FAILED - cancel it manually");
         await CloseAsFailedAsync(sub, eventType, ct);
+        await mailer.UnwantedPaymentAsync(sub.CustomerId, sub.ProviderReference!, eventType, cancelled.Succeeded, ct);
     }
 
     /// <summary>
@@ -241,7 +264,10 @@ public sealed class BillingService(AppDbContext db, IPaymentProvider provider, T
         return new(BillingError.None, AdjustedMonitors: change.AdjustedMonitors);
     }
 
-    /// <summary>Applies a booked downgrade (period rolled over). Intervals are clamped in the same transaction.</summary>
+    /// <summary>
+    /// Applies a booked downgrade (period rolled over). Intervals are clamped in the same transaction; when the customer
+    /// has more monitors than the new plan allows, the admins are told which ones (nothing is deleted).
+    /// </summary>
     public async Task ApplyScheduledPlanAsync(Subscription sub, CancellationToken ct)
     {
         if (sub.ScheduledPlanId is not int planId) return;
@@ -255,6 +281,15 @@ public sealed class BillingService(AppDbContext db, IPaymentProvider provider, T
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
         logger.LogInformation("Scheduled plan change of customer {CustomerId} to {Plan} applied.", customer.Id, plan.Name);
+
+        // Checked again now: monitors may have been added since the downgrade was booked. Nothing is deleted (intervals
+        // were clamped above); the admins learn which monitors are over the limit.
+        var monitors = await db.Monitors.Where(m => m.CustomerId == customer.Id).OrderBy(m => m.Id).Select(m => m.Name).ToListAsync(ct);
+        if (monitors.Count > plan.MaxMonitors)
+        {
+            logger.LogWarning("Customer {CustomerId} has {Count} monitors after the downgrade to {Plan} (max {Max}).", customer.Id, monitors.Count, plan.Name, plan.MaxMonitors);
+            await mailer.OverPlanLimitAsync(customer.Id, plan, monitors.Skip(plan.MaxMonitors).ToList(), ct);
+        }
     }
 
     /// <summary>Stops renewals at the provider; the plan stays until the paid period ends (then the fallback plan).</summary>
@@ -277,10 +312,14 @@ public sealed class BillingService(AppDbContext db, IPaymentProvider provider, T
     public async Task<bool> CancelAtProviderAsync(string subscriptionReference, CancellationToken ct) =>
         (await provider.CancelAsync(subscriptionReference, ct)).Succeeded;
 
+    /// <summary>Unmatched events and failed checkouts are re-checked by the job for this long.</summary>
+    public static readonly TimeSpan ReconcileWindow = TimeSpan.FromDays(30);
+
     /// <summary>
     /// Applies a signature-verified webhook. Each event (signed type + subscription + order reference) is processed
-    /// once; events outside the accepted time window or older than the last applied one are recorded but not applied;
-    /// events for an unknown subscription first trigger a re-check of the open checkouts (closed tab, webhook first).
+    /// once; events outside the accepted time window or older than the last applied one are recorded but not applied.
+    /// An event for an unknown subscription is recorded as ignored right away (no provider calls inside the webhook
+    /// request); the billing job re-checks the open checkouts for it and applies it later (<see cref="ReconcileIgnoredEventsAsync"/>).
     /// </summary>
     public async Task<WebhookOutcome> ApplyWebhookAsync(WebhookEvent e, CancellationToken ct)
     {
@@ -289,21 +328,30 @@ public sealed class BillingService(AppDbContext db, IPaymentProvider provider, T
         if (e.OccurredAtUtc < now.AddHours(-options.CurrentValue.WebhookMaxAgeHours) || e.OccurredAtUtc > now.AddMinutes(10))
         {
             logger.LogWarning("Webhook {EventType} for {Reference} outside the accepted time window ({Time:o}); recorded, not applied.", e.EventType, e.SubscriptionReference, e.OccurredAtUtc);
-            return await RecordIgnoredAsync(e, null, ct);
+            return await RecordIgnoredAsync(e, null, IgnoredTimeWindow, ct);
         }
 
-        var sub = await FindSubscriptionAsync(e.SubscriptionReference, ct) ?? await ReconcileAsync(e, ct);
+        var sub = await FindSubscriptionAsync(e.SubscriptionReference, ct);
         if (sub is null)
         {
-            logger.LogWarning("Webhook {EventType} for unknown subscription {Reference}; recorded for reconciliation.", e.EventType, e.SubscriptionReference);
-            return await RecordIgnoredAsync(e, null, ct);
+            logger.LogWarning("Webhook {EventType} for unknown subscription {Reference}; recorded, the billing job reconciles it.", e.EventType, e.SubscriptionReference);
+            return await RecordIgnoredAsync(e, null, IgnoredUnknownSubscription, ct);
         }
         if (sub.LastEventAtUtc is { } last && e.OccurredAtUtc < last)
         {
             logger.LogInformation("Webhook {EventType} for subscription {SubscriptionId} is older than the last applied event; recorded, not applied.", e.EventType, sub.Id);
-            return await RecordIgnoredAsync(e, sub, ct);
+            return await RecordIgnoredAsync(e, sub, IgnoredOutOfOrder, ct);
         }
+        return await ApplyToSubscriptionAsync(sub, e, null, ct) ? WebhookOutcome.Processed : WebhookOutcome.Duplicate;
+    }
 
+    public const string IgnoredUnknownSubscription = "unknown-subscription";
+    public const string IgnoredOutOfOrder = "out-of-order";
+    public const string IgnoredTimeWindow = "time-window";
+
+    /// <summary>State change of one event; <paramref name="row"/> is the stored (previously ignored) event when reconciling.</summary>
+    private async Task<bool> ApplyToSubscriptionAsync(Subscription sub, WebhookEvent e, PaymentEvent? row, CancellationToken ct)
+    {
         var notifyFailure = false;
         switch (e.Kind)
         {
@@ -328,32 +376,108 @@ public sealed class BillingService(AppDbContext db, IPaymentProvider provider, T
                 break;
         }
         sub.LastEventAtUtc = e.OccurredAtUtc;
-        AddEvent(sub, e.EventId, e.EventType, e.Kind == WebhookEventKind.PaymentSucceeded, e.OrderReference, e.OccurredAtUtc, e);
-        if (!await SaveIgnoringDuplicateEventAsync(ct)) return WebhookOutcome.Duplicate;
+        if (row is null) AddEvent(sub, e.EventId, e.EventType, e.Kind == WebhookEventKind.PaymentSucceeded, e.OrderReference, e.OccurredAtUtc, e);
+        else
+        {
+            row.Ignored = false;
+            row.IgnoredReason = null;
+            row.CustomerId = sub.CustomerId;
+            row.SubscriptionId = sub.Id;
+            row.PlanName = sub.Plan.Name;
+        }
+        if (!await SaveIgnoringDuplicateEventAsync(ct)) return false;
         if (notifyFailure) await mailer.PaymentFailedAsync(sub.CustomerId, ct);
-        return WebhookOutcome.Processed;
+        return true;
     }
 
     private Task<Subscription?> FindSubscriptionAsync(string reference, CancellationToken ct) =>
         db.Subscriptions.Include(s => s.Plan).Include(s => s.Customer)
             .Where(s => s.ProviderReference == reference).OrderByDescending(s => s.Id).FirstOrDefaultAsync(ct);
 
+    private static WebhookEventKind KindOf(string eventType) => eventType switch
+    {
+        "subscription.order.success" => WebhookEventKind.PaymentSucceeded,
+        "subscription.order.failure" => WebhookEventKind.PaymentFailed,
+        _ => WebhookEventKind.Other
+    };
+
     /// <summary>
-    /// A webhook for a subscription we do not know: re-check the open (and recently failed) checkouts - first those of the
-    /// customer with the same provider customer reference, otherwise the recent ones - until one turns out to be it.
+    /// Job step: events recorded for an unknown subscription (last 30 days, each at most hourly, <paramref name="max"/>
+    /// per run) re-check the open and failed checkouts; when one turns out to be the subscription, the event is applied.
+    /// </summary>
+    public async Task<int> ReconcileIgnoredEventsAsync(int max, CancellationToken ct)
+    {
+        var now = Now;
+        var since = now - ReconcileWindow;
+        var recheckBefore = now.AddHours(-1);
+        var ids = await db.PaymentEvents
+            .Where(x => x.Ignored && x.IgnoredReason == IgnoredUnknownSubscription && x.OccurredAtUtc >= since && (x.LastCheckedAtUtc == null || x.LastCheckedAtUtc < recheckBefore))
+            .OrderBy(x => x.LastCheckedAtUtc ?? DateTime.MinValue).Select(x => x.Id).Take(max).ToListAsync(ct);
+        var applied = 0;
+        foreach (var id in ids)
+        {
+            var row = await db.PaymentEvents.FirstAsync(x => x.Id == id, ct);
+            row.LastCheckedAtUtc = now;
+            await db.SaveChangesAsync(ct);
+            if (row.SubscriptionReference is not { } reference) continue;
+            var e = new WebhookEvent(row.ProviderEventId, row.EventType, KindOf(row.EventType), reference, row.OrderReference, row.CustomerReference, row.OccurredAtUtc);
+            var sub = await FindSubscriptionAsync(reference, ct) ?? await ReconcileAsync(e, ct);
+            db.ChangeTracker.Clear();
+            sub = sub is null ? null : await FindSubscriptionAsync(reference, ct);
+            if (sub is null || sub.Status == SubscriptionStatus.Failed) continue;
+            row = await db.PaymentEvents.FirstAsync(x => x.Id == id, ct);
+            if (sub.LastEventAtUtc is { } last && e.OccurredAtUtc < last)
+            {
+                row.IgnoredReason = IgnoredOutOfOrder;
+                row.CustomerId = sub.CustomerId;
+                row.SubscriptionId = sub.Id;
+                await db.SaveChangesAsync(ct);
+                continue;
+            }
+            if (await ApplyToSubscriptionAsync(sub, e, row, ct)) applied++;
+            db.ChangeTracker.Clear();
+        }
+        return applied;
+    }
+
+    /// <summary>
+    /// Job step: failed checkouts that never reached the provider's "paid" state are asked again for 30 days (each at
+    /// most every 6 hours, <paramref name="max"/> per run), so a payment confirmed late by the provider is not lost.
+    /// </summary>
+    public async Task<int> RescanFailedCheckoutsAsync(int max, CancellationToken ct)
+    {
+        var now = Now;
+        var since = now - ReconcileWindow;
+        var recheckBefore = now.AddHours(-6);
+        var tokens = await db.Subscriptions
+            .Where(x => x.Status == SubscriptionStatus.Failed && x.ProviderReference == null && x.CheckoutToken != null && x.CreatedAtUtc >= since
+                        && (x.LastCheckedAtUtc == null || x.LastCheckedAtUtc < recheckBefore))
+            .OrderBy(x => x.LastCheckedAtUtc ?? DateTime.MinValue).Select(x => x.CheckoutToken!).Take(max).ToListAsync(ct);
+        var activated = 0;
+        foreach (var token in tokens)
+        {
+            if ((await CompleteCheckoutAsync(token, ct)).Result == CheckoutCompletion.Activated) activated++;
+            db.ChangeTracker.Clear();
+        }
+        return activated;
+    }
+
+    /// <summary>
+    /// An event for a subscription we do not know: re-check the open and recently failed checkouts - first those of the
+    /// customer with the same provider customer reference, then the most recent ones (capped) - until one is it.
     /// </summary>
     private async Task<Subscription?> ReconcileAsync(WebhookEvent e, CancellationToken ct)
     {
-        var since = Now.AddDays(-1);
+        var since = Now - ReconcileWindow;
         var candidates = db.Subscriptions.Where(s => s.CheckoutToken != null && s.CreatedAtUtc >= since
             && (Open.Contains(s.Status) || (s.Status == SubscriptionStatus.Failed && s.ProviderReference == null)));
         List<string> tokens = [];
         if (e.CustomerReference is { } customerRef)
         {
             var customerIds = db.Subscriptions.Where(s => s.ProviderCustomerReference == customerRef).Select(s => s.CustomerId);
-            tokens = await candidates.Where(s => customerIds.Contains(s.CustomerId)).OrderByDescending(s => s.Id).Select(s => s.CheckoutToken!).Take(20).ToListAsync(ct);
+            tokens = await candidates.Where(s => customerIds.Contains(s.CustomerId)).OrderByDescending(s => s.Id).Select(s => s.CheckoutToken!).Take(10).ToListAsync(ct);
         }
-        var recent = await candidates.OrderByDescending(s => s.Id).Select(s => s.CheckoutToken!).Take(50).ToListAsync(ct);
+        var recent = await candidates.OrderByDescending(s => s.Id).Select(s => s.CheckoutToken!).Take(20).ToListAsync(ct);
         tokens.AddRange(recent.Where(t => !tokens.Contains(t)));
 
         foreach (var token in tokens)
@@ -365,14 +489,14 @@ public sealed class BillingService(AppDbContext db, IPaymentProvider provider, T
         return null;
     }
 
-    private async Task<WebhookOutcome> RecordIgnoredAsync(WebhookEvent e, Subscription? sub, CancellationToken ct)
+    private async Task<WebhookOutcome> RecordIgnoredAsync(WebhookEvent e, Subscription? sub, string reason, CancellationToken ct)
     {
         int? customerId = sub?.CustomerId;
         if (customerId is null && e.CustomerReference is { } customerRef)
             customerId = await db.Subscriptions.Where(s => s.ProviderCustomerReference == customerRef).Select(s => (int?)s.CustomerId).FirstOrDefaultAsync(ct);
         db.PaymentEvents.Add(new PaymentEvent
         {
-            CustomerId = customerId, SubscriptionId = sub?.Id, ProviderEventId = e.EventId, EventType = e.EventType, Ignored = true,
+            CustomerId = customerId, SubscriptionId = sub?.Id, ProviderEventId = e.EventId, EventType = e.EventType, Ignored = true, IgnoredReason = reason,
             Succeeded = e.Kind == WebhookEventKind.PaymentSucceeded, SubscriptionReference = e.SubscriptionReference, CustomerReference = e.CustomerReference,
             OrderReference = e.OrderReference, PlanName = sub?.Plan.Name, OccurredAtUtc = e.OccurredAtUtc, ReceivedAtUtc = Now
         });

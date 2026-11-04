@@ -89,7 +89,10 @@ public class IyzicoProviderTests
         }
     }
 
-    private static IyzicoOptions Options => new() { ApiKey = "api-key", SecretKey = "secret-key", MerchantId = "42", BaseUrl = "https://sandbox-api.iyzipay.test" };
+    private static IyzicoOptions Options => new()
+    {
+        ApiKey = "api-key", SecretKey = "secret-key", MerchantId = "42", BaseUrl = "https://sandbox-api.iyzipay.test", DefinitiveCheckoutErrorCodes = ["100001"]
+    };
 
     private static IyzicoPaymentProvider Provider(Handler h, IyzicoOptions? o = null) =>
         new(new HttpClient(h), new StaticOptions(o ?? Options), TimeProvider.System, NullLogger<IyzicoPaymentProvider>.Instance);
@@ -153,6 +156,11 @@ public class IyzicoProviderTests
     [InlineData("""{"status":"success","data":{"referenceCode":"sub-9","subscriptionStatus":"CANCELED"}}""", HttpStatusCode.OK, ProviderSubscriptionState.Cancelled)]
     [InlineData("<html>gateway error</html>", HttpStatusCode.BadGateway, ProviderSubscriptionState.Unknown)]
     [InlineData("""{"status":"failure"}""", HttpStatusCode.InternalServerError, ProviderSubscriptionState.Unknown)]
+    // Only configured "not paid / not found" codes are definitive; auth, throttling and other codes are retried.
+    [InlineData("""{"status":"failure","errorCode":"999999","errorMessage":"other"}""", HttpStatusCode.BadRequest, ProviderSubscriptionState.Unknown)]
+    [InlineData("""{"status":"failure","errorCode":"100001","errorMessage":"boom"}""", HttpStatusCode.Unauthorized, ProviderSubscriptionState.Unknown)]
+    [InlineData("""{"status":"failure","errorCode":"100001","errorMessage":"boom"}""", HttpStatusCode.Forbidden, ProviderSubscriptionState.Unknown)]
+    [InlineData("""{"status":"failure","errorCode":"100001","errorMessage":"boom"}""", HttpStatusCode.TooManyRequests, ProviderSubscriptionState.Unknown)]
     public async Task Unsuccessful_checkout_results_are_not_activated(string json, HttpStatusCode code, ProviderSubscriptionState state)
     {
         var r = await Provider(new Handler((_, _) => Json(json, code))).GetCheckoutResultAsync("tok-1", CancellationToken.None);

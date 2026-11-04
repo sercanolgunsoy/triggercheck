@@ -142,6 +142,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
             e.Property(x => x.SubscriptionReference).HasMaxLength(100);
             e.Property(x => x.CustomerReference).HasMaxLength(100);
             e.Property(x => x.Currency).HasMaxLength(8);
+            e.Property(x => x.IgnoredReason).HasMaxLength(32);
+            e.HasIndex(x => new { x.Ignored, x.IgnoredReason });
             e.Property(x => x.PlanName).HasMaxLength(100);
             e.Property(x => x.Amount).HasConversion<double?>();
             e.HasIndex(x => new { x.CustomerId, x.OccurredAtUtc });

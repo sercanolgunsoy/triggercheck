@@ -24,7 +24,12 @@ public static class BillingSetup
     {
         services.Configure<BillingOptions>(config.GetSection(BillingOptions.Section));
         services.Configure<IyzicoOptions>(config.GetSection(IyzicoOptions.Section));
-        services.AddSingleton<IAppEmailSender, SmtpAppEmailSender>();
+        services.AddSingleton<PublicUrls>();
+        // E-mails are queued and sent in the background: requests never wait for SMTP (no timing side channel).
+        services.AddSingleton<AppEmailQueue>();
+        services.AddSingleton<IAppEmailSender, QueuedAppEmailSender>();
+        services.AddSingleton<IAppEmailTransport, SmtpAppEmailTransport>();
+        services.AddHostedService<AppEmailSenderService>();
         services.AddHttpClient<IPaymentProvider, IyzicoPaymentProvider>(IyzicoPaymentProvider.HttpClientName)
             .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false, UseCookies = false })
             // Request URIs carry checkout tokens: no request logging.
@@ -63,18 +68,8 @@ public static class BillingSetup
         });
     }
 
-    /// <summary>
-    /// Startup check: outside Development the public base URL must be configured, so e-mail links and the payment
-    /// callback never depend on the request's Host header.
-    /// </summary>
-    public static void ValidateBillingConfiguration(this WebApplication app)
-    {
-        if (app.Environment.IsDevelopment()) return;
-        var url = app.Services.GetRequiredService<IOptions<BillingOptions>>().Value.PublicBaseUrl;
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || (uri.Scheme != Uri.UriSchemeHttps && uri.Scheme != Uri.UriSchemeHttp))
-            throw new InvalidOperationException("Billing:PublicBaseUrl (environment variable Billing__PublicBaseUrl) must be set to the public " +
-                                                "address of the app, e.g. https://app.example.com. It is used in e-mail links and the payment callback.");
-    }
+    /// <summary>Startup check: outside Development <c>Site:PublicBaseUrl</c> must be configured (see <see cref="PublicUrls"/>).</summary>
+    public static void ValidateBillingConfiguration(this WebApplication app) => PublicUrls.Validate(app);
 
     private static string ClientIp(HttpContext ctx) => TriggerCheck.Web.Api.ApiSetup.ClientPartition(ctx.Connection.RemoteIpAddress);
 
@@ -112,6 +107,8 @@ public static class BillingSetup
             {
                 CheckoutCompletion.Activated or CheckoutCompletion.AlreadyProcessed => "/App/Billing?checkout=success",
                 CheckoutCompletion.Pending => "/App/Billing?checkout=pending",
+                // Paid but refused (already subscribed / unexpected plan): cancelled and refunded, never "success".
+                CheckoutCompletion.Refused => "/App/Billing?checkout=refused",
                 _ => "/App/Billing?checkout=failed"
             });
         }).AllowAnonymous().DisableAntiforgery().RequireRateLimiting(ProviderPolicy);
@@ -135,10 +132,7 @@ public static class BillingSetup
         return System.Text.Encoding.UTF8.GetString(buffer.GetBuffer(), 0, (int)buffer.Length);
     }
 
-    /// <summary>Absolute URL for links in e-mails and provider callbacks (<see cref="BillingOptions.PublicBaseUrl"/> or the request).</summary>
-    public static string PublicUrl(HttpRequest request, BillingOptions options, string pathAndQuery)
-    {
-        var baseUrl = options.PublicBaseUrl is { Length: > 0 } b ? b.TrimEnd('/') : $"{request.Scheme}://{request.Host}{request.PathBase}";
-        return baseUrl + pathAndQuery;
-    }
+    /// <summary>Absolute URL for links in e-mails and provider callbacks (<see cref="PublicUrls"/>).</summary>
+    public static string PublicUrl(HttpRequest request, string pathAndQuery) =>
+        request.HttpContext.RequestServices.GetRequiredService<PublicUrls>().Build(request, pathAndQuery);
 }
