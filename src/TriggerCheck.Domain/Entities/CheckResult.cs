@@ -13,6 +13,8 @@ public class CheckResult
     public string? Error { get; set; }
     /// <summary>Confirmation probe of an earlier failure (confirm before alert). Excluded from uptime and chart statistics.</summary>
     public bool IsConfirmation { get; set; }
+    /// <summary>Taken while the monitor was in a maintenance window (FEAT-3). Excluded from uptime and chart statistics.</summary>
+    public bool InMaintenance { get; set; }
 
     // ---- HTTP/Keyword phase breakdown (ms). All null for Tcp/Ping and for probes that failed before the phase. ----
     // A probe that reused a pooled connection has no DNS/connect/TLS phase: DnsMs, ConnectMs and TlsMs are null

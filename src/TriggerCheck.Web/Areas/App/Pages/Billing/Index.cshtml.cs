@@ -29,7 +29,7 @@ public class IndexModel(AppDbContext db, ICurrentCustomer current, BillingServic
 
     public async Task OnGetAsync(string? checkout, CancellationToken ct)
     {
-        Checkout = checkout is "success" or "pending" or "failed" ? checkout : null;
+        Checkout = checkout is "success" or "pending" or "failed" or "refused" ? checkout : null;
         await LoadAsync(ct);
     }
 

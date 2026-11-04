@@ -949,6 +949,21 @@
   <data name="Too many failed attempts. Try again in a few minutes." xml:space="preserve">
     <value>Çok fazla başarısız deneme. Birkaç dakika sonra tekrar deneyin.</value>
   </data>
+  <data name="DNS record" xml:space="preserve">
+    <value>DNS kaydı</value>
+  </data>
+  <data name="Heartbeat (cron)" xml:space="preserve">
+    <value>Heartbeat (cron)</value>
+  </data>
+  <data name="JSON API" xml:space="preserve">
+    <value>JSON API</value>
+  </data>
+  <data name="Maintenance" xml:space="preserve">
+    <value>Bakım</value>
+  </data>
+  <data name="Escalation" xml:space="preserve">
+    <value>Eskalasyon</value>
+  </data>
   <data name="API keys" xml:space="preserve">
     <value>API anahtarları</value>
   </data>
@@ -1161,5 +1176,95 @@
   </data>
   <data name="Your password was changed. You can sign in now." xml:space="preserve">
     <value>Parolanız değiştirildi. Artık giriş yapabilirsiniz.</value>
+  </data>
+  <data name="No free trial was started: this address or its company domain already had one. Your workspace starts on the {0} plan; you can subscribe to a paid plan on the Billing page." xml:space="preserve">
+    <value>Ücretsiz deneme başlatılmadı: bu adres veya şirket alan adı daha önce denemeden yararlandı. Çalışma alanınız {0} planıyla başlıyor; Faturalandırma sayfasından ücretli bir plana abone olabilirsiniz.</value>
+  </data>
+  <data name="We received a payment for a subscription that we could not activate (your workspace already has a subscription, or the plan did not match). It was cancelled and the amount will be refunded to your card. Your current plan is not affected." xml:space="preserve">
+    <value>Etkinleştiremediğimiz bir abonelik için ödeme aldık (çalışma alanınızın zaten bir aboneliği var veya plan eşleşmedi). Abonelik iptal edildi ve tutar kartınıza iade edilecek. Mevcut planınız etkilenmez.</value>
+  </data>
+  <data name="Your extra TriggerCheck payment will be refunded" xml:space="preserve">
+    <value>Fazladan yapılan TriggerCheck ödemeniz iade edilecek</value>
+  </data>
+  <data name="Your workspace is now on the {0} plan, which allows {1} monitors. These monitors are over the limit; they keep running, but you cannot add new monitors until you delete some or upgrade:" xml:space="preserve">
+    <value>Çalışma alanınız artık en fazla {1} monitöre izin veren {0} planında. Aşağıdaki monitörler sınırın üzerinde; çalışmaya devam ederler, ancak bazılarını silene veya planı yükseltene kadar yeni monitör ekleyemezsiniz:</value>
+  </data>
+  <data name="Paid plans start with a free trial once per address and company domain; if yours already had one, the e-mail tells you which plan your workspace starts on." xml:space="preserve">
+    <value>Ücretli planlar her adres ve şirket alan adı için bir kez ücretsiz denemeyle başlar; sizinki daha önce yararlandıysa, çalışma alanınızın hangi planla başladığını e-postada belirtiriz.</value>
+  </data>
+  <data name="AI features" xml:space="preserve">
+    <value>Yapay zekâ özellikleri</value>
+  </data>
+  <data name="AI usage" xml:space="preserve">
+    <value>Yapay zekâ kullanımı</value>
+  </data>
+  <data name="AI calls" xml:space="preserve">
+    <value>Yapay zekâ çağrıları</value>
+  </data>
+  <data name="Tokens" xml:space="preserve">
+    <value>Token</value>
+  </data>
+  <data name="AI output may be wrong. Status and alerts are always decided by the monitoring rules." xml:space="preserve">
+    <value>Yapay zekâ çıktısı hatalı olabilir. Durum ve bildirimlere her zaman izleme kuralları karar verir.</value>
+  </data>
+  <data name="AI summary unavailable this month." xml:space="preserve">
+    <value>Yapay zekâ özeti bu ay kullanılamıyor.</value>
+  </data>
+  <data name="AI-generated" xml:space="preserve">
+    <value>Yapay zekâ tarafından üretildi</value>
+  </data>
+  <data name="Automatic" xml:space="preserve">
+    <value>Otomatik</value>
+  </data>
+  <data name="Evidence" xml:space="preserve">
+    <value>Kanıt</value>
+  </data>
+  <data name="Helpful" xml:space="preserve">
+    <value>Faydalı</value>
+  </data>
+  <data name="High confidence" xml:space="preserve">
+    <value>Yüksek güven</value>
+  </data>
+  <data name="Information" xml:space="preserve">
+    <value>Bilgi</value>
+  </data>
+  <data name="Low confidence" xml:space="preserve">
+    <value>Düşük güven</value>
+  </data>
+  <data name="Medium confidence" xml:space="preserve">
+    <value>Orta güven</value>
+  </data>
+  <data name="Needs approval" xml:space="preserve">
+    <value>Onay gerekir</value>
+  </data>
+  <data name="Not helpful" xml:space="preserve">
+    <value>Faydalı değil</value>
+  </data>
+  <data name="Not in the data, worth checking" xml:space="preserve">
+    <value>Veride yok, kontrol etmeye değer</value>
+  </data>
+  <data name="Possible causes (low confidence): {0}" xml:space="preserve">
+    <value>Olası nedenler (düşük güven): {0}</value>
+  </data>
+  <data name="Suggested actions" xml:space="preserve">
+    <value>Önerilen aksiyonlar</value>
+  </data>
+  <data name="Suggestion" xml:space="preserve">
+    <value>Öneri</value>
+  </data>
+  <data name="The AI summary could not be generated." xml:space="preserve">
+    <value>Yapay zekâ özeti oluşturulamadı.</value>
+  </data>
+  <data name="Was this helpful?" xml:space="preserve">
+    <value>Bu faydalı oldu mu?</value>
+  </data>
+  <data name="possible" xml:space="preserve">
+    <value>olası</value>
+  </data>
+  <data name="reversible" xml:space="preserve">
+    <value>geri alınabilir</value>
+  </data>
+  <data name="Refunds" xml:space="preserve">
+    <value>İadeler</value>
   </data>
 </root>

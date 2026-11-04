@@ -6,6 +6,7 @@ using TriggerCheck.Domain.Entities;
 using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Monitoring.Alerting;
 using TriggerCheck.Monitoring.Checks;
+using TriggerCheck.Monitoring.Maintenance;
 using TriggerCheck.Monitoring.Stats;
 using MonitorEntity = TriggerCheck.Domain.Entities.Monitor;
 
@@ -53,9 +54,24 @@ namespace TriggerCheck.Monitoring.Engine;
 /// Worst-case DOWN detection: interval + delay + scheduler tick + probe timeout.
 /// </para>
 /// <para>
-/// TLS certificates (https Http/Keyword): the certificate captured by the probe is stored on the monitor, and a
+/// Heartbeat monitors are not probed; their "check" evaluates the pings received (<see cref="HeartbeatMonitorChecker"/>),
+/// skips confirmation and is scheduled by <see cref="HeartbeatSchedule"/> (ping received or deadline passed). A ping that
+/// lands between the snapshot and the save is evaluated on the fresh row, and an unchanged UP is stored as a
+/// CheckResult at most once per interval.
+/// </para>
+/// <para>
+/// TLS certificates (https Http/Keyword/JsonApi): the certificate captured by the probe is stored on the monitor, and a
 /// "certificate expiring" alert is sent once when it enters <see cref="MonitorEntity.CertWarnDays"/> and once more at 7 days
 /// (<see cref="MonitorStateMachine.TryMarkCertificateWarning"/>), for actively monitored monitors only.
+/// </para>
+/// <para>
+/// Maintenance windows (FEAT-3, <see cref="MaintenanceQueries.IsInMaintenanceAsync"/>, evaluated at the probe start):
+/// the probe is recorded with <see cref="CheckResult.InMaintenance"/> and applied by
+/// <see cref="MonitorStateMachine.ApplyInMaintenance"/>: no incident is opened and no DOWN / certificate alert is sent.
+/// A monitor already DOWN keeps its incident open; if it recovers during the window the incident is closed
+/// (<see cref="Incident.ResolvedDuringMaintenance"/>) and the UP alert is still sent (its DOWN went out), marked as
+/// recovered during maintenance. A pending confirmation is dropped, so a monitor still
+/// failing after the window goes through the normal flow from its first probe after the window.
 /// </para>
 /// </summary>
 public sealed class MonitorCheckRunner(
@@ -135,6 +151,9 @@ public sealed class MonitorCheckRunner(
         TtfbMs = outcome.Timings?.TtfbMs
     };
 
+    private static Task<bool> HasResultSinceAsync(AppDbContext db, int monitorId, DateTime sinceUtc, CancellationToken ct) =>
+        db.CheckResults.AnyAsync(c => c.MonitorId == monitorId && c.CheckedAtUtc > sinceUtc, ct);
+
     private async Task<bool> MonitorExistsAsync(int monitorId)
     {
         await using var db = await dbFactory.CreateDbContextAsync(CancellationToken.None);
@@ -160,7 +179,27 @@ public sealed class MonitorCheckRunner(
 
         // Retries start from a fresh row: reset what an earlier attempt may have set on the (new) result object.
         result.IsConfirmation = false;
-        db.CheckResults.Add(result);
+        // FEAT-3: probes in a maintenance window are recorded but never open incidents or send alerts.
+        var inMaintenance = await MaintenanceQueries.IsInMaintenanceAsync(db, monitor.CustomerId, monitor.Id, checkedAt, ct);
+        result.InMaintenance = inMaintenance;
+        if (monitor.Type == MonitorType.Heartbeat)
+        {
+            if (monitor.LastHeartbeatAtUtc != snapshot.LastHeartbeatAtUtc || monitor.LastHeartbeatFailed != snapshot.LastHeartbeatFailed)
+            {
+                // A ping arrived during the evaluation: decide on the fresh row (pure, no I/O), not the stale snapshot.
+                outcome = HeartbeatMonitorChecker.Evaluate(monitor, checkedAt);
+                result.IsUp = outcome.IsUp;
+                result.Error = outcome.Error;
+                result.ResponseTimeMs = outcome.ResponseTimeMs;
+            }
+            // Frequent pings: an unchanged UP is stored at most once per interval (bounded row volume).
+            if (!(outcome.IsUp && monitor.Status == MonitorStatus.Up && await HasResultSinceAsync(db, monitor.Id, checkedAt.AddSeconds(-Math.Max(1, monitor.IntervalSeconds)), ct)))
+                db.CheckResults.Add(result);
+        }
+        else
+        {
+            db.CheckResults.Add(result);
+        }
         AlertMessage? alert = null;
         AlertMessage? certAlert = null;
         MonitorStateMachine.RecordCertificate(monitor, outcome.Certificate, checkedAt);
@@ -171,7 +210,13 @@ public sealed class MonitorCheckRunner(
             var transition = StatusTransition.None;
             var transitionAt = checkedAt;
             var delay = TimeSpan.FromSeconds(Math.Clamp(o.ConfirmationDelaySeconds, 0, 300));
-            if (MonitorStateMachine.HasValidPendingConfirmation(monitor, checkedAt, delay))
+            if (inMaintenance)
+            {
+                // A confirmation pending from before the window is void: after the window everything starts over.
+                MonitorStateMachine.ClearPendingConfirmation(monitor);
+                transition = MonitorStateMachine.ApplyInMaintenance(monitor, outcome, checkedAt);
+            }
+            else if (MonitorStateMachine.HasValidPendingConfirmation(monitor, checkedAt, delay))
             {
                 // This run is the confirmation probe of an earlier failure.
                 var failedAt = monitor.PendingConfirmationSinceUtc!.Value;
@@ -193,15 +238,22 @@ public sealed class MonitorCheckRunner(
             else
             {
                 MonitorStateMachine.ClearPendingConfirmation(monitor); // monitor changed since, too old and up now, or none
-                if (o.ConfirmBeforeDown && MonitorStateMachine.NeedsConfirmation(monitor, outcome))
+                // Heartbeats are not confirmed: the grace period already is the tolerance (see HeartbeatMonitorChecker).
+                if (o.ConfirmBeforeDown && monitor.Type != MonitorType.Heartbeat && MonitorStateMachine.NeedsConfirmation(monitor, outcome))
                     MonitorStateMachine.BeginConfirmation(monitor, outcome, checkedAt, probeEndedAt + delay);
                 else
                     transition = MonitorStateMachine.Apply(monitor, outcome, checkedAt);
             }
-            alert = await ApplyTransitionAsync(db, monitor, transition, transitionAt, ct);
+            // Heartbeats are scheduled by their deadlines, also inside a maintenance window (after the branches above).
+            if (monitor.Type == MonitorType.Heartbeat) monitor.NextCheckAtUtc = HeartbeatSchedule.NextEvaluation(monitor, checkedAt);
+            if (inMaintenance)
+                alert = await RecoverInMaintenanceAsync(db, monitor, transition, checkedAt, ct);
+            else
+                alert = await ApplyTransitionAsync(db, monitor, transition, transitionAt, ct);
             // Status changed (and possibly an incident opened/closed): make concurrent user writers retry.
             if (transition != StatusTransition.None) monitor.Version++;
-            if (MonitorStateMachine.TryMarkCertificateWarning(monitor, checkedAt))
+            // In maintenance the warning stays due and is sent by the first check after the window.
+            if (!inMaintenance && MonitorStateMachine.TryMarkCertificateWarning(monitor, checkedAt))
                 certAlert = AlertMessage.CertificateExpiring(monitor, checkedAt);
         }
         else
@@ -211,7 +263,32 @@ public sealed class MonitorCheckRunner(
         }
 
         await db.SaveChangesAsync(ct);
+        // FEAT-5: the DOWN alert carries its incident (acknowledge link, escalation).
+        if (alert is { Kind: AlertKind.Down })
+            alert = alert with
+            {
+                IncidentId = await db.Incidents.Where(i => i.MonitorId == monitor.Id && i.ResolvedAtUtc == null)
+                    .OrderByDescending(i => i.StartedAtUtc).Select(i => (int?)i.Id).FirstOrDefaultAsync(ct)
+            };
         return (alert, certAlert);
+    }
+
+    /// <summary>
+    /// FEAT-3: a monitor that was DOWN recovered during maintenance: its incident is closed (flagged) and, since its DOWN
+    /// alert went out before the window, the UP alert is still sent, marked as recovered during maintenance.
+    /// </summary>
+    private async Task<AlertMessage?> RecoverInMaintenanceAsync(AppDbContext db, MonitorEntity monitor, StatusTransition transition, DateTime now, CancellationToken ct)
+    {
+        if (transition != StatusTransition.Recovered) return null;
+        var open = await db.Incidents.Where(i => i.MonitorId == monitor.Id && i.ResolvedAtUtc == null).ToListAsync(ct);
+        foreach (var incident in open)
+        {
+            incident.ResolvedAtUtc = now;
+            incident.ResolvedDuringMaintenance = true;
+        }
+        logger.LogInformation("Monitor {MonitorId} '{Name}' recovered during maintenance", monitor.Id, monitor.Name);
+        TimeSpan? downtime = open.Count > 0 ? now - open.Min(i => i.StartedAtUtc) : null;
+        return AlertMessage.For(monitor, AlertKind.Up, now, downtime) with { DuringMaintenance = true };
     }
 
     private async Task<CheckOutcome> ProbeAsync(MonitorEntity monitor, CancellationToken ct)

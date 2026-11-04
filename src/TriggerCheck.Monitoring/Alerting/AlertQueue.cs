@@ -20,8 +20,9 @@ public interface IAlertQueue
 /// delivery (including retry waits): <see cref="AlertingOptions.QueueCapacity"/> overall and a per-customer share, so
 /// one tenant cannot fill the queue for all. The share is <see cref="AlertingOptions.QueueCapacityPerCustomer"/> or,
 /// for bigger plans, 2 x Plan.MaxMonitors + 10 (a lane coalesces to at most two alerts, so a mass outage of a full
-/// account fits). A monitor has two lanes, status (DOWN/UP) and certificate warnings; the latter are rare (at most two
-/// per certificate, days apart), so they are covered by the + 10 rather than doubling the share. Never more than the
+/// account fits). A monitor has two more lanes, certificate warnings and escalations; both are rare (at most two
+/// warnings per certificate, days apart; escalation steps minutes apart), so they are covered by the + 10 rather than
+/// growing the share. Never more than the
 /// global capacity. A refused alert is logged and recorded as a failed
 /// Notification ("dropped: alert queue full") so the loss is visible.
 /// Known limitation: the queue lives in memory; alerts still queued or being retried when the process crashes are lost

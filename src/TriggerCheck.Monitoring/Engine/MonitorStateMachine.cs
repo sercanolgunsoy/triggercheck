@@ -31,6 +31,23 @@ public static class MonitorStateMachine
     }
 
     /// <summary>
+    /// Applies a probe taken while the monitor is in a maintenance window (FEAT-3): runtime fields and schedule are
+    /// updated, but a failure never takes the monitor DOWN. A monitor that is not DOWN keeps ConsecutiveFailures at 0,
+    /// so after the window the normal flow (threshold, confirmation, DOWN) starts from scratch and nothing is backdated
+    /// into the window. A monitor that was already DOWN stays DOWN until it recovers; a recovery returns
+    /// <see cref="StatusTransition.Recovered"/> (the caller closes the incident without an UP alert).
+    /// </summary>
+    public static StatusTransition ApplyInMaintenance(MonitorEntity monitor, CheckOutcome outcome, DateTime checkedAtUtc)
+    {
+        RecordProbe(monitor, outcome, checkedAtUtc);
+        monitor.NextCheckAtUtc = NextCheckAfter(monitor.NextCheckAtUtc, monitor.IntervalSeconds, checkedAtUtc);
+        if (outcome.IsUp) return Transition(monitor, true, checkedAtUtc);
+        if (monitor.Status == MonitorStatus.Down) monitor.ConsecutiveFailures++;
+        else monitor.ConsecutiveFailures = 0;
+        return StatusTransition.None;
+    }
+
+    /// <summary>
     /// True when <paramref name="outcome"/> is a failure that would take the monitor DOWN (the next failure reaches
     /// FailureThreshold), i.e. the runner should run a confirmation probe before applying it.
     /// </summary>
@@ -184,9 +201,9 @@ public static class MonitorStateMachine
     /// <summary>Days before expiry of the final reminder sent when the configured warning window is larger.</summary>
     public const int FinalCertReminderDays = 7;
 
-    /// <summary>True for https Http/Keyword monitors, the only ones whose certificate is tracked.</summary>
+    /// <summary>True for https Http/Keyword/JsonApi monitors, the only ones whose certificate is tracked.</summary>
     public static bool IsHttpsMonitor(MonitorEntity monitor) =>
-        monitor.Type is MonitorType.Http or MonitorType.Keyword
+        monitor.Type is MonitorType.Http or MonitorType.Keyword or MonitorType.JsonApi
         && monitor.Target.TrimStart().StartsWith("https://", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>

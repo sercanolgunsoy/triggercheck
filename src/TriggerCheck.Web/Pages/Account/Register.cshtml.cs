@@ -93,7 +93,10 @@ public class RegisterModel(AppDbContext db, UserManager<ApplicationUser> users, 
         var existing = await users.FindByEmailAsync(email);
         if (existing is not null)
         {
-            if (!existing.EmailConfirmed && existing.CustomerId is int cid && !await db.Users.AnyAsync(u => u.CustomerId == cid && u.EmailConfirmed, ct))
+            // Only a self-service sign-up still in its initial state is taken over; anything an operator touched gets the
+            // "already registered" e-mail instead.
+            if (!existing.EmailConfirmed && existing.CustomerId is int cid && !await db.Users.AnyAsync(u => u.CustomerId == cid && u.EmailConfirmed, ct)
+                && await db.Customers.AnyAsync(c => c.Id == cid && c.SignupPending, ct))
             {
                 // Never confirmed: whoever signed up first did not prove the address. The account takes over this
                 // submission (password, names, plan); earlier confirmation links stop working (new security stamp).
@@ -113,7 +116,8 @@ public class RegisterModel(AppDbContext db, UserManager<ApplicationUser> users, 
         ApplicationUser user;
         await using (var tx = await db.Database.BeginTransactionAsync(ct))
         {
-            var customer = new Customer { Name = Input.CompanyName.Trim(), ContactEmail = email, CreatedAtUtc = now };
+            // AiEnabled: new customers are opted in to AI (decision K2); existing customers opt in themselves.
+            var customer = new Customer { Name = Input.CompanyName.Trim(), ContactEmail = email, CreatedAtUtc = now, SignupPending = true, AiEnabled = true };
             await ApplyPlanAsync(customer, plan!, email, now, ct);
             db.Customers.Add(customer);
             await db.SaveChangesAsync(ct);
@@ -141,6 +145,9 @@ public class RegisterModel(AppDbContext db, UserManager<ApplicationUser> users, 
     /// Plan and trial of a new (or reset) sign-up: a paid plan starts a trial when the address / domain is still eligible
     /// (otherwise the customer starts on the fallback plan); a free plan has no trial.
     /// </summary>
+    /// <summary>Plan name when a paid plan was chosen but no trial was granted (mentioned in the confirmation e-mail).</summary>
+    private string? _noTrialPlan;
+
     private async Task ApplyPlanAsync(Customer customer, Plan plan, string email, DateTime now, CancellationToken ct)
     {
         var o = options.CurrentValue;
@@ -154,8 +161,15 @@ public class RegisterModel(AppDbContext db, UserManager<ApplicationUser> users, 
             customer.TrialKey = key;
             return;
         }
-        if (plan.MonthlyPrice > 0) logger.LogInformation("Sign-up without trial: the address or domain already had its free trials.");
-        customer.PlanId = plan.MonthlyPrice > 0 ? ((await billing.FallbackPlanAsync(ct))?.Id ?? plan.Id) : plan.Id;
+        if (plan.MonthlyPrice > 0)
+        {
+            logger.LogInformation("Sign-up without trial: the address or domain already had its free trials.");
+            var fallback = await billing.FallbackPlanAsync(ct);
+            customer.PlanId = fallback?.Id ?? plan.Id;
+            // Told in the confirmation e-mail (the page stays the same for every outcome: no enumeration).
+            _noTrialPlan = fallback?.Name ?? plan.Name;
+        }
+        else customer.PlanId = plan.Id;
         customer.BillingStatus = BillingStatus.None;
         customer.TrialEndsAtUtc = null;
         customer.TrialKey = null;
@@ -167,6 +181,7 @@ public class RegisterModel(AppDbContext db, UserManager<ApplicationUser> users, 
         var customer = await db.Customers.FirstAsync(c => c.Id == customerId, ct);
         customer.Name = Input.CompanyName.Trim();
         customer.CreatedAtUtc = now;
+        customer.SignupPending = true;
         await ApplyPlanAsync(customer, plan, user.Email!, now, ct);
         await db.SaveChangesAsync(ct);
 
@@ -185,8 +200,8 @@ public class RegisterModel(AppDbContext db, UserManager<ApplicationUser> users, 
         var token = await users.GenerateEmailConfirmationTokenAsync(user);
         var code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
         var link = Link($"/Account/ConfirmEmail?userId={Uri.EscapeDataString(user.Id)}&code={code}");
-        await mailer.SendConfirmationAsync(user.Email!, user.FullName, link, ct);
+        await mailer.SendConfirmationAsync(user.Email!, user.FullName, link, ct, _noTrialPlan);
     }
 
-    private string Link(string path) => BillingSetup.PublicUrl(Request, options.CurrentValue, path);
+    private string Link(string path) => BillingSetup.PublicUrl(Request, path);
 }

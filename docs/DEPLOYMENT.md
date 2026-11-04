@@ -65,7 +65,8 @@ secret store, never in the image or in `appsettings.json`.
 | `Seed__SuperAdminEmail` | no | SuperAdmin login. |
 | `Smtp__Host`, `Smtp__Port` (587), `Smtp__UseSsl` (true), `Smtp__User`, `Smtp__Password`, `Smtp__From`, `Smtp__TimeoutSeconds` | for email alerts | If `Smtp__Host` is empty, alert emails are only written to the log. |
 | `Twilio__*` | coming (SMS/voice, FEAT-7) | Twilio account SID / auth token / sender. Names are fixed when the feature lands. |
-| `ANTHROPIC_API_KEY` | coming (AI features) | API key for the AI features. CI uses a fake client and needs no key. |
+| `ANTHROPIC_API_KEY` (or `Ai__ApiKey`) | for AI features | Claude API key. Used only when `Ai__Enabled=true`. CI uses a fake client and needs no key. See [AI features](#ai-features). |
+| `Ai__Enabled` | no (false) | Global AI kill switch. See [AI features](#ai-features). |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` (or a per-signal `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` / `_METRICS_ENDPOINT` / `_LOGS_ENDPOINT`) | no | Turns on OTLP export, e.g. `http://otel-collector:4317`. Each signal is configured separately: the generic variable enables traces and metrics, while a per-signal variable enables only that signal (logs additionally need `Telemetry__ExportLogs=true`). Per OTel convention, a per-signal endpoint is used as-is: for http/protobuf, include the path, e.g. `http://collector:4318/v1/traces`. Its protocol comes from `OTEL_EXPORTER_OTLP_<SIGNAL>_PROTOCOL`, or else `OTEL_EXPORTER_OTLP_PROTOCOL` (default grpc). With the generic endpoint, the standard `OTEL_*` variables apply (`OTEL_EXPORTER_OTLP_PROTOCOL`, `OTEL_EXPORTER_OTLP_HEADERS`, `OTEL_SERVICE_NAME`, `OTEL_RESOURCE_ATTRIBUTES`). |
 | `Telemetry__OtlpEndpoint`, `Telemetry__OtlpProtocol` (`grpc` \| `http/protobuf`) | no | Base collector address set through configuration. For http/protobuf, the `/v1/traces`, `/v1/metrics` and `/v1/logs` paths are appended. It is a per-signal fallback: it applies to each signal that has neither its own `OTEL_EXPORTER_OTLP_<SIGNAL>_ENDPOINT` nor the generic `OTEL_EXPORTER_OTLP_ENDPOINT`. |
 | `Telemetry__ExportLogs` | no (false) | Also exports logs through OTLP. **Off by default because logs contain personal data**: alert recipient addresses, monitor names and targets (masked where they hold secrets), error texts. Turn it on only if the collector and its storage are approved for that data. |
@@ -76,8 +77,16 @@ secret store, never in the image or in `appsettings.json`.
 | `ForwardedHeaders__KnownProxies`, `ForwardedHeaders__KnownNetworks` | with the above | Trusted proxy IPs (comma separated) / networks in CIDR form, e.g. `10.0.0.0/8`. With neither set only loopback is trusted. |
 | `ForwardedHeaders__ForwardLimit` | no (1) | Number of proxy hops to unwind. |
 | `Api__RequestsPerMinute` (120), `Api__RequestsPerMinutePerCustomer` (300), `Api__RequestsPerMinutePerIp` (600) | no | REST API rate limits, see [API.md](API.md). |
-| `Site__ContactEmail` | no | Sales / support address shown on the marketing pages. |
+| `Site__ContactEmail` | no | Sales / support address shown on the marketing pages. It also receives operator alerts, such as "refund needed" for a refused payment. |
+| `Site__PublicBaseUrl` | **yes outside Development** | Public address of the app, e.g. `https://app.example.com`. Used in e-mail links (sign-up confirmation, password reset), for the iyzico callback, for the "Acknowledge" link in DOWN and escalation alerts, and for heartbeat ping URLs. **The app refuses to start without it** in any environment other than Development. The former `Billing__PublicBaseUrl` is still read as a fallback. |
+| `Escalation__CheckIntervalSeconds` (30), `Escalation__AckLinkValidHours` (72) | no | How often the escalation job runs; lifetime of acknowledge links. |
+| `Monitoring__DnsResolvers__0`, `__1`, ... | no (1.1.1.1, 8.8.8.8) | Resolvers for DNS monitors, tried in order: `ip`, `ip:port` or `[ipv6]:port`. Operator configuration (not subject to the SSRF guard). |
+| `Heartbeat__PingsPerMinutePerToken` (10), `Heartbeat__PingsPerMinutePerClient` (6000), `Heartbeat__PingsPerSecondGlobal` (1000) | no | Limits of the `/hb/{token}` ping endpoint. The per-client limit is per IPv4 address / IPv6 /64 and deliberately high (many hosts behind one NAT). **Behind a reverse proxy enable ForwardedHeaders**, otherwise all pings share the proxy's address. |
 | `Seed__DemoData` | no | Ignored outside Development. |
+
+Acknowledge links are protected with ASP.NET Core Data Protection (purpose `IncidentAck.v1`), the same key ring as
+the login cookies. In the container `HOME=/data`, so the keys live in `/data/.aspnet/DataProtection-Keys` and links
+stay valid across restarts; keep that directory on the persistent volume (it is part of `/data`).
 
 ## Health and telemetry
 
@@ -174,8 +183,11 @@ database's data was still entirely in the `-wal` file: the main `.db` file was 4
 
 Visitors sign up at `/Account/Register` (BIZ-1). A paid self-service plan starts a free trial (14 days by default) on
 that plan's limits. A trial is granted once per address and to at most 3 sign-ups per company domain; `+tag` aliases
-count as the same address. The account must confirm its e-mail address before it can sign in. Sign-ups that are never
-confirmed are deleted after 2 days. If the same unconfirmed address signs up again, the account takes over the new
+count as the same address. Public mail providers (gmail.com, outlook.com.tr, mynet.com, ...) are only limited per
+address. When no trial is granted, the workspace starts on the free plan, and the confirmation e-mail says so. The page
+stays the same for every outcome. The account must confirm its e-mail address before it can sign in. Sign-ups that are never
+confirmed are deleted after 2 days. This applies only while they are still in their initial state: once a SuperAdmin
+has edited the customer or changed its trial, it is never purged. If the same unconfirmed address signs up again, the account takes over the new
 submission, and earlier confirmation links stop working. `/Account/ForgotPassword` sends a one-day reset link. It shows
 the same answer for every address. A completed reset also confirms the address.
 
@@ -188,7 +200,7 @@ Sign-up and trials work either way. Complete the sandbox checklist below before 
 
 | Variable | Required | Purpose |
 |---|---|---|
-| `Billing__PublicBaseUrl` | **yes outside Development** | e.g. `https://app.example.com`. Used for the links in e-mails and for the iyzico callback URL. **The app refuses to start without it** in any environment other than Development. |
+| `Iyzico__DefinitiveCheckoutErrorCodes` | no (empty) | iyzico error codes that mean "not paid / token not found" and close a checkout early. See the checklist. |
 | `Billing__PaidCheckoutEnabled` | no (false) | Turns on the iyzico checkout, upgrades and downgrades. Leave it off until the sandbox checklist is done. |
 | `Iyzico__ApiKey`, `Iyzico__SecretKey` | for paid checkout | iyzico API credentials (merchant panel > Settings). **Secrets.** Store them in the secret store only. |
 | `Iyzico__MerchantId` | for webhooks | Part of the webhook signature (`X-IYZ-SIGNATURE-V3`). Without it every webhook is rejected with 401. |
@@ -222,19 +234,42 @@ environments only a warning is logged, because the links carry account tokens.
    fields only (type + subscription + order reference) and is processed once. Events older than the last one applied to
    the subscription are recorded but not applied. `subscription.order.success` keeps or restores the subscription.
    `subscription.order.failure` marks it `PastDue`, which moves the customer to the fallback plan after the grace
-   period. Events for unknown subscriptions trigger a re-check of the open checkouts. If nothing matches, they are kept
-   as ignored payment events for reconciliation.
+   period. The webhook request makes no calls to iyzico. An event for an unknown subscription is stored as an ignored
+   payment event (`unknown-subscription`), and the billing job reconciles it: for 30 days, at most hourly per event and
+   20 events per run, the job re-checks the checkouts that were started before the event and are still open or failed
+   unpaid. When one of them turns out to be the subscription, the job applies the event. When no such checkout is left,
+   the event is marked `unmatched` and is no longer re-checked; reconcile it by hand. Each provider re-check step of the
+   job has a time budget (`Billing__ReconcileBudgetSeconds`, 60), and at most `Billing__MaxCheckoutRechecksPerRun` (50)
+   open checkouts are re-checked per run.
 
 **Flow.** Billing page > Subscribe > billing details form > "Continue to secure payment" link to iyzico > iyzico posts
 to the callback > TriggerCheck retrieves the checkout result from iyzico (server to server) and only then activates the
 plan.
-- A checkout is only closed as failed on a definitive answer from iyzico. After network errors it stays open, and the
-  job checks it again.
-- A paid checkout is cancelled at iyzico, and never activated, when iyzico reports a different or missing pricing plan,
-  or when the customer already has an active subscription (for example, two tabs).
+- A checkout is only closed early on a definitive answer from iyzico: a state such as CANCELED, EXPIRED or UNPAID, or
+  an error code listed in `Iyzico__DefinitiveCheckoutErrorCodes`. That list is empty until the codes are verified.
+  Network errors, 401/403/429, other 4xx and 5xx keep the checkout open, and the job checks it again. At the timeout,
+  a checkout that gets no answer is asked once more before it is closed. Failed checkouts that never reached "paid" are
+  asked again by the job for 30 days (every 6 hours, 20 per run), so a late confirmation is not lost.
+- A paid checkout is never activated when iyzico reports a different or missing pricing plan, or when the customer
+  already has an active subscription (for example, two tabs). The "already subscribed" check runs inside the
+  activation transaction. In that case the subscription is cancelled at iyzico and an Error is logged. A "Refund
+  needed" e-mail goes to `Site__ContactEmail`, and the customer is told that the amount will be refunded. The return
+  page shows "refused", never "success". The refund also appears on **SuperAdmin > Refunds**, and the overview shows a
+  badge until an operator marks it as refunded. The page records who marked it and when, and the action is logged.
+  **Refunds are done by hand in the iyzico panel** until the subscription refund API is verified (see the checklist).
+- Checkout starts are limited to `Billing__CheckoutsPerHourPerCustomer` (5) per customer. A customer can have at most
+  `Billing__MaxOpenCheckouts` (3) unfinished checkouts.
+- All e-mails (confirmation, password reset, "already registered", billing notices, operator "Refund needed" notices)
+  go to a durable outbox table (`EmailOutbox`). A background sender delivers them, so requests never wait for SMTP, and
+  response times do not reveal whether an account exists. Queued e-mails survive restarts. Failures are retried after
+  1, 5, 15 and 60 minutes, and the sender gives up after 5 attempts (logged as an Error). Rows are claimed before
+  sending, so several instances never send the same e-mail twice. Sent and abandoned rows are deleted after 7 days.
+  Logs contain the recipient and subject only, never the body, which can contain account tokens. Without SMTP, e-mails
+  are logged as described above and counted as sent.
 - **Upgrades** use iyzico's upgrade endpoint with `NOW`. **Downgrades** use `NEXT_PERIOD` and take effect when the
-  period rolls over, which the Billing page shows. A downgrade first checks that the monitors fit the new plan, and the
-  check intervals are clamped when it applies.
+  period rolls over, which the Billing page shows. A downgrade first checks that the monitors fit the new plan. When it
+  applies, the check intervals are clamped and the monitor count is checked again. If monitors were added in the
+  meantime, nothing is deleted, and the admins get an e-mail that lists the monitors over the limit.
 - **Cancellation** stops renewals at iyzico. The plan stays until the end of the paid period.
 - SuperAdmins can extend or end a trial on the customer page. A manual plan change clears a trial or a cancelled
   subscription, and is refused while the customer has an active or past-due subscription.
@@ -248,15 +283,92 @@ No sandbox account was available during development. Verify these points against
   which needs iyzico's script and frame origins in the CSP (`SecurityHeaders.cs`).
 - [ ] **Proration.** What iyzico charges on an upgrade with `NOW`, and what it reports for a `NEXT_PERIOD` downgrade:
   the subscription status and whether a new reference code is returned. The UI promises no proration.
+- [ ] **Downgrade at period end.** Does iyzico switch the pricing plan itself at renewal, and does the renewal
+  `subscription.order.success` arrive for the old or a new subscription reference? TriggerCheck applies the booked
+  plan on the first renewal webhook, or when the job sees the period end.
+- [ ] **Undoing a booked downgrade.** "Keep this plan" sends another `NEXT_PERIOD` upgrade back to the current pricing
+  plan. Confirm that iyzico accepts this, and that it does not charge or reset the period.
+- [ ] **Refund API for subscriptions.** Is there a documented refund for a subscription order (refused duplicate or
+  mismatched payment)? Until then, refunds are done manually after the "Refund needed" e-mail.
+- [ ] **Definitive error codes.** Which `errorCode` values does the checkout-result retrieval return for "token not
+  found / not paid / expired"? Put them in `Iyzico__DefinitiveCheckoutErrorCodes`. Without them, unpaid checkouts
+  close only at `CheckoutTimeoutMinutes`.
 - [ ] **`iyziEventTime` units.** Milliseconds or seconds (both are accepted today). Also check whether iyzico retries
   webhooks, and for how long, against `WebhookMaxAgeHours`.
 - [ ] **Signing path with a query string.** IYZWSv2 signs `randomKey + path + body`. None of the current requests has a
   query string. Confirm the rule before adding one.
 - [ ] **Identity number placeholder.** `11111111111` is sent when the customer gives no Turkish identity or tax number.
   Confirm that iyzico accepts it for foreign customers and invoices.
-- [ ] **Checkout result for abandoned and expired tokens.** Confirm that iyzico answers `status: failure`, which
-  TriggerCheck treats as definitive, and the token lifetime, against `CheckoutTimeoutMinutes`.
+- [ ] **Checkout result for abandoned and expired tokens.** Check what iyzico answers, and the token lifetime, against
+  `CheckoutTimeoutMinutes`.
 - [ ] **Paid amount and currency** in webhooks or order details. The payment history shows them only when the provider
   reports them.
 - [ ] End to end in the sandbox: trial > subscribe > callback, closed tab (webhook / job), renewal success, renewal
   failure > grace > downgrade, upgrade, downgrade at period end, cancel.
+
+## AI features
+
+The AI layer (`src/TriggerCheck.Ai`) interprets monitoring data with Claude and runs an L1 statistical baseline. The
+product works fully without it: status, incidents and alerts are always decided by the deterministic engine.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `Ai__Enabled` | `false` | **Global kill switch.** `false` (or no API key) registers a no-op client: nothing leaves the system and no AI rows are written. Restart to apply. The SuperAdmin *AI usage* page shows the state read-only. |
+| `ANTHROPIC_API_KEY` / `Ai__ApiKey` | none | Claude API key (`Ai__ApiKey` wins when both are set). Keep it in the secret store. |
+| `Ai__Model` | `claude-opus-5-5` | Default model (decision K1). |
+| `Ai__Effort` | `low` | Default effort: `low`, `medium`, `high`, `xhigh` or `max`. Any other value (also per feature) stops the startup. |
+| `Ai__Features__<Feature>__Model`, `__Effort`, `__MaxTokens` | inherit | Per-feature overrides, e.g. `Ai__Features__IncidentInterpretation__Model=claude-haiku-5-5`. Change a model or effort only after the eval run passes (`evals/README.md`). |
+| `Ai__MaxTokens` | 16000 | Output cap per call (thinking + JSON). Calls that hit it are recorded as `Truncated` (visible on the SuperAdmin page); raise the feature's `MaxTokens` if that happens. |
+| `Ai__TimeoutSeconds` (60), `Ai__MaxRetries` (2) | | `TimeoutSeconds` is the overall cap per call. The SDK retries 429/5xx/network errors, and each attempt gets `TimeoutSeconds / (MaxRetries + 1)` (at least 5 s). |
+| `Ai__RetryCooldownMinutes` | 60 | An identical input that was refused or failed is not sent again within this time. |
+| `Ai__QueueCapacity` (200), `Ai__MaxConcurrency` (2) | | Background AI queue. AI calls never run on a request or check path; a full queue drops the job (logged). |
+| `Ai__Pricing__<model>__InputPerMTok`, `__OutputPerMTok`, `__CacheReadPerMTok`, `__CacheWritePerMTok` | list prices | USD prices for cost estimates (SuperAdmin *AI usage*). |
+| `Ai__Baseline__Enabled` (true), `__IntervalSeconds` (60), `__RefreshMinutes` (60), `__WindowDays` (7), `__ZThreshold` (4), `__K` / `__N` (3 of 5), `__CloseAtMost` (1) | | L1 baseline / anomaly job (no LLM, no key needed). Runs only when `Monitoring__Enabled` is true. |
+
+**Slowdown detection latency (AI-1):** a slowdown is flagged when 3 of the last 5 successful checks are anomalous.
+The first job run after the third slow check flags it, so the latency is 3 check intervals plus up to
+`Ai__Baseline__IntervalSeconds` (default 60 s). Each run reads only the newest checks (one query per batch of monitors
+and check interval). Baselines are rebuilt about once per `RefreshMinutes`, spread over that period. A signal closes when
+at most `CloseAtMost` of the last 5 checks are anomalous, or when the monitor is disabled, deleted or its customer is
+suspended.
+
+**Who gets AI:** a call is made only when all of these hold:
+
+- `Ai__Enabled=true` and a key is set;
+- the customer has opted in on the *AI features* page (CustomerAdmin). Customers created after this release start opted in; existing customers start opted out (decision K2);
+- the customer's plan includes the feature;
+- the plan's monthly AI budget is not used up. The budget (calls and tokens) is edited on the SuperAdmin *Plans* page.
+
+Opt-out, not-in-plan and over-budget jobs are recorded in `AiDecisions` with a `Skipped*` status. The UI then silently
+shows no AI content, or "AI summary unavailable this month" when the budget is used up.
+
+The budget is reserved before each call: a `Pending` row is written in the same database transaction as the check, so
+parallel calls cannot overshoot the call limit. A reservation is always completed, also on shutdown or an unexpected error (`shutdown` / `error`); rows left `Pending` by a crash become `abandoned` after twice `Ai__TimeoutSeconds` (swept at startup and by the baseline job). The token limit can be exceeded by the calls in flight, at most
+`MaxConcurrency × MaxTokens`. These count towards the budget:
+
+- **Calls:** calls that returned token usage, plus pending calls. Calls that failed before the model answered (network, rate limit) are free.
+- **Tokens:** input + cache writes + output, with cache reads counted at 1/10.
+
+**Privacy (decision K5):** only masked technical data is sent: monitor type, **host name** (URLs are reduced to scheme
++ host; paths, query strings and fragments are dropped), status codes, error types and timings. These are masked first:
+
+- URL credentials and webhook URLs;
+- e-mail addresses and phone numbers;
+- key/value secrets (`Authorization`, `api_key`, `*_password`, `client_secret`, quoted JSON values, ...);
+- bare credential shapes: JWTs and other dot-separated opaque tokens, `sk-…` keys, AWS keys, Telegram / GitHub / GitLab / Slack tokens, grouped license-style keys, and any long letter+digit token (base64 included). System-generated identifiers such as monitor names skip only this last rule.
+
+Probe error texts and response snippets are normalized (NFKC), stripped of control characters, truncated and sent in
+delimited `<untrusted_data>` blocks that the prompt declares to be data, never instructions. Model output is validated
+(hypotheses need evidence, actions only from a fixed list, autonomy capped per feature) and never triggers an action by
+itself. Context is loaded per tenant only. Requests go to the Claude API (Anthropic); update the privacy notice before
+enabling AI in production.
+
+**Audit and retention:** `AiDecisions` has one row per call or skip. Each row holds the feature, subject, input hash,
+model, effort, validated output, confidence, autonomy level, status, tokens, estimated cost and latency. Each user's
+helpful / not helpful vote is in `AiFeedback`. Failures store a short code, never exception text: `timeout`,
+`rate_limited`, `refusal:<category>`, `max_tokens`, `invalid_output`, and so on. The retention cleanup deletes these
+after the plan's `RetentionDays`:
+
+- AI decisions, except the current month's, which the budget needs;
+- their feedback;
+- closed anomaly signals.

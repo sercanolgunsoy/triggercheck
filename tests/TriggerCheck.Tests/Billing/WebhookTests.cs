@@ -177,8 +177,21 @@ public class WebhookTests(BillingTestFactory f) : IClassFixture<BillingTestFacto
         Assert.Contains("ignored", await r.Content.ReadAsStringAsync());
         var e = await f.WithDbAsync(db => db.PaymentEvents.AsNoTracking().SingleAsync(x => x.SubscriptionReference == "ghost-ref"));
         Assert.True(e.Ignored);
+        Assert.Equal("unknown-subscription", e.IgnoredReason);
         Assert.Null(e.CustomerId);
         Assert.Equal("ghost-customer", e.CustomerReference);
+    }
+
+    [Fact]
+    public async Task Event_without_any_possible_checkout_stops_being_reconciled()
+    {
+        var r = await SendSignedAsync(f, "subscription.order.success", "orphan-ref", "o-orphan", "orphan-customer");
+        Assert.Contains("ignored", await r.Content.ReadAsStringAsync());
+        // No checkout was started before the event: nothing can match it, the job stops re-checking it.
+        await f.RunMaintenanceAsync();
+        var e = await f.WithDbAsync(db => db.PaymentEvents.AsNoTracking().SingleAsync(x => x.SubscriptionReference == "orphan-ref"));
+        Assert.Equal("unmatched", e.IgnoredReason);
+        Assert.True(e.Ignored);
     }
 
     [Fact]

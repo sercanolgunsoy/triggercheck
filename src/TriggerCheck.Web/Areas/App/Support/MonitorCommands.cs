@@ -4,7 +4,9 @@ using Microsoft.EntityFrameworkCore;
 using TriggerCheck.Domain;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Infrastructure.Data;
+using TriggerCheck.Monitoring.Checks;
 using TriggerCheck.Monitoring.Engine;
+using TriggerCheck.Web.Heartbeat;
 using MonitorEntity = TriggerCheck.Domain.Entities.Monitor;
 
 namespace TriggerCheck.Web.Areas.App.Support;
@@ -24,6 +26,12 @@ public enum MonitorCommandError
 public sealed record MonitorCommandResult(MonitorEntity? Monitor, MonitorCommandError Error)
 {
     public bool Succeeded => Error == MonitorCommandError.None;
+
+    /// <summary>
+    /// Heartbeat ping token issued by this command (create as / change to Heartbeat, or regeneration). Only its hash is
+    /// stored, so the caller must show it now (panel: one-time reveal; API: <c>pingUrl</c> in this response).
+    /// </summary>
+    public string? IssuedHeartbeatToken { get; init; }
 }
 
 /// <summary>
@@ -32,7 +40,7 @@ public sealed record MonitorCommandResult(MonitorEntity? Monitor, MonitorCommand
 /// plus the data annotations) and resolve the tenant themselves; every method is restricted to <c>customerId</c>.
 /// Pause / resume live in <see cref="MonitorLifecycle"/>.
 /// </summary>
-public sealed class MonitorCommands(AppDbContext db)
+public sealed class MonitorCommands(AppDbContext db, HeartbeatRateLimiter? heartbeatLimiter = null)
 {
     public Task<int> CountAsync(int customerId, CancellationToken ct) =>
         db.Monitors.CountAsync(m => m.CustomerId == customerId, ct);
@@ -51,6 +59,8 @@ public sealed class MonitorCommands(AppDbContext db)
             NextCheckAtUtc = now
         };
         input.ApplyTo(monitor);
+        // A heartbeat is not probed: its first evaluation is when the first ping is due.
+        if (monitor.Type == MonitorType.Heartbeat) monitor.NextCheckAtUtc = HeartbeatSchedule.FirstDeadline(monitor, now);
 
         // Re-count and insert atomically so parallel posts cannot exceed the plan quota. On SQLite a Serializable
         // transaction is BEGIN IMMEDIATE: it takes the write lock up front, so concurrent creates run one by one.
@@ -72,7 +82,7 @@ public sealed class MonitorCommands(AppDbContext db)
             db.ChangeTracker.Clear();
             return new(null, MonitorCommandError.Busy);
         }
-        return new(monitor, MonitorCommandError.None);
+        return new(monitor, MonitorCommandError.None) { IssuedHeartbeatToken = Known(input.IssuedHeartbeatToken) };
     }
 
     /// <summary>Loads a monitor of the customer for editing (tracked), or null.</summary>
@@ -92,7 +102,8 @@ public sealed class MonitorCommands(AppDbContext db)
             try
             {
                 await db.SaveChangesAsync(ct);
-                return new(m, MonitorCommandError.None);
+                // ApplyTo issues a token on every attempt that switches to Heartbeat: the saved one is the last.
+                return new(m, MonitorCommandError.None) { IssuedHeartbeatToken = Known(input.IssuedHeartbeatToken) };
             }
             catch (DbUpdateConcurrencyException) when (attempt < 3)
             {
@@ -110,6 +121,7 @@ public sealed class MonitorCommands(AppDbContext db)
     {
         var before = ProbeSettings.Of(m);
         var intervalChanged = m.IntervalSeconds != input.IntervalSeconds;
+        var becameHeartbeat = m.Type != MonitorType.Heartbeat && input.Type == MonitorType.Heartbeat;
         input.ApplyTo(m);
         var probeChanged = ProbeSettings.Of(m) != before;
 
@@ -120,8 +132,38 @@ public sealed class MonitorCommands(AppDbContext db)
             m.ConsecutiveFailures = 0;
             m.DownWhenPaused = false;
         }
-        if (m.Status != MonitorStatus.Paused && (probeChanged || intervalChanged)) m.NextCheckAtUtc = DateTime.UtcNow;
+        if (m.Status != MonitorStatus.Paused && (probeChanged || intervalChanged))
+            m.NextCheckAtUtc = m.Type == MonitorType.Heartbeat ? HeartbeatSchedule.AfterSettingsChange(m, becameHeartbeat, DateTime.UtcNow) : DateTime.UtcNow;
         m.Version++;
+    }
+
+    /// <summary>
+    /// Heartbeat: replaces the ping token (the old URL stops working at once). NotFound for another tenant's monitor or
+    /// a monitor that is not a heartbeat.
+    /// </summary>
+    public async Task<MonitorCommandResult> RegenerateHeartbeatTokenAsync(int customerId, int id, CancellationToken ct)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            var m = await FindTrackedAsync(customerId, id, ct);
+            if (m is null || m.Type != MonitorType.Heartbeat) return new(null, MonitorCommandError.NotFound);
+            var token = HeartbeatTokens.Issue(m);
+            m.Version++;
+            try
+            {
+                await db.SaveChangesAsync(ct);
+                return new(m, MonitorCommandError.None) { IssuedHeartbeatToken = Known(token) };
+            }
+            catch (DbUpdateConcurrencyException) when (attempt < 3)
+            {
+                db.ChangeTracker.Clear(); // a ping or check changed the row: retry on fresh state
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                db.ChangeTracker.Clear();
+                return new(null, MonitorCommandError.Conflict);
+            }
+        }
     }
 
     /// <summary>Deletes the monitor with its history. Returns the deleted monitor's name, or null if not found.</summary>
@@ -140,6 +182,13 @@ public sealed class MonitorCommands(AppDbContext db)
             await tx.CommitAsync(ct);
         }
         return name;
+    }
+
+    /// <summary>A newly issued ping token is known to the ping limiter right away (its first ping is never treated as a flood).</summary>
+    private string? Known(string? token)
+    {
+        if (token is not null) heartbeatLimiter?.MarkKnown(HeartbeatTokens.Hash(token));
+        return token;
     }
 
     /// <summary>SQLITE_BUSY (5) / SQLITE_LOCKED (6), possibly wrapped in a DbUpdateException.</summary>

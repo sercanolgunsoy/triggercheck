@@ -83,10 +83,16 @@ Errors use [RFC 7807](https://www.rfc-editor.org/rfc/rfc7807) `application/probl
 | PUT | `/monitors/{id}` | write | Replace the monitor's settings (omitted fields get their defaults) |
 | DELETE | `/monitors/{id}` | write | Delete with its history (`204`) |
 | POST | `/monitors/{id}/pause` | write | Pause (closes an open incident); idempotent |
-| POST | `/monitors/{id}/resume` | write | Resume (status `Unknown`, checked right away); idempotent |
+| POST | `/monitors/{id}/resume` | write | Resume (status `Unknown`, checked right away; a heartbeat gets a full interval + grace for its first ping); idempotent |
+| POST | `/monitors/{id}/heartbeat-token` | write | Heartbeat only: new ping token, the old URL stops working; the response has the new `pingUrl` |
 | GET | `/monitors/{id}/checks?from&to&limit` | read | Check results, newest first. Default: last 24 h, `limit` 100 (max 1000). Times in ISO 8601 |
 | GET | `/incidents?status=open\|resolved&monitorId&limit` | read | Incidents, newest first. `limit` 100 (max 500) |
+| POST | `/incidents/{id}/acknowledge` | read-write | Acknowledges an open incident (stops further escalation steps; the monitor status is not changed). Optional body `{ "note": "..." }` (max 500 chars). 409 if already acknowledged or resolved |
 | GET | `/status` | read | Counts by status, open incidents, 24 h uptime, plan limits |
+
+Monitors include `inMaintenance` (an active maintenance window covers the monitor), checks include `inMaintenance`
+(not counted in uptime), and incidents include `acknowledgedAtUtc`, `acknowledgeNote`, `escalationLevel` and
+`resolvedDuringMaintenance`. Maintenance windows and escalation policies are managed in the panel only.
 
 ### Monitor body (POST / PUT)
 
@@ -96,18 +102,37 @@ rejected (SSRF protection), type-specific fields.
 | Field | Type | Default | Notes |
 |-------|------|---------|-------|
 | `name` | string | (required) | max 200 |
-| `type` | `Http` \| `Keyword` \| `Tcp` \| `Ping` | `Http` | |
-| `target` | string | (required) | URL for Http/Keyword, host or IP for Tcp/Ping |
+| `type` | `Http` \| `Keyword` \| `Tcp` \| `Ping` \| `Dns` \| `Heartbeat` \| `JsonApi` | `Http` | |
+| `target` | string | (required, except Heartbeat) | URL for Http/Keyword/JsonApi, host or IP for Tcp/Ping, DNS name for Dns (e.g. `_dmarc.example.com`, IDN allowed) |
 | `port` | int | | required for Tcp (1-65535) |
 | `keyword` | string | | required for Keyword |
-| `httpMethod` | `GET` \| `HEAD` \| `POST` | `GET` | Http/Keyword |
+| `httpMethod` | `GET` \| `HEAD` \| `POST` | `GET` | Http/Keyword/JsonApi; `HEAD` only for Http (no body to check otherwise) |
 | `expectedStatusCodes` | string | `200-299` | e.g. `200-299,301` |
-| `intervalSeconds` | 300 \| 60 \| 30 \| 15 | 300 | must be allowed by the plan |
-| `timeoutSeconds` | int | 10 | 1-60, below the interval |
-| `failureThreshold` | int | 2 | 1-5 |
+| `dnsRecordType` | `A` \| `AAAA` \| `CNAME` \| `MX` \| `NS` \| `TXT` | | required for Dns |
+| `jsonPath` | string | | required for JsonApi: `$`, `.name`, `['name']`, `[0]` only (no wildcards, filters or scripts), max 500 |
+| `assertionOperator` | `Equal` \| `Contains` \| `Exists` \| `LessThan` \| `GreaterThan` | | required for JsonApi; Dns: `Equal` (default) or `Contains` |
+| `expectedValue` | string | | JsonApi: required except for `Exists`, a number for `LessThan`/`GreaterThan`. Dns: optional (empty = at least one record) |
+| `intervalSeconds` | 300 \| 60 \| 30 \| 15 | 300 | must be allowed by the plan. Heartbeat: 60, 300, 900, 1800, 3600, 21600, 43200 or 86400 (plan minimum applies) |
+| `gracePeriodSeconds` | int | 60 | Heartbeat: 10-86400, extra time for a late ping |
+| `timeoutSeconds` | int | 10 | 1-60, below the interval (not used by Heartbeat) |
+| `failureThreshold` | int | 2 | 1-5; always 1 for Heartbeat (the grace period is the tolerance) |
 
 Responses contain these fields plus `id`, `status` (`Unknown`/`Up`/`Down`/`Paused`), `isPaused`, `lastCheckedAtUtc`,
-`nextCheckAtUtc`, `lastResponseTimeMs`, `lastError`, `statusChangedAtUtc`, `createdAtUtc` (UTC, ISO 8601).
+`nextCheckAtUtc`, `lastResponseTimeMs`, `lastError`, `statusChangedAtUtc`, `createdAtUtc` (UTC, ISO 8601). Heartbeat
+monitors also carry `heartbeatTokenPrefix`, `lastHeartbeatAtUtc`, `lastHeartbeatFailed`, `lastHeartbeatMessage`.
+
+### Heartbeat ping URL
+
+Only a hash of the ping token is stored. The full URL is returned **once**, as `pingUrl`, in the response that issued
+the token: `POST /monitors` with `type: Heartbeat`, a `PUT` that changes a monitor to Heartbeat, and
+`POST /monitors/{id}/heartbeat-token`. These responses are sent with `Cache-Control: no-store`; store the URL in your
+secret store. Every other response has `pingUrl: null`.
+
+The job calls `GET`, `POST` or `HEAD` `https://<host>/hb/<token>` (no API key, no body needed). Add `?status=fail`
+(optionally `&msg=...`, at most 200 characters, masked) to report a failure, which counts as a failed check right away.
+The endpoint always answers `200 OK` (also for unknown tokens) or `429` with `Retry-After` when rate limited (per token,
+per client IP / IPv6 /64 and globally, see `Heartbeat__*` in [DEPLOYMENT.md](DEPLOYMENT.md)). Pings to paused monitors
+or suspended accounts are ignored. The URL's host comes from `Site__PublicBaseUrl` when set, otherwise from the request.
 
 ## Examples
 
@@ -125,6 +150,17 @@ curl -X PUT -H "Authorization: Bearer $TC_KEY" -H "Content-Type: application/jso
   -d '{"name":"Website","type":"Keyword","target":"https://example.com/","keyword":"Welcome","intervalSeconds":60}' \
   $TC/api/v1/monitors/42
 
+# Heartbeat for a nightly job (the response's pingUrl is shown only now)
+curl -X POST -H "Authorization: Bearer $TC_KEY" -H "Content-Type: application/json" \
+  -d '{"name":"Nightly backup","type":"Heartbeat","intervalSeconds":86400,"gracePeriodSeconds":1800}' \
+  $TC/api/v1/monitors
+# in the job:  curl -fsS -m 10 --retry 3 "$PING_URL"   or on failure:  curl -fsS "$PING_URL?status=fail&msg=exit+2"
+
+# JSON API monitor: $.status must equal "ok"
+curl -X POST -H "Authorization: Bearer $TC_KEY" -H "Content-Type: application/json" \
+  -d '{"name":"API health","type":"JsonApi","target":"https://api.example.com/health","jsonPath":"$.status","assertionOperator":"Equal","expectedValue":"ok","intervalSeconds":60}' \
+  $TC/api/v1/monitors
+
 # Pause during maintenance, then resume
 curl -X POST -H "Authorization: Bearer $TC_KEY" $TC/api/v1/monitors/42/pause
 curl -X POST -H "Authorization: Bearer $TC_KEY" $TC/api/v1/monitors/42/resume
@@ -134,6 +170,10 @@ curl -H "Authorization: Bearer $TC_KEY" "$TC/api/v1/monitors/42/checks?from=$(da
 
 # Open incidents
 curl -H "Authorization: Bearer $TC_KEY" "$TC/api/v1/incidents?status=open"
+
+# Acknowledge one (read-write key)
+curl -X POST -H "Authorization: Bearer $TC_KEY" -H "Content-Type: application/json" \
+     -d '{"note":"Looking into it"}' "$TC/api/v1/incidents/42/acknowledge"
 
 # Delete
 curl -X DELETE -H "Authorization: Bearer $TC_KEY" $TC/api/v1/monitors/42

@@ -5,8 +5,12 @@ using TriggerCheck.Domain;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Monitoring;
+using TriggerCheck.Monitoring.Checks;
 using TriggerCheck.Monitoring.Engine;
+using TriggerCheck.Monitoring.Maintenance;
 using TriggerCheck.Monitoring.Stats;
+using TriggerCheck.Web.Areas.App.Support;
+using TriggerCheck.Web.Heartbeat;
 using TriggerCheck.Web.Infrastructure;
 using TriggerCheck.Web.Localization;
 using MonitorEntity = TriggerCheck.Domain.Entities.Monitor;
@@ -15,9 +19,12 @@ namespace TriggerCheck.Web.Areas.App.Pages.Monitors;
 
 /// <summary>Readable by all customer members; the POST handlers (pause/resume/check now) are CustomerAdmin only.</summary>
 public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStatsService stats, MonitorLifecycle lifecycle, ILogger<DetailsModel> logger, Text<AppResource> L,
-    ManualCheckLimiter limiter, IResponseTimeSeriesService series) : PageModel
+    ManualCheckLimiter limiter, IResponseTimeSeriesService series, TimeProvider time, MonitorCommands commands, HeartbeatUrlReveal reveals) : PageModel
 {
     public const int MaxChartPoints = ResponseTimeSeriesService.MaxPoints;
+
+    /// <summary>Freshly issued heartbeat ping URL: only on the first GET after it was issued, only for the admin who issued it.</summary>
+    public string? NewPingUrl { get; private set; }
 
     /// <summary>Chart ranges offered on the page (query string <c>?range=</c>).</summary>
     public static readonly IReadOnlyDictionary<string, TimeSpan> Ranges = new Dictionary<string, TimeSpan>
@@ -34,8 +41,14 @@ public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStat
     /// <summary>Incident marker: bucket index where it started (and ended, when resolved within the range).</summary>
     public record ChartIncident(int Start, int? End, string Label);
 
+    /// <summary>Maintenance band (FEAT-3): first and last bucket index covered by a maintenance window.</summary>
+    public record ChartMaintenance(int Start, int End, string Label);
+
     public string Range { get; private set; } = "24h";
     public List<ChartIncident> ChartIncidents { get; private set; } = [];
+    public List<ChartMaintenance> ChartMaintenanceBands { get; private set; } = [];
+    /// <summary>The monitor is in a maintenance window right now.</summary>
+    public bool InMaintenance { get; private set; }
     public bool HasPhaseData => Chart.Any(p => p.Wait is not null);
     public bool IsHttps => MonitorStateMachine.IsHttpsMonitor(Monitor);
 
@@ -65,11 +78,16 @@ public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStat
         return q.FirstOrDefaultAsync(x => x.Id == id && x.CustomerId == cid, ct);
     }
 
-    public async Task<IActionResult> OnGetAsync(int id, string? range, CancellationToken ct)
+    public async Task<IActionResult> OnGetAsync(int id, string? range, Guid? reveal, CancellationToken ct)
     {
         var m = await FindAsync(id, ct, tracking: false);
         if (m is null) return NotFound();
         Monitor = m;
+        if (IsAdmin && reveal is not null)
+        {
+            NewPingUrl = reveals.Take(User, m.CustomerId, m.Id, reveal);
+            Response.Headers.CacheControl = "no-store";
+        }
 
         var now = DateTime.UtcNow;
         var ids = new[] { id };
@@ -96,6 +114,12 @@ public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStat
             s.BucketIndexOf(i.StartedAtUtc < from ? from : i.StartedAtUtc) ?? 0,
             i.ResolvedAtUtc is DateTime r ? s.BucketIndexOf(r) : null,
             Label(i.StartedAtUtc))).ToList();
+
+        var bands = await MaintenanceQueries.OccurrencesAsync(db, m.CustomerId, id, from, now, ct);
+        ChartMaintenanceBands = bands.Select(b => new ChartMaintenance(
+            s.BucketIndexOf(b.StartUtc) ?? 0, s.BucketIndexOf(b.EndUtc.AddTicks(-1)) ?? s.Buckets.Count - 1,
+            Label(b.StartUtc) + " – " + Label(b.EndUtc))).ToList();
+        InMaintenance = (await MaintenanceQueries.MonitorsInMaintenanceAsync(db, m.CustomerId, [id], time.GetUtcNow().UtcDateTime, ct)).Count > 0;
 
         RecentChecks = await db.CheckResults.AsNoTracking()
             .Where(c => c.MonitorId == id)
@@ -145,6 +169,18 @@ public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStat
         return Back(id, returnTo);
     }
 
+    /// <summary>Heartbeat: replaces the ping token. The old URL stops working immediately; the new one is shown once.</summary>
+    public async Task<IActionResult> OnPostRegenerateTokenAsync(int id, CancellationToken ct)
+    {
+        if (!IsAdmin) return Forbid();
+        var cid = current.RequiredCustomerId;
+        var r = await commands.RegenerateHeartbeatTokenAsync(cid, id, ct);
+        if (r.Error == MonitorCommandError.NotFound) return NotFound();
+        if (r.Error == MonitorCommandError.Conflict) return ConcurrencyConflict(id, null);
+        TempData["Success"] = L["A new ping URL was generated. The old URL no longer works."].Value;
+        return RedirectToPage("Details", new { id, reveal = reveals.Park(User, cid, id, HeartbeatEndpoint.PingUrl(Request, r.IssuedHeartbeatToken!)) });
+    }
+
     public async Task<IActionResult> OnPostCheckNowAsync(int id, CancellationToken ct)
     {
         if (!IsAdmin) return Forbid();
@@ -154,6 +190,11 @@ public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStat
         if (m.Status == MonitorStatus.Paused || !m.IsEnabled)
         {
             TempData["Error"] = L["A paused monitor cannot be checked. Resume it first."].Value;
+            return Back(id, null);
+        }
+        if (m.Type == MonitorType.Heartbeat)
+        {
+            TempData["Error"] = L["A heartbeat monitor is checked when its ping arrives or is overdue; it cannot be checked on demand."].Value;
             return Back(id, null);
         }
 

@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\TriggerCheck.Monitoring\TriggerCheck.Monitoring.csproj" />
     <ProjectReference Include="..\TriggerCheck.Infrastructure\TriggerCheck.Infrastructure.csproj" />
+    <ProjectReference Include="..\TriggerCheck.Ai\TriggerCheck.Ai.csproj" />
   </ItemGroup>
 
   <ItemGroup>

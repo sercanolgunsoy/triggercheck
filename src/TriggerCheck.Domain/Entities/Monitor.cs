@@ -9,7 +9,10 @@ public class Monitor
     public string Name { get; set; } = "";
     public MonitorType Type { get; set; } = MonitorType.Http;
 
-    /// <summary>For Http/Keyword: absolute URL. For Tcp/Ping: host name or IP.</summary>
+    /// <summary>
+    /// For Http/Keyword/JsonApi: absolute URL. For Tcp/Ping: host name or IP. For Dns: the host name to query.
+    /// For Heartbeat: a display string ("/hb/{prefix}…"), never the token.
+    /// </summary>
     public string Target { get; set; } = "";
     /// <summary>Only for Tcp.</summary>
     public int? Port { get; set; }
@@ -26,6 +29,30 @@ public class Monitor
     public int FailureThreshold { get; set; } = 2;
 
     public bool IsEnabled { get; set; } = true;
+
+    // ---- Dns / JsonApi assertion ----
+    /// <summary>Dns only: record type to query.</summary>
+    public DnsRecordType? DnsRecordType { get; set; }
+    /// <summary>JsonApi only: path like <c>$.data.items[0].status</c> (dot / index / quoted-bracket segments only).</summary>
+    public string? JsonPath { get; set; }
+    /// <summary>JsonApi: how the value at <see cref="JsonPath"/> is compared. Dns: Equal / Contains for <see cref="ExpectedValue"/>.</summary>
+    public AssertionOperator? AssertionOperator { get; set; }
+    /// <summary>JsonApi / Dns: expected value. Dns: optional (null = at least one record must exist).</summary>
+    public string? ExpectedValue { get; set; }
+
+    // ---- Heartbeat (push) ----
+    /// <summary>Heartbeat: how long after the expected ping (LastHeartbeatAtUtc + interval) the monitor is still UP.</summary>
+    public int GracePeriodSeconds { get; set; }
+    /// <summary>Heartbeat: SHA-256 (hex) of the secret ping token. The token itself is never stored.</summary>
+    public string? HeartbeatTokenHash { get; set; }
+    /// <summary>Heartbeat: first characters of the token, shown to identify it.</summary>
+    public string? HeartbeatTokenPrefix { get; set; }
+    /// <summary>Heartbeat: time of the last ping received.</summary>
+    public DateTime? LastHeartbeatAtUtc { get; set; }
+    /// <summary>Heartbeat: the last ping reported a failure (<c>?status=fail</c>).</summary>
+    public bool LastHeartbeatFailed { get; set; }
+    /// <summary>Heartbeat: optional short message of the last ping (truncated, secrets masked).</summary>
+    public string? LastHeartbeatMessage { get; set; }
 
     /// <summary>Https Http/Keyword monitors: send a one-time alert this many days before the certificate expires. 0 = off.</summary>
     public int CertWarnDays { get; set; } = 14;

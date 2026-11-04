@@ -6,6 +6,7 @@ using TriggerCheck.Domain.Security;
 using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Monitoring.Checks;
 using TriggerCheck.Monitoring.Diagnostics;
+using TriggerCheck.Monitoring.Escalation;
 
 namespace TriggerCheck.Monitoring.Alerting;
 
@@ -49,6 +50,10 @@ public interface IAlertDispatcher
 /// Certificate-expiry warnings (<see cref="AlertKind.CertificateExpiring"/>) never go to voice-call channels: they are
 /// not urgent enough to phone someone (SMS is fine). A customer whose only channel is a voice call gets them by the
 /// contact e-mail fallback.
+/// Escalation alerts (FEAT-5) go only to their step's channels (<see cref="AlertMessage.ChannelIds"/>, same fallback when
+/// none of them can deliver) and are dropped when the incident was acknowledged or resolved before delivery or before a
+/// retry. DOWN and
+/// escalation alerts get the signed acknowledge link (<see cref="IncidentAckLinks"/>) when it is configured.
 /// Every final per-channel delivery outcome is counted in <see cref="MonitoringMetrics.RecordAlert"/> (not channel
 /// tests and not alerts superseded before they were sent).
 /// </summary>
@@ -60,6 +65,7 @@ public sealed class AlertDispatcher(
     IOptionsMonitor<TwilioOptions> twilio,
     TimeProvider time,
     MonitoringMetrics metrics,
+    IncidentAckLinks ackLinks,
     ILogger<AlertDispatcher> logger) : IAlertDispatcher
 {
     public const string NotInPlanError = "SMS and voice call alerts are not included in the plan";
@@ -67,11 +73,20 @@ public sealed class AlertDispatcher(
     public const string SupersededError = "Superseded by a newer alert for this monitor";
     public const string DailyLimitError = "Daily SMS / voice call limit reached";
     public const string UsageUnavailableError = "SMS / voice limit could not be checked; not sent";
+    public const string AcknowledgedError = "Not retried: the incident was acknowledged or resolved";
 
     public async Task<IReadOnlyList<Notification>> DispatchAsync(AlertMessage message, CancellationToken ct = default,
         CancellationToken stopRetrying = default, CancellationToken superseded = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
+        if (message.Kind == AlertKind.Escalation && !await IsStillUnacknowledgedAsync(db, message, ct))
+        {
+            logger.LogInformation("Escalation of incident {IncidentId} (monitor {MonitorId}) not sent: acknowledged or resolved meanwhile",
+                message.IncidentId, message.MonitorId);
+            return [];
+        }
+        if (message is { IsDownLike: true, IncidentId: int incidentId, AckUrl: null })
+            message = message with { AckUrl = ackLinks.CreateUrl(incidentId, message.CustomerId) };
         var deliveries = await ResolveAsync(db, message, ct);
         if (deliveries.Count == 0) return [];
 
@@ -99,6 +114,17 @@ public sealed class AlertDispatcher(
         await SaveAsync(db, message, notifications);
     }
 
+    private async Task<bool> IsStillUnacknowledgedAsync(AlertMessage message, CancellationToken ct)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        return await IsStillUnacknowledgedAsync(db, message, ct);
+    }
+
+    /// <summary>FEAT-5: an escalation is only delivered while its incident is still open and unacknowledged.</summary>
+    private static Task<bool> IsStillUnacknowledgedAsync(AppDbContext db, AlertMessage message, CancellationToken ct) =>
+        db.Incidents.AnyAsync(i => i.Id == message.IncidentId && i.Monitor.CustomerId == message.CustomerId
+                                   && i.ResolvedAtUtc == null && i.AcknowledgedAtUtc == null, ct);
+
     /// <summary>The channels an alert goes to, each with the reason it cannot be delivered (null = deliverable).</summary>
     private async Task<List<(Target Target, string? Blocked)>> ResolveAsync(AppDbContext db, AlertMessage message, CancellationToken ct)
     {
@@ -112,9 +138,15 @@ public sealed class AlertDispatcher(
             return [];
         }
 
-        var channels = await db.AlertChannels.AsNoTracking()
+        var query = db.AlertChannels.AsNoTracking()
             .Where(c => c.CustomerId == message.CustomerId && c.IsEnabled)
-            .Where(c => message.Kind != AlertKind.CertificateExpiring || c.Type != AlertChannelType.VoiceCall)
+            .Where(c => message.Kind != AlertKind.CertificateExpiring || c.Type != AlertChannelType.VoiceCall);
+        if (message.ChannelIds is { } only)
+        {
+            var ids = only.ToList();
+            query = query.Where(c => ids.Contains(c.Id));
+        }
+        var channels = await query
             .OrderBy(c => c.Id)
             .Select(c => new Target((int?)c.Id, c.Type, c.Target, c.Secret))
             .ToListAsync(ct);
@@ -263,6 +295,12 @@ public sealed class AlertDispatcher(
                     if (superseded.IsCancellationRequested && !ct.IsCancellationRequested && !stopRetrying.IsCancellationRequested)
                         result = Superseded(result);
                     break; // shutting down or superseded: record the last failure
+                }
+                // FEAT-5: an escalation acknowledged or resolved while waiting is not retried.
+                if (message.Kind == AlertKind.Escalation && !await IsStillUnacknowledgedAsync(message, ct))
+                {
+                    result = NotifyResult.Fail(AcknowledgedError);
+                    break;
                 }
             }
         }

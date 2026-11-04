@@ -1,8 +1,15 @@
 @model TriggerCheck.Web.Areas.App.Pages.Monitors.MonitorFormPageModel
 @{
-    var isHttp = Model.Input.Type is MonitorType.Http or MonitorType.Keyword;
+    // Type-specific fields sit in <fieldset data-types="..."> blocks. site.js shows the blocks of the selected type and
+    // disables the others (disabled fields are not posted); the initial state is rendered here so it is right without JS.
+    var type = Model.Input.Type.ToString();
+    bool Off(string types) => !types.Split(' ').Contains(type);
+    const string probed = "Http Keyword Tcp Ping Dns JsonApi";
+    const string http = "Http Keyword JsonApi";
     var urlHelp = L["Full URL starting with http:// or https://."].Value;
     var hostHelp = L["Host name or IP address (without a scheme), e.g. example.com"].Value;
+    var dnsHelp = L["Host name to look up, e.g. example.com"].Value;
+    var isUrlType = MonitorInput.IsHttpType(Model.Input.Type);
 }
 <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
 
@@ -14,7 +21,7 @@
     </div>
     <div class="col-md-6">
         <label asp-for="Input.Type" class="form-label"></label>
-        <select asp-for="Input.Type" class="form-select" id="monitor-type">
+        <select asp-for="Input.Type" class="form-select" id="monitor-type" data-monitor-type>
             @foreach (var t in Enum.GetValues<MonitorType>())
             {
                 <option value="@t" selected="@(Model.Input.Type == t)">@Fmt.TypeName(t)</option>
@@ -23,25 +30,63 @@
         <span asp-validation-for="Input.Type" class="text-danger small"></span>
     </div>
 
-    <div class="col-md-8">
+    <fieldset class="col-md-8" data-types="@probed" hidden="@Off(probed)" disabled="@Off(probed)">
         <label asp-for="Input.Target" class="form-label"></label>
-        <input asp-for="Input.Target" class="form-control" id="monitor-target" placeholder="https://example.com" />
-        <div class="form-text" id="target-help">@(isHttp ? urlHelp : hostHelp)</div>
+        <input asp-for="Input.Target" class="form-control" id="monitor-target" placeholder="@(isUrlType ? "https://example.com" : "example.com")"
+               data-placeholder-http="https://example.com" data-placeholder-keyword="https://example.com" data-placeholder-jsonapi="https://api.example.com/health" />
+        <div class="form-text" id="target-help" data-help-default="@hostHelp" data-help-http="@urlHelp" data-help-keyword="@urlHelp"
+             data-help-jsonapi="@urlHelp" data-help-dns="@dnsHelp">@(isUrlType ? urlHelp : Model.Input.Type == MonitorType.Dns ? dnsHelp : hostHelp)</div>
         <span asp-validation-for="Input.Target" class="text-danger small"></span>
-    </div>
-    <div class="col-md-4" data-types="Tcp">
+    </fieldset>
+    <fieldset class="col-md-4" data-types="Tcp" hidden="@Off("Tcp")" disabled="@Off("Tcp")">
         <label asp-for="Input.Port" class="form-label"></label>
         <input asp-for="Input.Port" class="form-control" type="number" min="1" max="65535" placeholder="443" />
         <span asp-validation-for="Input.Port" class="text-danger small"></span>
-    </div>
+    </fieldset>
+    <fieldset class="col-md-4" data-types="Dns" hidden="@Off("Dns")" disabled="@Off("Dns")">
+        <label asp-for="Input.DnsRecordType" class="form-label"></label>
+        <select asp-for="Input.DnsRecordType" class="form-select">
+            @foreach (var rt in MonitorInput.DnsRecordTypes)
+            {
+                <option value="@rt" selected="@(Model.Input.DnsRecordType == rt)">@rt</option>
+            }
+        </select>
+        <span asp-validation-for="Input.DnsRecordType" class="text-danger small"></span>
+    </fieldset>
 
-    <div class="col-md-12" data-types="Keyword">
+    <fieldset class="col-md-12" data-types="Keyword" hidden="@Off("Keyword")" disabled="@Off("Keyword")">
         <label asp-for="Input.Keyword" class="form-label"></label>
         <input asp-for="Input.Keyword" class="form-control" placeholder="@L["Text to look for in the response body"]" />
         <span asp-validation-for="Input.Keyword" class="text-danger small"></span>
-    </div>
+    </fieldset>
 
-    <div class="col-md-4" data-types="Http Keyword">
+    <fieldset class="col-md-5" data-types="JsonApi" hidden="@Off("JsonApi")" disabled="@Off("JsonApi")">
+        <label asp-for="Input.JsonPath" class="form-label"></label>
+        <input asp-for="Input.JsonPath" class="form-control font-monospace" placeholder="$.status" />
+        <div class="form-text">@L["e.g. $.status, $.data.items[0].name or $['odd key']"]</div>
+        <span asp-validation-for="Input.JsonPath" class="text-danger small"></span>
+    </fieldset>
+    <fieldset class="col-md-3" data-types="Dns JsonApi" hidden="@Off("Dns JsonApi")" disabled="@Off("Dns JsonApi")">
+        <label asp-for="Input.AssertionOperator" class="form-label"></label>
+        <select asp-for="Input.AssertionOperator" class="form-select">
+            @foreach (var op in MonitorInput.JsonOperators)
+            {
+                var opTypes = MonitorInput.DnsOperators.Contains(op) ? "Dns JsonApi" : "JsonApi";
+                <option value="@op" data-types="@opTypes" selected="@(Model.Input.AssertionOperator == op)"
+                        hidden="@Off(opTypes)" disabled="@Off(opTypes)">@MonitorInput.OperatorName(op, L)</option>
+            }
+        </select>
+        <span asp-validation-for="Input.AssertionOperator" class="text-danger small"></span>
+    </fieldset>
+    <fieldset class="col-md-4" data-types="Dns JsonApi" hidden="@Off("Dns JsonApi")" disabled="@Off("Dns JsonApi")">
+        <label asp-for="Input.ExpectedValue" class="form-label"></label>
+        <input asp-for="Input.ExpectedValue" class="form-control" />
+        <div class="form-text" data-types="Dns" hidden="@Off("Dns")">@L["Optional. Empty: at least one record must exist."]</div>
+        <div class="form-text" data-types="JsonApi" hidden="@Off("JsonApi")">@L["Not used for \"exists\"; a number for less / greater than."]</div>
+        <span asp-validation-for="Input.ExpectedValue" class="text-danger small"></span>
+    </fieldset>
+
+    <fieldset class="col-md-4" data-types="@http" hidden="@Off(http)" disabled="@Off(http)">
         <label asp-for="Input.HttpMethod" class="form-label"></label>
         <select asp-for="Input.HttpMethod" class="form-select">
             @foreach (var hm in MonitorInput.HttpMethods)
@@ -50,15 +95,15 @@
             }
         </select>
         <span asp-validation-for="Input.HttpMethod" class="text-danger small"></span>
-    </div>
-    <div class="col-md-8" data-types="Http Keyword">
+    </fieldset>
+    <fieldset class="col-md-8" data-types="@http" hidden="@Off(http)" disabled="@Off(http)">
         <label asp-for="Input.ExpectedStatusCodes" class="form-label"></label>
         <input asp-for="Input.ExpectedStatusCodes" class="form-control" placeholder="200-299,301" />
         <div class="form-text">@L["Comma-separated codes or ranges, e.g. 200-299,301"]</div>
         <span asp-validation-for="Input.ExpectedStatusCodes" class="text-danger small"></span>
-    </div>
+    </fieldset>
 
-    <div class="col-md-4" data-types="Http Keyword">
+    <fieldset class="col-md-4" data-types="@http" hidden="@Off(http)" disabled="@Off(http)">
         <label asp-for="Input.CertWarnDays" class="form-label"></label>
         <select asp-for="Input.CertWarnDays" class="form-select">
             @foreach (var d in TriggerCheck.Monitoring.Engine.MonitorStateMachine.CertWarnDayChoices)
@@ -68,10 +113,14 @@
         </select>
         <div class="form-text">@L["https only: one alert when the TLS certificate is about to expire."]</div>
         <span asp-validation-for="Input.CertWarnDays" class="text-danger small"></span>
-    </div>
-    <div class="col-md-8" data-types="Http Keyword"></div>
+    </fieldset>
+    <div class="col-md-8" data-types="@http" hidden="@Off(http)"></div>
 
-    <div class="col-md-4">
+    <div class="col-md-12" data-types="Heartbeat" hidden="@Off("Heartbeat")">
+        <div class="alert alert-info mb-0 small">@L["Heartbeat monitors are not probed. Your job calls a secret ping URL (shown after saving) every interval; the monitor goes down when no ping arrives within the interval plus the grace period, or when a ping reports ?status=fail."]</div>
+    </div>
+
+    <fieldset class="col-md-4" data-types="@probed" hidden="@Off(probed)" disabled="@Off(probed)">
         <label asp-for="Input.IntervalSeconds" class="form-label"></label>
         <select asp-for="Input.IntervalSeconds" class="form-select">
             @foreach (var i in Model.AllowedIntervals)
@@ -81,13 +130,29 @@
         </select>
         <div class="form-text">@L["Your plan ({0}) allows intervals down to {1}.", Model.Plan.Name, Fmt.Interval(Model.Plan.MinIntervalSeconds)]</div>
         <span asp-validation-for="Input.IntervalSeconds" class="text-danger small"></span>
-    </div>
-    <div class="col-md-4">
+    </fieldset>
+    <fieldset class="col-md-4" data-types="Heartbeat" hidden="@Off("Heartbeat")" disabled="@Off("Heartbeat")">
+        <label for="heartbeat-interval" class="form-label">@L["Expected ping interval"]</label>
+        <select name="Input.IntervalSeconds" id="heartbeat-interval" class="form-select">
+            @foreach (var i in Model.AllowedHeartbeatIntervals)
+            {
+                <option value="@i" selected="@(Model.Input.IntervalSeconds == i)">@Fmt.Interval(i)</option>
+            }
+        </select>
+        <span asp-validation-for="Input.IntervalSeconds" class="text-danger small"></span>
+    </fieldset>
+    <fieldset class="col-md-4" data-types="Heartbeat" hidden="@Off("Heartbeat")" disabled="@Off("Heartbeat")">
+        <label asp-for="Input.GracePeriodSeconds" class="form-label"></label>
+        <input asp-for="Input.GracePeriodSeconds" class="form-control" type="number" min="@MonitorInput.MinGracePeriodSeconds" max="@MonitorInput.MaxGracePeriodSeconds" />
+        <div class="form-text">@L["Extra time allowed for a late ping."]</div>
+        <span asp-validation-for="Input.GracePeriodSeconds" class="text-danger small"></span>
+    </fieldset>
+    <fieldset class="col-md-4" data-types="@probed" hidden="@Off(probed)" disabled="@Off(probed)">
         <label asp-for="Input.TimeoutSeconds" class="form-label"></label>
         <input asp-for="Input.TimeoutSeconds" class="form-control" type="number" min="1" max="60" />
         <span asp-validation-for="Input.TimeoutSeconds" class="text-danger small"></span>
-    </div>
-    <div class="col-md-4">
+    </fieldset>
+    <fieldset class="col-md-4" data-types="@probed" hidden="@Off(probed)" disabled="@Off(probed)">
         <label asp-for="Input.FailureThreshold" class="form-label"></label>
         <select asp-for="Input.FailureThreshold" class="form-select">
             @for (var n = 1; n <= 5; n++)
@@ -97,24 +162,5 @@
         </select>
         <div class="form-text">@L["The monitor goes DOWN after this many consecutive failed checks."]</div>
         <span asp-validation-for="Input.FailureThreshold" class="text-danger small"></span>
-    </div>
+    </fieldset>
 </div>
-
-<script>
-(function () {
-    var sel = document.getElementById('monitor-type');
-    var help = document.getElementById('target-help');
-    var target = document.getElementById('monitor-target');
-    function update() {
-        var t = sel.value;
-        document.querySelectorAll('[data-types]').forEach(function (el) {
-            el.style.display = el.getAttribute('data-types').split(' ').indexOf(t) >= 0 ? '' : 'none';
-        });
-        var http = t === 'Http' || t === 'Keyword';
-        help.textContent = http ? @Json.Serialize(urlHelp) : @Json.Serialize(hostHelp);
-        target.placeholder = http ? 'https://example.com' : 'example.com';
-    }
-    sel.addEventListener('change', update);
-    update();
-})();
-</script>

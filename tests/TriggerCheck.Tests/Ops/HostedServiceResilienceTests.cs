@@ -45,9 +45,8 @@ public class HostedServiceResilienceTests
         var lifetime = f.Services.GetRequiredService<IHostApplicationLifetime>();
         await Task.Delay(300); // a few scheduler ticks on the healthy database
 
-        var connectionString = f.Services.GetRequiredService<IConfiguration>().GetConnectionString("Default")!;
-        var dataSource = new SqliteConnectionStringBuilder(connectionString).DataSource;
-        SqliteTestFiles.ClearPool(connectionString);
+        var dataSource = new SqliteConnectionStringBuilder(f.Services.GetRequiredService<IConfiguration>().GetConnectionString("Default")).DataSource;
+        SqliteConnection.ClearPool(new SqliteConnection($"Data Source={dataSource}")); // not ClearAllPools: other tests run in parallel
         File.Delete(dataSource);
         File.WriteAllBytes(dataSource, [1, 2, 3]); // not even a database: every query fails
 
@@ -68,13 +67,12 @@ public class HostedServiceUnitResilienceTests
             ["Monitoring:SchedulerTickMilliseconds"] = "1000",
             ["Monitoring:RetentionCleanupMinutes"] = "1"
         });
-        var connectionString = host.Services.GetRequiredService<IConfiguration>().GetConnectionString("Default")!;
-        var dataSource = new SqliteConnectionStringBuilder(connectionString).DataSource;
-        SqliteTestFiles.ClearPool(connectionString);
+        var dataSource = new SqliteConnectionStringBuilder(host.Services.GetRequiredService<IConfiguration>().GetConnectionString("Default")).DataSource;
+        SqliteConnection.ClearPool(new SqliteConnection($"Data Source={dataSource}")); // not ClearAllPools: other tests run in parallel
         File.WriteAllBytes(dataSource, [1, 2, 3]); // every query fails from now on
 
-        var services = host.Services.GetServices<IHostedService>().Cast<BackgroundService>().ToList();
-        Assert.Equal(3, services.Count);
+        var services = host.Services.GetServices<IHostedService>().OfType<BackgroundService>().ToList();
+        Assert.Equal(4, services.Count); // alert sender, scheduler, retention, escalation (FEAT-5)
         foreach (var s in services) await s.StartAsync(CancellationToken.None);
 
         for (var i = 0; i < 10; i++) // 10 scheduler ticks and 2+ retention runs, all failing
@@ -93,7 +91,7 @@ public class HostedServiceUnitResilienceTests
     public async Task Hosted_services_can_be_stopped_again_after_dispose()
     {
         await using var host = await MonitoringTestHost.CreateAsync(settings: new() { ["Monitoring:Enabled"] = "true" });
-        foreach (var s in host.Services.GetServices<IHostedService>().Cast<BackgroundService>())
+        foreach (var s in host.Services.GetServices<IHostedService>().OfType<BackgroundService>())
         {
             await s.StartAsync(CancellationToken.None);
             await s.StopAsync(CancellationToken.None);

@@ -16,7 +16,7 @@ namespace TriggerCheck.Web.Pages.Account;
 /// link (Identity token, one day). Rate limited per client IP.
 /// </summary>
 [EnableRateLimiting(BillingSetup.PasswordResetPolicy)]
-public class ForgotPasswordModel(UserManager<ApplicationUser> users, BillingMailer mailer, IOptionsMonitor<BillingOptions> options,
+public class ForgotPasswordModel(UserManager<ApplicationUser> users, BillingMailer mailer,
     ILogger<ForgotPasswordModel> logger) : PageModel
 {
     [BindProperty] public InputModel Input { get; set; } = new();
@@ -38,7 +38,7 @@ public class ForgotPasswordModel(UserManager<ApplicationUser> users, BillingMail
         {
             var token = await users.GeneratePasswordResetTokenAsync(user);
             var code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
-            var link = BillingSetup.PublicUrl(Request, options.CurrentValue, $"/Account/ResetPassword?userId={Uri.EscapeDataString(user.Id)}&code={code}");
+            var link = BillingSetup.PublicUrl(Request, $"/Account/ResetPassword?userId={Uri.EscapeDataString(user.Id)}&code={code}");
             await mailer.SendPasswordResetAsync(user.Email, link, ct);
         }
         else logger.LogInformation("Password reset requested for an unknown or inactive account.");

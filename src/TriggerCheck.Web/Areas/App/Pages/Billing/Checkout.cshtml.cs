@@ -19,8 +19,9 @@ namespace TriggerCheck.Web.Areas.App.Pages.Billing;
 /// checkout and links to the provider's payment page. CustomerAdmin only.
 /// </summary>
 [Authorize(Policy = Policies.CustomerAdmin)]
+[Microsoft.AspNetCore.RateLimiting.EnableRateLimiting(BillingSetup.CheckoutPolicy)]
 public class CheckoutModel(AppDbContext db, ICurrentCustomer current, BillingService billing, UserManager<ApplicationUser> users,
-    IOptionsMonitor<BillingOptions> options, Text<AppResource> L) : PageModel
+    Text<AppResource> L) : PageModel
 {
     [BindProperty] public ContactInput Input { get; set; } = new();
     public Plan? Plan { get; private set; }
@@ -81,7 +82,7 @@ public class CheckoutModel(AppDbContext db, ICurrentCustomer current, BillingSer
         // iyzico requires an identity number; customers outside Turkey may use the documented placeholder. TODO-verify with iyzico.
         var contact = new BillingContact(i.Name.Trim(), i.Surname.Trim(), email, i.Phone.Replace(" ", ""),
             string.IsNullOrWhiteSpace(i.IdentityNumber) ? "11111111111" : i.IdentityNumber, i.Address.Trim(), i.City.Trim(), i.Country.Trim(), i.ZipCode?.Trim());
-        var callback = BillingSetup.PublicUrl(Request, options.CurrentValue, BillingSetup.CallbackPath);
+        var callback = BillingSetup.PublicUrl(Request, BillingSetup.CallbackPath);
         var locale = Fmt.IsTurkish ? "tr" : "en";
 
         var r = await billing.StartCheckoutAsync(current.RequiredCustomerId, planId, contact, callback, locale, ct);
@@ -92,6 +93,7 @@ public class CheckoutModel(AppDbContext db, ICurrentCustomer current, BillingSer
                 BillingError.TooManyMonitors => L["The new plan allows fewer monitors than you have. Delete {0} monitor(s) first, then change the plan.", r.MonitorsToDelete].Value,
                 BillingError.ProviderUnavailable => L["Online payment is not available at the moment. Please contact us."].Value,
                 BillingError.ProviderFailed => L["The payment provider did not accept the request. Please try again later."].Value,
+                BillingError.TooManyCheckouts => L["You have several unfinished checkouts. Complete one of them or try again in an hour."].Value,
                 _ => L["This action is not possible in the current subscription state."].Value
             };
             return RedirectToPage("Index");

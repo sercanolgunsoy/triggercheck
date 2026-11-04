@@ -19,6 +19,7 @@
 
 @if (Model.Checkout == "success") { <div class="alert alert-success" data-testid="checkout-success">@L["Thank you! Your subscription is active."]</div> }
 else if (Model.Checkout == "pending") { <div class="alert alert-info" data-testid="checkout-pending">@L["We are waiting for iyzico to confirm your payment. This page will show the subscription as soon as it is confirmed."]</div> }
+else if (Model.Checkout == "refused") { <div class="alert alert-warning" data-testid="checkout-refused">@L["This payment could not be used: your workspace already has a subscription or the plan did not match. It was cancelled and the amount will be refunded to your card."]</div> }
 else if (Model.Checkout == "failed") { <div class="alert alert-danger" data-testid="checkout-failed">@L["The payment was not completed. No subscription was started."]</div> }
 
 <div class="row g-3">

@@ -7,13 +7,14 @@ using TriggerCheck.Infrastructure.Data;
 namespace TriggerCheck.Web.Billing;
 
 public sealed record BillingMaintenanceResult(int Reminders, int TrialsExpired, int GraceExpired, int PeriodsEnded,
-    int CheckoutsResolved = 0, int PlanChangesApplied = 0, int UnconfirmedPurged = 0);
+    int CheckoutsResolved = 0, int PlanChangesApplied = 0, int UnconfirmedPurged = 0, int EventsReconciled = 0, int LateCheckoutsActivated = 0);
 
 /// <summary>
 /// Periodic billing work. Idempotent: every step changes the state it selects on (conditionally, so a webhook or a
 /// second worker racing it wins cleanly), and one failing item is logged and skipped without stopping the run.
 /// <list type="number">
 /// <item>Re-check open checkouts with the provider (closed browser tab, lost callback); close them after the timeout.</item>
+/// <item>Reconcile webhook events recorded for an unknown subscription, and re-ask failed checkouts (30 days, capped).</item>
 /// <item>Trial reminder a few days before the end (once).</item>
 /// <item>Trials that ended without a subscription: fallback plan.</item>
 /// <item>Booked downgrades whose period is over.</item>
@@ -34,15 +35,24 @@ public sealed class BillingMaintenance(AppDbContext db, BillingService billing, 
         var resolved = 0;
         var recheckBefore = now.AddMinutes(-o.CheckoutRecheckAfterMinutes);
         var timeoutBefore = now.AddMinutes(-o.CheckoutTimeoutMinutes);
+        // Capped per run, least recently checked first, within a time budget.
         var open = await db.Subscriptions.AsNoTracking()
             .Where(s => (s.Status == SubscriptionStatus.Pending || s.Status == SubscriptionStatus.Superseded) && s.CheckoutToken != null && s.CreatedAtUtc <= recheckBefore)
-            .Select(s => new { s.CheckoutToken, s.CreatedAtUtc }).ToListAsync(ct);
-        foreach (var c in open)
+            .OrderBy(s => s.LastCheckedAtUtc ?? DateTime.MinValue).ThenBy(s => s.Id)
+            .Select(s => new { s.CheckoutToken, s.CreatedAtUtc }).Take(Math.Max(1, o.MaxCheckoutRechecksPerRun)).ToListAsync(ct);
+        var budget = System.Diagnostics.Stopwatch.StartNew();
+        foreach (var c in open.TakeWhile(_ => !billing.OverBudget(budget)))
             await EachAsync("checkout re-check", async () =>
             {
                 var (result, _) = await billing.CompleteCheckoutAsync(c.CheckoutToken!, ct, finalCheck: c.CreatedAtUtc <= timeoutBefore);
                 if (result != CheckoutCompletion.Pending) resolved++;
             }, ct);
+
+        // 1b. Unmatched webhook events and failed-but-maybe-paid checkouts (capped per run, throttled per item).
+        var reconciled = 0;
+        var late = 0;
+        await EachAsync("event reconciliation", async () => reconciled = await billing.ReconcileIgnoredEventsAsync(20, ct), ct);
+        await EachAsync("failed checkout re-scan", async () => late = await billing.RescanFailedCheckoutsAsync(20, ct), ct);
 
         var fallback = await billing.FallbackPlanAsync(ct);
         if (fallback is null) { logger.LogError("Billing maintenance skipped: fallback plan {Plan} not found.", o.FallbackPlanName); return new(0, 0, 0, 0, resolved); }
@@ -108,18 +118,19 @@ public sealed class BillingMaintenance(AppDbContext db, BillingService billing, 
                 if (await billing.DowngradeToFallbackAsync(s.Customer, s, BillingStatus.Cancelled, mailer.PeriodEndedReason, ct)) periodsEnded++;
             }, ct);
 
-        // 7. Sign-ups whose address was never confirmed (no confirmed user, no subscription): the whole customer goes.
+        // 7. Self-service sign-ups still in their initial state whose address was never confirmed (no confirmed user, no
+        // subscription, not touched by a SuperAdmin): the whole customer goes.
         var cutoff = now.AddDays(-o.UnconfirmedAccountDays);
         var purged = 0;
         await EachAsync("unconfirmed sign-up purge", async () =>
         {
             purged = await db.Customers
-                .Where(c => c.CreatedAtUtc < cutoff && db.Users.Any(u => u.CustomerId == c.Id) && !db.Users.Any(u => u.CustomerId == c.Id && u.EmailConfirmed)
+                .Where(c => c.SignupPending && c.CreatedAtUtc < cutoff && db.Users.Any(u => u.CustomerId == c.Id) && !db.Users.Any(u => u.CustomerId == c.Id && u.EmailConfirmed)
                             && !db.Subscriptions.Any(s => s.CustomerId == c.Id))
                 .ExecuteDeleteAsync(ct);
         }, ct);
 
-        var result = new BillingMaintenanceResult(reminders, trialsExpired, graceExpired, periodsEnded, resolved, planChanges, purged);
+        var result = new BillingMaintenanceResult(reminders, trialsExpired, graceExpired, periodsEnded, resolved, planChanges, purged, reconciled, late);
         if (result != new BillingMaintenanceResult(0, 0, 0, 0)) logger.LogInformation("Billing maintenance: {Result}", result);
         return result;
     }

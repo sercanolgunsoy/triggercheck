@@ -1,6 +1,7 @@
 using System.Net;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Tests.Infrastructure;
 using TriggerCheck.Web.Billing;
@@ -32,6 +33,78 @@ public class AccountSecurityTests(BillingTestFactory f) : IClassFixture<BillingT
         Assert.Contains("at least 8 characters", await existing.ReadHtmlAsync());
         Assert.Contains("at least 8 characters", await fresh.ReadHtmlAsync());
         Assert.DoesNotContain(f.Emails.To(TestWebAppFactory.DemoAdminEmail), m => m.Body.Contains("already exists"));
+    }
+
+    [Fact]
+    public async Task Requests_do_not_wait_for_e_mail_delivery()
+    {
+        var (_, email) = await f.AddCustomerWithAdminAsync("Standard");
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        f.Emails.Gate = gate;
+        try
+        {
+            // SMTP is "stuck": the forgot-password and duplicate sign-up answers must still come back right away.
+            var forgot = f.CreateBrowser().PostFormAsync("/Account/ForgotPassword", new() { ["Input.Email"] = email });
+            var duplicate = SignUpAsync(email, "Signup123!");
+            var both = Task.WhenAll(forgot, duplicate);
+            Assert.Same(both, await Task.WhenAny(both, Task.Delay(TimeSpan.FromSeconds(15))));
+            Assert.Contains("data-testid=\"reset-sent\"", await (await forgot).ReadHtmlAsync());
+            AssertRedirect(await duplicate, "RegisterConfirmation");
+        }
+        finally
+        {
+            f.Emails.Gate = null;
+            gate.SetResult();
+        }
+        var mails = f.Emails.To(email);
+        Assert.Contains(mails, m => m.Subject.Contains("Reset your TriggerCheck password"));
+        Assert.Contains(mails, m => m.Body.Contains("already exists"));
+    }
+
+    [Fact]
+    public async Task Operator_touched_unconfirmed_account_is_not_taken_over_by_a_new_sign_up()
+    {
+        var email = NewEmail();
+        await SignUpAsync(email, "Original1!");
+        var cid = await f.WithDbAsync(db => db.Customers.Where(c => c.ContactEmail == email).Select(c => c.Id).SingleAsync());
+        var sa = await f.LoginAsync(TestWebAppFactory.SuperAdminEmail, TestWebAppFactory.SuperAdminPassword);
+        await sa.PostFormAsync($"/SuperAdmin/Customers/Edit/{cid}", EditForm(cid, await PlanIdAsync("Standard")));
+
+        AssertRedirect(await SignUpAsync(email, "Takeover1!", company: "Other"), "RegisterConfirmation");
+        Assert.Contains(f.Emails.To(email), m => m.Body.Contains("already exists"));
+        using var scope = f.Services.CreateScope();
+        var um = scope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Identity.UserManager<TriggerCheck.Infrastructure.Identity.ApplicationUser>>();
+        var user = (await um.FindByEmailAsync(email))!;
+        Assert.True(await um.CheckPasswordAsync(user, "Original1!"));
+        Assert.False(await um.CheckPasswordAsync(user, "Takeover1!"));
+        Assert.Equal("Edited " + cid, (await f.GetCustomerAsync(cid)).Name);
+    }
+
+    [Fact]
+    public async Task End_trial_always_clears_the_pending_sign_up_flag()
+    {
+        var email = NewEmail();
+        await SignUpAsync(email, "Signup123!", plan: "Basic"); // free plan: no trial
+        var cid = await f.WithDbAsync(db => db.Customers.Where(c => c.ContactEmail == email).Select(c => c.Id).SingleAsync());
+        Assert.True(await f.WithDbAsync(db => db.Customers.Where(c => c.Id == cid).Select(c => c.SignupPending).SingleAsync()));
+        var sa = await f.LoginAsync(TestWebAppFactory.SuperAdminEmail, TestWebAppFactory.SuperAdminPassword);
+        await sa.PostFormAsync($"/SuperAdmin/Customers/Details/{cid}?handler=EndTrial", new(), $"/SuperAdmin/Customers/Details/{cid}");
+        Assert.False(await f.WithDbAsync(db => db.Customers.Where(c => c.Id == cid).Select(c => c.SignupPending).SingleAsync()));
+    }
+
+    [Fact]
+    public async Task Superadmin_touched_sign_ups_are_never_purged()
+    {
+        var email = NewEmail();
+        await SignUpAsync(email, "Signup123!");
+        var cid = await f.WithDbAsync(db => db.Customers.Where(c => c.ContactEmail == email).Select(c => c.Id).SingleAsync());
+        var sa = await f.LoginAsync(TestWebAppFactory.SuperAdminEmail, TestWebAppFactory.SuperAdminPassword);
+        await sa.PostFormAsync($"/SuperAdmin/Customers/Edit/{cid}", EditForm(cid, await PlanIdAsync("Standard")));
+        Assert.False(await f.WithDbAsync(db => db.Customers.Where(c => c.Id == cid).Select(c => c.SignupPending).SingleAsync()));
+
+        f.Time.Advance(TimeSpan.FromDays(3));
+        await f.RunMaintenanceAsync();
+        Assert.True(await f.WithDbAsync(db => db.Customers.AnyAsync(c => c.Id == cid)));
     }
 
     [Fact]
@@ -129,6 +202,9 @@ public class AccountSecurityTests(BillingTestFactory f) : IClassFixture<BillingT
         Assert.Equal(BillingStatus.None, second.BillingStatus);
         Assert.Null(second.TrialEndsAtUtc);
         Assert.Equal("Basic", second.Plan.Name);
+        // The page is the same for everyone; the e-mail says that no trial was started.
+        Assert.Contains("No free trial was started", f.Emails.To($"Ops+second@{domain}").Single().Body);
+        Assert.DoesNotContain("No free trial", f.Emails.To($"ops@{domain}").Single().Body);
         Assert.Equal($"ops@{domain}", TrialEligibility.Normalize($"Ops+second@{domain}"));
         Assert.Equal("johndoe@gmail.com", TrialEligibility.Normalize("John.Doe+x@googlemail.com"));
     }
@@ -150,9 +226,18 @@ public class AccountSecurityTests(BillingTestFactory f) : IClassFixture<BillingT
     [Fact]
     public void Production_requires_a_public_base_url()
     {
-        using var prod = f.WithWebHostBuilder(b => { b.UseEnvironment("Production"); b.UseSetting("Billing:PublicBaseUrl", ""); });
+        using var prod = f.WithWebHostBuilder(b => { b.UseEnvironment("Production"); b.UseSetting("Site:PublicBaseUrl", ""); });
         var ex = Assert.ThrowsAny<Exception>(() => prod.CreateClient());
-        Assert.Contains("Billing:PublicBaseUrl", ex.ToString());
+        Assert.Contains("Site:PublicBaseUrl", ex.ToString());
+
+        // The former Billing:PublicBaseUrl still works as a fallback.
+        using var legacy = f.WithWebHostBuilder(b =>
+        {
+            b.UseEnvironment("Production");
+            b.UseSetting("Site:PublicBaseUrl", "");
+            b.UseSetting("Billing:PublicBaseUrl", "https://legacy.example");
+        });
+        legacy.CreateClient();
     }
 
     [Fact]

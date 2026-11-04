@@ -622,4 +622,151 @@
   <data name="The trial or cancelled subscription was ended; the plan is now managed manually." xml:space="preserve">
     <value>Deneme veya iptal edilmiş abonelik sona erdirildi; plan artık elle yönetiliyor.</value>
   </data>
+  <data name="AI status" xml:space="preserve">
+    <value>Yapay zekâ durumu</value>
+  </data>
+  <data name="API key" xml:space="preserve">
+    <value>API anahtarı</value>
+  </data>
+  <data name="Available" xml:space="preserve">
+    <value>Kullanılabilir</value>
+  </data>
+  <data name="Configured" xml:space="preserve">
+    <value>Yapılandırıldı</value>
+  </data>
+  <data name="Current calendar month (UTC). Costs are estimates from token counts and list prices." xml:space="preserve">
+    <value>İçinde bulunulan takvim ayı (UTC). Maliyetler token sayıları ve liste fiyatlarından hesaplanan tahminlerdir.</value>
+  </data>
+  <data name="Default model" xml:space="preserve">
+    <value>Varsayılan model</value>
+  </data>
+  <data name="Estimated cost" xml:space="preserve">
+    <value>Tahmini maliyet</value>
+  </data>
+  <data name="Feedback (helpful / not helpful)" xml:space="preserve">
+    <value>Geri bildirim (faydalı / faydalı değil)</value>
+  </data>
+  <data name="Global switch (Ai:Enabled)" xml:space="preserve">
+    <value>Genel anahtar (Ai:Enabled)</value>
+  </data>
+  <data name="No AI usage yet." xml:space="preserve">
+    <value>Henüz yapay zekâ kullanımı yok.</value>
+  </data>
+  <data name="Not configured" xml:space="preserve">
+    <value>Yapılandırılmadı</value>
+  </data>
+  <data name="Off" xml:space="preserve">
+    <value>Kapalı</value>
+  </data>
+  <data name="On" xml:space="preserve">
+    <value>Açık</value>
+  </data>
+  <data name="Opted in" xml:space="preserve">
+    <value>Katılım verdi</value>
+  </data>
+  <data name="Read-only: AI is switched on and off with the Ai:Enabled setting (environment variable Ai__Enabled) and needs ANTHROPIC_API_KEY. Customers must also opt in." xml:space="preserve">
+    <value>Salt okunur: yapay zekâ Ai:Enabled ayarıyla (ortam değişkeni Ai__Enabled) açılıp kapatılır ve ANTHROPIC_API_KEY gerektirir. Müşterilerin ayrıca katılım vermesi gerekir.</value>
+  </data>
+  <data name="This month" xml:space="preserve">
+    <value>Bu ay</value>
+  </data>
+  <data name="Timeout" xml:space="preserve">
+    <value>Zaman aşımı</value>
+  </data>
+  <data name="Unavailable" xml:space="preserve">
+    <value>Kullanılamıyor</value>
+  </data>
+  <data name="Usage by customer" xml:space="preserve">
+    <value>Müşteri bazında kullanım</value>
+  </data>
+  <data name="effort" xml:space="preserve">
+    <value>efor</value>
+  </data>
+  <data name="over budget" xml:space="preserve">
+    <value>bütçe aşıldı</value>
+  </data>
+  <data name="AI calls / month" xml:space="preserve">
+    <value>Yapay zekâ çağrısı / ay</value>
+  </data>
+  <data name="{0} features" xml:space="preserve">
+    <value>{0} özellik</value>
+  </data>
+  <data name="AI call limit is required." xml:space="preserve">
+    <value>Yapay zekâ çağrı limiti zorunludur.</value>
+  </data>
+  <data name="AI calls per month" xml:space="preserve">
+    <value>Aylık yapay zekâ çağrısı</value>
+  </data>
+  <data name="AI token limit is required." xml:space="preserve">
+    <value>Yapay zekâ token limiti zorunludur.</value>
+  </data>
+  <data name="AI tokens per month (0 = no token limit)" xml:space="preserve">
+    <value>Aylık yapay zekâ token sayısı (0 = token limiti yok)</value>
+  </data>
+  <data name="The AI call limit must be 0 or greater." xml:space="preserve">
+    <value>Yapay zekâ çağrı limiti 0 veya daha büyük olmalıdır.</value>
+  </data>
+  <data name="The AI token limit must be 0 or greater." xml:space="preserve">
+    <value>Yapay zekâ token limiti 0 veya daha büyük olmalıdır.</value>
+  </data>
+  <data name="Monthly AI budget per customer on this plan. When it is used up, AI output is skipped until next month; monitoring is not affected. 0 AI calls = no AI." xml:space="preserve">
+    <value>Bu plandaki her müşteri için aylık yapay zekâ bütçesi. Bütçe dolduğunda yapay zekâ çıktısı gelecek aya kadar atlanır; izleme etkilenmez. 0 yapay zekâ çağrısı = yapay zekâ yok.</value>
+  </data>
+  <data name="Succeeded" xml:space="preserve">
+    <value>Başarılı</value>
+  </data>
+  <data name="Refused by the model" xml:space="preserve">
+    <value>Model reddetti</value>
+  </data>
+  <data name="Failed" xml:space="preserve">
+    <value>Başarısız</value>
+  </data>
+  <data name="Truncated (output limit)" xml:space="preserve">
+    <value>Kesildi (çıktı sınırı)</value>
+  </data>
+  <data name="In progress" xml:space="preserve">
+    <value>Devam ediyor</value>
+  </data>
+  <data name="Skipped: budget used up" xml:space="preserve">
+    <value>Atlandı: bütçe doldu</value>
+  </data>
+  <data name="Skipped: customer opted out" xml:space="preserve">
+    <value>Atlandı: müşteri katılmadı</value>
+  </data>
+  <data name="Skipped: not in plan" xml:space="preserve">
+    <value>Atlandı: planda yok</value>
+  </data>
+  <data name="Skipped: AI off" xml:space="preserve">
+    <value>Atlandı: yapay zekâ kapalı</value>
+  </data>
+  <data name="{0} refused payment(s) must be refunded in the iyzico panel." xml:space="preserve">
+    <value>Reddedilen {0} ödemenin iyzico panelinden iade edilmesi gerekiyor.</value>
+  </data>
+  <data name="The refund was marked as done." xml:space="preserve">
+    <value>İade yapıldı olarak işaretlendi.</value>
+  </data>
+  <data name="By" xml:space="preserve">
+    <value>İşlemi yapan</value>
+  </data>
+  <data name="Mark as refunded" xml:space="preserve">
+    <value>İade edildi olarak işaretle</value>
+  </data>
+  <data name="Mark this payment as refunded in iyzico?" xml:space="preserve">
+    <value>Bu ödeme iyzico'da iade edildi olarak işaretlensin mi?</value>
+  </data>
+  <data name="Payments for subscriptions that were not activated (second subscription or unexpected plan). They were cancelled at iyzico; refund them in the iyzico merchant panel, then mark them here." xml:space="preserve">
+    <value>Etkinleştirilmeyen aboneliklerin ödemeleri (ikinci abonelik veya beklenmeyen plan). iyzico'da iptal edildiler; iyzico üye işyeri panelinden iade edip burada işaretleyin.</value>
+  </data>
+  <data name="Refunded" xml:space="preserve">
+    <value>İade edildi</value>
+  </data>
+  <data name="Since" xml:space="preserve">
+    <value>Başlangıç</value>
+  </data>
+  <data name="To refund" xml:space="preserve">
+    <value>İade edilecek</value>
+  </data>
+  <data name="iyzico reference" xml:space="preserve">
+    <value>iyzico referansı</value>
+  </data>
 </root>

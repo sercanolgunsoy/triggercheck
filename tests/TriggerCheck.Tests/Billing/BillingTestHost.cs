@@ -42,15 +42,16 @@ public class BillingTestFactory : TestWebAppFactory
         base.ConfigureWebHost(builder);
         builder.UseSetting("Billing:MaintenanceIntervalMinutes", "0");
         builder.UseSetting("Billing:RegistrationsPerHourPerIp", RegistrationLimit.ToString());
-        builder.UseSetting("Billing:PublicBaseUrl", "https://app.test");
+        builder.UseSetting("Site:PublicBaseUrl", "https://app.test");
         builder.UseSetting("Billing:PaidCheckoutEnabled", "true");
         builder.UseSetting("Iyzico:ApiKey", "test-api-key");
         builder.UseSetting("Iyzico:SecretKey", SecretKey);
         builder.UseSetting("Iyzico:MerchantId", MerchantId);
         builder.ConfigureTestServices(s =>
         {
-            s.RemoveAll<IAppEmailSender>();
-            s.AddSingleton<IAppEmailSender>(Emails);
+            // The real outbox and background sender stay; only the SMTP transport is replaced.
+            s.RemoveAll<IAppEmailTransport>();
+            s.AddSingleton<IAppEmailTransport>(Emails);
             s.RemoveAll<IPaymentProvider>();
             s.AddSingleton<IPaymentProvider>(sp =>
             {
@@ -64,6 +65,18 @@ public class BillingTestFactory : TestWebAppFactory
     }
 
     public DateTime Now => Time.GetUtcNow().UtcDateTime;
+
+    public BillingTestFactory()
+    {
+        // Reads of captured e-mails wait until the outbox has nothing due (all hosts share the database file).
+        Emails.IsIdle = () =>
+        {
+            using var scope = Services.CreateScope();
+            var now = Now;
+            return !scope.ServiceProvider.GetRequiredService<TriggerCheck.Infrastructure.Data.AppDbContext>().EmailOutbox
+                .Any(m => m.SentAtUtc == null && m.FailedAtUtc == null && (m.NextAttemptAtUtc == null || m.NextAttemptAtUtc <= now));
+        };
+    }
 
     /// <summary>Creates a customer with a CustomerAdmin (confirmed) on <paramref name="planName"/>.</summary>
     public async Task<(int CustomerId, string Email)> AddCustomerWithAdminAsync(string planName, Action<Customer>? configure = null)
@@ -131,17 +144,31 @@ public class BillingTestFactory : TestWebAppFactory
 
 public sealed record SentEmail(string To, string Subject, string Body);
 
-public sealed class CapturingEmailSender : IAppEmailSender
+/// <summary>
+/// Test SMTP transport behind the real e-mail outbox. Reads wait (up to 10 s) until nothing is due, so assertions see
+/// every e-mail queued so far. <see cref="Gate"/> holds deliveries to prove that requests do not wait for sending.
+/// </summary>
+public sealed class CapturingEmailSender : IAppEmailTransport
 {
     public ConcurrentQueue<SentEmail> Sent { get; } = new();
+    public Func<bool> IsIdle { get; set; } = () => true;
+    /// <summary>When set, deliveries throw (SMTP down).</summary>
+    public Exception? FailWith { get; set; }
+    public TaskCompletionSource? Gate { get; set; }
 
-    public Task SendAsync(string to, string subject, string body, CancellationToken ct = default)
+    public async Task SendAsync(string to, string subject, string body, CancellationToken ct = default)
     {
+        if (Gate is { } gate) await gate.Task.WaitAsync(ct);
+        if (FailWith is { } error) throw error;
         Sent.Enqueue(new SentEmail(to, subject, body));
-        return Task.CompletedTask;
     }
 
-    public List<SentEmail> To(string address) => Sent.Where(e => string.Equals(e.To, address, StringComparison.OrdinalIgnoreCase)).ToList();
+    public List<SentEmail> To(string address)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (!IsIdle() && DateTime.UtcNow < deadline) Thread.Sleep(20);
+        return Sent.Where(e => string.Equals(e.To, address, StringComparison.OrdinalIgnoreCase)).ToList();
+    }
 
     private static readonly Regex LinkRx = new(@"https://app\.test(/\S+)", RegexOptions.Compiled);
 
@@ -175,8 +202,10 @@ public sealed class FakePaymentProvider : IPaymentProvider
         return Task.FromResult<CheckoutSession?>(new CheckoutSession(token, "https://sandbox-cpp.iyzipay.test/?token=" + token));
     }
 
+    public ConcurrentDictionary<string, int> Retrievals { get; } = new();
+
     public Task<CheckoutResult> GetCheckoutResultAsync(string token, CancellationToken ct) =>
-        Task.FromResult(Unreachable ? new CheckoutResult(ProviderSubscriptionState.Unknown)
+        Task.FromResult(Retrievals.AddOrUpdate(token, 1, (_, n) => n + 1) > 0 && Unreachable ? new CheckoutResult(ProviderSubscriptionState.Unknown)
             : Results.TryGetValue(token, out var r) ? r : new CheckoutResult(ProviderSubscriptionState.Pending));
 
     public Task<ProviderResult> ChangePlanAsync(string subscriptionReference, string newPricingPlanReferenceCode, bool immediately, CancellationToken ct)

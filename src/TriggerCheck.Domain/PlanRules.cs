@@ -15,6 +15,20 @@ public static class PlanRules
     public static bool IsIntervalAllowed(Plan plan, int intervalSeconds) =>
         SupportedIntervals.Contains(intervalSeconds) && intervalSeconds >= plan.MinIntervalSeconds;
 
+    /// <summary>
+    /// Heartbeat (push) monitors: expected ping intervals. Cron jobs run hourly or daily, so these go beyond
+    /// <see cref="SupportedIntervals"/>; the plan minimum still applies and nothing below 60 s is offered.
+    /// </summary>
+    public static readonly int[] HeartbeatIntervals = [60, 300, 900, 1800, 3600, 21600, 43200, 86400];
+
+    public const int MinHeartbeatIntervalSeconds = 60;
+
+    public static IReadOnlyList<int> AllowedHeartbeatIntervals(Plan plan) =>
+        HeartbeatIntervals.Where(i => i >= Math.Max(MinHeartbeatIntervalSeconds, plan.MinIntervalSeconds)).ToList();
+
+    public static bool IsHeartbeatIntervalAllowed(Plan plan, int intervalSeconds) =>
+        AllowedHeartbeatIntervals(plan).Contains(intervalSeconds);
+
     public static bool CanAddMonitor(Plan plan, int currentMonitorCount) => currentMonitorCount < plan.MaxMonitors;
 
     /// <summary>When a customer is moved to a slower plan, monitors faster than the plan allows are slowed down to the plan minimum.</summary>

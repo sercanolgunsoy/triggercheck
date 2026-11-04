@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using TriggerCheck.Ai;
 using TriggerCheck.Domain;
 using TriggerCheck.Infrastructure;
 using TriggerCheck.Infrastructure.Data;
@@ -7,12 +8,16 @@ using TriggerCheck.Infrastructure.Identity;
 using TriggerCheck.Monitoring;
 using TriggerCheck.Web.Api;
 using TriggerCheck.Web.Billing;
+using TriggerCheck.Web.Heartbeat;
 using TriggerCheck.Web.Infrastructure;
 using TriggerCheck.Web.Localization;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddInfrastructure(builder.Configuration);
+// AI layer (opt-in, Ai:Enabled kill switch); the monitoring engine does not depend on it. Registered before the
+// engine so its hosted services stop after the engine's (hosted services stop in reverse registration order).
+builder.Services.AddAi(builder.Configuration);
 builder.Services.AddMonitoringEngine(builder.Configuration);
 builder.Services.AddAppLocalization();
 // OPS-4: OpenTelemetry (OTLP export only when configured) and /health/live + /health/ready.
@@ -61,6 +66,7 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentCustomer, CurrentCustomer>();
 builder.Services.AddScoped<TriggerCheck.Web.Areas.App.Support.MonitorCommands>();
 builder.Services.AddSingleton<ManualCheckLimiter>();
+builder.Services.AddHeartbeatEndpoint(builder.Configuration); // FEAT-9: /hb/{token} ping endpoint of heartbeat monitors
 // BIZ-1/2/3: self-service sign-up, trial, iyzico subscriptions, usage meters (+ their rate limits and background job).
 builder.Services.AddBilling(builder.Configuration);
 builder.Services.AddSingleton<TriggerCheck.Web.Areas.App.Pages.Alerts.TestNotificationLimiter>();
@@ -77,6 +83,9 @@ builder.Services.Configure<MvcOptions>(o => o.Filters.Add(new MustChangePassword
 
 var app = builder.Build();
 app.ValidateBillingConfiguration();
+
+if (!app.Environment.IsDevelopment() && TriggerCheck.Monitoring.Escalation.IncidentAckLinks.ParseBaseUrl(app.Configuration["Site:PublicBaseUrl"]) is null)
+    app.Logger.LogWarning("Site:PublicBaseUrl is not set (or not an absolute http(s) URL): acknowledge links are omitted from alerts.");
 
 if (!app.Environment.IsDevelopment() && app.Configuration.GetValue<bool>("Monitoring:AllowPrivateTargets"))
     app.Logger.LogWarning("Monitoring:AllowPrivateTargets is enabled in {Environment}: SSRF protection is OFF and monitors/webhooks " +
@@ -107,6 +116,7 @@ app.UseRateLimiter(); // after authorization: the API limit is partitioned by th
 app.MapStaticAssets().AllowAnonymous();
 app.MapRazorPages().WithStaticAssets();
 app.MapAppHealthChecks(includeDetails: app.Environment.IsDevelopment());
+app.MapHeartbeatEndpoint();
 app.MapSetLanguage();
 app.MapBillingEndpoints();
 app.MapTriggerCheckApi();
