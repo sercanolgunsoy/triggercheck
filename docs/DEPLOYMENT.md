@@ -447,12 +447,13 @@ product works fully without it: status, incidents and alerts are always decided 
 | `Ai__MaxTokens` | 16000 | Output cap per call (thinking + JSON). Calls that hit it are recorded as `Truncated` (visible on the SuperAdmin page); raise the feature's `MaxTokens` if that happens. |
 | `Ai__TimeoutSeconds` (60), `Ai__MaxRetries` (2) | | `TimeoutSeconds` is the overall cap per call. The SDK retries 429/5xx/network errors, and each attempt gets `TimeoutSeconds / (MaxRetries + 1)` (at least 5 s). |
 | `Ai__RetryCooldownMinutes` | 60 | An identical input that was refused or failed is not sent again within this time. |
-| `Ai__QueueCapacity` (200), `Ai__MaxConcurrency` (2) | | Background AI queue. AI calls never run on a request or check path; a full queue drops the job (logged). |
+| `Ai__QueueCapacity` (200), `Ai__MaxConcurrency` (2) | | Background AI queue. AI calls never run on a check path and, except for the AI-9 assistant the user explicitly asks, never on a request path; a full queue drops the job (logged). |
 | `Ai__Pricing__<model>__InputPerMTok`, `__OutputPerMTok`, `__CacheReadPerMTok`, `__CacheWritePerMTok` | list prices | USD prices for cost estimates (SuperAdmin *AI usage*). |
 | `Ai__Baseline__Enabled` (true), `__IntervalSeconds` (60), `__RefreshMinutes` (60), `__WindowDays` (7), `__ZThreshold` (4), `__K` / `__N` (3 of 5), `__CloseAtMost` (1) | | L1 baseline / anomaly job (no LLM, no key needed). Runs only when `Monitoring__Enabled` is true. |
 | `Ai__Events__PollSeconds` (10), `Ai__Events__LookbackMinutes` (15) | | Event watcher of AI-2 / AI-3: how often new / resolved incidents and new slowdown signals are looked up, and how old an event without an AI decision may be to still be picked up after a restart. Runs only when AI is on and a key is set. |
 | `Ai__Events__MonitorCooldownMinutes` (30), `__HostWindowMinutes` (10), `__MaxJobsPerCustomerPerScan` (5) | | Cost damping of AI-2: a monitor whose incident was interpreted within the cool-down gets no new summary for the same (normalised) cause (flapping; a different cause is interpreted, at most once per cool-down); of incidents of one customer on the same host within the window only the first is interpreted (its page is linked from the others); per scan at most this many jobs per customer, round-robin across customers. Events over the cap or refused by a full queue are retried on the next scan. |
 | `Ai__Suggestions__Enabled` (true), `__IntervalMinutes` (360), `__WindowDays` (7), `__DismissDays` (30), `__MaxChecksPerMonitor` (30000), `__BatchSize` (50) | | AI-5 settings suggestion job (rules, no key needed for detection). Runs only when `Monitoring__Enabled` is true, on the cluster leader. `WindowDays` is the history the rules read (never before the monitor's last settings change) and how often the evidence of an open suggestion is refreshed; `DismissDays` is how long a dismissed kind stays hidden (closed suggestions are kept at least `DismissDays + 1` days regardless of plan retention). |
+| `Ai__SetupAssistant__RequestsPerUserPerHour` (20), `__MaxRequestChars` (1000) | | AI-9 monitor setup assistant: model calls one user may make per rolling hour (an identical request of the same customer reuses the earlier answer and is free), and the length a description is cut to before masking. Model / effort / tokens per feature as usual (`Ai__Features__MonitorSetupAssistant__…`). |
 
 **Slowdown detection latency (AI-1):** a slowdown is flagged when 3 of the last 5 successful checks are anomalous.
 The first job run after the third slow check flags it, so the latency is 3 check intervals plus up to
@@ -486,6 +487,18 @@ A CustomerAdmin applies a suggestion with one click on the monitor page (the sam
 concurrency handling as the edit form) or dismisses it for `DismissDays` days; an applied kind is not suggested again
 within `WindowDays`. Failed or budget-skipped explanations are retried after `Ai__RetryCooldownMinutes`. Response
 bodies are never stored, so no new keyword is ever proposed (only the current one without stray whitespace).
+
+**Monitor setup assistant (AI-9, autonomy A1):** the create-monitor page shows a "Describe what to monitor" box to
+CustomerAdmins. The description is sent to the model while the user waits (bounded by `Ai__TimeoutSeconds`); the answer
+is a fixed JSON schema of form fields. The server rejects unknown monitor types, ignores any other field, restores the
+user's own links and quoted text, normalizes the target and clamps every value (an interval below the plan minimum is
+raised to it, with an explanation). The pre-filled form is then validated like a normal post (plan rules, SSRF
+pre-check), so a private or internal target shows the usual error. The assistant never saves: the user reviews the form
+and clicks Create. Links in the description reach the model as scheme + host only and quoted text ("Pay now") not at
+all; the rest of the description is masked like other free text (secrets, tokens, e-mail, phone). The default plans
+include it from Standard up (the AI-10 tiers did not list it); existing databases get it when a SuperAdmin ticks
+`MonitorSetupAssistant` on the *Plans* page. When AI is off, the customer opted out or the plan lacks the feature, the
+box is hidden and the form works as before.
 
 **Who gets AI:** a call is made only when all of these hold:
 

@@ -60,6 +60,7 @@ evals/
     incident-interpretation/       AI-2: 23 labelled scenarios (en + tr)
     slowdown-explanation/          AI-3: 5 labelled scenarios
     settings-suggestions/          AI-5: 8 labelled scenarios (one per suggestion kind, en + tr)
+    monitor-setup/                 AI-9: 13 labelled requests (every monitor type, clarification, clamping, masking; en + tr)
   reports/                         gitignored, except sample-report.md
     last-report.md / .json         last run (per feature and per case, tokens, cost)
     prompts/<case>.txt             the user turn actually sent for each case
@@ -125,6 +126,15 @@ code (`raise_failure_threshold`, `raise_timeout`, `target_may_be_wrong`, `review
 the rules suggest nothing fails. Negative rule cases (normal noise) are unit tests, not eval cases.
 
 The report also shows, as a diagnostic only, which cause categories the free text mentions ("text mentions").
+
+AI-9 cases (`"feature": "MonitorSetupAssistant"`) have a `request` (the text typed into the assistant box), an
+optional `planMinIntervalSeconds` (default 15) and `"expect": { "primaryCause": "setup_form" | "setup_clarify",
+"fields": { "type": "Keyword", "target": "...", "intervalSeconds": 60, ... }, "notes": ["IntervalRaisedToPlanMinimum"] }`.
+The harness sends the request through the production `MonitorSetupAssistant` and grades the **final form** (after the
+server restored the user's links / quoted text and clamped the values), so "primary cause" in the report means
+"outcome and every labelled field match". Masking fails when a planted secret, a link path / query or an e-mail address
+reaches the model; language checks the explanation (or the clarification question). Evidence is not graded (no
+hypotheses). `canned` is the model's JSON answer using the placeholders `[U1]` / `[T1]` as the model sees them.
 
 Labels that need judgement (for example `maintenance_aftermath`) are kept few; when a real run disagrees with a label,
 look at `reports/prompts/<case>.txt` and the model's answer before changing either.

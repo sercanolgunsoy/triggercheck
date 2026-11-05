@@ -1,0 +1,19 @@
+{
+  "id": "setup-keyword-payment-tr",
+  "feature": "MonitorSetupAssistant",
+  "language": "tr",
+  "description": "Turkish: the backlog example (payment page, 1 minute, 'Ödeme' text), link without scheme.",
+  "request": "shop.example.test/odeme sayfasını dakikada bir izle, 'Ödeme' yazısı yoksa alarm ver",
+  "expect": {
+    "primaryCause": "setup_form",
+    "fields": { "type": "Keyword", "target": "https://shop.example.test/odeme", "keyword": "Ödeme", "intervalSeconds": 60 }
+  },
+  "secrets": ["/odeme", "Ödeme"],
+  "canned": {
+    "outcome": "form", "clarification": null,
+    "explanation": "Ödeme sayfası dakikada bir kontrol edilir ve tırnak içindeki metin sayfada yoksa alarm verilir.",
+    "type": "keyword", "name": "shop.example.test ödeme sayfası", "target": "[U1]", "port": null, "keyword": "[T1]",
+    "http_method": null, "expected_status_codes": null, "interval_seconds": 60, "timeout_seconds": null, "failure_threshold": null,
+    "dns_record_type": null, "json_path": null, "assertion_operator": null, "expected_value": null, "grace_period_seconds": null
+  }
+}

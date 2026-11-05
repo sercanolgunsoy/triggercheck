@@ -31,6 +31,35 @@ public class EvalHarnessTests
         Assert.Contains(incidents, c => c.Language == "tr");
         Assert.Contains(cases, c => c.Feature == AiFeatures.SlowdownExplanation);
         Assert.All(cases, c => Assert.NotNull(c.Canned));
+
+        // AI-9: every monitor type the assistant offers, clarification, plan clamping and masking, in en and tr.
+        var setup = cases.Where(c => c.Feature == AiFeatures.MonitorSetupAssistant).ToList();
+        Assert.Equal(13, setup.Count);
+        foreach (var type in new[] { "Http", "Keyword", "Tcp", "Ping", "Dns", "Heartbeat", "JsonApi" })
+            Assert.Contains(setup, c => c.Expect.Fields?.TryGetValue("type", out var t) == true && t.GetString() == type);
+        Assert.Contains(setup, c => c.Expect.PrimaryCause == MonitorSetupEval.ClarifyLabel && c.Language == "tr");
+        Assert.Contains(setup, c => c.Expect.Notes.Contains("IntervalRaisedToPlanMinimum"));
+        Assert.True(setup.Count(c => c.Language == "tr") >= 4);
+    }
+
+    [Fact]
+    public async Task Wrong_setup_fields_fail_the_AI9_gate()
+    {
+        var cases = EvalScenario.LoadAll(CasesDir).Where(c => c.Feature == AiFeatures.MonitorSetupAssistant).ToList();
+        // Every answer is an HTTP monitor of an invented host: types and targets no longer match the labels.
+        foreach (var c in cases)
+            c.Canned = JsonNode.Parse("""
+                {"outcome":"form","clarification":null,"explanation":"An HTTP monitor.","type":"http","name":null,"target":"other.example.test",
+                 "port":null,"keyword":null,"http_method":null,"expected_status_codes":null,"interval_seconds":null,"timeout_seconds":null,
+                 "failure_threshold":null,"dns_record_type":null,"json_path":null,"assertion_operator":null,"expected_value":null,"grace_period_seconds":null}
+                """);
+
+        var report = await EvalHarness.RunAsync(cases, new EvalOptions());
+
+        var f = Assert.Single(report.Features);
+        Assert.True(f.PrimaryCauseAccuracy < 0.2, f.PrimaryCauseAccuracy.ToString());
+        Assert.False(report.GatePassed);
+        Assert.Contains(report.Cases, c => c.Notes.Any(n => n.StartsWith("target:", StringComparison.Ordinal)));
     }
 
     [Fact]
@@ -42,7 +71,7 @@ public class EvalHarnessTests
         Assert.All(report.Cases, c => Assert.True(c.Passed, $"{c.Id}: {string.Join("; ", c.Notes)}"));
         Assert.All(report.Cases, c => Assert.Equal(nameof(AiDecisionStatus.Succeeded), c.Status));
         Assert.True(report.GatePassed);
-        Assert.Equal(3, report.Features.Count);
+        Assert.Equal(4, report.Features.Count);
         Assert.All(report.Features, f => Assert.Equal(1.0, f.PrimaryCauseAccuracy));
         Assert.All(report.Cases, c => Assert.True(c.InputTokens > 0 && c.CostUsd > 0));
 

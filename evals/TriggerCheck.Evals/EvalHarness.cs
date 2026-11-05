@@ -102,6 +102,18 @@ public static class EvalHarness
                 current = scenario;
                 recorder.Reset();
                 prompts.Last = null;
+                if (scenario.Feature == AiFeatures.MonitorSetupAssistant)
+                {
+                    // AI-9 is interactive (no job / provider): the production assistant answers the case's request.
+                    using var setupScope = sp.CreateScope();
+                    var (setup, setupDecision) = await MonitorSetupEval.RunAsync(setupScope.ServiceProvider, scenario, ct);
+                    var graded = MonitorSetupEval.Grade(scenario, recorder.LastRequest, recorder.LastResult, setup, setupDecision);
+                    graded.Model = o.ModelFor(scenario.Feature);
+                    graded.Effort = o.EffortFor(scenario.Feature);
+                    graded.CostUsd = setupDecision?.CostEstimate ?? 0;
+                    report.Cases.Add(graded);
+                    continue;
+                }
                 AiDecision? decision = null;
                 using (var scope = sp.CreateScope())
                 {

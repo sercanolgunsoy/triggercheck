@@ -1,0 +1,19 @@
+{
+  "id": "setup-json-health",
+  "feature": "MonitorSetupAssistant",
+  "language": "en",
+  "description": "JSON health endpoint: $.status must equal the quoted value.",
+  "request": "Call https://api.example.test/internal/health and check that $.status equals \"ok\"",
+  "expect": {
+    "primaryCause": "setup_form",
+    "fields": { "type": "JsonApi", "target": "https://api.example.test/internal/health", "jsonPath": "$.status", "assertionOperator": "Equal", "expectedValue": "ok" }
+  },
+  "secrets": ["/internal/health"],
+  "canned": {
+    "outcome": "form", "clarification": null,
+    "explanation": "A JSON monitor calls the health endpoint and checks that the status field equals the quoted value.",
+    "type": "json_api", "name": "api.example.test health", "target": "[U1]", "port": null, "keyword": null,
+    "http_method": "GET", "expected_status_codes": null, "interval_seconds": null, "timeout_seconds": null, "failure_threshold": null,
+    "dns_record_type": null, "json_path": "$.status", "assertion_operator": "equal", "expected_value": "[T1]", "grace_period_seconds": null
+  }
+}

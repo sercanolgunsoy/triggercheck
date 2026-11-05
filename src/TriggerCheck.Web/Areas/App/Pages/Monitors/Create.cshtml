@@ -18,8 +18,14 @@
     </div>
 }
 
+@if (Model.ShowAssistant)
+{
+    <partial name="_MonitorAssistant" model="Model" />
+}
+
 <div class="card"><div class="card-body">
-    <form method="post">
+    @* Explicit action: after an assistant post the page URL carries ?handler=Assist. *@
+    <form method="post" asp-page="Create">
         <partial name="_MonitorForm" model="Model" />
         <div class="mt-4">
             <button type="submit" class="btn btn-primary" disabled="@Model.QuotaReached">@L["Create"]</button>

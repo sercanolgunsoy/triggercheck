@@ -89,6 +89,9 @@ public static partial class EvalGrader
         ["raise_timeout"] = ["raise_timeout"],
         ["target_may_be_wrong"] = ["target_may_be_wrong"],
         ["review_keyword"] = ["review_keyword"],
+        // AI-9: the outcome of the assistant (graded with the expected form fields in MonitorSetupEval).
+        [MonitorSetupEval.FormLabel] = [MonitorSetupEval.FormLabel],
+        [MonitorSetupEval.ClarifyLabel] = [MonitorSetupEval.ClarifyLabel],
     };
 
     /// <summary>Categories that only make sense for slowdowns are not counted for incident causes (and vice versa).</summary>
