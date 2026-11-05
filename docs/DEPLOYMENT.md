@@ -452,6 +452,7 @@ product works fully without it: status, incidents and alerts are always decided 
 | `Ai__Baseline__Enabled` (true), `__IntervalSeconds` (60), `__RefreshMinutes` (60), `__WindowDays` (7), `__ZThreshold` (4), `__K` / `__N` (3 of 5), `__CloseAtMost` (1) | | L1 baseline / anomaly job (no LLM, no key needed). Runs only when `Monitoring__Enabled` is true. |
 | `Ai__Events__PollSeconds` (10), `Ai__Events__LookbackMinutes` (15) | | Event watcher of AI-2 / AI-3: how often new / resolved incidents and new slowdown signals are looked up, and how old an event without an AI decision may be to still be picked up after a restart. Runs only when AI is on and a key is set. |
 | `Ai__Events__MonitorCooldownMinutes` (30), `__HostWindowMinutes` (10), `__MaxJobsPerCustomerPerScan` (5) | | Cost damping of AI-2: a monitor whose incident was interpreted within the cool-down gets no new summary for the same (normalised) cause (flapping; a different cause is interpreted, at most once per cool-down); of incidents of one customer on the same host within the window only the first is interpreted (its page is linked from the others); per scan at most this many jobs per customer, round-robin across customers. Events over the cap or refused by a full queue are retried on the next scan. |
+| `Ai__Suggestions__Enabled` (true), `__IntervalMinutes` (360), `__WindowDays` (7), `__DismissDays` (30), `__MaxChecksPerMonitor` (30000), `__BatchSize` (50) | | AI-5 settings suggestion job (rules, no key needed for detection). Runs only when `Monitoring__Enabled` is true, on the cluster leader. `WindowDays` is the history the rules read (never before the monitor's last settings change) and how often the evidence of an open suggestion is refreshed; `DismissDays` is how long a dismissed kind stays hidden (closed suggestions are kept at least `DismissDays + 1` days regardless of plan retention). |
 
 **Slowdown detection latency (AI-1):** a slowdown is flagged when 3 of the last 5 successful checks are anomalous.
 The first job run after the third slow check flags it, so the latency is 3 check intervals plus up to
@@ -495,6 +496,18 @@ explanation; it never runs on the alert path.
   (`A3`) can only lower the level (`A0` switches the feature off).
 - Customers switch grouping off on the same page; it needs `Ai__Enabled`, the AI opt-in and a plan with
   `CorrelationGrouping`. A used-up budget keeps the free rule-based proposals, skips the model and turns A3 off.
+**Settings suggestions (AI-5, autonomy A1):** every `Ai__Suggestions__IntervalMinutes` the job reads each monitor's
+central checks (outside maintenance, confirmation probes excluded) and incidents of the last `WindowDays` days, but only
+those recorded since its last settings change, and suggests: a higher failure threshold when most incidents recovered
+at the next check (flapping), a longer timeout when successful responses come close to it (and timeouts at the current
+value happen), "the target may be wrong" when no check has succeeded since the monitor was created or last changed,
+and a keyword review when the page answers but the keyword is missing. Suggestions are made only for customers that
+opted in and whose plan includes `SettingsSuggestions`; they are closed when that stops. The numbers shown come from
+the database; the model only explains them, and an explanation with a number that is not in its input is rejected.
+A CustomerAdmin applies a suggestion with one click on the monitor page (the same validation, plan rules and
+concurrency handling as the edit form) or dismisses it for `DismissDays` days; an applied kind is not suggested again
+within `WindowDays`. Failed or budget-skipped explanations are retried after `Ai__RetryCooldownMinutes`. Response
+bodies are never stored, so no new keyword is ever proposed (only the current one without stray whitespace).
 
 **Who gets AI:** a call is made only when all of these hold:
 
@@ -524,7 +537,8 @@ parallel calls cannot overshoot the call limit. A reservation is always complete
 - bare credential shapes: JWTs and other dot-separated opaque tokens, `sk-…` keys, AWS keys, Telegram / GitHub / GitLab / Slack tokens, grouped license-style keys, and any long letter+digit token (base64 included). System-generated ids skip only this last rule.
 
 Customer-entered text is not sent: monitor names (the model sees "this monitor", "monitor B", ...), keywords, JSON
-paths, expected values, maintenance window names and acknowledgement notes. Heartbeat monitors send no target at all.
+paths, expected values, maintenance window names and acknowledgement notes. Probe errors that quote them ("Keyword '…' not found in response",
+"JSON value at … (expected …)") are reduced to the kind of failure before they are sent. Heartbeat monitors send no target at all.
 
 Probe error texts and response snippets are normalized (NFKC), stripped of control characters, truncated and sent in
 delimited `<untrusted_data>` blocks that the prompt declares to be data, never instructions. Model output is validated

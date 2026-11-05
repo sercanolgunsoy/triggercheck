@@ -72,6 +72,10 @@ public sealed class AiTenantData(AppDbContext db)
     public Task<List<MaintenanceOccurrence>> MaintenanceAsync(int customerId, int monitorId, DateTime fromUtc, DateTime toUtc, CancellationToken ct = default) =>
         MaintenanceQueries.OccurrencesAsync(db, customerId, monitorId, fromUtc, toUtc, ct);
 
+    /// <summary>An AI-5 settings suggestion of the customer.</summary>
+    public Task<SettingsSuggestion?> SettingsSuggestionAsync(int customerId, long suggestionId, CancellationToken ct = default) =>
+        db.SettingsSuggestions.AsNoTracking().FirstOrDefaultAsync(s => s.Id == suggestionId && s.CustomerId == customerId, ct);
+
     public static string? HostOf(MonitorEntity m) => HostOf(m.Type, m.Target);
 
     /// <summary>Host name of a monitor target (null for push monitors and unparsable targets).</summary>

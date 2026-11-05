@@ -116,6 +116,11 @@ public class Monitor
     public int Version { get; set; }
 
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+    /// <summary>
+    /// When a user last changed the probe settings (type, target, keyword, timeout, ...), the interval or the failure
+    /// threshold; null = not since creation. AI-5 settings suggestions only look at history recorded after it.
+    /// </summary>
+    public DateTime? SettingsChangedAtUtc { get; set; }
 
     public ICollection<CheckResult> CheckResults { get; set; } = new List<CheckResult>();
     public ICollection<Incident> Incidents { get; set; } = new List<Incident>();

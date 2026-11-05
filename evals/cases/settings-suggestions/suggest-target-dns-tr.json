@@ -1,0 +1,54 @@
+{
+  "id": "suggest-target-dns-tr",
+  "feature": "SettingsSuggestions",
+  "language": "tr",
+  "description": "Misspelled host name never resolved since creation, Turkish output.",
+  "expect": {
+    "primaryCause": "target_may_be_wrong"
+  },
+  "monitor": {
+    "name": "Mağaza",
+    "type": "Http",
+    "target": "https://shop.exmaple.test/",
+    "status": "Down",
+    "createdDaysAgo": 2,
+    "intervalSeconds": 300
+  },
+  "checks": [
+    {
+      "minutesAgo": 2,
+      "repeat": 500,
+      "everyMinutes": 5,
+      "up": false,
+      "ms": 40,
+      "error": "DNS resolution failed: No such host is known."
+    }
+  ],
+  "secrets": [],
+  "canned": {
+    "summary": "İlk kontrolden beri 500 kontrolün hiçbiri başarılı olmadı; tümünde alan adı çözümlenemedi. Hedef adresteki alan adını kontrol edin.",
+    "hypotheses": [
+      {
+        "cause": "Hedefteki alan adı yanlış yazılmış olabilir.",
+        "confidence": "high",
+        "evidence": [
+          "error E1: DNS çözümlemesi 500 kontrolde başarısız"
+        ],
+        "category": "target_may_be_wrong",
+        "evidence_refs": [
+          "error E1",
+          "failed_checks"
+        ]
+      }
+    ],
+    "suggested_actions": [
+      {
+        "action": "review_target",
+        "description": "Hedef adresi düzeltin.",
+        "autonomy": "A1",
+        "reversible": true
+      }
+    ],
+    "unknowns": []
+  }
+}

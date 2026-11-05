@@ -3,7 +3,9 @@ using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using TriggerCheck.Ai;
 using TriggerCheck.Ai.Client;
@@ -82,6 +84,7 @@ public static class EvalHarness
         services.AddScoped<IAiContextProvider>(sp => new RecordingContextProvider(ActivatorUtilities.CreateInstance<IncidentInterpretationProvider>(sp), prompts));
         services.AddScoped<IAiContextProvider>(sp => new RecordingContextProvider(ActivatorUtilities.CreateInstance<SlowdownExplanationProvider>(sp), prompts));
         services.AddScoped<IAiContextProvider>(sp => new RecordingContextProvider(ActivatorUtilities.CreateInstance<CorrelationGroupingProvider>(sp), prompts));
+        services.AddScoped<IAiContextProvider>(sp => new RecordingContextProvider(ActivatorUtilities.CreateInstance<SettingsSuggestionProvider>(sp), prompts));
 
         var report = new EvalReport
         {
@@ -101,17 +104,17 @@ public static class EvalHarness
                 current = scenario;
                 recorder.Reset();
                 prompts.Last = null;
-                AiDecision? decision;
+                AiDecision? decision = null;
                 EvalCorrelationSeed? correlation = null;
                 using (var scope = sp.CreateScope())
                 {
                     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-                    AiJob job;
+                    AiJob? job;
                     if (scenario.Feature == AiFeatures.CorrelationGrouping)
                         job = (correlation = await EvalCorrelation.SeedAsync(scope.ServiceProvider, scenario, ct)).Job;
                     else
                         job = await SeedAsync(db, scenario, ct);
-                    decision = await scope.ServiceProvider.GetRequiredService<IAiInterpreter>().RunAsync(job, ct);
+                    if (job is not null) decision = await scope.ServiceProvider.GetRequiredService<IAiInterpreter>().RunAsync(job, ct);
                 }
                 var result = correlation is not null
                     ? EvalCorrelation.Grade(scenario, correlation, recorder.LastRequest, recorder.LastResult, decision, prompts.Last)
@@ -127,8 +130,11 @@ public static class EvalHarness
         return report;
     }
 
-    /// <summary>Stores the scenario for a new customer and returns the job production would queue for it.</summary>
-    public static async Task<AiJob> SeedAsync(AppDbContext db, EvalScenario s, CancellationToken ct = default)
+    /// <summary>
+    /// Stores the scenario for a new customer and returns the job production would queue for it. AI-5: the production
+    /// suggestion job runs the rules on the stored history; null when they find nothing (the case then fails).
+    /// </summary>
+    public static async Task<AiJob?> SeedAsync(AppDbContext db, EvalScenario s, CancellationToken ct = default)
     {
         DateTime Ago(double minutes) => Now.AddMinutes(-minutes);
         var plan = new Plan
@@ -170,6 +176,14 @@ public static class EvalHarness
             db.Incidents.Add(incident);
         }
 
+        foreach (var h in s.Incidents)
+            for (var i = 0; i < Math.Max(1, h.Repeat); i++)
+                db.Incidents.Add(new Incident
+                {
+                    Monitor = monitor, StartedAtUtc = Ago(h.StartedMinutesAgo + i * h.EveryMinutes),
+                    ResolvedAtUtc = h.ResolvedMinutesAgo is double hr ? Ago(hr + i * h.EveryMinutes) : null, Cause = h.Cause
+                });
+
         foreach (var other in s.SameHost)
         {
             var m = NewMonitor(other);
@@ -207,6 +221,18 @@ public static class EvalHarness
         }
         await db.SaveChangesAsync(ct);
 
+        if (s.Feature == AiFeatures.SettingsSuggestions)
+        {
+            var job = new SettingsSuggestionJob(db, new NullJobQueue(), new FakeAiClient { IsAvailable = false },
+                Options.Create(new AiOptions()), new FixedTimeProvider(Now), NullLogger<SettingsSuggestionJob>.Instance);
+            await job.RunAsync(ct);
+            var suggestion = await db.SettingsSuggestions
+                .Where(x => x.MonitorId == monitor.Id && x.Status == SettingsSuggestionStatus.Open).OrderBy(x => x.Kind)
+                .FirstOrDefaultAsync(ct);
+            return suggestion is null ? null
+                : new AiJob(s.Feature, customer.Id, SettingsSuggestionProvider.SubjectType, suggestion.Id.ToString(CultureInfo.InvariantCulture), s.Language);
+        }
+
         return s.Feature == AiFeatures.SlowdownExplanation
             ? new AiJob(s.Feature, customer.Id, AiSubjects.AnomalySignal, signal!.Id.ToString(CultureInfo.InvariantCulture), s.Language)
             : new AiJob(s.Feature, customer.Id, AiSubjects.Incident, incident!.Id.ToString(CultureInfo.InvariantCulture), s.Language);
@@ -232,6 +258,12 @@ public sealed class RecordingAiClient(IAiClient inner) : IAiClient
         LastResult = await inner.CompleteAsync(request, ct);
         return LastResult;
     }
+}
+
+/// <summary>The harness calls the interpreter itself; the suggestion job's own queueing is not needed.</summary>
+public sealed class NullJobQueue : IAiJobQueue
+{
+    public bool TryEnqueue(AiJob job) => false;
 }
 
 public sealed class PromptRecorder

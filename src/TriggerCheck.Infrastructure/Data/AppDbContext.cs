@@ -20,6 +20,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
     public DbSet<AiFeedback> AiFeedback => Set<AiFeedback>();
     public DbSet<MonitorBaseline> MonitorBaselines => Set<MonitorBaseline>();
     public DbSet<AnomalySignal> AnomalySignals => Set<AnomalySignal>();
+    public DbSet<SettingsSuggestion> SettingsSuggestions => Set<SettingsSuggestion>();
     public DbSet<Subscription> Subscriptions => Set<Subscription>();
     public DbSet<PaymentEvent> PaymentEvents => Set<PaymentEvent>();
     public DbSet<EmailOutbox> EmailOutbox => Set<EmailOutbox>();
@@ -231,6 +232,17 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
             e.HasIndex(x => new { x.MonitorId, x.EndedAtUtc });
             e.HasIndex(x => new { x.CustomerId, x.StartedAtUtc });
             e.Ignore(x => x.IsOpen);
+        });
+
+        // AI-5: settings suggestions (rule-detected, explained by AI-5 decisions).
+        b.Entity<SettingsSuggestion>(e =>
+        {
+            e.HasOne<MonitorEntity>().WithMany().HasForeignKey(x => x.MonitorId).OnDelete(DeleteBehavior.Cascade);
+            e.Property(x => x.CurrentValue).HasMaxLength(600);
+            e.Property(x => x.SuggestedValue).HasMaxLength(600);
+            e.Property(x => x.ClosedByUserId).HasMaxLength(450);
+            e.HasIndex(x => new { x.MonitorId, x.Kind, x.Status });
+            e.HasIndex(x => new { x.CustomerId, x.Status });
         });
 
         // FEAT-4: public status pages. Slug and custom domain are unique across all customers.

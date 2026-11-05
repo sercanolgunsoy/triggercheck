@@ -1,0 +1,77 @@
+{
+  "id": "suggest-timeout",
+  "feature": "SettingsSuggestions",
+  "language": "en",
+  "description": "40 responses above 80% of a 5 s timeout and 8 timeouts in a week.",
+  "expect": {
+    "primaryCause": "raise_timeout"
+  },
+  "monitor": {
+    "name": "Reports",
+    "type": "Http",
+    "target": "https://reports.example.test/export/daily",
+    "status": "Up",
+    "intervalSeconds": 60,
+    "timeoutSeconds": 5,
+    "failureThreshold": 2
+  },
+  "checks": [
+    {
+      "minutesAgo": 1,
+      "repeat": 1000,
+      "everyMinutes": 5,
+      "up": true,
+      "status": 200,
+      "ms": 200
+    },
+    {
+      "minutesAgo": 2.5,
+      "repeat": 40,
+      "everyMinutes": 60,
+      "up": true,
+      "status": 200,
+      "ms": 4500
+    },
+    {
+      "minutesAgo": 7.5,
+      "repeat": 8,
+      "everyMinutes": 600,
+      "up": false,
+      "ms": 5000,
+      "error": "Timeout after 5s"
+    }
+  ],
+  "secrets": [
+    "/export/daily"
+  ],
+  "canned": {
+    "summary": "In the last 7 days 40 of 1040 successful checks took at least 4000 ms and 8 checks timed out at the 5 second timeout. Raising the timeout from 5 to 7 seconds lets these slow responses count as up; p99 was 4500 ms.",
+    "hypotheses": [
+      {
+        "cause": "The export endpoint is regularly slow, close to the timeout.",
+        "confidence": "high",
+        "evidence": [
+          "near_timeout_checks: 40 checks at or above 4000 ms",
+          "timed_out_checks: 8"
+        ],
+        "category": "raise_timeout",
+        "evidence_refs": [
+          "near_timeout_checks",
+          "timed_out_checks",
+          "p99_ms"
+        ]
+      }
+    ],
+    "suggested_actions": [
+      {
+        "action": "raise_timeout",
+        "description": "Set the timeout to 7 seconds.",
+        "autonomy": "A1",
+        "reversible": true
+      }
+    ],
+    "unknowns": [
+      "Whether the slow responses come from a scheduled job on the server."
+    ]
+  }
+}
