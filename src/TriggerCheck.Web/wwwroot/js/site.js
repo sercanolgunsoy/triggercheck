@@ -1,13 +1,28 @@
 // Light/dark toggle (initial theme is applied in the <head> by _ThemeScript).
 (function () {
     var root = document.documentElement;
+    // The toggle is a "dark mode" switch: aria-pressed tells screen readers whether dark mode is on.
+    var syncThemeButtons = function () {
+        var dark = root.getAttribute('data-bs-theme') === 'dark';
+        document.querySelectorAll('[data-theme-toggle]').forEach(function (b) { b.setAttribute('aria-pressed', dark ? 'true' : 'false'); });
+    };
+    syncThemeButtons();
     document.addEventListener('click', function (e) {
         var btn = e.target.closest && e.target.closest('[data-theme-toggle]');
         if (!btn) return;
         var next = root.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark';
         root.setAttribute('data-bs-theme', next);
         try { localStorage.setItem('tc-theme', next); } catch (err) { }
+        syncThemeButtons();
         document.dispatchEvent(new CustomEvent('tc:theme', { detail: next }));
+    });
+
+    // Off-canvas sidebar (small screens): keep aria-expanded of its toggle in step (Bootstrap does not).
+    document.addEventListener('show.bs.offcanvas', function (e) {
+        document.querySelectorAll('[data-bs-toggle="offcanvas"][aria-controls="' + e.target.id + '"]').forEach(function (b) { b.setAttribute('aria-expanded', 'true'); });
+    });
+    document.addEventListener('hidden.bs.offcanvas', function (e) {
+        document.querySelectorAll('[data-bs-toggle="offcanvas"][aria-controls="' + e.target.id + '"]').forEach(function (b) { b.setAttribute('aria-expanded', 'false'); });
     });
 
     // Forms with data-confirm ask before submitting (no inline handlers: the CSP forbids them).

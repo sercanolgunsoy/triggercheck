@@ -34,7 +34,7 @@
                     <dt class="col-sm-4">@L["Monitors"]</dt>
                     <dd class="col-sm-8">
                         @Model.MonitorCount / @plan.MaxMonitors
-                        <div class="progress mt-1" style="height: 6px">
+                        <div class="progress mt-1" style="height: 6px" aria-hidden="true">
                             <div class="progress-bar @(usage >= 90 ? "bg-danger" : usage >= 70 ? "bg-warning" : "bg-success")" style="width: @usage.ToString("0", System.Globalization.CultureInfo.InvariantCulture)%"></div>
                         </div>
                     </dd>
