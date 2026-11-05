@@ -12,7 +12,8 @@ namespace TriggerCheck.Ai.Narrative;
 /// Grounding: a value written with d decimals matches a fact x when x rounded to d decimals equals it (rounding is
 /// interpretation, inventing is not), except that a rounded value may not become exactly 0 or 100 unless x is (so
 /// "99.96 %" can never be written as "100 %"). An ambiguous token ("1,234" = 1234 or 1.234; "3,4" = 3.4 or 3 and 4) is
-/// grounded when any reading is. A duration is grounded when its total in minutes is within its smallest unit of a fact.
+/// grounded when any reading is. A duration is grounded when its total in minutes is within half its smallest unit of a fact
+/// ("2 h 15 min" for 135.4 minutes, "about 2 hours" for 100 to 150 minutes).
 /// </para>
 /// </summary>
 public static partial class NarrativeNumbers
@@ -92,7 +93,7 @@ public static partial class NarrativeNumbers
     {
         if (t.Readings.Any(r => r.All(v => Matches(v, facts)))) return true;
         if (t.DurationMinutes is double total)
-            return facts.Any(x => Math.Abs((double)x - total) <= t.DurationUnitMinutes + 1e-9 && !(total == 0 && x != 0));
+            return facts.Any(x => Math.Abs((double)x - total) <= t.DurationUnitMinutes / 2 + 1e-9 && !(total == 0 && x != 0));
         return false;
     }
 

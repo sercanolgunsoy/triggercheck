@@ -1840,4 +1840,58 @@
   <data name="Downtime counts from when a monitor went DOWN (after its failure threshold) until it recovered. Paused time counts as available, incidents are counted in the month they started, and closed months are cached for up to 6 hours." xml:space="preserve">
     <value>Kesinti süresi, monitörün DOWN olduğu andan (hata eşiğinden sonra) düzelene kadar sayılır. Duraklatılan süre erişilebilir sayılır, olaylar başladıkları ayda sayılır ve kapanmış aylar 6 saate kadar önbellekte tutulur.</value>
   </data>
+  <data name="The AI narrative is available once the period is over." xml:space="preserve">
+    <value>Yapay zekâ anlatısı dönem bittikten sonra hazırlanabilir.</value>
+  </data>
+  <data name="The AI narrative is being prepared. It appears here within a few minutes." xml:space="preserve">
+    <value>Yapay zekâ anlatısı hazırlanıyor. Birkaç dakika içinde burada görünecek.</value>
+  </data>
+  <data name="AI narratives are not available for your account." xml:space="preserve">
+    <value>Yapay zekâ anlatıları hesabınız için kullanılamıyor.</value>
+  </data>
+  <data name="Week" xml:space="preserve">
+    <value>Hafta</value>
+  </data>
+  <data name="Show week" xml:space="preserve">
+    <value>Haftayı göster</value>
+  </data>
+  <data name="Weekly view" xml:space="preserve">
+    <value>Haftalık görünüm</value>
+  </data>
+  <data name="Back to the monthly report" xml:space="preserve">
+    <value>Aylık rapora dön</value>
+  </data>
+  <data name="Week in progress" xml:space="preserve">
+    <value>Hafta devam ediyor</value>
+  </data>
+  <data name="The AI only interprets the figures of this report; it may still be wrong." xml:space="preserve">
+    <value>Yapay zekâ yalnızca bu rapordaki rakamları yorumlar; yine de yanılabilir.</value>
+  </data>
+  <data name="What happened" xml:space="preserve">
+    <value>Neler oldu</value>
+  </data>
+  <data name="What changed" xml:space="preserve">
+    <value>Ne değişti</value>
+  </data>
+  <data name="What to watch" xml:space="preserve">
+    <value>Neye dikkat edilmeli</value>
+  </data>
+  <data name="The AI narrative of this period is being prepared. Reload the page in a few minutes." xml:space="preserve">
+    <value>Bu dönemin yapay zekâ anlatısı hazırlanıyor. Birkaç dakika sonra sayfayı yenileyin.</value>
+  </data>
+  <data name="The AI narrative could not be generated." xml:space="preserve">
+    <value>Yapay zekâ anlatısı oluşturulamadı.</value>
+  </data>
+  <data name="No AI narrative for this period yet." xml:space="preserve">
+    <value>Bu dönem için henüz yapay zekâ anlatısı yok.</value>
+  </data>
+  <data name="Prepare AI narrative" xml:space="preserve">
+    <value>Yapay zekâ anlatısı hazırla</value>
+  </data>
+  <data name="AI report narratives are not included in your plan." xml:space="preserve">
+    <value>Yapay zekâ rapor anlatıları planınıza dahil değil.</value>
+  </data>
+  <data name="No AI narrative: there was nothing to report for this period." xml:space="preserve">
+    <value>Yapay zekâ anlatısı yok: bu dönemde raporlanacak bir şey yoktu.</value>
+  </data>
 </root>
