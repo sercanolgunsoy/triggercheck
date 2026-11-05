@@ -1,0 +1,55 @@
+{
+  "id": "narrative-latency-degradation",
+  "feature": "NarrativeReport",
+  "language": "en",
+  "description": "No outage, but responses are much slower than in January and the baseline flagged slowdowns.",
+  "expect": {
+    "focusMonitors": [
+      "Search API"
+    ]
+  },
+  "narrative": {
+    "monitors": [
+      {
+        "name": "Search API",
+        "target": "https://search.example.test/q?term=x",
+        "slaTarget": 99.9,
+        "ms": 450,
+        "previousMs": 200,
+        "slowdowns": 2
+      },
+      {
+        "name": "Landing page",
+        "ms": 100,
+        "previousMs": 100
+      }
+    ]
+  },
+  "canned": {
+    "headline": "No downtime in February, but monitor A became much slower.",
+    "what_happened": [
+      {
+        "text": "monitor A had slowdown signals but no incidents.",
+        "monitors": [
+          "monitor A"
+        ]
+      }
+    ],
+    "what_changed": [
+      {
+        "text": "The p95 response time of monitor A rose to 450 ms from 200 ms.",
+        "monitors": [
+          "monitor A"
+        ]
+      }
+    ],
+    "what_to_watch": [
+      {
+        "text": "Watch monitor A's response times: the slowdown may turn into timeouts.",
+        "monitors": [
+          "monitor A"
+        ]
+      }
+    ]
+  }
+}

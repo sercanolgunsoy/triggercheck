@@ -1,0 +1,62 @@
+{
+  "id": "narrative-sla-missed-tr",
+  "feature": "NarrativeReport",
+  "language": "tr",
+  "description": "Turkish: SLA missed after a long outage.",
+  "expect": {
+    "focusMonitors": [
+      "Ödeme servisi"
+    ]
+  },
+  "narrative": {
+    "monitors": [
+      {
+        "name": "Ödeme servisi",
+        "target": "https://pay.example.test/v2/charge",
+        "slaTarget": 99.95,
+        "ms": 260,
+        "previousMs": 250,
+        "incidents": [
+          {
+            "day": 18,
+            "hour": 2,
+            "minutes": 95,
+            "cause": "HTTP 502 Bad Gateway"
+          }
+        ]
+      },
+      {
+        "name": "Kurumsal site",
+        "ms": 140,
+        "previousMs": 140
+      }
+    ]
+  },
+  "canned": {
+    "headline": "Şubat ayında monitor A SLA hedefinin altında kaldı.",
+    "what_happened": [
+      {
+        "text": "monitor A 2026-02-18 tarihinde 95 dakika boyunca erişilemedi ve %99,95 hedefini kaçırdı.",
+        "monitors": [
+          "monitor A"
+        ]
+      }
+    ],
+    "what_changed": [
+      {
+        "text": "Ocak ayında hiç olay yoktu; kesinti süresi bu ay arttı.",
+        "monitors": [
+          "monitor A"
+        ]
+      }
+    ],
+    "what_to_watch": [
+      {
+        "text": "monitor A için ağ geçidi hatalarını izleyin.",
+        "monitors": [
+          "monitor A"
+        ]
+      }
+    ]
+  }
+}

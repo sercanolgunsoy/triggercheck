@@ -27,8 +27,13 @@ public sealed class EvalScenario
     public EvalAnomaly? Anomaly { get; set; }
     public List<EvalPeriod> Maintenance { get; set; } = [];
     public double? BaselineMedianMs { get; set; }
+    /// <summary>AI-6: the customer's monitors, incidents and checks of the report month and the month before.</summary>
+    public EvalNarrative? Narrative { get; set; }
     /// <summary>Planted strings (credentials, URL paths, e-mail addresses) that must never reach the model.</summary>
     public List<string> Secrets { get; set; } = [];
+    /// <summary>Filled by the harness (AI-6): monitor name → id of the seeded monitors.</summary>
+    [JsonIgnore]
+    public Dictionary<string, int> SeededMonitorIds { get; } = new();
     /// <summary>Model answer used in fake mode (CI): a well-formed, correct interpretation for the case.</summary>
     public JsonNode? Canned { get; set; }
 
@@ -53,7 +58,13 @@ public sealed class EvalScenario
             if (AiFeatures.Find(s.Feature) is null) throw new InvalidDataException($"{file}: unknown feature '{s.Feature}'");
             if (s.Feature == AiFeatures.IncidentInterpretation && s.Incident is null) throw new InvalidDataException($"{file}: incident missing");
             if (s.Feature == AiFeatures.SlowdownExplanation && s.Anomaly is null) throw new InvalidDataException($"{file}: anomaly missing");
-            if (!EvalGrader.Labels.ContainsKey(s.Expect.PrimaryCause)) throw new InvalidDataException($"{file}: unknown label '{s.Expect.PrimaryCause}'");
+            if (s.Feature == AiFeatures.NarrativeReport)
+            {
+                if (s.Narrative is not { Monitors.Count: > 0 }) throw new InvalidDataException($"{file}: narrative monitors missing");
+                var names = s.Narrative.Monitors.Select(m => m.Name).ToHashSet();
+                if (s.Expect.FocusMonitors.FirstOrDefault(n => !names.Contains(n)) is { } unknown) throw new InvalidDataException($"{file}: unknown focus monitor '{unknown}'");
+            }
+            else if (!EvalGrader.Labels.ContainsKey(s.Expect.PrimaryCause)) throw new InvalidDataException($"{file}: unknown label '{s.Expect.PrimaryCause}'");
             result.Add(s);
         }
         if (result.Select(s => s.Id).Distinct().Count() != result.Count) throw new InvalidDataException("Duplicate case ids");
@@ -78,6 +89,45 @@ public sealed class EvalExpectation
     public string PrimaryCause { get; set; } = "";
     /// <summary>AI-3: the summary must say that there is no outage yet.</summary>
     public bool NoOutageStatement { get; set; }
+    /// <summary>AI-6: monitors (by name) that "what happened" or "what to watch" must reference by their label.</summary>
+    public List<string> FocusMonitors { get; set; } = [];
+}
+
+/// <summary>
+/// AI-6 case data. The report month is the month before <see cref="EvalHarness.Now"/> (February 2026, UTC); "previous"
+/// incidents fall into January. Days are 1-based days of the month.
+/// </summary>
+public sealed class EvalNarrative
+{
+    public List<EvalNarrativeMonitor> Monitors { get; set; } = [];
+}
+
+public sealed class EvalNarrativeMonitor
+{
+    public string Name { get; set; } = "";
+    public MonitorType Type { get; set; } = MonitorType.Http;
+    public string Target { get; set; } = "https://shop.example.test/health";
+    public double? SlaTarget { get; set; }
+    /// <summary>Negative: created during the report month.</summary>
+    public double CreatedDaysBeforePeriod { get; set; } = 90;
+    public List<EvalNarrativeIncident> Incidents { get; set; } = [];
+    /// <summary>Response time of the daily successful check in the report month / the month before (null: no checks).</summary>
+    public int? Ms { get; set; } = 200;
+    public int? PreviousMs { get; set; } = 200;
+    /// <summary>Certificate expiry, days after the end of the report month.</summary>
+    public int? CertExpiresDaysAfterPeriod { get; set; }
+    /// <summary>Slowdown signals (AI-1) that started in the report month.</summary>
+    public int Slowdowns { get; set; }
+}
+
+public sealed class EvalNarrativeIncident
+{
+    public int Day { get; set; } = 1;
+    public int Hour { get; set; }
+    public double Minutes { get; set; } = 30;
+    public string? Cause { get; set; }
+    /// <summary>In the month before the report month.</summary>
+    public bool Previous { get; set; }
 }
 
 public sealed class EvalMonitor

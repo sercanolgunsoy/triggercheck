@@ -1,0 +1,97 @@
+{
+  "id": "narrative-many-monitors",
+  "feature": "NarrativeReport",
+  "language": "en",
+  "description": "Five monitors: two with incidents (one misses its target), three healthy.",
+  "expect": {
+    "focusMonitors": [
+      "Payments",
+      "Inventory sync"
+    ]
+  },
+  "narrative": {
+    "monitors": [
+      {
+        "name": "Website",
+        "ms": 150,
+        "previousMs": 150
+      },
+      {
+        "name": "Payments",
+        "target": "https://pay.example.test/",
+        "slaTarget": 99.95,
+        "ms": 240,
+        "previousMs": 230,
+        "incidents": [
+          {
+            "day": 4,
+            "hour": 10,
+            "minutes": 30,
+            "cause": "Timeout"
+          },
+          {
+            "day": 21,
+            "hour": 16,
+            "minutes": 20,
+            "cause": "Timeout"
+          }
+        ]
+      },
+      {
+        "name": "Inventory sync",
+        "target": "https://inv.example.test/",
+        "ms": 500,
+        "previousMs": 480,
+        "incidents": [
+          {
+            "day": 15,
+            "hour": 6,
+            "minutes": 10,
+            "cause": "Connection refused"
+          }
+        ]
+      },
+      {
+        "name": "Docs",
+        "ms": 80,
+        "previousMs": 80
+      },
+      {
+        "name": "Status API",
+        "ms": 90,
+        "previousMs": 90
+      }
+    ]
+  },
+  "canned": {
+    "headline": "Two monitors had incidents in February; monitor A missed its SLA target.",
+    "what_happened": [
+      {
+        "text": "monitor A had 2 incidents and missed its target.",
+        "monitors": [
+          "monitor A"
+        ]
+      },
+      {
+        "text": "monitor B had one short incident.",
+        "monitors": [
+          "monitor B"
+        ]
+      }
+    ],
+    "what_changed": [
+      {
+        "text": "January had no incidents.",
+        "monitors": []
+      }
+    ],
+    "what_to_watch": [
+      {
+        "text": "monitor A is the main risk for next month.",
+        "monitors": [
+          "monitor A"
+        ]
+      }
+    ]
+  }
+}

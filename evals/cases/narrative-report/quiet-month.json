@@ -1,0 +1,41 @@
+{
+  "id": "narrative-quiet-month",
+  "feature": "NarrativeReport",
+  "language": "en",
+  "description": "No incidents in either month; nothing to watch.",
+  "expect": {
+    "focusMonitors": []
+  },
+  "narrative": {
+    "monitors": [
+      {
+        "name": "Website",
+        "slaTarget": 99.5,
+        "ms": 150,
+        "previousMs": 150
+      },
+      {
+        "name": "Status API",
+        "target": "https://status.example.test/v1",
+        "ms": 90,
+        "previousMs": 95
+      }
+    ]
+  },
+  "canned": {
+    "headline": "A quiet month: no incidents and all SLA targets met.",
+    "what_happened": [
+      {
+        "text": "No monitor had an incident in February.",
+        "monitors": []
+      }
+    ],
+    "what_changed": [
+      {
+        "text": "Response times stayed about the same as in January.",
+        "monitors": []
+      }
+    ],
+    "what_to_watch": []
+  }
+}

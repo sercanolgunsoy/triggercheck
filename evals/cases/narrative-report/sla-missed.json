@@ -1,0 +1,64 @@
+{
+  "id": "narrative-sla-missed",
+  "feature": "NarrativeReport",
+  "language": "en",
+  "description": "One monitor missed its 99.9 % target after a two-hour 503 outage; the other was healthy.",
+  "expect": {
+    "focusMonitors": [
+      "Checkout API"
+    ]
+  },
+  "narrative": {
+    "monitors": [
+      {
+        "name": "Checkout API",
+        "target": "https://shop.example.test/api/checkout",
+        "slaTarget": 99.9,
+        "ms": 210,
+        "previousMs": 200,
+        "incidents": [
+          {
+            "day": 10,
+            "hour": 14,
+            "minutes": 120,
+            "cause": "HTTP 503 Service Unavailable"
+          }
+        ]
+      },
+      {
+        "name": "Company blog",
+        "target": "https://blog.example.test/",
+        "slaTarget": 99.0,
+        "ms": 120,
+        "previousMs": 125
+      }
+    ]
+  },
+  "canned": {
+    "headline": "February was mostly stable, but monitor A missed its SLA target.",
+    "what_happened": [
+      {
+        "text": "monitor A was down for 120 minutes on 2026-02-10 and missed its 99.9 % target.",
+        "monitors": [
+          "monitor A"
+        ]
+      }
+    ],
+    "what_changed": [
+      {
+        "text": "Downtime grew compared with January, which had no incidents.",
+        "monitors": [
+          "monitor A"
+        ]
+      }
+    ],
+    "what_to_watch": [
+      {
+        "text": "Watch monitor A: one more outage of this length would keep it below target.",
+        "monitors": [
+          "monitor A"
+        ]
+      }
+    ]
+  }
+}

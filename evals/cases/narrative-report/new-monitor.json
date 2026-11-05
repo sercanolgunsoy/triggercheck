@@ -1,0 +1,43 @@
+{
+  "id": "narrative-new-monitor",
+  "feature": "NarrativeReport",
+  "language": "en",
+  "description": "A monitor was added in the middle of the month; it has no previous data.",
+  "expect": {
+    "focusMonitors": []
+  },
+  "narrative": {
+    "monitors": [
+      {
+        "name": "Mobile backend",
+        "target": "https://m.example.test/api",
+        "createdDaysBeforePeriod": -10,
+        "ms": 300,
+        "previousMs": null
+      },
+      {
+        "name": "Website",
+        "ms": 150,
+        "previousMs": 150
+      }
+    ]
+  },
+  "canned": {
+    "headline": "A calm month with one new monitor.",
+    "what_happened": [
+      {
+        "text": "monitor A was added during February and stayed up.",
+        "monitors": [
+          "monitor A"
+        ]
+      }
+    ],
+    "what_changed": [
+      {
+        "text": "One monitor more than in January.",
+        "monitors": []
+      }
+    ],
+    "what_to_watch": []
+  }
+}

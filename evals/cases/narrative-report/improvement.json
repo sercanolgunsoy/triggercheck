@@ -1,0 +1,69 @@
+{
+  "id": "narrative-improvement",
+  "feature": "NarrativeReport",
+  "language": "en",
+  "description": "Three incidents in January, none in February.",
+  "expect": {
+    "focusMonitors": []
+  },
+  "narrative": {
+    "monitors": [
+      {
+        "name": "Orders API",
+        "target": "https://orders.example.test/health",
+        "slaTarget": 99.5,
+        "ms": 180,
+        "previousMs": 230,
+        "incidents": [
+          {
+            "day": 5,
+            "hour": 3,
+            "minutes": 40,
+            "previous": true,
+            "cause": "Timeout"
+          },
+          {
+            "day": 12,
+            "hour": 9,
+            "minutes": 25,
+            "previous": true,
+            "cause": "Timeout"
+          },
+          {
+            "day": 20,
+            "hour": 22,
+            "minutes": 15,
+            "previous": true,
+            "cause": "Connection refused"
+          }
+        ]
+      }
+    ]
+  },
+  "canned": {
+    "headline": "February was clean after a rough January.",
+    "what_happened": [
+      {
+        "text": "monitor A had no incidents in February.",
+        "monitors": [
+          "monitor A"
+        ]
+      }
+    ],
+    "what_changed": [
+      {
+        "text": "Incidents fell from 3 in January to none.",
+        "monitors": [
+          "monitor A"
+        ]
+      },
+      {
+        "text": "Response times improved compared with January.",
+        "monitors": [
+          "monitor A"
+        ]
+      }
+    ],
+    "what_to_watch": []
+  }
+}

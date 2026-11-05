@@ -1,0 +1,49 @@
+{
+  "id": "narrative-latency-tr",
+  "feature": "NarrativeReport",
+  "language": "tr",
+  "description": "Turkish: slower responses and slowdown signals without an outage.",
+  "expect": {
+    "focusMonitors": [
+      "Arama"
+    ]
+  },
+  "narrative": {
+    "monitors": [
+      {
+        "name": "Arama",
+        "target": "https://ara.example.test/",
+        "ms": 600,
+        "previousMs": 300,
+        "slowdowns": 3
+      }
+    ]
+  },
+  "canned": {
+    "headline": "Şubat ayında kesinti olmadı ancak monitor A yavaşladı.",
+    "what_happened": [
+      {
+        "text": "monitor A için yavaşlama sinyalleri oluştu, ancak olay yaşanmadı.",
+        "monitors": [
+          "monitor A"
+        ]
+      }
+    ],
+    "what_changed": [
+      {
+        "text": "monitor A için p95 yanıt süresi 300 ms değerinden 600 ms değerine çıktı.",
+        "monitors": [
+          "monitor A"
+        ]
+      }
+    ],
+    "what_to_watch": [
+      {
+        "text": "monitor A yanıt sürelerini izlemeye devam edin.",
+        "monitors": [
+          "monitor A"
+        ]
+      }
+    ]
+  }
+}

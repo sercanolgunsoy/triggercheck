@@ -3,6 +3,7 @@ using TriggerCheck.Ai.Client;
 using TriggerCheck.Ai.Execution;
 using TriggerCheck.Ai.Features;
 using TriggerCheck.Ai.Interpretation;
+using TriggerCheck.Ai.Narrative;
 using TriggerCheck.Domain.Entities;
 
 namespace TriggerCheck.Evals;
@@ -143,6 +144,7 @@ public static partial class EvalGrader
     /// <param name="prompt">The AiPrompt the production context provider built for the case (recorded by the harness).</param>
     public static EvalCaseResult Grade(EvalScenario s, AiCallRequest? request, AiCallResult? result, AiDecision? decision, AiPrompt? prompt)
     {
+        if (s.Feature == Domain.AiFeatures.NarrativeReport) return GradeNarrative(s, request, result, decision, prompt);
         var r = new EvalCaseResult
         {
             Id = s.Id, Feature = s.Feature, Language = s.Language, Label = s.Expect.PrimaryCause,
@@ -212,6 +214,73 @@ public static partial class EvalGrader
             r.NoOutageOk = NoOutagePhrases.Any(p => summary.Contains(p, StringComparison.Ordinal));
             if (r.NoOutageOk == false) r.Notes.Add("summary does not say that there is no outage yet");
         }
+        return r;
+    }
+
+    /// <summary>
+    /// AI-6 narrative. Columns are reused: "Primary cause" = every focus monitor of the case is referenced (by its label)
+    /// in "what happened" or "what to watch" of the validated narrative; "Evidence" = the raw model output contains no
+    /// number that is missing from the input facts (<see cref="NarrativeNumbers"/>) and the narrative was accepted.
+    /// Masking (no monitor names, URL paths, secrets or e-mail addresses in the request) and language as for AI-2.
+    /// </summary>
+    public static EvalCaseResult GradeNarrative(EvalScenario s, AiCallRequest? request, AiCallResult? result, AiDecision? decision, AiPrompt? prompt)
+    {
+        var r = new EvalCaseResult
+        {
+            Id = s.Id, Feature = s.Feature, Language = s.Language, Label = "narrative",
+            Status = decision?.Status.ToString() ?? "none",
+            InputTokens = result?.InputTokens ?? 0, OutputTokens = result?.OutputTokens ?? 0,
+            CacheReadTokens = result?.CacheReadTokens ?? 0, CacheWriteTokens = result?.CacheWriteTokens ?? 0,
+            UserContent = request?.UserContent,
+        };
+        if (request is null)
+        {
+            r.Notes.Add("no request was sent");
+            return r;
+        }
+
+        var sent = request.SystemPrompt + "\n" + request.UserContent;
+        var monitors = s.Narrative?.Monitors ?? [];
+        var leaks = s.Secrets.Where(x => !string.IsNullOrEmpty(x) && sent.Contains(x, StringComparison.OrdinalIgnoreCase)).ToList();
+        leaks.AddRange(monitors.Select(m => m.Name).Where(n => !string.IsNullOrWhiteSpace(n) && sent.Contains(n, StringComparison.Ordinal)));
+        leaks.AddRange(monitors.Select(m => Uri.TryCreate(m.Target, UriKind.Absolute, out var u) ? u.PathAndQuery : "")
+            .Where(pq => pq.Length > 1 && sent.Contains(pq, StringComparison.Ordinal)));
+        leaks.AddRange(Email().Matches(sent).Select(m => m.Value));
+        r.MaskingOk = leaks.Count == 0;
+        if (!r.MaskingOk) r.Notes.Add("leaked: " + string.Join(", ", leaks.Distinct()));
+
+        var expectedLanguage = s.Language.StartsWith("tr", StringComparison.OrdinalIgnoreCase) ? "Turkish" : "English";
+        var requestLanguageOk = request.UserContent.StartsWith("response_language: " + expectedLanguage, StringComparison.Ordinal);
+
+        var raw = result is { Outcome: AiCallOutcome.Succeeded } ? NarrativeOutput.TryParse(result.Json) : null;
+        if (raw is null)
+        {
+            r.Notes.Add("no usable output (" + (result?.ErrorCode ?? result?.Outcome.ToString() ?? "none") + ")");
+            return r;
+        }
+        r.Summary = raw.Headline;
+        var texts = new[] { raw.Headline }.Concat(raw.WhatHappened.Concat(raw.WhatChanged).Concat(raw.WhatToWatch).Select(i => i.Text)).ToList();
+
+        // ---- numbers: none invented (raw output, before the contract strips anything) ----
+        var facts = (prompt?.Output as NarrativeOutputContract)?.Facts ?? new HashSet<decimal>();
+        var invented = texts.SelectMany(t => NarrativeNumbers.Ungrounded(t, facts)).Distinct().ToList();
+        var validated = decision?.Status == AiDecisionStatus.Succeeded ? NarrativeOutput.TryParse(decision.OutputJson) : null;
+        r.EvidenceOk = invented.Count == 0 && validated is not null;
+        if (invented.Count > 0) r.Notes.Add("numbers not in the input: " + string.Join(", ", invented));
+        if (validated is null) r.Notes.Add("narrative rejected (" + (decision?.ErrorCode ?? decision?.Status.ToString() ?? "none") + ")");
+
+        // ---- focus monitors referenced by label ----
+        var labelOf = (validated?.Labels ?? new Dictionary<string, int>()).ToDictionary(kv => kv.Value, kv => kv.Key);
+        var referenced = (validated?.WhatHappened ?? []).Concat(validated?.WhatToWatch ?? []).SelectMany(i => i.Monitors).ToHashSet();
+        var missing = s.Expect.FocusMonitors
+            .Where(name => !(s.SeededMonitorIds.TryGetValue(name, out var id) && labelOf.TryGetValue(id, out var label) && referenced.Contains(label)))
+            .ToList();
+        r.PrimaryCategory = string.Join(", ", referenced.Order());
+        r.PrimaryCauseOk = validated is not null && missing.Count == 0;
+        if (missing.Count > 0) r.Notes.Add("focus monitors not referenced: " + string.Join(", ", missing));
+
+        r.LanguageOk = requestLanguageOk && LooksTurkish(string.Join(" ", texts)) == (expectedLanguage == "Turkish");
+        if (!r.LanguageOk) r.Notes.Add($"narrative is not in {expectedLanguage}");
         return r;
     }
 

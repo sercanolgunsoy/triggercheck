@@ -30,6 +30,10 @@ public class EvalHarnessTests
             Assert.Contains(incidents, c => c.Expect.PrimaryCause == label);
         Assert.Contains(incidents, c => c.Language == "tr");
         Assert.Contains(cases, c => c.Feature == AiFeatures.SlowdownExplanation);
+        var narratives = cases.Where(c => c.Feature == AiFeatures.NarrativeReport).ToList();
+        Assert.True(narratives.Count >= 10, $"AI-6 needs at least 10 narrative cases, found {narratives.Count}");
+        Assert.Contains(narratives, c => c.Language == "tr");
+        Assert.Contains(narratives, c => c.Expect.FocusMonitors.Count == 0);
         Assert.All(cases, c => Assert.NotNull(c.Canned));
     }
 
@@ -42,7 +46,7 @@ public class EvalHarnessTests
         Assert.All(report.Cases, c => Assert.True(c.Passed, $"{c.Id}: {string.Join("; ", c.Notes)}"));
         Assert.All(report.Cases, c => Assert.Equal(nameof(AiDecisionStatus.Succeeded), c.Status));
         Assert.True(report.GatePassed);
-        Assert.Equal(2, report.Features.Count);
+        Assert.Equal(3, report.Features.Count);
         Assert.All(report.Features, f => Assert.Equal(1.0, f.PrimaryCauseAccuracy));
         Assert.All(report.Cases, c => Assert.True(c.InputTokens > 0 && c.CostUsd > 0));
 
@@ -80,6 +84,28 @@ public class EvalHarnessTests
         Assert.True(f.PrimaryCauseAccuracy < 0.3);
         Assert.False(report.GatePassed);
         Assert.Contains(report.Cases, c => c.Notes.Any(n => n.Contains("expected one of", StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public async Task Narratives_with_invented_numbers_or_without_the_focus_monitors_fail_the_gate()
+    {
+        var cases = EvalScenario.LoadAll(CasesDir).Where(c => c.Feature == AiFeatures.NarrativeReport).ToList();
+        var invented = JsonNode.Parse(JsonSerializer.Serialize(new
+        {
+            headline = "Uptime was 99.123% across 17 monitors.",
+            what_happened = new[] { new { text = "There were 42 incidents.", monitors = new[] { "monitor A" } } },
+            what_changed = Array.Empty<object>(),
+            what_to_watch = Array.Empty<object>(),
+        }))!;
+        foreach (var c in cases) c.Canned = invented.DeepClone();
+
+        var report = await EvalHarness.RunAsync(cases, new EvalOptions());
+
+        var f = Assert.Single(report.Features);
+        Assert.Equal(0, f.EvidenceRate);
+        Assert.False(report.GatePassed);
+        Assert.All(report.Cases, c => Assert.Equal(nameof(AiDecisionStatus.Failed), c.Status)); // production rejected them too
+        Assert.Contains(report.Cases, c => c.Notes.Any(n => n.Contains("numbers not in the input: 99.123", StringComparison.Ordinal)));
     }
 
     [Fact]

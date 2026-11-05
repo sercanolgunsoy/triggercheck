@@ -1,0 +1,47 @@
+{
+  "id": "narrative-cert-expiring",
+  "feature": "NarrativeReport",
+  "language": "en",
+  "description": "Healthy month, but a certificate expires 9 days after the month ends.",
+  "expect": {
+    "focusMonitors": [
+      "Billing portal"
+    ]
+  },
+  "narrative": {
+    "monitors": [
+      {
+        "name": "Billing portal",
+        "target": "https://billing.example.test/login",
+        "slaTarget": 99.9,
+        "ms": 220,
+        "previousMs": 210,
+        "certExpiresDaysAfterPeriod": 9
+      },
+      {
+        "name": "Docs",
+        "target": "https://docs.example.test/",
+        "ms": 80,
+        "previousMs": 80
+      }
+    ]
+  },
+  "canned": {
+    "headline": "A stable month without incidents.",
+    "what_happened": [
+      {
+        "text": "All monitors stayed up in February.",
+        "monitors": []
+      }
+    ],
+    "what_changed": [],
+    "what_to_watch": [
+      {
+        "text": "The certificate of monitor A expires on 2026-03-10; renew it soon.",
+        "monitors": [
+          "monitor A"
+        ]
+      }
+    ]
+  }
+}
