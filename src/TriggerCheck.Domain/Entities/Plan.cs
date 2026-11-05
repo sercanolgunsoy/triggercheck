@@ -8,6 +8,8 @@ public class Plan
     /// <summary>Fastest allowed check interval for monitors of customers on this plan (300, 60, 30, 15...).</summary>
     public int MinIntervalSeconds { get; set; }
     public int MaxMonitors { get; set; }
+    /// <summary>Users (team members, including the first admin) a customer on this plan may have; null = unlimited.</summary>
+    public int? MaxUsers { get; set; }
     /// <summary>How many days of CheckResult history are retained.</summary>
     public int RetentionDays { get; set; } = 30;
     public decimal MonthlyPrice { get; set; }

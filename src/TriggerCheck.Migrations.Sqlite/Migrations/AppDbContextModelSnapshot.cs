@@ -1331,6 +1331,9 @@ namespace TriggerCheck.Migrations.Sqlite.Migrations
                     b.Property<int?>("MaxStatusPages")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int?>("MaxUsers")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("MinIntervalSeconds")
                         .HasColumnType("INTEGER");
 

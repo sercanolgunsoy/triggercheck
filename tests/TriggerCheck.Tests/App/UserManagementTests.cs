@@ -17,6 +17,39 @@ public class UserManagementTests : IClassFixture<TestWebAppFactory>
         _f.WithDbAsync(db => db.Users.Where(u => u.Id == userId).Select(u => u.IsActive).FirstAsync());
 
     [Fact]
+    public async Task Plan_user_limit_blocks_new_users_and_basic_is_single_user()
+    {
+        Assert.Equal(1, await _f.WithDbAsync(db => db.Plans.Where(p => p.Name == "Basic").Select(p => p.MaxUsers).SingleAsync()));
+        Assert.Null(await _f.WithDbAsync(db => db.Plans.Where(p => p.Name == "Standard").Select(p => p.MaxUsers).SingleAsync()));
+
+        var cid = await _f.AddCustomerAsync($"Solo-{Guid.NewGuid():N}", "Basic");
+        var email = $"solo-{Guid.NewGuid():N}@solo.local";
+        await _f.AddUserAsync(cid, email, "Admin123!", Roles.CustomerAdmin);
+        var c = await _f.LoginAsync(email, "Admin123!");
+        Dictionary<string, string> Form(string who) => new()
+        {
+            ["Input.FullName"] = "Second", ["Input.Email"] = $"{who}-{Guid.NewGuid():N}@solo.local",
+            ["Input.Password"] = "Second123", ["Input.ConfirmPassword"] = "Second123", ["Input.Role"] = Roles.CustomerViewer
+        };
+
+        // Basic: the first admin is the only user; the list explains why there is no "New user" button.
+        var list = await c.GetHtmlAsync("/App/Users/Index");
+        Assert.Contains("data-testid=\"user-limit\"", list);
+        Assert.DoesNotContain("/App/Users/Create", list);
+        var r = await c.PostFormAsync("/App/Users/Create", Form("second"), "/App/Users/Create");
+        Assert.Equal(HttpStatusCode.OK, r.StatusCode);
+        Assert.Contains("Your plan includes a single user.", await r.ReadHtmlAsync());
+        Assert.Equal(1, await _f.WithDbAsync(db => db.Users.CountAsync(u => u.CustomerId == cid)));
+
+        // A plan with a higher limit: users can be added up to it.
+        var standard = await _f.WithDbAsync(db => db.Plans.Where(p => p.Name == "Standard").Select(p => p.Id).SingleAsync());
+        await _f.WithDbAsync(db => db.Customers.Where(x => x.Id == cid).ExecuteUpdateAsync(s => s.SetProperty(x => x.PlanId, standard)));
+        AssertRedirect(await c.PostFormAsync("/App/Users/Create", Form("second"), "/App/Users/Create"), "/App/Users");
+        Assert.DoesNotContain("data-testid=\"user-limit\"", await c.GetHtmlAsync("/App/Users/Index"));
+        Assert.Equal(2, await _f.WithDbAsync(db => db.Users.CountAsync(u => u.CustomerId == cid)));
+    }
+
+    [Fact]
     public async Task Admin_creates_user_bound_to_own_customer()
     {
         var c = await AdminAsync();

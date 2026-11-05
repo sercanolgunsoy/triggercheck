@@ -45,7 +45,7 @@ public static class DbSeeder
         if (!await db.Plans.AnyAsync())
         {
             db.Plans.AddRange(
-                new Plan { Name = "Basic",      MinIntervalSeconds = 300, MaxMonitors = 10,  RetentionDays = 30,  MonthlyPrice = 0m, AllowsSelfSignup = true },
+                new Plan { Name = "Basic",      MinIntervalSeconds = 300, MaxMonitors = 10,  RetentionDays = 30,  MonthlyPrice = 0m, AllowsSelfSignup = true, MaxUsers = 1 },
                 new Plan { Name = "Standard",   MinIntervalSeconds = 60,  MaxMonitors = 50,  RetentionDays = 90,  MonthlyPrice = 15m, AllowsSelfSignup = true, AllowsSms = true },
                 new Plan { Name = "Pro",        MinIntervalSeconds = 30,  MaxMonitors = 200, RetentionDays = 180, MonthlyPrice = 49m, AllowsSelfSignup = true, AllowsSms = true, AllowsVoiceCall = true },
                 new Plan { Name = "Enterprise", MinIntervalSeconds = 15,  MaxMonitors = 1000, RetentionDays = 365, MonthlyPrice = 199m, AllowsSms = true, AllowsVoiceCall = true });
@@ -88,19 +88,17 @@ public static class DbSeeder
     }
 
     /// <summary>
-    /// AI features and monthly budget of the default plans (AI-10, docs/BACKLOG.md): Basic only AI-2 (limited);
-    /// Standard + AI-3, AI-5; Pro + AI-4, AI-6; Enterprise + AI-7, AI-8. AI-9 (monitor setup assistant) is not in the
-    /// AI-10 list; it starts at Standard like the other A1 feature (AI-5). SuperAdmins edit these on the Plans page.
+    /// AI features and monthly budget of the default plans (AI-10, docs/BACKLOG.md): Basic has no AI; Standard AI-2,
+    /// AI-3, AI-5; Pro + AI-4, AI-6; Enterprise + AI-7, AI-8. AI-9 (monitor setup assistant) is not in the AI-10 list; it
+    /// starts at Standard like the other A1 feature (AI-5). SuperAdmins edit these on the Plans page.
     /// </summary>
     public static void ApplyDefaultAiQuota(Plan plan)
     {
-        string[] basic = [AiFeatures.IncidentInterpretation];
-        string[] standard = [.. basic, AiFeatures.SlowdownExplanation, AiFeatures.SettingsSuggestions, AiFeatures.MonitorSetupAssistant];
+        string[] standard = [AiFeatures.IncidentInterpretation, AiFeatures.SlowdownExplanation, AiFeatures.SettingsSuggestions, AiFeatures.MonitorSetupAssistant];
         string[] pro = [.. standard, AiFeatures.CorrelationGrouping, AiFeatures.NarrativeReport];
         string[] enterprise = [.. pro, AiFeatures.QuestionAnswer, AiFeatures.PostmortemDraft];
         (string[] features, int calls, long tokens) = plan.Name switch
         {
-            "Basic" => (basic, 50, 500_000L),
             "Standard" => (standard, 500, 5_000_000L),
             "Pro" => (pro, 2_000, 20_000_000L),
             "Enterprise" => (enterprise, 10_000, 100_000_000L),

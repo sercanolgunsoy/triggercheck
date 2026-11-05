@@ -8,6 +8,10 @@
 </ol></nav>
 
 <h2 class="mb-3">@L["New user"]</h2>
+@if (Model.LimitReached)
+{
+    <div class="alert alert-warning" role="status" data-testid="user-limit">@Model.LimitMessage <a href="/App/Billing" class="alert-link">@L["Billing"]</a></div>
+}
 <div class="card"><div class="card-body">
     <form method="post" autocomplete="off">
         <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>

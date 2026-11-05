@@ -18,6 +18,9 @@ public class IndexModel(AppDbContext db, UserManager<ApplicationUser> users, ICu
     public record Row(string Id, string Email, string FullName, string? Role, bool IsActive, DateTime CreatedAtUtc, bool IsSelf);
 
     public List<Row> Users { get; private set; } = [];
+    /// <summary>The plan's user limit (null = unlimited); at the limit the "New user" button is replaced by a note.</summary>
+    public int? MaxUsers { get; private set; }
+    public bool CanAddUser { get; private set; } = true;
 
     public async Task OnGetAsync(CancellationToken ct)
     {
@@ -32,6 +35,9 @@ public class IndexModel(AppDbContext db, UserManager<ApplicationUser> users, ICu
         Users = list.Select(u => new Row(u.Id, u.Email ?? "", u.FullName,
             roles.Where(r => r.UserId == u.Id).Select(r => r.Name).FirstOrDefault(n => n is Roles.CustomerAdmin or Roles.CustomerViewer),
             u.IsActive, u.CreatedAtUtc, u.Id == me)).ToList();
+        var plan = (await current.GetCustomerAsync(ct)).Plan;
+        MaxUsers = plan.MaxUsers;
+        CanAddUser = PlanRules.CanAddUser(plan, list.Count);
     }
 
     /// <summary>Loads a user of THIS customer only.</summary>

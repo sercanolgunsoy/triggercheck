@@ -1024,4 +1024,10 @@
   <data name="Customers on this plan can add voice call alert channels. They are only offered when Twilio is configured for this installation." xml:space="preserve">
     <value>Bu plandaki müşteriler sesli arama bildirim kanalları ekleyebilir. Bu kanallar yalnızca bu kurulumda Twilio yapılandırılmışsa sunulur.</value>
   </data>
+  <data name="Users (empty = unlimited)" xml:space="preserve">
+    <value>Kullanıcılar (boş = sınırsız)</value>
+  </data>
+  <data name="The user limit must be 1 or greater." xml:space="preserve">
+    <value>Kullanıcı sınırı 1 veya daha büyük olmalıdır.</value>
+  </data>
 </root>

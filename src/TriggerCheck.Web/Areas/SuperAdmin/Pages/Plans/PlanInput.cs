@@ -44,6 +44,9 @@ public class PlanInput
     [StringLength(100, ErrorMessage = "At most {1} characters."), RegularExpression(@"^[A-Za-z0-9\-_]*$", ErrorMessage = "Only letters, digits, - and _ are allowed.")]
     [Display(Name = "iyzico pricing plan reference code (monthly)")] public string? IyzicoPricingPlanReferenceCode { get; set; }
 
+    [Range(1, 100_000, ErrorMessage = "The user limit must be 1 or greater.")]
+    [Display(Name = "Users (empty = unlimited)")] public int? MaxUsers { get; set; }
+
     // ---- status pages (FEAT-4) ----
     [Range(0, 100_000, ErrorMessage = "The status page limit must be 0 or greater.")]
     [Display(Name = "Status pages (empty = unlimited)")] public int? MaxStatusPages { get; set; } = 1;
@@ -71,7 +74,7 @@ public class PlanInput
         AllowsSms = p.AllowsSms, AllowsVoiceCall = p.AllowsVoiceCall, AllowsSelfSignup = p.AllowsSelfSignup,
         IyzicoProductReferenceCode = p.IyzicoProductReferenceCode, IyzicoPricingPlanReferenceCode = p.IyzicoPricingPlanReferenceCode,
         AiMonthlyCallLimit = p.AiMonthlyCallLimit, AiMonthlyTokenLimit = p.AiMonthlyTokenLimit,
-        MaxStatusPages = p.MaxStatusPages, AllowsStatusPageCustomDomain = p.AllowsStatusPageCustomDomain,
+        MaxStatusPages = p.MaxStatusPages, MaxUsers = p.MaxUsers, AllowsStatusPageCustomDomain = p.AllowsStatusPageCustomDomain,
         AiFeatures = Domain.AiFeatures.Parse(p.AiFeatures).ToList(),
         MaxRegions = p.MaxRegions
     };
@@ -94,6 +97,7 @@ public class PlanInput
         p.AiFeatures = Domain.AiFeatures.Format(AiFeatures);
         p.MaxRegions = MaxRegions!.Value;
         p.MaxStatusPages = MaxStatusPages;
+        p.MaxUsers = MaxUsers;
         p.AllowsStatusPageCustomDomain = AllowsStatusPageCustomDomain;
     }
 

@@ -20,7 +20,7 @@
             Row(L["Recovery notifications"].Value), Row(L["Automatic incident log"].Value)]),
         (L["AI features"].Value, [.. AiFeatures.All.Select(f => Row(AiFeatureName(f.Name), p => AiFeatures.PlanAllows(p, f.Name)))]),
         (L["Reports"].Value, [Row(L["24 h, 7 day and 30 day uptime"].Value), Row(L["Response-time chart"].Value)]),
-        (L["Team"].Value, [Row(L["Team members"].Value), Row(L["Admin and viewer roles"].Value), Row(L["English and Turkish interface"].Value)]),
+        (L["Team"].Value, [Row(L["Team members"].Value), Row(L["Admin and viewer roles"].Value, p => p.MaxUsers is not 1), Row(L["English and Turkish interface"].Value)]),
     };
 
     string AiFeatureName(string feature) => feature switch
@@ -86,7 +86,7 @@
                                     <td>@label</td>
                                     @for (var i = 0; i < plans.Count; i++)
                                     {
-                                        <td class="@Col(i)">@if (label == L["Team members"].Value) { <span>@L["Unlimited"]</span> }
+                                        <td class="@Col(i)">@if (label == L["Team members"].Value) { <span>@(plans[i].MaxUsers is int mu ? Fmt.Number(mu) : L["Unlimited"].Value)</span> }
                                             else if (has is null || has(plans[i])) { <span class="yes" title="@L["Included"]">@Icons.Get("check", 18)<span class="visually-hidden">@L["Included"]</span></span> }
                                             else { <span class="no" title="@L["Not included"]">@Icons.Get("x", 16)<span class="visually-hidden">@L["Not included"]</span></span> }</td>
                                     }

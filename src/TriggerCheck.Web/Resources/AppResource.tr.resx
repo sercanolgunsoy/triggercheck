@@ -2437,4 +2437,10 @@
   <data name="Some enabled channels cannot deliver: SMS or voice call alerts are not available for your plan or not set up for this service. They are skipped, and if no other channel is enabled the setting below applies." xml:space="preserve">
     <value>Bazı etkin kanallar bildirim iletemez: SMS veya sesli arama bildirimleri planınızda bulunmuyor ya da bu hizmette yapılandırılmamış. Bu kanallar atlanır; başka etkin kanal yoksa aşağıdaki ayar uygulanır.</value>
   </data>
+  <data name="Your plan includes a single user. Upgrade your plan to add team members." xml:space="preserve">
+    <value>Planınız tek kullanıcı içerir. Ekip üyesi eklemek için planınızı yükseltin.</value>
+  </data>
+  <data name="You have reached the user limit of your plan ({0}). Upgrade your plan to add a new user." xml:space="preserve">
+    <value>Planınızın kullanıcı sınırına ulaştınız ({0}). Yeni kullanıcı eklemek için planınızı yükseltin.</value>
+  </data>
 </root>

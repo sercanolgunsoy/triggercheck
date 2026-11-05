@@ -12,6 +12,9 @@ public static class PlanRules
     public static IReadOnlyList<int> AllowedIntervals(Plan plan) =>
         SupportedIntervals.Where(i => i >= plan.MinIntervalSeconds).ToList();
 
+    /// <summary>A customer with <paramref name="currentUsers"/> users (active or not) may add another one.</summary>
+    public static bool CanAddUser(Plan plan, int currentUsers) => plan.MaxUsers is not { } max || currentUsers < max;
+
     public static bool IsIntervalAllowed(Plan plan, int intervalSeconds) =>
         SupportedIntervals.Contains(intervalSeconds) && intervalSeconds >= plan.MinIntervalSeconds;
 

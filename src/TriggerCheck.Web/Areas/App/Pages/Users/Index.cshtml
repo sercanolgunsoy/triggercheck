@@ -7,8 +7,20 @@
         <h2 class="mb-0">@L["Users"]</h2>
         <div class="text-muted small">@L["Admins can manage everything; viewers can only read."]</div>
     </div>
-    <a class="btn btn-primary" asp-page="Create">@Icons.Get("plus", 16) @L["New user"]</a>
+    @if (Model.CanAddUser)
+    {
+        <a class="btn btn-primary" asp-page="Create">@Icons.Get("plus", 16) @L["New user"]</a>
+    }
 </div>
+@if (!Model.CanAddUser)
+{
+    <div class="alert alert-info small" role="status" data-testid="user-limit">
+        @(Model.MaxUsers == 1
+            ? L["Your plan includes a single user. Upgrade your plan to add team members."]
+            : L["You have reached the user limit of your plan ({0}). Upgrade your plan to add a new user.", Model.MaxUsers ?? 0])
+        <a href="/App/Billing" class="alert-link">@L["Billing"]</a>
+    </div>
+}
 
 <div class="table-responsive">
     <table class="table table-hover align-middle">

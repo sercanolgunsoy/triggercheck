@@ -43,6 +43,7 @@ else
                     <li>@Icons.Get("check", 16) <span>@L["Up to {0} monitors", Fmt.Number(p.MaxMonitors)]</span></li>
                     <li>@Icons.Get("check", 16) <span>@L["Checks every {0}", Fmt.Interval(p.MinIntervalSeconds)]</span></li>
                     <li>@Icons.Get("check", 16) <span>@L["{0} days of check history", Fmt.Number(p.RetentionDays)]</span></li>
+                    <li>@Icons.Get("check", 16) <span>@(p.MaxUsers switch { 1 => L["1 user"], int mu => L["Up to {0} users", Fmt.Number(mu)], null => L["Unlimited team members"] })</span></li>
                     <li>@Icons.Get("check", 16) <span>@L["E-mail and webhook alerts"]</span></li>
                     @if (p.AllowsSms || p.AllowsVoiceCall)
                     {

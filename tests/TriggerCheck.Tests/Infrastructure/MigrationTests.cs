@@ -121,8 +121,9 @@ public class MigrationTests
             db.Plans.Add(new Plan { Name = "Kept", MinIntervalSeconds = 60, MaxMonitors = 1, AllowsVoiceCall = true });
             await db.SaveChangesAsync();
             // An EnsureCreated database predates the migrations: it has the schema of the initial migration, i.e. the single
-            // SMS / voice flag of the plans (split by a later migration).
+            // SMS / voice flag of the plans (split by a later migration) and no user limit.
             await db.Database.ExecuteSqlRawAsync("""ALTER TABLE "Plans" DROP COLUMN "AllowsSms" """);
+            await db.Database.ExecuteSqlRawAsync("""ALTER TABLE "Plans" DROP COLUMN "MaxUsers" """);
             await db.Database.ExecuteSqlRawAsync("""ALTER TABLE "Plans" RENAME COLUMN "AllowsVoiceCall" TO "AllowsSmsVoice" """);
         }
 

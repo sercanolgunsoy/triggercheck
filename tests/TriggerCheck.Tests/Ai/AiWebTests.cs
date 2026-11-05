@@ -42,13 +42,14 @@ public class AiWebTests(TestWebAppFactory f) : IClassFixture<TestWebAppFactory>
     public async Task Default_plans_carry_the_backlog_AI_tiers()
     {
         var plans = await f.WithDbAsync(db => db.Plans.AsNoTracking().ToDictionaryAsync(p => p.Name));
-        Assert.Equal([AiFeatures.IncidentInterpretation], AiFeatures.Parse(plans["Basic"].AiFeatures));
+        Assert.Empty(AiFeatures.Parse(plans["Basic"].AiFeatures)); // the free plan has no AI
+        Assert.Equal(0, plans["Basic"].AiMonthlyCallLimit);
         Assert.Equal([AiFeatures.IncidentInterpretation, AiFeatures.SlowdownExplanation, AiFeatures.SettingsSuggestions, AiFeatures.MonitorSetupAssistant], AiFeatures.Parse(plans["Standard"].AiFeatures));
         Assert.Contains(AiFeatures.CorrelationGrouping, AiFeatures.Parse(plans["Pro"].AiFeatures));
         Assert.Contains(AiFeatures.NarrativeReport, AiFeatures.Parse(plans["Pro"].AiFeatures));
         Assert.DoesNotContain(AiFeatures.QuestionAnswer, AiFeatures.Parse(plans["Pro"].AiFeatures));
         Assert.Equal(8, AiFeatures.Parse(plans["Enterprise"].AiFeatures).Count);
-        Assert.True(plans["Basic"].AiMonthlyCallLimit > 0 && plans["Basic"].AiMonthlyCallLimit < plans["Standard"].AiMonthlyCallLimit);
+        Assert.True(plans["Standard"].AiMonthlyCallLimit > 0 && plans["Standard"].AiMonthlyCallLimit < plans["Pro"].AiMonthlyCallLimit);
     }
 
     [Fact]
@@ -190,7 +191,7 @@ public class AiWebTests(TestWebAppFactory f) : IClassFixture<TestWebAppFactory>
     [Fact]
     public async Task Over_budget_customers_see_the_quota_message()
     {
-        var cid = await f.AddCustomerAsync("AI Budget Co", planName: "Basic");
+        var cid = await f.AddCustomerAsync("AI Budget Co", planName: "Standard");
         await f.WithDbAsync(async db =>
         {
             var c = await db.Customers.Include(x => x.Plan).SingleAsync(x => x.Id == cid);

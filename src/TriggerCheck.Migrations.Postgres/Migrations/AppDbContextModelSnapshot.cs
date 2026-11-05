@@ -1378,6 +1378,9 @@ namespace TriggerCheck.Migrations.Postgres.Migrations
                     b.Property<int?>("MaxStatusPages")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("MaxUsers")
+                        .HasColumnType("integer");
+
                     b.Property<int>("MinIntervalSeconds")
                         .HasColumnType("integer");
 

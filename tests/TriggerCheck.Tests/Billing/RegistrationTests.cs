@@ -176,7 +176,8 @@ public class RegistrationTests(BillingTestFactory f) : IClassFixture<BillingTest
         Assert.DoesNotContain("voice", Card("Standard"));
         Assert.Contains("SMS and voice call alerts", Card("Pro"));
         Assert.Contains("SMS and voice call alerts", Card("Enterprise"));
-        Assert.Contains("1 AI feature<", Card("Basic"));
+        Assert.DoesNotContain("AI feature", Card("Basic"));
+        Assert.Contains("4 AI features", Card("Standard"));
         Assert.Contains("8 AI features", Card("Enterprise"));
 
         // Comparison table: plan-dependent rows show included / not included marks, every AI feature has a row.
@@ -189,6 +190,10 @@ public class RegistrationTests(BillingTestFactory f) : IClassFixture<BillingTest
             if (row != "Incident summaries and likely causes") Assert.Contains("class=\"no\"", tr);
         }
         Assert.Contains("AI requests per month", pricing);
+
+        // Basic is a single-user plan; the other default plans have unlimited team members.
+        Assert.Contains("1 user<", Card("Basic"));
+        Assert.Contains("Unlimited team members", Card("Pro"));
         Assert.DoesNotContain("Every check type and alert channel on every plan", pricing);
     }
 
