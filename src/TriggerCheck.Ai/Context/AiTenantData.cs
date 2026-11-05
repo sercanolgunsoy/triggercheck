@@ -104,6 +104,9 @@ public sealed class AiTenantData(AppDbContext db)
             .Where(r => r.MonitorId == monitorId && r.Monitor.CustomerId == customerId && !r.IsUp && r.StatusCode != null
                         && r.CheckedAtUtc >= fromUtc && r.CheckedAtUtc < toUtc)
             .OrderByDescending(r => r.CheckedAtUtc).Select(r => r.StatusCode).FirstOrDefaultAsync(ct);
+    /// <summary>An AI-5 settings suggestion of the customer.</summary>
+    public Task<SettingsSuggestion?> SettingsSuggestionAsync(int customerId, long suggestionId, CancellationToken ct = default) =>
+        db.SettingsSuggestions.AsNoTracking().FirstOrDefaultAsync(s => s.Id == suggestionId && s.CustomerId == customerId, ct);
 
     public static string? HostOf(MonitorEntity m) => HostOf(m.Type, m.Target);
 

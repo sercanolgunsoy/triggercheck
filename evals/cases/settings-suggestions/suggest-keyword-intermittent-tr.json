@@ -1,0 +1,65 @@
+{
+  "id": "suggest-keyword-intermittent-tr",
+  "feature": "SettingsSuggestions",
+  "language": "tr",
+  "description": "Keyword missing intermittently (dynamic content), Turkish output.",
+  "expect": {
+    "primaryCause": "review_keyword"
+  },
+  "monitor": {
+    "name": "Sepet sayfası",
+    "type": "Keyword",
+    "target": "https://shop.example.test/cart",
+    "keyword": "Sepetiniz",
+    "status": "Up",
+    "intervalSeconds": 300
+  },
+  "checks": [
+    {
+      "minutesAgo": 1,
+      "repeat": 2000,
+      "everyMinutes": 5,
+      "up": true,
+      "status": 200,
+      "ms": 220
+    },
+    {
+      "minutesAgo": 3,
+      "repeat": 120,
+      "everyMinutes": 50,
+      "up": false,
+      "status": 200,
+      "ms": 230,
+      "error": "Keyword 'Sepetiniz' not found in response"
+    }
+  ],
+  "secrets": [
+    "Sepetiniz"
+  ],
+  "canned": {
+    "summary": "Sayfa yanıt verdi ancak son 7 günde 2120 kontrolün 120 tanesinde anahtar kelime bulunamadı; son eşleşme 2026-03-10T11:59:00Z. Sayfa içeriğini kontrol edin ve her zaman görünen bir metin seçin.",
+    "hypotheses": [
+      {
+        "cause": "Anahtar kelime sayfada her zaman görünmüyor; içerik dinamik olabilir.",
+        "confidence": "high",
+        "evidence": [
+          "keyword_misses: 2120 kontrolün 120 tanesi"
+        ],
+        "category": "review_keyword",
+        "evidence_refs": [
+          "keyword_misses",
+          "last_match_at"
+        ]
+      }
+    ],
+    "suggested_actions": [
+      {
+        "action": "review_keyword",
+        "description": "Sayfada her zaman bulunan bir anahtar kelime seçin.",
+        "autonomy": "A1",
+        "reversible": true
+      }
+    ],
+    "unknowns": []
+  }
+}

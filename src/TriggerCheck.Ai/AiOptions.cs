@@ -39,6 +39,7 @@ public sealed class AiOptions
 
     /// <summary>AI-6 narrative report batch job ("Ai:Narrative", see <see cref="global::TriggerCheck.Ai.Narrative.AiNarrativeOptions"/>).</summary>
     public global::TriggerCheck.Ai.Narrative.AiNarrativeOptions Narrative { get; set; } = new();
+    public AiSuggestionOptions Suggestions { get; set; } = new();
 
     public static readonly IReadOnlySet<string> Efforts = new HashSet<string> { "low", "medium", "high", "xhigh", "max" };
 
@@ -137,4 +138,25 @@ public sealed class AiEventOptions
     public int HostWindowMinutes { get; set; } = 10;
     /// <summary>Jobs queued per customer per scan (round-robin across customers); the rest waits for the next scan.</summary>
     public int MaxJobsPerCustomerPerScan { get; set; } = 5;
+}
+
+/// <summary>
+/// "Ai:Suggestions": the AI-5 settings suggestion job (<see cref="Features.SettingsSuggestionJob"/>). Detection is rule
+/// based (no LLM) and runs independent of Ai:Enabled; the AI explanation of a new suggestion is queued only when AI is
+/// available.
+/// </summary>
+public sealed class AiSuggestionOptions
+{
+    /// <summary>Runs only when Monitoring:Enabled is also true.</summary>
+    public bool Enabled { get; set; } = true;
+    /// <summary>How often the history of every monitor is evaluated.</summary>
+    public int IntervalMinutes { get; set; } = 360;
+    /// <summary>History window the rules look at (and the age after which an open suggestion is refreshed).</summary>
+    public int WindowDays { get; set; } = 7;
+    /// <summary>A dismissed suggestion of the same kind is not made again for the monitor for this many days.</summary>
+    public int DismissDays { get; set; } = 30;
+    /// <summary>Newest central checks read per monitor and window.</summary>
+    public int MaxChecksPerMonitor { get; set; } = 30_000;
+    /// <summary>Monitors processed per batch.</summary>
+    public int BatchSize { get; set; } = 50;
 }

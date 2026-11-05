@@ -62,6 +62,7 @@ evals/
     incident-interpretation/       AI-2: 23 labelled scenarios (en + tr)
     slowdown-explanation/          AI-3: 5 labelled scenarios
     narrative-report/              AI-6: 11 monthly report scenarios (en + tr)
+    settings-suggestions/          AI-5: 8 labelled scenarios (one per suggestion kind, en + tr)
   reports/                         gitignored, except sample-report.md
     last-report.md / .json         last run (per feature and per case, tokens, cost)
     prompts/<case>.txt             the user turn actually sent for each case
@@ -135,6 +136,14 @@ every hypothesis whose category is not in the enum or whose refs resolve to noth
   appear in the request actually sent (system prompt + user content).
 - **Language**: the request asks for the case's language and the summary is written in it.
 - **No outage statement** (AI-3): the summary says that there is no outage yet.
+- **Numbers** (AI-5): every number, date and time in the model's text appears in the input (`AiNumberGrounding`,
+  the same rule production applies: an ungrounded summary fails the call, other ungrounded text is dropped). One
+  invented number fails the feature's gate.
+
+AI-5 cases describe the monitor's history (`checks`, and `incidents` with `repeat` / `everyMinutes`); the harness runs
+the production `SettingsSuggestionJob` rules on it and explains the suggestion they make. The label is the suggestion
+code (`raise_failure_threshold`, `raise_timeout`, `target_may_be_wrong`, `review_keyword`); a case whose history makes
+the rules suggest nothing fails. Negative rule cases (normal noise) are unit tests, not eval cases.
 
 The report also shows, as a diagnostic only, which cause categories the free text mentions ("text mentions").
 

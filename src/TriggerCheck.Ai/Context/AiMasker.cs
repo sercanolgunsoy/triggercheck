@@ -75,10 +75,25 @@ public static partial class AiMasker
     /// False only for system-generated identifiers (monitor names, ids): skips the 32+ character token heuristic, which
     /// could otherwise eat a long name. Free text always uses the full masking.
     /// </param>
+    /// <summary>KeywordMonitorChecker's "Keyword '…' not found in response" without the keyword.</summary>
+    public const string KeywordMissText = "Keyword not found in response";
+    public const string JsonAssertionMissText = "JSON value did not match the configured assertion (path and values not shared)";
+
+    [GeneratedRegex(@"(?s)Keyword '.*' not found in response")]
+    private static partial Regex KeywordMiss();
+
+    /// <summary>JsonAssertion's "JSON value at $.path is … (expected …)" (path, actual and expected value).</summary>
+    [GeneratedRegex(@"(?s)JSON value at .*")]
+    private static partial Regex JsonAssertionMiss();
+
     public static string MaskText(string? text, bool longTokens = true)
     {
         if (string.IsNullOrEmpty(text)) return "";
         var s = text.Normalize(NormalizationForm.FormKC);
+        // K5: the checkers' content errors quote the customer's keyword / JSON assertion (and response values); only the
+        // kind of failure leaves the system.
+        s = KeywordMiss().Replace(s, KeywordMissText);
+        s = JsonAssertionMiss().Replace(s, JsonAssertionMissText);
         s = KeyValueSecret().Replace(s, m => m.Groups[1].Value + Secret);
         s = SchemeToken().Replace(s, m => m.Groups[1].Value + " " + Secret);
         s = CredentialShape().Replace(s, Secret);
