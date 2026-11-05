@@ -52,10 +52,17 @@ public static class Icons
             ? new HtmlString($"<svg class=\"icon{(cssClass is null ? "" : " " + cssClass)}\" width=\"{size}\" height=\"{size}\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\" focusable=\"false\">{body}</svg>")
             : HtmlString.Empty;
 
-    /// <summary>The TriggerCheck mark: a rounded square with a pulse line.</summary>
-    public static IHtmlContent Logo(int size = 28) => new HtmlString(
-        $"<svg class=\"logo-mark\" width=\"{size}\" height=\"{size}\" viewBox=\"0 0 32 32\" aria-hidden=\"true\" focusable=\"false\">" +
-        "<defs><linearGradient id=\"tcg\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0\" stop-color=\"#6366f1\"/><stop offset=\"1\" stop-color=\"#06b6d4\"/></linearGradient></defs>" +
-        "<rect width=\"32\" height=\"32\" rx=\"9\" fill=\"url(#tcg)\"/>" +
-        "<path d=\"M5 17h5l3-7 4 13 3-8h7\" fill=\"none\" stroke=\"#fff\" stroke-width=\"2.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>");
+    private static long _logoCount;
+
+    /// <summary>The TriggerCheck mark: a rounded square with a pulse line. Each call gets its own gradient id, so a page
+    /// with several logos has no duplicate ids (and a logo hidden with display:none cannot blank out the others).</summary>
+    public static IHtmlContent Logo(int size = 28)
+    {
+        var id = "tcg" + Interlocked.Increment(ref _logoCount).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        return new HtmlString(
+            $"<svg class=\"logo-mark\" width=\"{size}\" height=\"{size}\" viewBox=\"0 0 32 32\" aria-hidden=\"true\" focusable=\"false\">" +
+            $"<defs><linearGradient id=\"{id}\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0\" stop-color=\"#6366f1\"/><stop offset=\"1\" stop-color=\"#06b6d4\"/></linearGradient></defs>" +
+            $"<rect width=\"32\" height=\"32\" rx=\"9\" fill=\"url(#{id})\"/>" +
+            "<path d=\"M5 17h5l3-7 4 13 3-8h7\" fill=\"none\" stroke=\"#fff\" stroke-width=\"2.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>");
+    }
 }

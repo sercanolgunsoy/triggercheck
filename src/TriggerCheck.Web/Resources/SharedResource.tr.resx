@@ -196,6 +196,9 @@
   <data name="Sign out" xml:space="preserve">
     <value>Çıkış</value>
   </data>
+  <data name="Skip to main content" xml:space="preserve">
+    <value>Ana içeriğe atla</value>
+  </data>
   <data name="Status" xml:space="preserve">
     <value>Durum</value>
   </data>

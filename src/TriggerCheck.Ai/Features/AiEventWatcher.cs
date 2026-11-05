@@ -9,6 +9,7 @@ using TriggerCheck.Ai.Context;
 using TriggerCheck.Ai.Execution;
 using TriggerCheck.Domain;
 using TriggerCheck.Infrastructure.Data;
+using TriggerCheck.Monitoring.Cluster;
 
 namespace TriggerCheck.Ai.Features;
 
@@ -369,6 +370,10 @@ public sealed class AiEventScanner(AppDbContext db, IAiJobQueue queue, IOptions<
 /// <summary>
 /// Runs <see cref="AiEventScanner"/> every <see cref="AiEventOptions.PollSeconds"/>. Does nothing when AI is off or no
 /// key is configured (Ai:Enabled needs a restart, so this is decided once at start).
+/// OPS-3: scans only on the instance holding the <see cref="ClusterLeases.AiEventWatcher"/> lease (its in-memory
+/// watermarks assume a single scanner). Unless the lease was renewed without interruption (<see cref="LeaseGrant.Renewed"/>)
+/// the state is dropped, so after any gap or takeover the scan starts over with the initial scan, which skips events that
+/// already have a decision.
 /// </summary>
 public sealed class AiEventWatcher(IServiceScopeFactory scopes, IAiClient client, IOptions<AiOptions> options, TimeProvider time, ILogger<AiEventWatcher> logger)
     : BackgroundService
@@ -379,7 +384,9 @@ public sealed class AiEventWatcher(IServiceScopeFactory scopes, IAiClient client
         if (!o.Enabled || !client.IsAvailable) return;
 
         var state = new AiEventScanner.State();
-        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(Math.Max(1, o.Events.PollSeconds)), time);
+        var poll = TimeSpan.FromSeconds(Math.Max(1, o.Events.PollSeconds));
+        var lease = TimeSpan.FromSeconds(Math.Max(60, 3 * poll.TotalSeconds));
+        using var timer = new PeriodicTimer(poll, time);
         try
         {
             while (await timer.WaitForNextTickAsync(stoppingToken))
@@ -387,6 +394,10 @@ public sealed class AiEventWatcher(IServiceScopeFactory scopes, IAiClient client
                 try
                 {
                     using var scope = scopes.CreateScope();
+                    var grant = await scope.ServiceProvider.GetRequiredService<ClusterLeases>().AcquireAsync(ClusterLeases.AiEventWatcher, lease, stoppingToken);
+                    // Only an uninterrupted hold keeps the watermarks: after a gap another instance may have queued events.
+                    if (grant != LeaseGrant.Renewed) state = new AiEventScanner.State();
+                    if (grant == LeaseGrant.Denied) continue;
                     await scope.ServiceProvider.GetRequiredService<AiEventScanner>().ScanAsync(state, stoppingToken);
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -401,6 +412,10 @@ public sealed class AiEventWatcher(IServiceScopeFactory scopes, IAiClient client
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
+        }
+        finally
+        {
+            await ClusterLeases.ReleaseOnStopAsync(scopes, ClusterLeases.AiEventWatcher);
         }
     }
 }

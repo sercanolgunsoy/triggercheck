@@ -17,13 +17,16 @@
     @if (basePath is not null) { <link rel="alternate" type="application/atom+xml" title="@ViewData["Title"]" href="@(basePath)/feed" /> }
 </head>
 <body>
+<a class="skip-link" href="#main-content">@L["Skip to main content"]</a>
 <div class="status-public">
-    @RenderBody()
+    <main id="main-content" tabindex="-1">
+        @RenderBody()
+    </main>
     <footer class="mt-5 pt-3 border-top small text-muted d-flex flex-wrap gap-3 justify-content-between">
         <span>@L["Powered by TriggerCheck"]</span>
         <span>
-            <a class="text-muted" href="/set-language?culture=en&amp;returnUrl=@Uri.EscapeDataString(here)">English</a> ·
-            <a class="text-muted" href="/set-language?culture=tr&amp;returnUrl=@Uri.EscapeDataString(here)">Türkçe</a>
+            <a class="text-muted" href="/set-language?culture=en&amp;returnUrl=@Uri.EscapeDataString(here)" lang="en">English</a> ·
+            <a class="text-muted" href="/set-language?culture=tr&amp;returnUrl=@Uri.EscapeDataString(here)" lang="tr">Türkçe</a>
         </span>
     </footer>
 </div>

@@ -181,7 +181,12 @@ public sealed class StatusPageNotifier(AppDbContext db, StatusPageSubscriptions 
             }
             var rows = mine.Select(c => Event(c, mailed: true)).ToList();
             if (rows.Count == 0)
-                rows.Add(new StatusPageEvent { StatusPageId = page.Id, Key = $"digest:{monitorId}:{now.Ticks}", MonitorId = monitorId, Mailed = true, CreatedAtUtc = now });
+            {
+                // Keyed by the newest change it reports (not by now): concurrent runs on two instances compute the same
+                // key, so the unique index lets only one of them queue the digest (OPS-3).
+                var newest = recent.Where(e => e.MonitorId == monitorId && !e.Mailed && (lastMailed is null || e.CreatedAtUtc > lastMailed)).Max(e => e.CreatedAtUtc);
+                rows.Add(new StatusPageEvent { StatusPageId = page.Id, Key = $"digest:{monitorId}:{newest.Ticks}", MonitorId = monitorId, Mailed = true, CreatedAtUtc = now });
+            }
             if (await CommitAsync(page, rows, subject, text))
             {
                 events += mine.Count;

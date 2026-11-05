@@ -105,7 +105,10 @@ public sealed class AppEmailSenderService(IServiceScopeFactory scopes, IAppEmail
             // Times per row: a slow send must not shorten the next row's lock or back-off.
             now = time.GetUtcNow().UtcDateTime;
             var lockUntil = now.AddMinutes(2);
-            if (await db.EmailOutbox.Where(m => m.Id == id && m.SentAtUtc == null && m.FailedAtUtc == null && (m.LockedUntilUtc == null || m.LockedUntilUtc <= now))
+            // Back-off re-checked too: another instance may have attempted the row since it was selected (OPS-3).
+            if (await db.EmailOutbox.Where(m => m.Id == id && m.SentAtUtc == null && m.FailedAtUtc == null
+                                                && (m.NextAttemptAtUtc == null || m.NextAttemptAtUtc <= now)
+                                                && (m.LockedUntilUtc == null || m.LockedUntilUtc <= now))
                     .ExecuteUpdateAsync(u => u.SetProperty(m => m.LockedUntilUtc, lockUntil), ct) == 0) continue;
             claimed++;
             var mail = await db.EmailOutbox.FirstAsync(m => m.Id == id, ct);

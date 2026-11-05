@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Infrastructure.Data;
+using TriggerCheck.Monitoring.Cluster;
 
 namespace TriggerCheck.Ai.Baseline;
 
@@ -33,7 +34,11 @@ public sealed class BaselineJob(AppDbContext db, IOptions<AiOptions> options, Ti
 
     public sealed record RunSummary(int Monitors, int BaselinesRebuilt, int SignalsOpened, int SignalsClosed);
 
-    public async Task<RunSummary> RunAsync(CancellationToken ct = default)
+    /// <param name="holdsLease">
+    /// OPS-3 fencing: asked before each batch's signals are saved; when it returns false the batch is dropped and the
+    /// run stops, since another instance may be running the job by then (two could open duplicate signals).
+    /// </param>
+    public async Task<RunSummary> RunAsync(CancellationToken ct = default, Func<CancellationToken, Task<bool>>? holdsLease = null)
     {
         var o = options.Value.Baseline;
         var now = time.GetUtcNow().UtcDateTime;
@@ -52,6 +57,7 @@ public sealed class BaselineJob(AppDbContext db, IOptions<AiOptions> options, Ti
                 .ToListAsync(ct);
             if (batch.Count == 0) break;
             lastId = batch[^1].Id;
+            var (savedOpened, savedClosed) = (opened, closed);
 
             var ids = batch.Select(m => m.Id).ToList();
             var baselines = (await db.MonitorBaselines.Where(b => ids.Contains(b.MonitorId)).ToListAsync(ct))
@@ -115,6 +121,12 @@ public sealed class BaselineJob(AppDbContext db, IOptions<AiOptions> options, Ti
                     open.DetailsJson = Details(eval);
                     open.UpdatedAtUtc = now;
                 }
+            }
+            if (holdsLease is not null && !await holdsLease(ct))
+            {
+                db.ChangeTracker.Clear();
+                logger.LogWarning("Baseline job lost its cluster lease; the rest of this pass is skipped");
+                return new RunSummary(monitors, rebuilt, savedOpened, savedClosed);
             }
             await db.SaveChangesAsync(ct);
             db.ChangeTracker.Clear();
@@ -189,7 +201,9 @@ public sealed class BaselineHostedService(
         var o = options.Value.Baseline;
         if (!o.Enabled || !config.GetValue("Monitoring:Enabled", true)) return;
 
-        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(Math.Max(1, o.IntervalSeconds)), time);
+        var interval = TimeSpan.FromSeconds(Math.Max(1, o.IntervalSeconds));
+        var lease = TimeSpan.FromSeconds(Math.Max(60, 3 * interval.TotalSeconds));
+        using var timer = new PeriodicTimer(interval, time);
         try
         {
             while (await timer.WaitForNextTickAsync(stoppingToken))
@@ -197,7 +211,12 @@ public sealed class BaselineHostedService(
                 try
                 {
                     using var scope = scopes.CreateScope();
-                    await scope.ServiceProvider.GetRequiredService<BaselineJob>().RunAsync(stoppingToken);
+                    // OPS-3: one instance at a time (two could open duplicate anomaly signals, each a paid AI-3 job).
+                    var leases = scope.ServiceProvider.GetRequiredService<ClusterLeases>();
+                    if (!await leases.TryAcquireAsync(ClusterLeases.AiBaseline, lease, stoppingToken))
+                        continue;
+                    await scope.ServiceProvider.GetRequiredService<BaselineJob>()
+                        .RunAsync(stoppingToken, ct => leases.RenewAsync(ClusterLeases.AiBaseline, lease, ct));
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
                 {
@@ -211,6 +230,10 @@ public sealed class BaselineHostedService(
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
+        }
+        finally
+        {
+            await ClusterLeases.ReleaseOnStopAsync(scopes, ClusterLeases.AiBaseline);
         }
     }
 }
