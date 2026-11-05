@@ -1819,6 +1819,9 @@
   <data name="Slowdown ended" xml:space="preserve">
     <value>Yavaşlama sona erdi</value>
   </data>
+  <data name="Evidence as of {0}." xml:space="preserve">
+    <value>Kanıtların tarihi: {0}.</value>
+  </data>
   <data name="Settings suggestions" xml:space="preserve">
     <value>Ayar önerileri</value>
   </data>
@@ -1879,8 +1882,8 @@
   <data name="Dismiss" xml:space="preserve">
     <value>Yoksay</value>
   </data>
-  <data name="Dismissed suggestions are not shown again for 30 days." xml:space="preserve">
-    <value>Yoksayılan öneriler 30 gün boyunca tekrar gösterilmez.</value>
+  <data name="Dismissed suggestions are not shown again for {0} days." xml:space="preserve">
+    <value>Yoksayılan öneriler {0} gün boyunca tekrar gösterilmez.</value>
   </data>
   <data name="The suggestion was applied." xml:space="preserve">
     <value>Öneri uygulandı.</value>
@@ -1894,8 +1897,8 @@
   <data name="The suggestion could not be applied: {0}" xml:space="preserve">
     <value>Öneri uygulanamadı: {0}</value>
   </data>
-  <data name="The suggestion was dismissed. It will not be shown again for 30 days." xml:space="preserve">
-    <value>Öneri yoksayıldı. 30 gün boyunca tekrar gösterilmeyecek.</value>
+  <data name="The suggestion was dismissed. It will not be shown again for {0} days." xml:space="preserve">
+    <value>Öneri yoksayıldı. {0} gün boyunca tekrar gösterilmeyecek.</value>
   </data>
   <data name="Response times are above this monitor's usual level." xml:space="preserve">
     <value>Yanıt süreleri bu monitörün olağan seviyesinin üzerinde.</value>

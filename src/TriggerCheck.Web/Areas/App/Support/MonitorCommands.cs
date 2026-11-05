@@ -146,8 +146,11 @@ public sealed class MonitorCommands(AppDbContext db, HeartbeatRateLimiter? heart
         var before = ProbeSettings.Of(m);
         var intervalChanged = m.IntervalSeconds != input.IntervalSeconds;
         var becameHeartbeat = m.Type != MonitorType.Heartbeat && input.Type == MonitorType.Heartbeat;
+        var thresholdBefore = m.FailureThreshold;
         input.ApplyTo(m);
         var probeChanged = ProbeSettings.Of(m) != before;
+        // AI-5 judges only history recorded under the current settings (no ratchet after an apply or an edit).
+        if (probeChanged || intervalChanged || m.FailureThreshold != thresholdBefore) m.SettingsChangedAtUtc = DateTime.UtcNow;
 
         if (probeChanged)
         {

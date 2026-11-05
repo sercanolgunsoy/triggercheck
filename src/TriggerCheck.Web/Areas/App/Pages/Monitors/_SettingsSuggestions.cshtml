@@ -48,6 +48,7 @@
                             }
                             break;
                     }
+                    <div class="small text-muted mb-2 suggestion-as-of">@L["Evidence as of {0}.", Fmt.Time(s.EvidenceUpdatedAtUtc)]</div>
                     @if (v.Ai is not null) { <div class="mb-2"><partial name="_AiPanel" model="v.Ai" /></div> }
                     @if (Model.CanManage)
                     {
@@ -67,7 +68,7 @@
                                 <input type="hidden" name="suggestionId" value="@s.Id" />
                                 <button type="submit" class="btn btn-sm btn-outline-secondary">@L["Dismiss"]</button>
                             </form>
-                            <span class="small text-muted align-self-center">@L["Dismissed suggestions are not shown again for 30 days."]</span>
+                            <span class="small text-muted align-self-center">@L["Dismissed suggestions are not shown again for {0} days.", Model.DismissDays]</span>
                         </div>
                     }
                 </li>

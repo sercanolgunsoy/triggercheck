@@ -50,6 +50,9 @@ public sealed record DetectedSuggestion(SettingsSuggestionKind Kind, string? Cur
 /// texts and status codes are used: response bodies are never stored or sent (decision K5), so the only concrete
 /// proposal is the keyword without stray whitespace when it has some.</item>
 /// </list>
+/// The caller passes only history recorded under the current settings (since
+/// <see cref="MonitorSettings.CurrentSettingsSinceUtc"/>), so applying a suggestion or editing the monitor starts a fresh
+/// evaluation instead of ratcheting on old data; confirmation probes are not counted.
 /// Heartbeat (push) monitors get no suggestions: their threshold is fixed and they have no target or timeout.
 /// </summary>
 public static partial class SettingsSuggestionRules
@@ -85,11 +88,16 @@ public static partial class SettingsSuggestionRules
     /// <param name="TopError">Most common error text (raw; masked before it reaches the model).</param>
     public sealed record NeverUpHistory(DateTime FirstCheckAtUtc, int Checks, string? TopError, int TopErrorChecks, int KeywordMisses);
 
+    /// <param name="SettingsChangedAtUtc">Last user change of the judged settings (<see cref="Domain.Entities.Monitor.SettingsChangedAtUtc"/>).</param>
     public sealed record MonitorSettings(MonitorType Type, int IntervalSeconds, int TimeoutSeconds, int FailureThreshold, string? Keyword,
-        MonitorStatus Status, DateTime CreatedAtUtc);
+        MonitorStatus Status, DateTime CreatedAtUtc, DateTime? SettingsChangedAtUtc = null)
+    {
+        /// <summary>Start of the history recorded under the current settings: creation or the last settings change.</summary>
+        public DateTime CurrentSettingsSinceUtc => SettingsChangedAtUtc is DateTime c && c > CreatedAtUtc ? c : CreatedAtUtc;
+    }
 
     public static MonitorSettings SettingsOf(Domain.Entities.Monitor m) =>
-        new(m.Type, m.IntervalSeconds, m.TimeoutSeconds, m.FailureThreshold, m.Keyword, m.Status, m.CreatedAtUtc);
+        new(m.Type, m.IntervalSeconds, m.TimeoutSeconds, m.FailureThreshold, m.Keyword, m.Status, m.CreatedAtUtc, m.SettingsChangedAtUtc);
 
     /// <param name="checks">Central checks outside maintenance in the window, ascending.</param>
     /// <param name="incidents">Incidents that started in the window.</param>
@@ -132,11 +140,17 @@ public static partial class SettingsSuggestionRules
     /// <summary>Error text of a probe that ran into the monitor's timeout (ProbeErrors: "Timeout after 10s").</summary>
     public static bool IsTimeoutError(string? error) => error is not null && error.StartsWith("Timeout after", StringComparison.Ordinal);
 
+    /// <summary>A timeout at the given timeout ("Timeout after 10s"); timeouts recorded under another value do not count.</summary>
+    public static bool IsTimeoutAt(string? error, int timeoutSeconds) =>
+        IsTimeoutError(error) && error!.EndsWith("s", StringComparison.Ordinal)
+        && decimal.TryParse(error["Timeout after".Length..^1].Trim(), NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var s)
+        && s == timeoutSeconds;
+
     public static DetectedSuggestion? NearTimeout(MonitorSettings m, IReadOnlyList<Check> checks, int windowDays)
     {
         var timeoutMs = Math.Max(1, m.TimeoutSeconds) * 1000;
         var successes = checks.Where(c => c.IsUp).Select(c => c.Ms).OrderBy(x => x).ToList();
-        var timeouts = checks.Count(c => !c.IsUp && IsTimeoutError(c.Error));
+        var timeouts = checks.Count(c => !c.IsUp && IsTimeoutAt(c.Error, m.TimeoutSeconds));
         if (successes.Count < MinSuccessfulChecks || timeouts >= successes.Count) return null;
         var nearAt = (int)Math.Ceiling(timeoutMs * NearTimeoutRatio);
         var near = successes.Count(ms => ms >= nearAt);
@@ -171,7 +185,7 @@ public static partial class SettingsSuggestionRules
         if (h is null || m.Status is not (MonitorStatus.Down or MonitorStatus.Unknown)) return null;
         var hours = (long)Math.Floor((nowUtc - h.FirstCheckAtUtc).TotalHours);
         if (hours < NeverUpMinHours || h.Checks < NeverUpMinChecks) return null;
-        if (h.FirstCheckAtUtc > m.CreatedAtUtc + NeverUpHistorySlack) return null; // older history may have been purged
+        if (h.FirstCheckAtUtc > m.CurrentSettingsSinceUtc + NeverUpHistorySlack) return null; // older history may have been purged
         if (h.KeywordMisses * 2 >= h.Checks) return null; // the target answers; the keyword rule covers it
 
         var facts = new List<SuggestionFact>
@@ -194,14 +208,17 @@ public static partial class SettingsSuggestionRules
     public static bool IsKeywordMiss(string? error) =>
         error is not null && error.StartsWith("Keyword '", StringComparison.Ordinal) && error.EndsWith("' not found in response", StringComparison.Ordinal);
 
+    /// <summary>A miss of exactly this keyword (misses recorded under an earlier keyword do not count).</summary>
+    public static bool IsKeywordMissOf(string? error, string keyword) => error == $"Keyword '{keyword}' not found in response";
+
     public static DetectedSuggestion? Keyword(MonitorSettings m, IReadOnlyList<Check> checks, int windowDays)
     {
         if (m.Type != MonitorType.Keyword || string.IsNullOrEmpty(m.Keyword) || checks.Count == 0) return null;
-        var misses = checks.Where(c => !c.IsUp && IsKeywordMiss(c.Error)).ToList();
+        var misses = checks.Where(c => !c.IsUp && IsKeywordMissOf(c.Error, m.Keyword)).ToList();
         if (misses.Count < MinKeywordMisses || misses.Count < MinKeywordMissShare * checks.Count) return null;
 
         var inARow = 0;
-        for (var i = checks.Count - 1; i >= 0 && !checks[i].IsUp && IsKeywordMiss(checks[i].Error); i--) inARow++;
+        for (var i = checks.Count - 1; i >= 0 && !checks[i].IsUp && IsKeywordMissOf(checks[i].Error, m.Keyword); i--) inARow++;
         var lastMatch = checks.LastOrDefault(c => c.IsUp)?.AtUtc;
         var status = misses.Where(c => c.StatusCode is not null).GroupBy(c => c.StatusCode!.Value)
             .OrderByDescending(g => g.Count()).ThenBy(g => g.Key).Select(g => (int?)g.Key).FirstOrDefault();

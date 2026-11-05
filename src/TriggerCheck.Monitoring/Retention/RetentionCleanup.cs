@@ -13,13 +13,20 @@ namespace TriggerCheck.Monitoring.Retention;
 /// Notifications of deleted monitors are removed regardless of age. SMS / voice usage counters (one row per customer
 /// and UTC day, only needed for today's limit) are kept for <see cref="SmsVoiceUsageDays"/> days.
 /// AI records follow the same retention: AI decisions (never those of the current month, which the AI budget counts),
-/// closed anomaly signals and closed settings suggestions (dismissals are kept at least 31 days).
+/// closed anomaly signals and closed settings suggestions (kept at least Ai:Suggestions:DismissDays + 1 days, so a
+/// dismissal suppresses its kind for the whole period).
 /// </summary>
-public sealed class RetentionCleaner(IDbContextFactory<AppDbContext> dbFactory, TimeProvider time, ILogger<RetentionCleaner> logger)
+public sealed class RetentionCleaner(IDbContextFactory<AppDbContext> dbFactory, TimeProvider time, ILogger<RetentionCleaner> logger,
+    Microsoft.Extensions.Configuration.IConfiguration? config = null)
 {
     public const int SmsVoiceUsageDays = 35;
-    /// <summary>Closed AI-5 suggestions are kept at least this long (a dismissal suppresses its kind for 30 days).</summary>
-    public const int SuggestionDismissKeepDays = 31;
+    /// <summary>Default of Ai:Suggestions:DismissDays (the option itself lives in the AI layer, which this project does not reference).</summary>
+    public const int DefaultSuggestionDismissDays = 30;
+
+    /// <summary>Closed AI-5 suggestions are kept at least this many days: the dismissal period plus one.</summary>
+    public int SuggestionKeepDays =>
+        Math.Max(0, config is null ? DefaultSuggestionDismissDays
+            : Microsoft.Extensions.Configuration.ConfigurationBinder.GetValue(config, "Ai:Suggestions:DismissDays", DefaultSuggestionDismissDays)) + 1;
 
     public async Task<int> CleanupAsync(CancellationToken ct = default)
     {
@@ -55,8 +62,9 @@ public sealed class RetentionCleaner(IDbContextFactory<AppDbContext> dbFactory, 
             ai += await db.AnomalySignals
                 .Where(a => a.EndedAtUtc != null && a.EndedAtUtc < cutoff && customerIds.Contains(a.CustomerId))
                 .ExecuteDeleteAsync(ct);
-            // AI-5: closed suggestions; a dismissal is kept at least as long as it suppresses the suggestion (30 days).
-            var suggestionCutoff = cutoff < now.AddDays(-SuggestionDismissKeepDays) ? cutoff : now.AddDays(-SuggestionDismissKeepDays);
+            // AI-5: closed suggestions; a dismissal is kept at least as long as it suppresses the suggestion.
+            var keepFrom = now.AddDays(-SuggestionKeepDays);
+            var suggestionCutoff = cutoff < keepFrom ? cutoff : keepFrom;
             ai += await db.SettingsSuggestions
                 .Where(x => x.ClosedAtUtc != null && x.ClosedAtUtc < suggestionCutoff && customerIds.Contains(x.CustomerId))
                 .ExecuteDeleteAsync(ct);

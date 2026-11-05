@@ -2,6 +2,8 @@ using System.ComponentModel.DataAnnotations;
 using System.Globalization;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using TriggerCheck.Ai;
 using TriggerCheck.Ai.Features;
 using TriggerCheck.Domain;
 using TriggerCheck.Domain.Entities;
@@ -25,7 +27,8 @@ public sealed record SettingsSuggestionView(SettingsSuggestion Suggestion, IRead
 
 /// <summary>The suggestions block of the monitor details page.</summary>
 /// <param name="CanManage">CustomerAdmin: may apply / dismiss (viewers only see the suggestions).</param>
-public sealed record SettingsSuggestionsModel(int MonitorId, IReadOnlyList<SettingsSuggestionView> Items, bool CanManage);
+/// <param name="DismissDays">Ai:Suggestions:DismissDays: how long a dismissed kind stays hidden.</param>
+public sealed record SettingsSuggestionsModel(int MonitorId, IReadOnlyList<SettingsSuggestionView> Items, bool CanManage, int DismissDays);
 
 public enum SuggestionOutcome
 {
@@ -52,9 +55,13 @@ public sealed record SuggestionResult(SuggestionOutcome Outcome, int MonitorId =
 /// attempt re-reads the monitor, so a concurrent change is re-validated, never overwritten; the suggestion is marked
 /// Applied in the same SaveChanges. Every query is restricted to the customer passed in (RequiredCustomerId).
 /// </summary>
-public sealed class SettingsSuggestionCommands(AppDbContext db, MonitorCommands commands, AiPanels ai, IServiceProvider services, Text<AppResource> L, TimeProvider time)
+public sealed class SettingsSuggestionCommands(AppDbContext db, MonitorCommands commands, AiPanels ai, IServiceProvider services, Text<AppResource> L, TimeProvider time,
+    IOptions<AiOptions> options)
 {
     public const int MaxAttempts = 3;
+
+    /// <summary>Ai:Suggestions:DismissDays.</summary>
+    public int DismissDays => Math.Max(0, options.Value.Suggestions.DismissDays);
 
     /// <summary>The customer can see suggestions: opted in to AI and the plan includes AI-5 (AI-10).</summary>
     public static bool Allowed(Customer customer) => customer.AiEnabled && AiFeatures.PlanAllows(customer.Plan, AiFeatures.SettingsSuggestions);
@@ -62,7 +69,7 @@ public sealed class SettingsSuggestionCommands(AppDbContext db, MonitorCommands 
     /// <param name="customer">The current customer with its Plan.</param>
     public async Task<SettingsSuggestionsModel> LoadAsync(Customer customer, int monitorId, string returnUrl, string? userId, bool canManage, CancellationToken ct)
     {
-        if (!Allowed(customer)) return new(monitorId, [], canManage);
+        if (!Allowed(customer)) return new(monitorId, [], canManage, DismissDays);
         var rows = await db.SettingsSuggestions.AsNoTracking()
             .Where(s => s.CustomerId == customer.Id && s.MonitorId == monitorId && s.Status == SettingsSuggestionStatus.Open)
             .OrderBy(s => s.Kind)
@@ -71,11 +78,11 @@ public sealed class SettingsSuggestionCommands(AppDbContext db, MonitorCommands 
         foreach (var s in rows)
         {
             var panel = await ai.LoadAsync(customer, AiFeatures.SettingsSuggestions, SettingsSuggestionProvider.SubjectType,
-                s.Id.ToString(CultureInfo.InvariantCulture), s.CreatedAtUtc, returnUrl, userId, canManage, ct);
+                s.Id.ToString(CultureInfo.InvariantCulture), s.EvidenceUpdatedAtUtc, returnUrl, userId, canManage, ct);
             items.Add(new(s, SuggestionFact.Parse(s.EvidenceJson), panel.State is AiPanelState.Decision or AiPanelState.Pending ? panel : null,
                 s.SuggestedValue is not null));
         }
-        return new(monitorId, items, canManage);
+        return new(monitorId, items, canManage, DismissDays);
     }
 
     /// <summary>The monitor's current value of the setting a suggestion is about (invariant text).</summary>

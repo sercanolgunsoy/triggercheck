@@ -44,6 +44,11 @@ public class SettingsSuggestion
     /// <summary>Evidence facts computed by the rule: a JSON array of {"key","value"} (numbers in invariant format).</summary>
     public string EvidenceJson { get; set; } = "[]";
     public DateTime CreatedAtUtc { get; set; }
+    /// <summary>
+    /// When <see cref="EvidenceJson"/> was last computed. An open suggestion whose finding still holds keeps its row
+    /// (and its id, AI explanation and feedback); its evidence is refreshed in place about once per window.
+    /// </summary>
+    public DateTime EvidenceUpdatedAtUtc { get; set; }
     /// <summary>When it was applied, dismissed or became obsolete.</summary>
     public DateTime? ClosedAtUtc { get; set; }
     /// <summary>Identity user id of the admin who applied / dismissed it (no FK: the user may be deleted later).</summary>

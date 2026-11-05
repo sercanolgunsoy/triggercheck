@@ -95,6 +95,36 @@ public class SettingsSuggestionWebTests(TestWebAppFactory f) : IClassFixture<Tes
     }
 
     [Fact]
+    public async Task Applying_does_not_ratchet_the_next_job_run()
+    {
+        var (cid, mid) = await ArrangeAsync("Suggest ratchet", m => m.CreatedAtUtc = DateTime.UtcNow.AddDays(-30));
+        await f.WithDbAsync(async db =>
+        {
+            for (var i = 0; i < 14; i++)
+            {
+                var start = DateTime.UtcNow.AddHours(-1 - i * 5);
+                db.Incidents.Add(new Incident { MonitorId = mid, StartedAtUtc = start, ResolvedAtUtc = start.AddSeconds(200), Cause = "Timeout after 10s" });
+            }
+            await db.SaveChangesAsync();
+        });
+        async Task RunJobAsync()
+        {
+            using var scope = f.Services.CreateScope();
+            await scope.ServiceProvider.GetRequiredService<SettingsSuggestionJob>().RunAsync();
+        }
+        await RunJobAsync();
+        var sid = await f.WithDbAsync(db => db.SettingsSuggestions.Where(s => s.MonitorId == mid).Select(s => s.Id).SingleAsync());
+
+        await (await AdminAsync()).PostSuggestionAsync("Apply", sid, mid);
+        Assert.NotNull((await f.GetMonitorAsync(mid))!.SettingsChangedAtUtc); // set by the normal edit path
+        await RunJobAsync();
+
+        var rows = await f.WithDbAsync(db => db.SettingsSuggestions.AsNoTracking().Where(s => s.MonitorId == mid).ToListAsync());
+        Assert.Equal(SettingsSuggestionStatus.Applied, Assert.Single(rows).Status); // no 2 -> 3 from the incidents under threshold 1
+        Assert.Equal(cid, rows[0].CustomerId);
+    }
+
+    [Fact]
     public async Task Turkish_ui_shows_the_suggestion_localized()
     {
         var (cid, mid) = await ArrangeAsync("Suggest tr");

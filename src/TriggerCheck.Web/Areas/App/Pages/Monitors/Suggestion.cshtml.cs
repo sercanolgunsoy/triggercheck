@@ -54,7 +54,7 @@ public class SuggestionModel(SettingsSuggestionCommands suggestions, ICurrentCus
         var r = await suggestions.DismissAsync(customer.Id, suggestionId, users.GetUserId(User), ct);
         if (r.Outcome == SuggestionOutcome.NotFound) return NotFound();
         if (r.Outcome == SuggestionOutcome.Dismissed)
-            TempData["Success"] = L["The suggestion was dismissed. It will not be shown again for 30 days."].Value;
+            TempData["Success"] = L["The suggestion was dismissed. It will not be shown again for {0} days.", suggestions.DismissDays].Value;
         else
             TempData["Error"] = L["This suggestion is out of date: the setting was changed in the meantime."].Value;
         return RedirectToPage("Details", new { id = r.MonitorId });
