@@ -1,0 +1,113 @@
+@page
+@model TriggerCheck.Web.Areas.App.Pages.Ai.IndexModel
+@{
+    ViewData["Title"] = L["AI features"].Value;
+    var u = Model.Usage;
+    var pct = u.PercentUsed;
+}
+
+<h2 class="mb-3">@L["AI features"]</h2>
+
+@if (!u.AiAvailable)
+{
+    <div class="alert alert-secondary" id="ai-service-off">@L["AI features are currently switched off for this service. Monitoring and alerts work as usual."]</div>
+}
+
+<div class="row g-3">
+    <div class="col-lg-7">
+        <div class="card mb-3">
+            <div class="card-header">@L["AI interpretation"]</div>
+            <div class="card-body">
+                <p>@L["AI explains incidents and slowdowns, suggests likely causes and proposes settings. It never decides whether a monitor is up or down and never sends or suppresses alerts on its own."]</p>
+                @if (Model.IsAdmin)
+                {
+                    <form method="post" class="mb-3" id="ai-optin-form">
+                        <input type="hidden" name="enabled" value="@(Model.Customer.AiEnabled ? "false" : "true")" />
+                        <div class="d-flex align-items-center gap-3">
+                            <span>@L["Status"]: <strong id="ai-optin-state">@(Model.Customer.AiEnabled ? L["Enabled"] : L["Disabled"])</strong></span>
+                            <button type="submit" class="btn @(Model.Customer.AiEnabled ? "btn-outline-danger" : "btn-primary")">@(Model.Customer.AiEnabled ? L["Disable AI features"] : L["Enable AI features"])</button>
+                        </div>
+                    </form>
+                }
+                else
+                {
+                    <p>@L["Status"]: <strong id="ai-optin-state">@(Model.Customer.AiEnabled ? L["Enabled"] : L["Disabled"])</strong>
+                    <span class="text-muted small">(@L["Only customer admins can change this."])</span></p>
+                }
+                @if (Model.IsAdmin)
+                {
+                    <form method="post" asp-page-handler="Language" class="d-flex flex-wrap align-items-center gap-2 mb-3" id="ai-language-form">
+                        <label class="form-label mb-0" for="ai-language">@L["Language of AI summaries"]</label>
+                        <select class="form-select form-select-sm w-auto" id="ai-language" name="language">
+                            <option value="en" selected="@(Model.Customer.AiLanguage != "tr")">English</option>
+                            <option value="tr" selected="@(Model.Customer.AiLanguage == "tr")">Türkçe</option>
+                        </select>
+                        <button type="submit" class="btn btn-sm btn-outline-primary">@L["Save"]</button>
+                    </form>
+                }
+                else
+                {
+                    <p class="small">@L["Language of AI summaries"]: <span id="ai-language-state">@(Model.Customer.AiLanguage == "tr" ? "Türkçe" : "English")</span></p>
+                }
+                <div class="alert alert-info small mb-0" id="ai-privacy-note">
+                    <strong>@L["Privacy"]:</strong>
+                    @L["Only masked technical data is sent to the AI provider (Anthropic, Claude): monitor type, host name, status codes, error types and timings. URL paths and query strings, credentials and tokens, webhook URLs, e-mail addresses and phone numbers are removed first. Your data is not shared with other customers."]
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">@L["Latest AI results"]</div>
+            <div class="card-body">
+                @if (Model.Recent.Count == 0)
+                {
+                    <p class="text-muted mb-0">@L["No AI results yet."]</p>
+                }
+                else
+                {
+                    foreach (var r in Model.Recent)
+                    {
+                        <div class="mb-3"><partial name="_AiInterpretation" model="r" /></div>
+                    }
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-5">
+        <div class="card" id="ai-usage">
+            <div class="card-header">@L["AI quota this month"]</div>
+            <div class="card-body">
+                @if (u.CallLimit <= 0)
+                {
+                    <p class="mb-0">@L["Your plan does not include AI features."]</p>
+                }
+                else
+                {
+                    <dl class="row mb-2">
+                        <dt class="col-sm-5">@L["AI calls"]</dt><dd class="col-sm-7">@Fmt.Number(u.Calls) / @Fmt.Number(u.CallLimit)</dd>
+                        @if (u.TokenLimit > 0)
+                        {
+                            <dt class="col-sm-5">@L["Tokens"]</dt><dd class="col-sm-7">@Fmt.Number(u.Tokens) / @Fmt.Number(u.TokenLimit)</dd>
+                        }
+                    </dl>
+                    <div class="progress mb-2" style="height: 6px" aria-hidden="true">
+                        <div class="progress-bar @(pct >= 100 ? "bg-danger" : pct >= 80 ? "bg-warning" : "bg-success")" style="width: @pct.ToString("0", System.Globalization.CultureInfo.InvariantCulture)%"></div>
+                    </div>
+                    @if (u.IsOverBudget)
+                    {
+                        <div class="alert alert-warning small mb-2" id="ai-over-budget">@L["The AI quota of your plan is used up. AI summaries are unavailable until next month; everything else works as usual."]</div>
+                    }
+                    else if (u.IsNearLimit)
+                    {
+                        <div class="alert alert-warning small mb-2">@L["You have used {0}% of this month's AI quota.", pct.ToString("0", System.Globalization.CultureInfo.InvariantCulture)]</div>
+                    }
+                    <div class="small text-muted mb-1">@L["Included in your plan"]:</div>
+                    <ul class="small mb-0">
+                        @foreach (var f in u.PlanFeatures) { <li>@Model.FeatureName(f)</li> }
+                    </ul>
+                }
+            </div>
+        </div>
+    </div>
+</div>

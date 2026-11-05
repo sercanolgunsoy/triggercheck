@@ -1,0 +1,68 @@
+@model TriggerCheck.Web.Areas.App.Pages.StatusPages.StatusPageFormModel
+@using TriggerCheck.Web.Areas.App.Pages.StatusPages
+@using TriggerCheck.Web.StatusPages
+<div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+<div class="row g-3">
+    <div class="col-md-6">
+        <label asp-for="Input.Title" class="form-label"></label>
+        <input asp-for="Input.Title" class="form-control" maxlength="@StatusPageRules.MaxTitleLength" placeholder="@L["e.g. Acme status"]" />
+        <span asp-validation-for="Input.Title" class="text-danger small"></span>
+    </div>
+    <div class="col-md-6">
+        <label asp-for="Input.Slug" class="form-label"></label>
+        <div class="input-group">
+            <span class="input-group-text">/status/</span>
+            <input asp-for="Input.Slug" class="form-control" maxlength="@StatusPageRules.MaxSlugLength" placeholder="acme" />
+        </div>
+        <div class="form-text">@L["Lower-case letters, digits and hyphens."]</div>
+        <span asp-validation-for="Input.Slug" class="text-danger small"></span>
+    </div>
+    <div class="col-12">
+        <label asp-for="Input.Announcement" class="form-label"></label>
+        <textarea asp-for="Input.Announcement" class="form-control" rows="3" maxlength="@StatusPageRules.MaxAnnouncementLength"></textarea>
+        <div class="form-text">@L["Optional plain-text message shown at the top of the page."]</div>
+        <span asp-validation-for="Input.Announcement" class="text-danger small"></span>
+    </div>
+    <div class="col-md-6">
+        <label asp-for="Input.Visibility" class="form-label"></label>
+        <select asp-for="Input.Visibility" class="form-select">
+            <option value="@StatusPageVisibility.Public">@L["Public (search engines may index it)"]</option>
+            <option value="@StatusPageVisibility.Unlisted">@L["Unlisted (only people with the address)"]</option>
+        </select>
+    </div>
+    <div class="col-md-6">
+        <label asp-for="Input.TimeZoneId" class="form-label"></label>
+        <select asp-for="Input.TimeZoneId" class="form-select">
+            @foreach (var z in StatusPageInput.TimeZoneIds)
+            {
+                <option value="@z" selected="@(Model.Input.TimeZoneId == z)">@z</option>
+            }
+        </select>
+        <span asp-validation-for="Input.TimeZoneId" class="text-danger small"></span>
+    </div>
+    <div class="col-12">
+        <div class="form-label">@L["Monitors"]</div>
+        <div class="form-text mb-2">@L["Only selected monitors are shown, under the public name you enter. Visitors never see the monitor's own name, target or error details."]</div>
+        <span asp-validation-for="Input.Monitors" class="text-danger small d-block"></span>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle" id="status-page-monitors">
+                <thead><tr><th><span class="visually-hidden">@L["Show"]</span></th><th>@L["Monitor"]</th><th id="spm-public-name">@L["Public name"]</th></tr></thead>
+                <tbody>
+                @for (var i = 0; i < Model.Input.Monitors.Count; i++)
+                {
+                    var row = Model.Input.Monitors[i];
+                    <tr>
+                        <td>
+                            <input type="hidden" name="Input.Monitors[@i].MonitorId" value="@row.MonitorId" />
+                            <input type="checkbox" class="form-check-input" name="Input.Monitors[@i].Selected" value="true" id="spm-@i" checked="@row.Selected" />
+                            <input type="hidden" name="Input.Monitors[@i].Selected" value="false" />
+                        </td>
+                        <td><label for="spm-@i" id="spm-@i-name">@Model.MonitorNames.GetValueOrDefault(row.MonitorId)</label></td>
+                        <td><input type="text" class="form-control form-control-sm" aria-labelledby="spm-public-name spm-@i-name" name="Input.Monitors[@i].DisplayName" value="@row.DisplayName" maxlength="@StatusPageRules.MaxDisplayNameLength" placeholder="@L["e.g. Website"]" /></td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

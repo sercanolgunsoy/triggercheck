@@ -1,0 +1,84 @@
+{
+  "id": "narrative-sla-missed",
+  "feature": "NarrativeReport",
+  "language": "en",
+  "description": "One monitor missed its 99.9 % target after a two-hour 503 outage; the other was healthy.",
+  "expect": {
+    "focusMonitors": [
+      "Checkout API"
+    ],
+    "monitorFacts": [
+      {
+        "name": "Checkout API",
+        "uptimePercent": 99.7024,
+        "slaTarget": 99.9,
+        "slaMet": false,
+        "incidents": 1
+      },
+      {
+        "name": "Company blog",
+        "uptimePercent": 100,
+        "slaTarget": 99.0,
+        "slaMet": true,
+        "incidents": 0
+      }
+    ]
+  },
+  "narrative": {
+    "monitors": [
+      {
+        "name": "Checkout API",
+        "target": "https://shop.example.test/api/checkout",
+        "slaTarget": 99.9,
+        "ms": 210,
+        "previousMs": 200,
+        "incidents": [
+          {
+            "day": 10,
+            "hour": 14,
+            "minutes": 120,
+            "cause": "HTTP 503 Service Unavailable"
+          }
+        ]
+      },
+      {
+        "name": "Company blog",
+        "target": "https://blog.example.test/",
+        "slaTarget": 99.0,
+        "ms": 120,
+        "previousMs": 125
+      }
+    ]
+  },
+  "canned": {
+    "headline": "SLA result of monitor A for {{period.name}}: {{A.sla_status}}.",
+    "what_happened": [
+      {
+        "text": "monitor A was down for {{A.downtime}} in {{A.incidents}} incidents; its longest outage started on {{A.longest_outage_start}} with {{A.longest_outage_error}}.",
+        "monitors": [
+          "monitor A"
+        ]
+      },
+      {
+        "text": "SLA result of monitor A ({{A.sla_target}} target): {{A.sla_status}}, with {{A.uptime}} uptime.",
+        "monitors": [
+          "monitor A"
+        ]
+      }
+    ],
+    "what_changed": [
+      {
+        "text": "Overall downtime compared with {{period.previous_name}}: {{change.downtime}}.",
+        "monitors": []
+      }
+    ],
+    "what_to_watch": [
+      {
+        "text": "Watch monitor A: its SLA result for {{period.name}} was {{A.sla_status}}.",
+        "monitors": [
+          "monitor A"
+        ]
+      }
+    ]
+  }
+}

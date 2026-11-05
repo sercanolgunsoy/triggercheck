@@ -31,11 +31,14 @@ else
                 <tr>
                     <td>@c.Name</td>
                     <td>@AlertChannelInput.TypeName(c.Type, L)</td>
-                    <td class="text-truncate font-monospace small" style="max-width: 320px">@c.Target</td>
+                    <td class="text-truncate font-monospace small" style="max-width: 320px">@AlertChannelInput.DisplayTarget(c)</td>
                     <td>@if (c.IsEnabled) { <span class="badge bg-success">@L["Enabled"]</span> } else { <span class="badge bg-secondary">@L["Disabled"]</span> }</td>
                     <td class="text-end text-nowrap">
                         @if (isAdmin)
                         {
+                            <form method="post" asp-page-handler="Test" asp-route-id="@c.Id" class="d-inline">
+                                <button type="submit" class="btn btn-sm btn-outline-secondary" title="@L["Send a test message to this channel now"]">@L["Send test"]</button>
+                            </form>
                             <form method="post" asp-page-handler="Toggle" asp-route-id="@c.Id" class="d-inline">
                                 <button type="submit" class="btn btn-sm btn-outline-warning">@(c.IsEnabled ? L["Disable"] : L["Enable"])</button>
                             </form>
@@ -49,3 +52,42 @@ else
         </table>
     </div>
 }
+
+@{
+    var contact = string.IsNullOrWhiteSpace(Model.ContactEmail) ? L["no contact e-mail set"].Value : Model.ContactEmail;
+}
+<div class="card mt-4" id="no-channel-setting">
+    <div class="card-body">
+        <h3 class="h5 card-title">@L["When no channel is enabled"]</h3>
+        <p class="text-muted small mb-3">@L["Alerts go to every enabled channel above. If no channel is enabled (none added, or all disabled), this setting decides what happens to DOWN / UP alerts. Disabling every channel therefore does not silence alerts unless you choose \"Do not send alerts\"."]</p>
+        <p class="text-muted small mb-3">@L["TLS certificate expiry warnings are never sent as voice calls; if voice calls are your only channel, they follow this setting as well."]</p>
+        @if (Model.HasUndeliverable)
+        {
+            <div class="alert alert-warning small py-2">@L["Some enabled channels cannot deliver: SMS and voice call alerts are not available for your plan or not set up for this service. They are skipped, and if no other channel is enabled the setting below applies."]</div>
+        }
+        @if (!Model.AnyDeliverable)
+        {
+            <div class="alert alert-warning small py-2">
+                @(Model.FallbackToContactEmail
+                    ? L["No channel is enabled: alerts are currently sent to {0}.", contact]
+                    : L["No channel is enabled: alerts are currently not sent."])
+            </div>
+        }
+        <form method="post" asp-page-handler="Fallback">
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="sendToContactEmail" id="fallback-email" value="true"
+                       checked="@Model.FallbackToContactEmail" disabled="@(!isAdmin)" />
+                <label class="form-check-label" for="fallback-email">@L["Send alerts to the account contact e-mail ({0}) (default)", contact]</label>
+            </div>
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="sendToContactEmail" id="fallback-none" value="false"
+                       checked="@(!Model.FallbackToContactEmail)" disabled="@(!isAdmin)" />
+                <label class="form-check-label" for="fallback-none">@L["Do not send alerts"]</label>
+            </div>
+            @if (isAdmin)
+            {
+                <button type="submit" class="btn btn-sm btn-primary mt-3">@L["Save"]</button>
+            }
+        </form>
+    </div>
+</div>

@@ -1,0 +1,101 @@
+@page "/status/{slug}"
+@model TriggerCheck.Web.Pages.Status.IndexModel
+@using TriggerCheck.Web.StatusPages
+@{
+    Layout = "_StatusLayout";
+    var p = Model.View.Page;
+    ViewData["Title"] = p.Title;
+    ViewData["Base"] = Model.Base;
+    ViewData["NoIndex"] = Model.View.Visibility == StatusPageVisibility.Unlisted;
+    string Overall(string s) => s switch
+    {
+        PublicStatus.Operational => L["All systems operational"],
+        PublicStatus.PartialOutage => L["Partial outage"],
+        PublicStatus.MajorOutage => L["Major outage"],
+        PublicStatus.Maintenance => L["Maintenance in progress"],
+        _ => L["Status unknown"]
+    };
+    string State(string s) => s switch
+    {
+        PublicStatus.Operational => L["Operational"],
+        PublicStatus.MajorOutage => L["Outage"],
+        PublicStatus.Maintenance => L["Maintenance"],
+        _ => L["No data"]
+    };
+}
+
+<header class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4">
+    <h1 class="h3 mb-0">@p.Title</h1>
+    <a class="btn btn-outline-primary btn-sm" href="@(Model.Base)/subscribe">@L["Subscribe to updates"]</a>
+</header>
+
+@if (!string.IsNullOrEmpty(p.Announcement))
+{
+    <div class="alert alert-info note" id="announcement">@p.Announcement</div>
+}
+
+<div class="status-banner @p.Status mb-4" id="overall-status">@Overall(p.Status)</div>
+
+@foreach (var mw in p.Maintenance)
+{
+    <div class="alert @(mw.InProgress ? "alert-primary" : "alert-light border") small maintenance-item">
+        <strong>@(mw.InProgress ? L["Maintenance in progress"] : L["Scheduled maintenance"]):</strong>
+        @mw.Name — @Model.Local(mw.StartsAtUtc) – @Model.Local(mw.EndsAtUtc)
+    </div>
+}
+
+<section class="card mb-4">
+    <div class="card-body">
+        @foreach (var m in p.Monitors)
+        {
+            <div class="mb-3 status-monitor">
+                <div class="d-flex flex-wrap justify-content-between column-gap-3">
+                    <strong class="text-break">@m.Name</strong>
+                    <span class="state-@(m.Status == PublicStatus.Operational || m.Status == PublicStatus.MajorOutage || m.Status == PublicStatus.Maintenance ? m.Status : "unknown")">@State(m.Status)</span>
+                </div>
+                <div class="uptime-bars" role="img" aria-label="@L["Uptime of the last {0} days", PublicStatusService.UptimeDays]">
+                    @foreach (var d in m.Days)
+                    {
+                        <span class="@IndexModel.BarClass(d.UptimePercent)" title="@d.Date: @(d.UptimePercent is null ? L["No data"].Value : Fmt.Percent(d.UptimePercent))@(d.DowntimeMinutes > 0 ? " – " + L["{0} min down", d.DowntimeMinutes].Value : "")"></span>
+                    }
+                </div>
+                <div class="d-flex justify-content-between small text-muted">
+                    <span>@L["{0} days ago", PublicStatusService.UptimeDays]</span>
+                    <span>@L["{0} uptime", Fmt.Percent(m.Uptime90dPercent)]</span>
+                    <span>@L["Today"]</span>
+                </div>
+            </div>
+        }
+    </div>
+</section>
+
+<section>
+    <h2 class="h5">@L["Incident history (last {0} days)", PublicStatusService.IncidentHistoryDays]</h2>
+    @if (p.Incidents.Count == 0)
+    {
+        <p class="text-muted">@L["No incidents reported."]</p>
+    }
+    @foreach (var i in p.Incidents)
+    {
+        <article class="card mb-2 status-incident">
+            <div class="card-body py-2">
+                <div class="fw-semibold">@L["{0} unavailable", i.Monitor]
+                    @if (i.ResolvedAtUtc is null) { <span class="badge bg-danger ms-1">@L["Ongoing"]</span> } else { <span class="badge bg-success ms-1">@L["Resolved"]</span> }
+                </div>
+                <div class="small text-muted">
+                    @Model.Local(i.StartedAtUtc)
+                    @if (i.ResolvedAtUtc is { } r) { <text>– @Model.Local(r)</text> }
+                    · @Fmt.Duration(TimeSpan.FromMinutes(i.DurationMinutes))
+                </div>
+                @foreach (var n in i.Notes)
+                {
+                    <div class="small mt-1 note"><span class="text-muted">@Model.Local(n.CreatedAtUtc):</span> @n.Body</div>
+                }
+            </div>
+        </article>
+    }
+    <p class="small text-muted mt-3">
+        @L["Times are shown in {0}.", p.TimeZoneId]
+        <a href="@(Model.Base)/feed">@L["Atom feed"]</a> · <a href="@Model.JsonUrl">JSON</a>
+    </p>
+</section>

@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
 </head>
 <body>
+<a class="skip-link" href="#main-content">@L["Skip to main content"]</a>
 <div class="auth">
     <aside class="auth-aside">
         <a class="brand text-decoration-none" href="/">@Icons.Logo(32) TriggerCheck</a>
@@ -18,24 +19,24 @@
             <p class="mb-4">@L["Uptime monitoring for websites, APIs and servers, with instant alerts and a clear incident history."]</p>
             <div class="mock" aria-hidden="true">
                 <div class="mock-body">
-                    @foreach (var (name, status, ms) in new[] { ("Website", MonitorStatus.Up, "182 ms"), ("Checkout API", MonitorStatus.Up, "96 ms"), ("Database", MonitorStatus.Down, "—") })
+                    @foreach (var (name, status, ms) in new[] { (L["Website"].Value, MonitorStatus.Up, "182 ms"), (L["Checkout API"].Value, MonitorStatus.Up, "96 ms"), (L["Database"].Value, MonitorStatus.Down, "—") })
                     {
                         <div class="mock-row"><div class="nm"><partial name="_StatusBadge" model="status" /> <span>@name</span></div><div class="meta">@ms</div></div>
                     }
                 </div>
             </div>
         </div>
-        <small class="text-secondary">&copy; @DateTime.UtcNow.Year TriggerCheck</small>
+        <small>&copy; @DateTime.UtcNow.Year TriggerCheck</small>
     </aside>
     <div class="auth-main">
-        <div class="d-flex justify-content-between align-items-center gap-2">
+        <header class="d-flex justify-content-between align-items-center gap-2">
             <a class="d-inline-flex d-lg-none align-items-center gap-2 fw-bold text-body text-decoration-none" href="/">@Icons.Logo(28) TriggerCheck</a>
             <a class="d-none d-lg-inline-flex align-items-center gap-1 small text-muted" href="/">← @L["Back to website"]</a>
             <div class="d-flex gap-2"><partial name="_Toolbar" /></div>
-        </div>
-        <div class="auth-form">
+        </header>
+        <main class="auth-form" id="main-content" tabindex="-1">
             @RenderBody()
-        </div>
+        </main>
     </div>
 </div>
 <script src="~/lib/jquery/dist/jquery.min.js"></script>

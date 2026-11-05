@@ -1,0 +1,85 @@
+@page
+@model TriggerCheck.Web.Areas.SuperAdmin.Pages.Regions.IndexModel
+@{ ViewData["Title"] = L["Probe regions"].Value; }
+
+<div class="page-head">
+    <div>
+        <h2 class="mb-0">@L["Probe regions"]</h2>
+        <div class="text-muted small">@L["Each region runs one probe agent (Dockerfile.probe) that checks the monitors assigned to it and reports to this app. The main app itself is the region \"central\"."]</div>
+    </div>
+</div>
+
+@if (Model.NewCredential is not null)
+{
+    <div class="alert alert-warning" role="status">
+        <div class="fw-semibold mb-2">@L["Agent credential of region \"{0}\". Copy it now: it will not be shown again.", Model.NewCredentialRegion ?? ""]</div>
+        <input type="text" class="form-control font-monospace" readonly value="@Model.NewCredential" aria-label="@L["Agent credential"]" id="new-agent-credential" />
+        <div class="small mt-2">@L["Set it as Agent__Credential and the region code as Agent__RegionId on the agent."]</div>
+    </div>
+}
+
+<div class="card mb-4"><div class="card-body">
+    <h3 class="h5 card-title">@L["New region"]</h3>
+    <form method="post" asp-page-handler="Create" autocomplete="off">
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+        <div class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label asp-for="Input.Code" class="form-label"></label>
+                <input asp-for="Input.Code" class="form-control font-monospace" maxlength="32" placeholder="eu-central" />
+                <span asp-validation-for="Input.Code" class="text-danger small"></span>
+            </div>
+            <div class="col-md-5">
+                <label asp-for="Input.Name" class="form-label"></label>
+                <input asp-for="Input.Name" class="form-control" maxlength="100" placeholder="@L["e.g. Frankfurt"]" />
+                <span asp-validation-for="Input.Name" class="text-danger small"></span>
+            </div>
+            <div class="col-md-3">
+                <button type="submit" class="btn btn-primary w-100">@Icons.Get("plus", 16) @L["Create"]</button>
+            </div>
+        </div>
+    </form>
+</div></div>
+
+@if (Model.Rows.Count == 0)
+{
+    <div class="alert alert-light border">@L["No probe regions yet. All monitors are checked by the main app only."]</div>
+}
+else
+{
+    <div class="card">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light"><tr><th>@L["Region"]</th><th>@L["Credential"]</th><th>@L["Status"]</th><th>@L["Agent last seen"]</th><th class="text-end">@L["Monitors"]</th><th></th></tr></thead>
+            <tbody>
+            @foreach (var r in Model.Rows)
+            {
+                <tr>
+                    <td><span class="fw-semibold font-monospace">@r.Code</span><div class="small text-muted">@r.Name</div></td>
+                    <td class="font-monospace small">@r.Credential
+                        @if (r.RotatedAtUtc is not null) { <div class="text-muted">@L["Rotated {0}", Fmt.Time(r.RotatedAtUtc)]</div> }</td>
+                    <td>
+                        @if (!r.IsEnabled) { <span class="badge bg-secondary">@L["Disabled"]</span> }
+                        else if (r.IsStale) { <span class="badge bg-warning text-dark" data-region-stale="@r.Code">@L["Agent stale"]</span> }
+                        else { <span class="badge bg-success">@L["Active"]</span> }
+                    </td>
+                    <td class="small text-muted">@(r.LastSeenAtUtc is null ? L["Never"].Value : Fmt.Time(r.LastSeenAtUtc))</td>
+                    <td class="text-end">@Fmt.Number(r.Monitors)</td>
+                    <td class="text-end text-nowrap">
+                        <form method="post" asp-page-handler="Rotate" asp-route-id="@r.Id" class="d-inline"
+                              data-confirm="@L["Replace the credential of region {0}? The agent stops working until it is given the new credential.", r.Code]">
+                            <button type="submit" class="btn btn-sm btn-outline-secondary">@L["Rotate credential"]</button>
+                        </form>
+                        <form method="post" asp-page-handler="Toggle" asp-route-id="@r.Id" class="d-inline"
+                              data-confirm="@(r.IsEnabled ? L["Disable region {0}? Its agent is rejected and its results no longer count.", r.Code] : L["Enable region {0}?", r.Code])">
+                            @if (r.IsEnabled) { <button type="submit" class="btn btn-sm btn-outline-danger">@L["Disable"]</button> }
+                            else { <button type="submit" class="btn btn-sm btn-outline-success">@L["Enable"]</button> }
+                        </form>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+    </div>
+}
+<p class="small text-muted mt-2">@L["A region whose agent has not called in recently is stale: it is left out of the majority vote until it reports again. Customers choose regions per monitor within their plan's region limit."]</p>

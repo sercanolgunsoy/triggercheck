@@ -14,20 +14,20 @@ public static class SuperAdminOps
 {
     /// <summary>
     /// Slows down monitors of the given customers that are faster than <paramref name="plan"/> allows
-    /// (PlanRules.ClampInterval). Does not call SaveChanges. Returns the number of adjusted monitors.
+    /// (PlanRules.ClampInterval = raise to the plan minimum). Executes immediately as a set-based update that bumps
+    /// the monitors' concurrency token (no conflict with running checks); callers wrap it and their SaveChanges in
+    /// one transaction. Returns the number of adjusted monitors.
     /// </summary>
     public static async Task<int> ClampMonitorsAsync(AppDbContext db, Plan plan, IReadOnlyCollection<int> customerIds)
     {
         if (customerIds.Count == 0) return 0;
-        var fast = await db.Monitors
-            .Where(m => customerIds.Contains(m.CustomerId) && m.IntervalSeconds < plan.MinIntervalSeconds)
-            .ToListAsync();
-        foreach (var m in fast)
-            m.IntervalSeconds = PlanRules.ClampInterval(plan, m.IntervalSeconds);
-        return fast.Count;
+        var min = plan.MinIntervalSeconds;
+        return await db.Monitors
+            .Where(m => customerIds.Contains(m.CustomerId) && m.IntervalSeconds < min)
+            .ExecuteUpdateAsync(s => s.SetProperty(m => m.IntervalSeconds, min).SetProperty(m => m.Version, m => m.Version + 1));
     }
 
-    /// <summary>Moves <paramref name="customer"/> to <paramref name="newPlan"/>, clamping monitor intervals. Does not call SaveChanges.</summary>
+    /// <summary>Moves <paramref name="customer"/> to <paramref name="newPlan"/>, clamping monitor intervals (immediately). Does not save the customer.</summary>
     public static async Task<PlanChangeResult> ChangePlanAsync(AppDbContext db, Customer customer, Plan newPlan)
     {
         customer.PlanId = newPlan.Id;

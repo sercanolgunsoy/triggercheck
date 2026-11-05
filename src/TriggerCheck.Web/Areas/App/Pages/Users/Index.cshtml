@@ -27,7 +27,7 @@
                     else
                     {
                         <form method="post" asp-page-handler="ChangeRole" asp-route-id="@u.Id" class="d-flex gap-1">
-                            <select name="role" class="form-select form-select-sm" style="width: auto">
+                            <select name="role" class="form-select form-select-sm" style="width: auto" aria-label="@L["Role"]">
                                 <option value="@Roles.CustomerAdmin" selected="@(u.Role == Roles.CustomerAdmin)">@Fmt.RoleName(Roles.CustomerAdmin)</option>
                                 <option value="@Roles.CustomerViewer" selected="@(u.Role == Roles.CustomerViewer)">@Fmt.RoleName(Roles.CustomerViewer)</option>
                             </select>
@@ -44,8 +44,7 @@
                             <button type="submit" class="btn btn-sm btn-outline-warning">@(u.IsActive ? L["Deactivate"] : L["Activate"])</button>
                         </form>
                         <form method="post" asp-page-handler="Delete" asp-route-id="@u.Id" class="d-inline"
-                              data-confirm="@L["Delete user {0}? This cannot be undone.", u.Email]"
-                              onsubmit="return confirm(this.dataset.confirm);">
+                              data-confirm="@L["Delete user {0}? This cannot be undone.", u.Email]">
                             <button type="submit" class="btn btn-sm btn-outline-danger">@L["Delete"]</button>
                         </form>
                     }

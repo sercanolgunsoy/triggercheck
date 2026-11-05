@@ -3,11 +3,12 @@ using Microsoft.EntityFrameworkCore;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Monitoring.Stats;
+using TriggerCheck.Web.Billing;
 using TriggerCheck.Web.Infrastructure;
 
 namespace TriggerCheck.Web.Areas.App.Pages;
 
-public class IndexModel(AppDbContext db, ICurrentCustomer current, IUptimeStatsService stats) : PageModel
+public class IndexModel(AppDbContext db, ICurrentCustomer current, IUptimeStatsService stats, PlanUsageService usage) : PageModel
 {
     public record Row(int Id, string Name, MonitorType Type, string Target, MonitorStatus Status, int? LastResponseTimeMs, DateTime? LastCheckedAtUtc, double? Uptime24h);
     public record OpenIncidentRow(int Id, int MonitorId, string MonitorName, DateTime StartedAtUtc, string? Cause);
@@ -20,6 +21,10 @@ public class IndexModel(AppDbContext db, ICurrentCustomer current, IUptimeStatsS
     public int PausedCount { get; private set; }
     public int UnknownCount { get; private set; }
     public double? OverallUptime24h { get; private set; }
+    /// <summary>BIZ-3 quota meters.</summary>
+    public PlanUsage Usage { get; private set; } = null!;
+    /// <summary>Monitors with an open slowdown signal (AI-1; explained by AI-3 on the monitor page).</summary>
+    public HashSet<int> SlowMonitorIds { get; private set; } = [];
 
     public async Task OnGetAsync(CancellationToken ct)
     {
@@ -52,5 +57,11 @@ public class IndexModel(AppDbContext db, ICurrentCustomer current, IUptimeStatsS
             .OrderByDescending(i => i.StartedAtUtc)
             .Select(i => new OpenIncidentRow(i.Id, i.MonitorId, i.Monitor.Name, i.StartedAtUtc, i.Cause))
             .ToListAsync(ct);
+
+        Usage = await usage.GetAsync(cid, ct);
+
+        SlowMonitorIds = (await db.AnomalySignals.AsNoTracking()
+            .Where(a => a.CustomerId == cid && a.EndedAtUtc == null)
+            .Select(a => a.MonitorId).Distinct().ToListAsync(ct)).ToHashSet();
     }
 }

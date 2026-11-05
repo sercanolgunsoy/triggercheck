@@ -12,6 +12,8 @@ public static class AppClaims
 {
     public const string CustomerId = "customer_id";
     public const string FullName = "full_name";
+    /// <summary>Present while the user must change the password (see MustChangePasswordFilter).</summary>
+    public const string MustChangePassword = "must_change_password";
 }
 
 /// <summary>
@@ -40,7 +42,7 @@ public class CurrentCustomer(IHttpContextAccessor http, AppDbContext db) : ICurr
         _cached ??= await db.Customers.Include(c => c.Plan).FirstAsync(c => c.Id == RequiredCustomerId, ct);
 }
 
-/// <summary>Adds customer_id and full_name claims to the auth cookie.</summary>
+/// <summary>Adds customer_id, full_name and (when pending) must_change_password claims to the auth cookie.</summary>
 public class AppClaimsPrincipalFactory(UserManager<ApplicationUser> um, RoleManager<IdentityRole> rm, IOptions<IdentityOptions> o)
     : UserClaimsPrincipalFactory<ApplicationUser, IdentityRole>(um, rm, o)
 {
@@ -49,6 +51,7 @@ public class AppClaimsPrincipalFactory(UserManager<ApplicationUser> um, RoleMana
         var id = await base.GenerateClaimsAsync(user);
         if (user.CustomerId is int cid) id.AddClaim(new Claim(AppClaims.CustomerId, cid.ToString()));
         id.AddClaim(new Claim(AppClaims.FullName, string.IsNullOrWhiteSpace(user.FullName) ? user.Email ?? "" : user.FullName));
+        if (user.MustChangePassword) id.AddClaim(new Claim(AppClaims.MustChangePassword, "true"));
         return id;
     }
 }

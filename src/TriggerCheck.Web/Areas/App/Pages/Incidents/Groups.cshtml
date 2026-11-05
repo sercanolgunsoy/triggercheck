@@ -1,0 +1,160 @@
+@page
+@model TriggerCheck.Web.Areas.App.Pages.Incidents.GroupsModel
+@using TriggerCheck.Ai.Features.Correlation
+@{
+    ViewData["Title"] = L["Related incidents"].Value;
+    var a = Model.Acceptance;
+}
+
+<nav aria-label="@L["Breadcrumb"]"><ol class="breadcrumb">
+    <li class="breadcrumb-item"><a asp-page="Index">@L["Incidents"]</a></li>
+    <li class="breadcrumb-item active">@L["Related incidents"]</li>
+</ol></nav>
+
+<h2 class="mb-1">@L["Related incidents"]</h2>
+<p class="text-muted small mb-3">@L["Monitors that go down within a few minutes of each other with the same signals (same host or IP, same error type) can be grouped into one primary incident and the affected ones. Grouping only combines notifications: no incident is closed or hidden, and monitors left out of a group are notified on their own."]</p>
+
+<div class="row g-3 mb-3">
+    <div class="col-lg-7">
+        <div class="card h-100" id="grouping-mode">
+            <div class="card-body">
+                @switch (Model.Mode)
+                {
+                    case CorrelationMode.Automatic:
+                        <p class="mb-2" data-grouping-mode="automatic"><span class="badge text-bg-primary">@L["Automatic"]</span> @L["Notifications of related incidents are combined: the first incident is notified at once, related ones that follow are listed in one short follow-up instead of separate alerts. When it recovers, or after {0} minutes, monitors still down are notified on their own.", Model.MaxFoldMinutes]</p>
+                        break;
+                    case CorrelationMode.Suggest:
+                        <p class="mb-2" data-grouping-mode="suggest"><span class="badge text-bg-info">@L["Suggestions"]</span> @L["TriggerCheck suggests groups of related incidents for you to accept or reject. Notifications are not changed."]</p>
+                        break;
+                    default:
+                        <p class="mb-2 text-muted" data-grouping-mode="off">
+                            @if (!Model.PlanAllows) { <span>@L["Grouping of related incidents is not included in your plan."]</span> }
+                            else if (!Model.Customer.AlertGroupingEnabled) { <span>@L["Grouping of related incidents is switched off. Every incident is notified on its own."]</span> }
+                            else if (!Model.Customer.AiEnabled)
+                            {
+                                <span>@L["Grouping of related incidents is part of the AI features, which are turned off for your account."]</span>
+                                if (Model.IsAdmin) { <a asp-page="/Ai/Index">@L["AI settings"]</a> }
+                            }
+                            else { <span>@L["Grouping of related incidents is currently unavailable. Every incident is notified on its own."]</span> }
+                        </p>
+                        break;
+                }
+                @if (Model.IsAdmin && Model.PlanAllows)
+                {
+                    <form method="post" asp-page-handler="Enabled" id="grouping-switch">
+                        <input type="hidden" name="enabled" value="@(Model.Customer.AlertGroupingEnabled ? "false" : "true")" />
+                        <button type="submit" class="btn btn-sm @(Model.Customer.AlertGroupingEnabled ? "btn-outline-danger" : "btn-primary")">
+                            @(Model.Customer.AlertGroupingEnabled ? L["Switch grouping off"] : L["Switch grouping on"])
+                        </button>
+                    </form>
+                }
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-5">
+        <div class="card h-100" id="grouping-acceptance">
+            <div class="card-body">
+                <div class="small text-muted mb-1">@L["Accepted suggestions (last {0} days)", a.Days]</div>
+                <div class="fs-4" id="acceptance-rate">@(a.Rate is double r ? Fmt.Percent(r * 100) : "—")</div>
+                <div class="small text-muted">@L["{0} accepted, {1} rejected", a.Accepted, a.Rejected]</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<h4 class="mt-4">@L["Suggestions"]</h4>
+@if (Model.Proposals.Count == 0)
+{
+    <div class="alert alert-light border" id="no-proposals">@L["No suggestions right now."]</div>
+}
+@foreach (var g in Model.Proposals)
+{
+    <div class="card mb-3 incident-group" id="group-@g.Group.Id" data-group-id="@g.Group.Id">
+        <div class="card-header">
+            <strong>@L["Group these {0} incidents?", g.Members.Count]</strong>
+            @if (!string.IsNullOrEmpty(g.Group.Signals))
+            {
+                <span class="small text-muted">· @string.Join(", ", g.Group.Signals.Split(',').Select(Model.SignalText))</span>
+            }
+            @if (g.Group.Host is not null) { <span class="small text-muted">· @g.Group.Host</span> }
+        </div>
+        <div class="card-body">
+            <form method="post" asp-page-handler="Accept" asp-route-id="@g.Group.Id">
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-2">
+                        <thead><tr><th></th><th></th><th>@L["Monitor"]</th><th>@L["Role"]</th><th>@L["Started"]</th><th>@L["Status"]</th><th>@L["Cause"]</th></tr></thead>
+                        <tbody>
+                        @foreach (var m in g.Members)
+                        {
+                            var check = m.Role == IncidentGroupRole.Rule || m.AiRecommends == true;
+                            <tr data-incident-id="@m.IncidentId">
+                                <td>
+                                    @if (m.Role != IncidentGroupRole.Primary)
+                                    {
+                                        <input class="form-check-input" type="checkbox" name="keep" value="@m.IncidentId" id="keep-@m.IncidentId" checked="@check" disabled="@(!Model.IsAdmin)" aria-label="@L["Keep in group"]" />
+                                    }
+                                </td>
+                                <td class="text-muted small">@m.Label</td>
+                                <td><a asp-page="Details" asp-route-id="@m.IncidentId">@m.MonitorName</a></td>
+                                <td><span class="badge @(m.Role == IncidentGroupRole.Primary ? "text-bg-danger" : m.Role == IncidentGroupRole.Rule ? "text-bg-secondary" : "text-bg-light border")">@Model.RoleText(m.Role)</span>
+                                    @if (m.AiRecommends is bool rec)
+                                    {
+                                        <span class="badge text-bg-info ai-badge" data-ai-recommends="@(rec ? "yes" : "no")">@Icons.Get("sparkles", 10) @(rec ? L["AI: likely the same cause"] : L["AI: likely separate"])</span>
+                                    }</td>
+                                <td class="text-nowrap small">@Fmt.Time(m.StartedAtUtc)</td>
+                                <td>@if (m.ResolvedAtUtc is null) { <span class="badge bg-danger">@L["Open"]</span> } else { <span class="badge bg-success">@L["Resolved"]</span> }</td>
+                                <td class="small">@m.Cause</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+                @if (Model.IsAdmin)
+                {
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-sm btn-primary">@L["Group the selected incidents"]</button>
+                        <button type="submit" class="btn btn-sm btn-outline-secondary" formaction="@Url.Page("Groups", "Reject", new { id = g.Group.Id })">@L["Keep separate"]</button>
+                    </div>
+                }
+            </form>
+            @if (g.Ai is not null)
+            {
+                <div class="mt-3"><partial name="_AiPanel" model="g.Ai" /></div>
+            }
+        </div>
+    </div>
+}
+
+<h4 class="mt-4">@L["Recent groups"]</h4>
+@if (Model.Recent.Count == 0)
+{
+    <div class="alert alert-light border">@L["No groups yet."]</div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-hover align-middle" id="recent-groups">
+            <thead><tr><th>@L["Status"]</th><th>@L["Primary incident"]</th><th>@L["Grouped incidents"]</th><th>@L["Created"]</th><th></th></tr></thead>
+            <tbody>
+            @foreach (var g in Model.Recent)
+            {
+                var primary = g.Members.FirstOrDefault(m => m.Role == IncidentGroupRole.Primary);
+                <tr data-group-id="@g.Group.Id">
+                    <td><span class="badge @(g.Group.Status is IncidentGroupStatus.Auto or IncidentGroupStatus.Accepted ? "text-bg-primary" : "text-bg-secondary")">@Model.StatusText(g.Group.Status)</span></td>
+                    <td>@if (primary is not null) { <a asp-page="Details" asp-route-id="@primary.IncidentId">@primary.MonitorName</a> }</td>
+                    <td class="small">@string.Join(", ", g.Members.Where(m => m.Role != IncidentGroupRole.Primary && m.Included).Select(m => m.MonitorName))</td>
+                    <td class="text-nowrap small">@Fmt.Time(g.Group.CreatedAtUtc)</td>
+                    <td class="text-end">
+                        @if (Model.IsAdmin && g.Group.Status == IncidentGroupStatus.Auto)
+                        {
+                            <form method="post" asp-page-handler="Ungroup" asp-route-id="@g.Group.Id" class="d-inline">
+                                <button type="submit" class="btn btn-sm btn-outline-secondary">@L["Undo grouping"]</button>
+                            </form>
+                        }
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+}

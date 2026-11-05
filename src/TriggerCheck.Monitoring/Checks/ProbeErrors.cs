@@ -2,6 +2,7 @@ using System.Net.Http;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Security.Authentication;
+using TriggerCheck.Monitoring.Security;
 
 namespace TriggerCheck.Monitoring.Checks;
 
@@ -12,6 +13,7 @@ public static class ProbeErrors
 
     public static string Describe(Exception ex, TimeSpan timeout)
     {
+        if (Find<BlockedTargetException>(ex) is { } blocked) return Truncate(blocked.Message)!;
         var text = ex switch
         {
             OperationCanceledException or TimeoutException => $"Timeout after {timeout.TotalSeconds:0.#}s",
@@ -27,6 +29,8 @@ public static class ProbeErrors
     private static string DescribeHttp(HttpRequestException ex)
     {
         var socket = Find<SocketException>(ex);
+        // The probe does its own TLS handshake in the connect callback, so TLS failures arrive as ConnectionError.
+        if (Find<AuthenticationException>(ex) is { } tls) return "TLS/SSL error: " + tls.Message;
         switch (ex.HttpRequestError)
         {
             case HttpRequestError.NameResolutionError:

@@ -196,6 +196,9 @@
   <data name="Sign out" xml:space="preserve">
     <value>Çıkış</value>
   </data>
+  <data name="Skip to main content" xml:space="preserve">
+    <value>Ana içeriğe atla</value>
+  </data>
   <data name="Status" xml:space="preserve">
     <value>Durum</value>
   </data>
@@ -389,7 +392,7 @@
     <value>Bir sunucunun ICMP ping'e yanıt verdiğini doğrulayın.</value>
   </data>
   <data name="Checkout API recovered" xml:space="preserve">
-    <value>Checkout API düzeldi</value>
+    <value>Ödeme API'si düzeldi</value>
   </data>
   <data name="Checks" xml:space="preserve">
     <value>Kontroller</value>
@@ -885,5 +888,722 @@
   </data>
   <data name="{0} days of check history" xml:space="preserve">
     <value>{0} günlük kontrol geçmişi</value>
+  </data>
+  <data name="Your account is suspended. Please contact your administrator." xml:space="preserve">
+    <value>Hesabınız askıya alınmış. Lütfen yöneticinizle iletişime geçin.</value>
+  </data>
+  <data name="Change password" xml:space="preserve">
+    <value>Şifre değiştir</value>
+  </data>
+  <data name="Current password" xml:space="preserve">
+    <value>Mevcut şifre</value>
+  </data>
+  <data name="New password" xml:space="preserve">
+    <value>Yeni şifre</value>
+  </data>
+  <data name="Confirm new password" xml:space="preserve">
+    <value>Yeni şifre (tekrar)</value>
+  </data>
+  <data name="The password must be at least 8 characters long." xml:space="preserve">
+    <value>Şifre en az 8 karakter olmalıdır.</value>
+  </data>
+  <data name="The passwords do not match." xml:space="preserve">
+    <value>Şifreler eşleşmiyor</value>
+  </data>
+  <data name="Your password was changed." xml:space="preserve">
+    <value>Şifreniz değiştirildi.</value>
+  </data>
+  <data name="New password is required." xml:space="preserve">
+    <value>Yeni şifre zorunludur</value>
+  </data>
+  <data name="Current password is required." xml:space="preserve">
+    <value>Mevcut şifre zorunludur</value>
+  </data>
+  <data name="The new password must be different from the current one." xml:space="preserve">
+    <value>Yeni şifre mevcut şifreden farklı olmalıdır.</value>
+  </data>
+  <data name="You must choose a new password before you continue." xml:space="preserve">
+    <value>Devam etmeden önce yeni bir şifre belirlemelisiniz.</value>
+  </data>
+  <data name="Your account settings changed. Please sign in again." xml:space="preserve">
+    <value>Hesap ayarlarınız değişti. Lütfen yeniden giriş yapın.</value>
+  </data>
+  <data name="A user with this e-mail address already exists." xml:space="preserve">
+    <value>Bu e-posta adresiyle kayıtlı bir kullanıcı zaten var.</value>
+  </data>
+  <data name="Invalid e-mail address." xml:space="preserve">
+    <value>Geçersiz e-posta adresi.</value>
+  </data>
+  <data name="The password must contain at least one digit." xml:space="preserve">
+    <value>Şifre en az bir rakam içermelidir.</value>
+  </data>
+  <data name="The password must contain at least one lowercase letter." xml:space="preserve">
+    <value>Şifre en az bir küçük harf içermelidir.</value>
+  </data>
+  <data name="The password must contain at least one uppercase letter." xml:space="preserve">
+    <value>Şifre en az bir büyük harf içermelidir.</value>
+  </data>
+  <data name="The password must contain more distinct characters." xml:space="preserve">
+    <value>Şifre daha fazla farklı karakter içermelidir.</value>
+  </data>
+  <data name="The current password is incorrect." xml:space="preserve">
+    <value>Mevcut şifre hatalı.</value>
+  </data>
+  <data name="Too many failed attempts. Try again in a few minutes." xml:space="preserve">
+    <value>Çok fazla başarısız deneme. Birkaç dakika sonra tekrar deneyin.</value>
+  </data>
+  <data name="DNS record" xml:space="preserve">
+    <value>DNS kaydı</value>
+  </data>
+  <data name="Heartbeat (cron)" xml:space="preserve">
+    <value>Heartbeat (cron)</value>
+  </data>
+  <data name="JSON API" xml:space="preserve">
+    <value>JSON API</value>
+  </data>
+  <data name="Maintenance" xml:space="preserve">
+    <value>Bakım</value>
+  </data>
+  <data name="Escalation" xml:space="preserve">
+    <value>Eskalasyon</value>
+  </data>
+  <data name="API keys" xml:space="preserve">
+    <value>API anahtarları</value>
+  </data>
+  <data name="Read-only" xml:space="preserve">
+    <value>Salt okunur</value>
+  </data>
+  <data name="Yes. Upgrade, downgrade or cancel at any time on the Billing page; your monitors and history stay as they are." xml:space="preserve">
+    <value>Evet. Faturalandırma sayfasından istediğiniz zaman plan yükseltebilir, düşürebilir veya aboneliği iptal edebilirsiniz; monitörleriniz ve geçmişiniz olduğu gibi kalır.</value>
+  </data>
+  <data name="How does the free trial work?" xml:space="preserve">
+    <value>Ücretsiz deneme nasıl işler?</value>
+  </data>
+  <data name="Paid plans start with a {0}-day free trial, no credit card required. Subscribe before it ends to keep the plan; otherwise your workspace moves to the free plan." xml:space="preserve">
+    <value>Ücretli planlar {0} günlük ücretsiz denemeyle başlar, kredi kartı gerekmez. Planı korumak için deneme bitmeden abone olun; aksi halde çalışma alanınız ücretsiz plana geçer.</value>
+  </data>
+  <data name="Start free trial" xml:space="preserve">
+    <value>Ücretsiz denemeyi başlat</value>
+  </data>
+  <data name="Create your workspace in a minute, or tell us what you need and we'll help you set it up." xml:space="preserve">
+    <value>Çalışma alanınızı bir dakikada oluşturun ya da ihtiyacınızı anlatın, kurulumda yardımcı olalım.</value>
+  </data>
+  <data name="Confirm your TriggerCheck account" xml:space="preserve">
+    <value>TriggerCheck hesabınızı doğrulayın</value>
+  </data>
+  <data name="Hello {0}," xml:space="preserve">
+    <value>Merhaba {0},</value>
+  </data>
+  <data name="Please confirm your e-mail address to activate your TriggerCheck account:" xml:space="preserve">
+    <value>TriggerCheck hesabınızı etkinleştirmek için lütfen e-posta adresinizi doğrulayın:</value>
+  </data>
+  <data name="If you did not sign up, you can ignore this e-mail." xml:space="preserve">
+    <value>Kaydı siz yapmadıysanız bu e-postayı yok sayabilirsiniz.</value>
+  </data>
+  <data name="Your TriggerCheck account" xml:space="preserve">
+    <value>TriggerCheck hesabınız</value>
+  </data>
+  <data name="Someone (hopefully you) tried to create a TriggerCheck account with this e-mail address, but an account already exists." xml:space="preserve">
+    <value>Birisi (umarız siz) bu e-posta adresiyle bir TriggerCheck hesabı oluşturmaya çalıştı, ancak bu adresle bir hesap zaten var.</value>
+  </data>
+  <data name="Sign in here: {0}" xml:space="preserve">
+    <value>Buradan giriş yapın: {0}</value>
+  </data>
+  <data name="If this was not you, you can ignore this e-mail." xml:space="preserve">
+    <value>Bu siz değilseniz bu e-postayı yok sayabilirsiniz.</value>
+  </data>
+  <data name="Your TriggerCheck trial ends soon" xml:space="preserve">
+    <value>TriggerCheck deneme süreniz yakında bitiyor</value>
+  </data>
+  <data name="Your free trial of the {0} plan ends on {1} (UTC). Subscribe on the Billing page to keep your plan; otherwise your workspace moves to the {2} plan." xml:space="preserve">
+    <value>{0} planı ücretsiz denemeniz {1} (UTC) tarihinde bitiyor. Planınızı korumak için Faturalandırma sayfasından abone olun; aksi halde çalışma alanınız {2} planına geçer.</value>
+  </data>
+  <data name="Your TriggerCheck plan changed to {0}" xml:space="preserve">
+    <value>TriggerCheck planınız {0} olarak değişti</value>
+  </data>
+  <data name="{0} Your workspace is now on the {1} plan: monitors faster than {2} were slowed down and you can have at most {3} monitors. You can subscribe again on the Billing page." xml:space="preserve">
+    <value>{0} Çalışma alanınız artık {1} planında: {2} süresinden sık kontrol edilen monitörler yavaşlatıldı ve en fazla {3} monitörünüz olabilir. Faturalandırma sayfasından yeniden abone olabilirsiniz.</value>
+  </data>
+  <data name="Your free trial has ended." xml:space="preserve">
+    <value>Ücretsiz deneme süreniz sona erdi.</value>
+  </data>
+  <data name="Your subscription payment could not be collected." xml:space="preserve">
+    <value>Abonelik ödemeniz tahsil edilemedi.</value>
+  </data>
+  <data name="Your cancelled subscription has ended." xml:space="preserve">
+    <value>İptal ettiğiniz abonelik sona erdi.</value>
+  </data>
+  <data name="TriggerCheck payment failed" xml:space="preserve">
+    <value>TriggerCheck ödemesi başarısız oldu</value>
+  </data>
+  <data name="We could not collect your subscription payment. Please update your card at iyzico within {0} days; after that your workspace moves to the {1} plan." xml:space="preserve">
+    <value>Abonelik ödemenizi tahsil edemedik. Lütfen {0} gün içinde iyzico'daki kartınızı güncelleyin; aksi halde çalışma alanınız {1} planına geçer.</value>
+  </data>
+  <data name="Billing" xml:space="preserve">
+    <value>Faturalandırma</value>
+  </data>
+  <data name="Contact sales" xml:space="preserve">
+    <value>Satış ekibiyle görüşün</value>
+  </data>
+  <data name="Trial" xml:space="preserve">
+    <value>Deneme</value>
+  </data>
+  <data name="Subscribed" xml:space="preserve">
+    <value>Abone</value>
+  </data>
+  <data name="Past due" xml:space="preserve">
+    <value>Ödeme gecikmiş</value>
+  </data>
+  <data name="Cancelled" xml:space="preserve">
+    <value>İptal edildi</value>
+  </data>
+  <data name="No subscription" xml:space="preserve">
+    <value>Abonelik yok</value>
+  </data>
+  <data name="Create your account" xml:space="preserve">
+    <value>Hesabınızı oluşturun</value>
+  </data>
+  <data name="Try any plan free for {0} days. No credit card required." xml:space="preserve">
+    <value>Dilediğiniz planı {0} gün ücretsiz deneyin. Kredi kartı gerekmez.</value>
+  </data>
+  <data name="Company name" xml:space="preserve">
+    <value>Şirket adı</value>
+  </data>
+  <data name="Your name" xml:space="preserve">
+    <value>Adınız</value>
+  </data>
+  <data name="At least 8 characters, with an uppercase letter, a lowercase letter and a digit." xml:space="preserve">
+    <value>En az 8 karakter; bir büyük harf, bir küçük harf ve bir rakam içermeli.</value>
+  </data>
+  <data name="Paid plans start with a free trial; you can subscribe or change the plan later on the Billing page." xml:space="preserve">
+    <value>Ücretli planlar ücretsiz denemeyle başlar; daha sonra Faturalandırma sayfasından abone olabilir veya planı değiştirebilirsiniz.</value>
+  </data>
+  <data name="I accept the terms of service and the privacy policy" xml:space="preserve">
+    <value>Hizmet koşullarını ve gizlilik politikasını kabul ediyorum</value>
+  </data>
+  <data name="Create account" xml:space="preserve">
+    <value>Hesap oluştur</value>
+  </data>
+  <data name="Already have an account?" xml:space="preserve">
+    <value>Zaten hesabınız var mı?</value>
+  </data>
+  <data name="Please confirm your e-mail address first. Check your inbox for the link." xml:space="preserve">
+    <value>Lütfen önce e-posta adresinizi doğrulayın. Bağlantı için gelen kutunuzu kontrol edin.</value>
+  </data>
+  <data name="Confirm e-mail" xml:space="preserve">
+    <value>E-postayı doğrula</value>
+  </data>
+  <data name="E-mail confirmed" xml:space="preserve">
+    <value>E-posta doğrulandı</value>
+  </data>
+  <data name="Thank you. Your account is ready: sign in to set up your first monitor." xml:space="preserve">
+    <value>Teşekkürler. Hesabınız hazır: ilk monitörünüzü kurmak için giriş yapın.</value>
+  </data>
+  <data name="Link not valid" xml:space="preserve">
+    <value>Bağlantı geçersiz</value>
+  </data>
+  <data name="This confirmation link is invalid or has expired. Sign up again with the same address to get a new link." xml:space="preserve">
+    <value>Bu doğrulama bağlantısı geçersiz veya süresi dolmuş. Yeni bir bağlantı almak için aynı adresle yeniden kaydolun.</value>
+  </data>
+  <data name="Choose a plan." xml:space="preserve">
+    <value>Bir plan seçin.</value>
+  </data>
+  <data name="You must accept the terms to continue." xml:space="preserve">
+    <value>Devam etmek için koşulları kabul etmelisiniz.</value>
+  </data>
+  <data name="Company name is required." xml:space="preserve">
+    <value>Şirket adı zorunludur.</value>
+  </data>
+  <data name="At most {1} characters." xml:space="preserve">
+    <value>En fazla {1} karakter.</value>
+  </data>
+  <data name="Name is required." xml:space="preserve">
+    <value>Ad zorunludur.</value>
+  </data>
+  <data name="Check your inbox" xml:space="preserve">
+    <value>Gelen kutunuzu kontrol edin</value>
+  </data>
+  <data name="If the address can be used, we have sent you an e-mail. Open the link in it to confirm your address, then sign in." xml:space="preserve">
+    <value>Adres kullanılabiliyorsa size bir e-posta gönderdik. Adresinizi doğrulamak için içindeki bağlantıyı açın, ardından giriş yapın.</value>
+  </data>
+  <data name="Nothing arrived after a few minutes? Check your spam folder or sign up again to get a new link." xml:space="preserve">
+    <value>Birkaç dakika sonra hâlâ bir şey gelmedi mi? İstenmeyen klasörünü kontrol edin veya yeni bir bağlantı için yeniden kaydolun.</value>
+  </data>
+  <data name="Start your free trial" xml:space="preserve">
+    <value>Ücretsiz denemenizi başlatın</value>
+  </data>
+  <data name="Date" xml:space="preserve">
+    <value>Tarih</value>
+  </data>
+  <data name="Paid" xml:space="preserve">
+    <value>Ödendi</value>
+  </data>
+  <data name="Failed" xml:space="preserve">
+    <value>Başarısız</value>
+  </data>
+  <data name="Trial ends" xml:space="preserve">
+    <value>Deneme bitişi</value>
+  </data>
+  <data name="If you did not ask for this, you can ignore this e-mail." xml:space="preserve">
+    <value>Bunu siz istemediyseniz bu e-postayı yok sayabilirsiniz.</value>
+  </data>
+  <data name="Open this link to choose a new password (valid for one day):" xml:space="preserve">
+    <value>Yeni bir parola belirlemek için bu bağlantıyı açın (bir gün geçerlidir):</value>
+  </data>
+  <data name="Reset your TriggerCheck password" xml:space="preserve">
+    <value>TriggerCheck parolanızı sıfırlayın</value>
+  </data>
+  <data name="Back to sign in" xml:space="preserve">
+    <value>Girişe dön</value>
+  </data>
+  <data name="Enter your e-mail address and we will send you a link to choose a new password." xml:space="preserve">
+    <value>E-posta adresinizi girin; yeni bir parola belirlemeniz için size bir bağlantı gönderelim.</value>
+  </data>
+  <data name="Forgot password" xml:space="preserve">
+    <value>Parolamı unuttum</value>
+  </data>
+  <data name="If an account exists for this address, we have sent a link to choose a new password. The link is valid for one day." xml:space="preserve">
+    <value>Bu adresle bir hesap varsa yeni parola belirlemeniz için bir bağlantı gönderdik. Bağlantı bir gün geçerlidir.</value>
+  </data>
+  <data name="Send reset link" xml:space="preserve">
+    <value>Sıfırlama bağlantısı gönder</value>
+  </data>
+  <data name="Forgot password?" xml:space="preserve">
+    <value>Parolanızı mı unuttunuz?</value>
+  </data>
+  <data name="This link is invalid or has expired. Request a new one." xml:space="preserve">
+    <value>Bu bağlantı geçersiz veya süresi dolmuş. Yeni bir bağlantı isteyin.</value>
+  </data>
+  <data name="Choose a new password" xml:space="preserve">
+    <value>Yeni parola belirleyin</value>
+  </data>
+  <data name="Your password was changed. You can sign in now." xml:space="preserve">
+    <value>Parolanız değiştirildi. Artık giriş yapabilirsiniz.</value>
+  </data>
+  <data name="No free trial was started: this address or its company domain already had one. Your workspace starts on the {0} plan; you can subscribe to a paid plan on the Billing page." xml:space="preserve">
+    <value>Ücretsiz deneme başlatılmadı: bu adres veya şirket alan adı daha önce denemeden yararlandı. Çalışma alanınız {0} planıyla başlıyor; Faturalandırma sayfasından ücretli bir plana abone olabilirsiniz.</value>
+  </data>
+  <data name="We received a payment for a subscription that we could not activate (your workspace already has a subscription, or the plan did not match). It was cancelled and the amount will be refunded to your card. Your current plan is not affected." xml:space="preserve">
+    <value>Etkinleştiremediğimiz bir abonelik için ödeme aldık (çalışma alanınızın zaten bir aboneliği var veya plan eşleşmedi). Abonelik iptal edildi ve tutar kartınıza iade edilecek. Mevcut planınız etkilenmez.</value>
+  </data>
+  <data name="Your extra TriggerCheck payment will be refunded" xml:space="preserve">
+    <value>Fazladan yapılan TriggerCheck ödemeniz iade edilecek</value>
+  </data>
+  <data name="Your workspace is now on the {0} plan, which allows {1} monitors. These monitors are over the limit; they keep running, but you cannot add new monitors until you delete some or upgrade:" xml:space="preserve">
+    <value>Çalışma alanınız artık en fazla {1} monitöre izin veren {0} planında. Aşağıdaki monitörler sınırın üzerinde; çalışmaya devam ederler, ancak bazılarını silene veya planı yükseltene kadar yeni monitör ekleyemezsiniz:</value>
+  </data>
+  <data name="Paid plans start with a free trial once per address and company domain; if yours already had one, the e-mail tells you which plan your workspace starts on." xml:space="preserve">
+    <value>Ücretli planlar her adres ve şirket alan adı için bir kez ücretsiz denemeyle başlar; sizinki daha önce yararlandıysa, çalışma alanınızın hangi planla başladığını e-postada belirtiriz.</value>
+  </data>
+  <data name="AI features" xml:space="preserve">
+    <value>Yapay zekâ özellikleri</value>
+  </data>
+  <data name="AI usage" xml:space="preserve">
+    <value>Yapay zekâ kullanımı</value>
+  </data>
+  <data name="Insights" xml:space="preserve">
+    <value>İçgörüler</value>
+  </data>
+  <data name="AI calls" xml:space="preserve">
+    <value>Yapay zekâ çağrıları</value>
+  </data>
+  <data name="Tokens" xml:space="preserve">
+    <value>Token</value>
+  </data>
+  <data name="AI output may be wrong. Status and alerts are always decided by the monitoring rules." xml:space="preserve">
+    <value>Yapay zekâ çıktısı hatalı olabilir. Durum ve bildirimlere her zaman izleme kuralları karar verir.</value>
+  </data>
+  <data name="AI summary unavailable this month." xml:space="preserve">
+    <value>Yapay zekâ özeti bu ay kullanılamıyor.</value>
+  </data>
+  <data name="AI-generated" xml:space="preserve">
+    <value>Yapay zekâ tarafından üretildi</value>
+  </data>
+  <data name="Automatic" xml:space="preserve">
+    <value>Otomatik</value>
+  </data>
+  <data name="Evidence" xml:space="preserve">
+    <value>Kanıt</value>
+  </data>
+  <data name="Helpful" xml:space="preserve">
+    <value>Faydalı</value>
+  </data>
+  <data name="High confidence" xml:space="preserve">
+    <value>Yüksek güven</value>
+  </data>
+  <data name="Information" xml:space="preserve">
+    <value>Bilgi</value>
+  </data>
+  <data name="Low confidence" xml:space="preserve">
+    <value>Düşük güven</value>
+  </data>
+  <data name="Medium confidence" xml:space="preserve">
+    <value>Orta güven</value>
+  </data>
+  <data name="Needs approval" xml:space="preserve">
+    <value>Onay gerekir</value>
+  </data>
+  <data name="Not helpful" xml:space="preserve">
+    <value>Faydalı değil</value>
+  </data>
+  <data name="Not in the data, worth checking" xml:space="preserve">
+    <value>Veride yok, kontrol etmeye değer</value>
+  </data>
+  <data name="Possible causes (low confidence): {0}" xml:space="preserve">
+    <value>Olası nedenler (düşük güven): {0}</value>
+  </data>
+  <data name="Suggested actions" xml:space="preserve">
+    <value>Önerilen aksiyonlar</value>
+  </data>
+  <data name="Suggestion" xml:space="preserve">
+    <value>Öneri</value>
+  </data>
+  <data name="The AI summary could not be generated." xml:space="preserve">
+    <value>Yapay zekâ özeti oluşturulamadı.</value>
+  </data>
+  <data name="Was this helpful?" xml:space="preserve">
+    <value>Bu faydalı oldu mu?</value>
+  </data>
+  <data name="possible" xml:space="preserve">
+    <value>olası</value>
+  </data>
+  <data name="reversible" xml:space="preserve">
+    <value>geri alınabilir</value>
+  </data>
+  <data name="Refunds" xml:space="preserve">
+    <value>İadeler</value>
+  </data>
+  <data name="Probe regions" xml:space="preserve">
+    <value>Kontrol bölgeleri</value>
+  </data>
+  <data name="Agent stale" xml:space="preserve">
+    <value>Ajan yanıt vermiyor</value>
+  </data>
+  <data name="Region" xml:space="preserve">
+    <value>Bölge</value>
+  </data>
+  <data name="SLA report {0}" xml:space="preserve">
+    <value>SLA raporu {0}</value>
+  </data>
+  <data name="SLA target" xml:space="preserve">
+    <value>SLA hedefi</value>
+  </data>
+  <data name="Uptime" xml:space="preserve">
+    <value>Çalışma oranı</value>
+  </data>
+  <data name="SLA" xml:space="preserve">
+    <value>SLA</value>
+  </data>
+  <data name="Downtime" xml:space="preserve">
+    <value>Kesinti süresi</value>
+  </data>
+  <data name="MTTR" xml:space="preserve">
+    <value>MTTR</value>
+  </data>
+  <data name="Avg response" xml:space="preserve">
+    <value>Ort. yanıt</value>
+  </data>
+  <data name="p95 response" xml:space="preserve">
+    <value>p95 yanıt</value>
+  </data>
+  <data name="Period: {0} to {1} ({2})" xml:space="preserve">
+    <value>Dönem: {0} - {1} ({2})</value>
+  </data>
+  <data name="The month is not over yet: figures up to {0}." xml:space="preserve">
+    <value>Ay henüz bitmedi: rakamlar {0} itibarıyla.</value>
+  </data>
+  <data name="Part of this month is older than your plan's data retention; figures may be incomplete." xml:space="preserve">
+    <value>Bu ayın bir kısmı planınızın veri saklama süresinden eski; rakamlar eksik olabilir.</value>
+  </data>
+  <data name="SLA met / missed" xml:space="preserve">
+    <value>SLA tutuldu / kaçırıldı</value>
+  </data>
+  <data name="Met" xml:space="preserve">
+    <value>Tutuldu</value>
+  </data>
+  <data name="Missed" xml:space="preserve">
+    <value>Kaçırıldı</value>
+  </data>
+  <data name="No monitors in this period." xml:space="preserve">
+    <value>Bu dönemde monitör yok.</value>
+  </data>
+  <data name="Uptime excludes maintenance windows. Downtime is the time monitors had an open incident; response times are of successful checks." xml:space="preserve">
+    <value>Çalışma oranına bakım pencereleri dahil değildir. Kesinti süresi, monitörlerin açık olayının bulunduğu süredir; yanıt süreleri başarılı kontrollere aittir.</value>
+  </data>
+  <data name="Your TriggerCheck SLA report for {0} ({1}):" xml:space="preserve">
+    <value>{0} dönemine ait TriggerCheck SLA raporunuz ({1}):</value>
+  </data>
+  <data name="Uptime: {0}" xml:space="preserve">
+    <value>Çalışma oranı: {0}</value>
+  </data>
+  <data name="Downtime: {0}" xml:space="preserve">
+    <value>Kesinti süresi: {0}</value>
+  </data>
+  <data name="Incidents: {0}" xml:space="preserve">
+    <value>Olaylar: {0}</value>
+  </data>
+  <data name="MTTR: {0}" xml:space="preserve">
+    <value>MTTR: {0}</value>
+  </data>
+  <data name="SLA targets met: {0}, missed: {1}" xml:space="preserve">
+    <value>Tutulan SLA hedefleri: {0}, kaçırılan: {1}</value>
+  </data>
+  <data name="Missed SLA targets:" xml:space="preserve">
+    <value>Kaçırılan SLA hedefleri:</value>
+  </data>
+  <data name="Download the PDF (link valid for {0} days): {1}" xml:space="preserve">
+    <value>PDF'i indirin (bağlantı {0} gün geçerli): {1}</value>
+  </data>
+  <data name="All reports: {0}" xml:space="preserve">
+    <value>Tüm raporlar: {0}</value>
+  </data>
+  <data name="You receive this e-mail because monthly reports are enabled on the Reports page. An admin can turn them off there." xml:space="preserve">
+    <value>Bu e-postayı Raporlar sayfasında aylık raporlar açık olduğu için alıyorsunuz. Bir yönetici oradan kapatabilir.</value>
+  </data>
+  <data name="TriggerCheck SLA report {0}" xml:space="preserve">
+    <value>TriggerCheck SLA raporu {0}</value>
+  </data>
+  <data name="Confirm your subscription to {0}" xml:space="preserve">
+    <value>{0} aboneliğinizi onaylayın</value>
+  </data>
+  <data name="Someone (hopefully you) asked to receive e-mail updates from the status page &quot;{0}&quot;." xml:space="preserve">
+    <value>Birisi (umarız siz) "{0}" durum sayfasından e-posta bildirimleri almak istedi.</value>
+  </data>
+  <data name="Confirm the subscription by opening this link (valid for {0} days):" xml:space="preserve">
+    <value>Aboneliği bu bağlantıyı açarak onaylayın ({0} gün geçerli):</value>
+  </data>
+  <data name="If you did not ask for this, ignore this e-mail; you will not receive any updates." xml:space="preserve">
+    <value>Bunu siz istemediyseniz bu e-postayı yok sayın; hiçbir bildirim almayacaksınız.</value>
+  </data>
+  <data name="[{0}] {1} is down" xml:space="preserve">
+    <value>[{0}] {1} erişilemiyor</value>
+  </data>
+  <data name="{0} has been unavailable since {1}. We will let you know when it has recovered." xml:space="preserve">
+    <value>{0}, {1} tarihinden beri erişilemiyor. Düzeldiğinde size haber vereceğiz.</value>
+  </data>
+  <data name="[{0}] {1} has recovered" xml:space="preserve">
+    <value>[{0}] {1} düzeldi</value>
+  </data>
+  <data name="{0} is available again since {1} (down for {2})." xml:space="preserve">
+    <value>{0}, {1} itibarıyla yeniden erişilebilir ({2} kesinti).</value>
+  </data>
+  <data name="[{0}] Maintenance started: {1}" xml:space="preserve">
+    <value>[{0}] Bakım başladı: {1}</value>
+  </data>
+  <data name="Planned maintenance &quot;{0}&quot; started at {1} and is scheduled to end at {2}." xml:space="preserve">
+    <value>"{0}" planlı bakımı {1} tarihinde başladı ve {2} tarihinde bitmesi planlanıyor.</value>
+  </data>
+  <data name="Status page: {0}" xml:space="preserve">
+    <value>Durum sayfası: {0}</value>
+  </data>
+  <data name="Unsubscribe: {0}" xml:space="preserve">
+    <value>Abonelikten çık: {0}</value>
+  </data>
+  <data name="Status pages" xml:space="preserve">
+    <value>Durum sayfaları</value>
+  </data>
+  <data name="Powered by TriggerCheck" xml:space="preserve">
+    <value>TriggerCheck ile çalışır</value>
+  </data>
+  <data name="Confirm your subscription" xml:space="preserve">
+    <value>Aboneliğinizi onaylayın</value>
+  </data>
+  <data name="Confirm subscription" xml:space="preserve">
+    <value>Aboneliği onayla</value>
+  </data>
+  <data name="Your subscription is confirmed. You will receive an e-mail about incidents and maintenance." xml:space="preserve">
+    <value>Aboneliğiniz onaylandı. Olaylar ve bakımlar hakkında e-posta alacaksınız.</value>
+  </data>
+  <data name="Unsubscribe" xml:space="preserve">
+    <value>Abonelikten çık</value>
+  </data>
+  <data name="You are unsubscribed and will not receive further e-mails from this status page." xml:space="preserve">
+    <value>Abonelikten çıktınız; bu durum sayfasından artık e-posta almayacaksınız.</value>
+  </data>
+  <data name="This link is invalid or has expired." xml:space="preserve">
+    <value>Bu bağlantı geçersiz veya süresi dolmuş.</value>
+  </data>
+  <data name="All systems operational" xml:space="preserve">
+    <value>Tüm sistemler çalışıyor</value>
+  </data>
+  <data name="Partial outage" xml:space="preserve">
+    <value>Kısmi kesinti</value>
+  </data>
+  <data name="Major outage" xml:space="preserve">
+    <value>Büyük kesinti</value>
+  </data>
+  <data name="Maintenance in progress" xml:space="preserve">
+    <value>Bakım sürüyor</value>
+  </data>
+  <data name="Status unknown" xml:space="preserve">
+    <value>Durum bilinmiyor</value>
+  </data>
+  <data name="Operational" xml:space="preserve">
+    <value>Çalışıyor</value>
+  </data>
+  <data name="Outage" xml:space="preserve">
+    <value>Kesinti</value>
+  </data>
+  <data name="No data" xml:space="preserve">
+    <value>Veri yok</value>
+  </data>
+  <data name="Subscribe to updates" xml:space="preserve">
+    <value>Bildirimlere abone ol</value>
+  </data>
+  <data name="Scheduled maintenance" xml:space="preserve">
+    <value>Planlı bakım</value>
+  </data>
+  <data name="Uptime of the last {0} days" xml:space="preserve">
+    <value>Son {0} günün çalışma oranı</value>
+  </data>
+  <data name="{0} min down" xml:space="preserve">
+    <value>{0} dk kesinti</value>
+  </data>
+  <data name="{0} days ago" xml:space="preserve">
+    <value>{0} gün önce</value>
+  </data>
+  <data name="{0} uptime" xml:space="preserve">
+    <value>{0} çalışma</value>
+  </data>
+  <data name="Today" xml:space="preserve">
+    <value>Bugün</value>
+  </data>
+  <data name="Incident history (last {0} days)" xml:space="preserve">
+    <value>Olay geçmişi (son {0} gün)</value>
+  </data>
+  <data name="No incidents reported." xml:space="preserve">
+    <value>Bildirilen olay yok.</value>
+  </data>
+  <data name="{0} unavailable" xml:space="preserve">
+    <value>{0} erişilemedi</value>
+  </data>
+  <data name="Ongoing" xml:space="preserve">
+    <value>Sürüyor</value>
+  </data>
+  <data name="Times are shown in {0}." xml:space="preserve">
+    <value>Saatler {0} saat diliminde gösterilir.</value>
+  </data>
+  <data name="Atom feed" xml:space="preserve">
+    <value>Atom akışı</value>
+  </data>
+  <data name="Thank you. If this address is not subscribed yet, we have sent it an e-mail with a confirmation link." xml:space="preserve">
+    <value>Teşekkürler. Bu adres henüz abone değilse, onay bağlantısı içeren bir e-posta gönderdik.</value>
+  </data>
+  <data name="Get an e-mail when an incident starts or is resolved and when planned maintenance starts. You can unsubscribe at any time." xml:space="preserve">
+    <value>Bir olay başladığında veya çözüldüğünde ve planlı bakım başladığında e-posta alın. İstediğiniz zaman abonelikten çıkabilirsiniz.</value>
+  </data>
+  <data name="Subscribe" xml:space="preserve">
+    <value>Abone ol</value>
+  </data>
+  <data name="E-mail address" xml:space="preserve">
+    <value>E-posta adresi</value>
+  </data>
+  <data name="The AI summary is being prepared. Reload the page in a moment." xml:space="preserve">
+    <value>Yapay zekâ özeti hazırlanıyor. Birazdan sayfayı yenileyin.</value>
+  </data>
+  <data name="AI summaries are switched off for this service." xml:space="preserve">
+    <value>Yapay zekâ özetleri bu hizmette kapalı.</value>
+  </data>
+  <data name="AI summaries are turned off for your account." xml:space="preserve">
+    <value>Yapay zekâ özetleri hesabınız için kapalı.</value>
+  </data>
+  <data name="AI settings" xml:space="preserve">
+    <value>Yapay zekâ ayarları</value>
+  </data>
+  <data name="AI summaries are not included in your plan." xml:space="preserve">
+    <value>Yapay zekâ özetleri planınıza dahil değil.</value>
+  </data>
+  <data name="No AI summary is available for this item." xml:space="preserve">
+    <value>Bu kayıt için yapay zekâ özeti yok.</value>
+  </data>
+  <data name="DNS" xml:space="preserve">
+    <value>DNS</value>
+  </data>
+  <data name="Certificate expired" xml:space="preserve">
+    <value>Sertifika süresi dolmuş</value>
+  </data>
+  <data name="Certificate name mismatch" xml:space="preserve">
+    <value>Sertifika adı uyuşmuyor</value>
+  </data>
+  <data name="Untrusted certificate" xml:space="preserve">
+    <value>Güvenilmeyen sertifika</value>
+  </data>
+  <data name="Server error (5xx)" xml:space="preserve">
+    <value>Sunucu hatası (5xx)</value>
+  </data>
+  <data name="Client error (4xx)" xml:space="preserve">
+    <value>İstemci hatası (4xx)</value>
+  </data>
+  <data name="Timeout" xml:space="preserve">
+    <value>Zaman aşımı</value>
+  </data>
+  <data name="Connection refused" xml:space="preserve">
+    <value>Bağlantı reddedildi</value>
+  </data>
+  <data name="Network unreachable" xml:space="preserve">
+    <value>Ağa erişilemiyor</value>
+  </data>
+  <data name="Expected content missing" xml:space="preserve">
+    <value>Beklenen içerik yok</value>
+  </data>
+  <data name="Host-wide outage" xml:space="preserve">
+    <value>Sunucunun tamamında kesinti</value>
+  </data>
+  <data name="Slow response" xml:space="preserve">
+    <value>Yavaş yanıt</value>
+  </data>
+  <data name="Configuration change" xml:space="preserve">
+    <value>Yapılandırma değişikliği</value>
+  </data>
+  <data name="Missed heartbeat" xml:space="preserve">
+    <value>Kaçırılan heartbeat</value>
+  </data>
+  <data name="Slow DNS" xml:space="preserve">
+    <value>Yavaş DNS</value>
+  </data>
+  <data name="Slow connection" xml:space="preserve">
+    <value>Yavaş bağlantı</value>
+  </data>
+  <data name="Slow TLS handshake" xml:space="preserve">
+    <value>Yavaş TLS el sıkışması</value>
+  </data>
+  <data name="Slow server response" xml:space="preserve">
+    <value>Yavaş sunucu yanıtı</value>
+  </data>
+  <data name="Confirm your status page subscription" xml:space="preserve">
+    <value>Durum sayfası aboneliğinizi onaylayın</value>
+  </data>
+  <data name="{0} changed state {1} times since the last notice and is currently unavailable." xml:space="preserve">
+    <value>{0}, son bildirimden bu yana {1} kez durum değiştirdi ve şu anda erişilemiyor.</value>
+  </data>
+  <data name="{0} changed state {1} times since the last notice and is currently available." xml:space="preserve">
+    <value>{0}, son bildirimden bu yana {1} kez durum değiştirdi ve şu anda erişilebilir.</value>
+  </data>
+  <data name="AI summary (AI-generated, may be wrong; all figures are from the report):" xml:space="preserve">
+    <value>Yapay zekâ özeti (yapay zekâ tarafından üretildi, yanılabilir; tüm rakamlar rapordandır):</value>
+  </data>
+  <data name="What happened:" xml:space="preserve">
+    <value>Neler oldu:</value>
+  </data>
+  <data name="What changed:" xml:space="preserve">
+    <value>Ne değişti:</value>
+  </data>
+  <data name="What to watch:" xml:space="preserve">
+    <value>Neye dikkat edilmeli:</value>
+  </data>
+  <data name="Ask AI" xml:space="preserve">
+    <value>Yapay zekâya sor</value>
+  </data>
+  <data name="Breadcrumb" xml:space="preserve">
+    <value>Sayfa konumu</value>
+  </data>
+  <data name="Website" xml:space="preserve">
+    <value>Web sitesi</value>
+  </data>
+  <data name="Checkout API" xml:space="preserve">
+    <value>Ödeme API'si</value>
+  </data>
+  <data name="Database" xml:space="preserve">
+    <value>Veritabanı</value>
   </data>
 </root>

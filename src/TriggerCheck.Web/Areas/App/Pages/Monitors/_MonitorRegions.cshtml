@@ -1,0 +1,48 @@
+@model TriggerCheck.Web.Areas.App.Pages.Monitors.RegionPanel
+@*
+    FEAT-6: latest result and 24 h response time per region. Hidden for single-region monitors unless regions can be added.
+*@
+@if (Model.Rows.Count > 0 || Model.CanManage)
+{
+    <div class="card mb-4" id="monitor-regions">
+        <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <span>@L["Regions"]</span>
+            @if (Model.CanManage)
+            {
+                <a asp-page="Regions" asp-route-id="@Model.MonitorId" class="btn btn-sm btn-outline-secondary">@L["Manage regions"]</a>
+            }
+        </div>
+        @if (Model.Rows.Count == 0)
+        {
+            <div class="card-body text-muted small">@L["Checked from the main region only. Add regions to decide the status by majority vote."]</div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead><tr><th>@L["Region"]</th><th>@L["Result"]</th><th>@L["Last check ({0})", Fmt.TimeZoneLabel]</th><th class="text-end">@L["Duration"]</th><th class="text-end">@L["Avg. 24 h"]</th><th class="text-end">@L["Failed (24 h)"]</th><th>@L["Error"]</th></tr></thead>
+                    <tbody>
+                    @foreach (var r in Model.Rows)
+                    {
+                        <tr data-region="@r.Code">
+                            <td><span class="font-monospace">@r.Code</span> <span class="small text-muted">@(r.IsCentral ? L["Main region"].Value : r.Name)</span>
+                                @if (!r.IsEnabled) { <span class="badge bg-secondary">@L["Disabled"]</span> }
+                                else if (r.IsStale) { <span class="badge bg-warning text-dark">@L["Agent stale"]</span> }
+                                else if (!r.Voting) { <span class="badge bg-light text-dark border" title="@L["No recent result: not counted in the vote"]">@L["Not voting"]</span> }</td>
+                            <td>@if (r.LastIsUp is null) { <span class="text-muted">—</span> }
+                                else if (r.LastIsUp.Value) { <span class="badge bg-success">@L["Up"]</span> }
+                                else { <span class="badge bg-danger">@L["Down"]</span> }</td>
+                            <td class="small text-muted">@(r.LastCheckedAtUtc is null ? "—" : Fmt.Time(r.LastCheckedAtUtc))</td>
+                            <td class="text-end">@(r.LastResponseTimeMs is int ms ? Fmt.Ms(ms) : "—")</td>
+                            <td class="text-end">@(r.AvgMs24h is double avg ? Fmt.Ms((int)Math.Round(avg)) : "—")</td>
+                            <td class="text-end">@Fmt.Number(r.Failures24h) / @Fmt.Number(r.Checks24h)</td>
+                            <td class="small text-muted">@r.LastError</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+            <div class="card-footer small text-muted">@L["With three or more regions voting, the status is decided by majority; otherwise the main region decides. Stale regions and results from maintenance windows or older settings do not vote. Uptime follows the voted status."]</div>
+        }
+    </div>
+}

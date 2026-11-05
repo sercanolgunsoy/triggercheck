@@ -1,0 +1,115 @@
+@model TriggerCheck.Web.Areas.App.Pages.Maintenance.MaintenanceInput
+@using TriggerCheck.Web.Areas.App.Pages.Maintenance
+@*
+    Rendered with the page's Input object (fields bind to "Input.*").
+    ViewData: "Monitors" (IReadOnlyList<(int Id, string Name)>, the customer's monitors).
+*@
+@{
+    var monitors = ViewData["Monitors"] as IReadOnlyList<(int Id, string Name)> ?? [];
+    var dayNames = Fmt.Culture.DateTimeFormat.DayNames;
+    var weekOrder = Enum.GetValues<DayOfWeek>().OrderBy(d => ((int)d + 6) % 7);
+    var localFormat = "yyyy-MM-ddTHH:mm";
+}
+<div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+<div class="row g-3">
+    <div class="col-md-6">
+        <label asp-for="Name" class="form-label"></label>
+        <input asp-for="Name" class="form-control" placeholder="@L["e.g. Weekly database upgrade"]" />
+        <span asp-validation-for="Name" class="text-danger small"></span>
+    </div>
+    <div class="col-md-6">
+        <label asp-for="TimeZoneId" class="form-label"></label>
+        <select asp-for="TimeZoneId" class="form-select">
+            @foreach (var z in MaintenanceInput.TimeZoneIds)
+            {
+                <option value="@z" selected="@(Model.TimeZoneId == z)">@z</option>
+            }
+        </select>
+        <div class="form-text">@L["Start and end times are entered in this time zone; weekly windows follow its daylight saving time changes."]</div>
+        <span asp-validation-for="TimeZoneId" class="text-danger small"></span>
+    </div>
+
+    <div class="col-12">
+        <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="Input.IsRecurring" id="mw-once" value="false" checked="@(!Model.IsRecurring)" />
+            <label class="form-check-label" for="mw-once">@L["One-off"]</label>
+        </div>
+        <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="Input.IsRecurring" id="mw-weekly" value="true" checked="@Model.IsRecurring" />
+            <label class="form-check-label" for="mw-weekly">@L["Repeats weekly"]</label>
+        </div>
+    </div>
+
+    <div class="col-12" id="mw-once-fields">
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label asp-for="StartsLocal" class="form-label"></label>
+                <input name="Input.StartsLocal" id="Input_StartsLocal" type="datetime-local" class="form-control"
+                       value="@(Model.StartsLocal?.ToString(localFormat, System.Globalization.CultureInfo.InvariantCulture))" />
+                <span asp-validation-for="StartsLocal" class="text-danger small"></span>
+            </div>
+            <div class="col-md-6">
+                <label asp-for="EndsLocal" class="form-label"></label>
+                <input name="Input.EndsLocal" id="Input_EndsLocal" type="datetime-local" class="form-control"
+                       value="@(Model.EndsLocal?.ToString(localFormat, System.Globalization.CultureInfo.InvariantCulture))" />
+                <span asp-validation-for="EndsLocal" class="text-danger small"></span>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12" id="mw-weekly-fields">
+        <div class="row g-3">
+            <div class="col-12">
+                <div class="form-label">@L["Days"]</div>
+                @foreach (var d in weekOrder)
+                {
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="checkbox" name="Input.Days" id="mw-day-@((int)d)" value="@d" checked="@Model.Days.Contains(d)" />
+                        <label class="form-check-label" for="mw-day-@((int)d)">@dayNames[(int)d]</label>
+                    </div>
+                }
+                <span asp-validation-for="Days" class="text-danger small d-block"></span>
+            </div>
+            <div class="col-md-6">
+                <label asp-for="StartTime" class="form-label"></label>
+                <input asp-for="StartTime" type="time" class="form-control" />
+                <span asp-validation-for="StartTime" class="text-danger small"></span>
+            </div>
+            <div class="col-md-6">
+                <label asp-for="DurationMinutes" class="form-label"></label>
+                <input asp-for="DurationMinutes" type="number" min="1" max="10080" class="form-control" />
+                <span asp-validation-for="DurationMinutes" class="text-danger small"></span>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12">
+        <div class="form-check">
+            <input asp-for="AllMonitors" class="form-check-input" id="mw-all" />
+            <label asp-for="AllMonitors" class="form-check-label" for="mw-all"></label>
+        </div>
+        <div class="form-text">@L["A window for all monitors also covers monitors added later."]</div>
+    </div>
+    <div class="col-12" id="mw-monitors">
+        <label class="form-label" for="mw-monitor-list">@L["Monitors"]</label>
+        <select name="Input.MonitorIds" id="mw-monitor-list" class="form-select" multiple size="@Math.Clamp(monitors.Count, 3, 10)">
+            @foreach (var m in monitors)
+            {
+                <option value="@m.Id" selected="@Model.MonitorIds.Contains(m.Id)">@m.Name</option>
+            }
+        </select>
+        <span asp-validation-for="MonitorIds" class="text-danger small"></span>
+    </div>
+</div>
+<script>
+(function () {
+    var weekly = document.getElementById('mw-weekly'), once = document.getElementById('mw-once'), all = document.getElementById('mw-all');
+    function update() {
+        document.getElementById('mw-weekly-fields').hidden = !weekly.checked;
+        document.getElementById('mw-once-fields').hidden = weekly.checked;
+        document.getElementById('mw-monitors').hidden = all.checked;
+    }
+    [weekly, once, all].forEach(function (el) { el.addEventListener('change', update); });
+    update();
+})();
+</script>

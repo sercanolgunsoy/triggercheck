@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="..\TriggerCheck.Infrastructure\TriggerCheck.Infrastructure.csproj" />
+    <!-- Read-only helpers (maintenance schedule) for AI context. Monitoring never references this project. -->
+    <ProjectReference Include="..\TriggerCheck.Monitoring\TriggerCheck.Monitoring.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Official Anthropic C# SDK (Claude API). Only used by AnthropicAiClient; CI and tests use FakeAiClient. -->
+    <PackageReference Include="Anthropic" Version="13.4.0" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

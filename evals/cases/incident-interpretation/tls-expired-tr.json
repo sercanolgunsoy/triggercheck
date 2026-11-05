@@ -1,0 +1,72 @@
+{
+  "id": "tls-expired-tr",
+  "feature": "IncidentInterpretation",
+  "language": "tr",
+  "description": "Expired certificate, Turkish output.",
+  "expect": {
+    "primaryCause": "tls_expired"
+  },
+  "monitor": {
+    "name": "Shop API",
+    "type": "Http",
+    "target": "https://shop.example.test/health",
+    "status": "Down",
+    "certExpiresInDays": -1,
+    "certError": "RemoteCertificateChainErrors: NotTimeValid (expired)"
+  },
+  "incident": {
+    "startedMinutesAgo": 3,
+    "cause": "The SSL connection could not be established: the remote certificate has expired."
+  },
+  "checks": [
+    {
+      "minutesAgo": 1,
+      "repeat": 3,
+      "everyMinutes": 1,
+      "up": false,
+      "ms": 30,
+      "error": "The SSL connection could not be established: the remote certificate has expired.",
+      "dns": 4,
+      "connect": 10
+    },
+    {
+      "minutesAgo": 4,
+      "repeat": 6,
+      "everyMinutes": 1,
+      "up": true,
+      "status": 200,
+      "ms": 180,
+      "dns": 4,
+      "connect": 12,
+      "tls": 25,
+      "ttfb": 150
+    }
+  ],
+  "canned": {
+    "summary": "Shop API'nin TLS sertifikasının süresi dolduğu için HTTPS bağlantıları reddediliyor ve monitör kapalı.",
+    "hypotheses": [
+      {
+        "cause": "TLS sertifikasının süresi dolmuş.",
+        "confidence": "high",
+        "evidence": [
+          "Sertifikanın bitiş tarihi 1 gün önce",
+          "Hatalı kontroller 'certificate has expired' hatası veriyor"
+        ],
+        "category": "tls_expired",
+        "evidence_refs": [
+          "validation_error",
+          "error E1"
+        ]
+      }
+    ],
+    "suggested_actions": [
+      {
+        "action": "renew_tls_certificate",
+        "description": "Sertifikayı yenileyip sunucuya yükleyin.",
+        "autonomy": "A0",
+        "reversible": true
+      }
+    ],
+    "unknowns": []
+  }
+}

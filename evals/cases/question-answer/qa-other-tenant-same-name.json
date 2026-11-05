@@ -1,0 +1,93 @@
+{
+  "id": "qa-other-tenant-same-name",
+  "feature": "QuestionAnswer",
+  "language": "en",
+  "description": "Another tenant has a monitor with the same name and an incident; it must stay invisible.",
+  "expect": {
+    "primaryCause": "qa_grounded_answer",
+    "references": [
+      "monitor:Shop frontend"
+    ],
+    "tools": [
+      "list_incidents"
+    ],
+    "notInAnswer": []
+  },
+  "question": "Did the shop frontend have any incidents this week?",
+  "qaMonitors": [
+    {
+      "name": "Shop frontend",
+      "type": "Http",
+      "target": "https://www.shop-a.example.test/",
+      "status": "Up",
+      "checks": [
+        {
+          "minutesAgo": 10,
+          "repeat": 10,
+          "everyMinutes": 60,
+          "up": true,
+          "ms": 150,
+          "status": 200
+        }
+      ],
+      "incidents": []
+    }
+  ],
+  "otherTenant": [
+    {
+      "name": "Shop frontend",
+      "type": "Http",
+      "target": "https://shop-b.example.test/private",
+      "status": "Down",
+      "checks": [
+        {
+          "minutesAgo": 60,
+          "repeat": 5,
+          "everyMinutes": 1,
+          "up": false,
+          "ms": 30,
+          "status": 502,
+          "error": "HTTP 502"
+        }
+      ],
+      "incidents": [
+        {
+          "startedMinutesAgo": 60,
+          "resolvedMinutesAgo": 50,
+          "cause": "HTTP 502 from tenant B"
+        }
+      ]
+    }
+  ],
+  "secrets": [
+    "tenant B",
+    "/private"
+  ],
+  "cannedTurns": [
+    {
+      "tools": [
+        {
+          "name": "list_monitors",
+          "input": {
+            "name_contains": "shop frontend"
+          }
+        }
+      ]
+    },
+    {
+      "tools": [
+        {
+          "name": "list_incidents",
+          "input": {
+            "from": "2026-03-09T00:00:00Z",
+            "to": "2026-03-10T12:00:00Z",
+            "monitor_id": "{{monitor_id:Shop frontend}}"
+          }
+        }
+      ]
+    },
+    {
+      "answer": "No. {{monitor:Shop frontend}} had no incidents between 2026-03-09T00:00:00Z and 2026-03-10T12:00:00Z."
+    }
+  ]
+}

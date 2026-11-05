@@ -1,0 +1,18 @@
+{
+  "id": "setup-tcp-postgres",
+  "feature": "MonitorSetupAssistant",
+  "language": "en",
+  "description": "Database port check: TCP monitor with port and timeout.",
+  "request": "Make sure our Postgres on db.example.test port 5432 accepts connections, with a 5 second timeout",
+  "expect": {
+    "primaryCause": "setup_form",
+    "fields": { "type": "Tcp", "target": "db.example.test", "port": 5432, "timeoutSeconds": 5 }
+  },
+  "canned": {
+    "outcome": "form", "clarification": null,
+    "explanation": "A TCP monitor checks that the database port accepts connections, with a 5 second timeout.",
+    "type": "tcp", "name": "db.example.test Postgres", "target": "db.example.test", "port": 5432, "keyword": null,
+    "http_method": null, "expected_status_codes": null, "interval_seconds": null, "timeout_seconds": 5, "failure_threshold": null,
+    "dns_record_type": null, "json_path": null, "assertion_operator": null, "expected_value": null, "grace_period_seconds": null
+  }
+}

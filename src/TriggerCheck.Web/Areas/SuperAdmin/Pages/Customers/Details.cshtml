@@ -6,7 +6,7 @@
     var overLimit = Model.Monitors.Count > c.Plan.MaxMonitors;
 }
 
-<nav aria-label="breadcrumb"><ol class="breadcrumb">
+<nav aria-label="@L["Breadcrumb"]"><ol class="breadcrumb">
     <li class="breadcrumb-item"><a asp-page="Index">@L["Customers"]</a></li>
     <li class="breadcrumb-item active">@c.Name</li>
 </ol></nav>
@@ -19,9 +19,10 @@
     </h2>
     <div class="d-flex gap-2">
         <a asp-page="Edit" asp-route-id="@c.Id" class="btn btn-outline-secondary">@L["Edit / change plan"]</a>
+        <a asp-page="ApiKeys" asp-route-id="@c.Id" class="btn btn-outline-secondary">@L["API keys"]</a>
         @if (c.IsActive)
         {
-            <form method="post" asp-page-handler="Suspend" asp-route-id="@c.Id" data-confirm="@L["Suspend the customer? All its users are signed out and its monitors are no longer checked."]" onsubmit="return confirm(this.dataset.confirm);">
+            <form method="post" asp-page-handler="Suspend" asp-route-id="@c.Id" data-confirm="@L["Suspend the customer? All its users are signed out and its monitors are no longer checked."]">
                 <button class="btn btn-warning">@L["Suspend"]</button>
             </form>
         }
@@ -71,6 +72,56 @@
     </div>
 </div>
 
+<div class="card mb-4" data-testid="billing">
+    <div class="card-header fw-semibold">@L["Billing"] <partial name="_BillingStatusBadge" model="c.BillingStatus" /></div>
+    <div class="card-body">
+        <dl class="row mb-0">
+            @if (c.TrialEndsAtUtc is DateTime trialEnd)
+            {
+                <dt class="col-sm-3">@L["Trial ends"]</dt><dd class="col-sm-9">@Fmt.Time(trialEnd) @Fmt.TimeZoneLabel</dd>
+            }
+            @if (c.BillingStatus == BillingStatus.Trial)
+            {
+                <dd class="col-12 d-flex flex-wrap gap-2 mt-1">
+                    <form method="post" asp-page-handler="ExtendTrial" asp-route-id="@c.Id" class="d-flex gap-2 align-items-center">
+                        <input type="number" name="days" value="7" min="1" max="90" class="form-control form-control-sm" style="width: 6rem" aria-label="@L["Days"]" />
+                        <button type="submit" class="btn btn-sm btn-outline-primary">@L["Extend trial"]</button>
+                    </form>
+                    <form method="post" asp-page-handler="EndTrial" asp-route-id="@c.Id" data-confirm="@L["End the trial now? The customer moves to the free plan."]">
+                        <button type="submit" class="btn btn-sm btn-outline-danger">@L["End trial"]</button>
+                    </form>
+                </dd>
+            }
+            @if (Model.Subscription is { } s)
+            {
+                <dt class="col-sm-3">@L["Subscription"]</dt>
+                <dd class="col-sm-9">@s.Plan.Name · @s.Provider <span class="font-monospace small">@s.ProviderReference</span></dd>
+                <dt class="col-sm-3">@L["Paid until"]</dt><dd class="col-sm-9">@Fmt.Date(s.CurrentPeriodEndUtc)</dd>
+                @if (s.PastDueSinceUtc is DateTime pd) { <dt class="col-sm-3">@L["Past due since"]</dt><dd class="col-sm-9 text-danger">@Fmt.Date(pd)</dd> }
+            }
+            else if (c.TrialEndsAtUtc is null)
+            {
+                <dd class="col-12 text-muted">@L["Plan assigned by an administrator; no online subscription."]</dd>
+            }
+        </dl>
+        @if (Model.PaymentEvents.Count > 0)
+        {
+            <div class="table-responsive mt-3">
+                <table class="table table-sm mb-0">
+                    <thead><tr><th>@L["Date"]</th><th>@L["Event"]</th><th>@L["Plan"]</th><th>@L["Result"]</th></tr></thead>
+                    <tbody>
+                    @foreach (var e in Model.PaymentEvents)
+                    {
+                        <tr><td>@Fmt.Time(e.OccurredAtUtc)</td><td class="font-monospace small">@e.EventType</td><td>@e.PlanName</td>
+                            <td>@if (e.Succeeded) { <span class="badge bg-success">@L["Paid"]</span> } else { <span class="badge bg-danger">@L["Failed"]</span> }</td></tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>
+
 <div class="card mb-4">
     <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
         <span>@L["Users"] (@Model.Users.Count)</span>
@@ -105,7 +156,7 @@
                         <input type="hidden" name="userId" value="@u.Id" />
                         <button class="btn btn-sm @(u.IsActive ? "btn-outline-warning" : "btn-outline-success")">@(u.IsActive ? L["Deactivate"] : L["Activate"])</button>
                     </form>
-                    <form method="post" asp-page-handler="DeleteUser" asp-route-id="@c.Id" class="d-inline" data-confirm="@L["Delete {0}?", u.Email]" onsubmit="return confirm(this.dataset.confirm);">
+                    <form method="post" asp-page-handler="DeleteUser" asp-route-id="@c.Id" class="d-inline" data-confirm="@L["Delete {0}?", u.Email]">
                         <input type="hidden" name="userId" value="@u.Id" />
                         <button class="btn btn-sm btn-outline-danger">@L["Delete"]</button>
                     </form>

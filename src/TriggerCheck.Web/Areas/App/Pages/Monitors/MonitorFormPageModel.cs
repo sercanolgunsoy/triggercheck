@@ -13,4 +13,5 @@ public abstract class MonitorFormPageModel : PageModel
 
     public Plan Plan { get; protected set; } = null!;
     public IReadOnlyList<int> AllowedIntervals => PlanRules.AllowedIntervals(Plan);
+    public IReadOnlyList<int> AllowedHeartbeatIntervals => PlanRules.AllowedHeartbeatIntervals(Plan);
 }

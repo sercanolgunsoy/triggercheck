@@ -8,7 +8,7 @@ using TriggerCheck.Infrastructure.Data;
 namespace TriggerCheck.Tests.Infrastructure;
 
 /// <summary>
-/// Shared integration-test host. Each factory instance gets its own SQLite file, seeded with
+/// Shared integration-test host. Each factory instance gets its own database (<see cref="TestDatabase"/>), seeded with
 /// roles, plans, SuperAdmin (superadmin@triggercheck.local / SuperAdmin123!) and demo customer
 /// (admin@demo.local / Demo123!, plan Standard = 60s). The background scheduler is disabled.
 /// </summary>
@@ -19,14 +19,21 @@ public class TestWebAppFactory : WebApplicationFactory<Program>
     public const string DemoAdminEmail = "admin@demo.local";
     public const string DemoAdminPassword = "Demo123!";
 
-    private readonly string _dbPath = Path.Combine(Path.GetTempPath(), $"triggercheck-test-{Guid.NewGuid():N}.db");
+    private readonly TestDatabase _db = TestDatabase.Create("test");
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Development");
-        builder.UseSetting("ConnectionStrings:Default", $"Data Source={_dbPath}");
+        foreach (var (key, value) in _db.Settings) builder.UseSetting(key, value);
         builder.UseSetting("Monitoring:Enabled", "false");
         builder.UseSetting("Seed:DemoData", "true");
+        // Tests probe local servers; SSRF blocking itself is covered in Security/ with the flag off.
+        builder.UseSetting("Monitoring:AllowPrivateTargets", "true");
+        builder.UseSetting("Seed:SuperAdminPassword", SuperAdminPassword);
+        // Tests sign in as the seeded SuperAdmin directly; the forced change is covered in Accounts/PasswordChangeTests.
+        builder.UseSetting("Seed:SuperAdminMustChangePassword", "false");
+        // Required outside Development (tests also run the app as Production / Staging).
+        builder.UseSetting("Site:PublicBaseUrl", "https://localhost");
     }
 
     public HttpClient CreateBrowser() => CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, HandleCookies = true });
@@ -57,7 +64,7 @@ public class TestWebAppFactory : WebApplicationFactory<Program>
     protected override void Dispose(bool disposing)
     {
         base.Dispose(disposing);
-        try { File.Delete(_dbPath); } catch { /* ignore */ }
+        _db.Dispose();
     }
 }
 

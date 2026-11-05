@@ -295,9 +295,6 @@
   <data name="No alert channels yet. Add an e-mail or webhook channel to hear about downtime." xml:space="preserve">
     <value>Henüz bildirim kanalı yok. Kesintilerden haberdar olmak için bir e-posta veya webhook kanalı ekleyin.</value>
   </data>
-  <data name="No check results in the last 24 hours." xml:space="preserve">
-    <value>Son 24 saatte kontrol sonucu yok.</value>
-  </data>
   <data name="No checks yet." xml:space="preserve">
     <value>Henüz kontrol yapılmadı.</value>
   </data>
@@ -346,12 +343,6 @@
   <data name="Resolved" xml:space="preserve">
     <value>Çözüldü</value>
   </data>
-  <data name="Response time (ms)" xml:space="preserve">
-    <value>Yanıt süresi (ms)</value>
-  </data>
-  <data name="Response time — last 24 hours ({0})" xml:space="preserve">
-    <value>Yanıt süresi — son 24 saat ({0})</value>
-  </data>
   <data name="Result" xml:space="preserve">
     <value>Sonuç</value>
   </data>
@@ -388,6 +379,12 @@
   <data name="The monitor goes DOWN after this many consecutive failed checks." xml:space="preserve">
     <value>Art arda bu kadar hatalı kontrol sonrası DOWN olur.</value>
   </data>
+  <data name="The monitor settings were changed while it was being checked. The result was discarded; run the check again." xml:space="preserve">
+    <value>Monitör kontrol edilirken ayarları değiştirildi. Sonuç kullanılmadı; kontrolü tekrar çalıştırın.</value>
+  </data>
+  <data name="The monitor was deleted while it was being checked." xml:space="preserve">
+    <value>Monitör kontrol edilirken silindi.</value>
+  </data>
   <data name="The on-demand check service is currently unavailable." xml:space="preserve">
     <value>Anlık kontrol servisi şu anda kullanılamıyor.</value>
   </data>
@@ -412,6 +409,9 @@
   <data name="The role of {0} was changed to &quot;{1}&quot;." xml:space="preserve">
     <value>{0} kullanıcısının rolü "{1}" olarak değiştirildi.</value>
   </data>
+  <data name="The system is busy right now. Please try again in a moment." xml:space="preserve">
+    <value>Sistem şu anda meşgul. Lütfen birazdan tekrar deneyin.</value>
+  </data>
   <data name="The target must be a host name or IP address without a scheme (e.g. example.com)." xml:space="preserve">
     <value>Hedef, şema içermeyen bir alan adı veya IP adresi olmalıdır (örn. example.com).</value>
   </data>
@@ -429,6 +429,9 @@
   </data>
   <data name="This check interval is not available on your plan ({0}). Allowed: {1}." xml:space="preserve">
     <value>Bu kontrol aralığı planınızda ({0}) kullanılamaz. İzin verilen: {1}.</value>
+  </data>
+  <data name="This monitor was changed in the meantime (for example paused or edited by someone else). Reload the page and try again." xml:space="preserve">
+    <value>Bu monitör bu arada değiştirildi (örneğin başka biri tarafından duraklatıldı veya düzenlendi). Sayfayı yenileyip tekrar deneyin.</value>
   </data>
   <data name="Time ({0})" xml:space="preserve">
     <value>Zaman ({0})</value>
@@ -531,5 +534,1904 @@
   </data>
   <data name="{0} was deleted." xml:space="preserve">
     <value>{0} silindi.</value>
+  </data>
+  <data name="This address points to a private or internal network and cannot be monitored." xml:space="preserve">
+    <value>Bu adres özel veya dahili bir ağı gösteriyor ve izlenemez.</value>
+  </data>
+  <data name="The webhook address points to a private or internal network and is not allowed." xml:space="preserve">
+    <value>Webhook adresi özel veya dahili bir ağı gösteriyor ve kullanılamaz.</value>
+  </data>
+  <data name="This monitor is being checked right now. Try again in a few seconds." xml:space="preserve">
+    <value>Bu monitör şu anda kontrol ediliyor. Birkaç saniye sonra tekrar deneyin.</value>
+  </data>
+  <data name="This monitor was checked moments ago. Try again in {0} seconds." xml:space="preserve">
+    <value>Bu monitör az önce kontrol edildi. {0} saniye sonra tekrar deneyin.</value>
+  </data>
+  <data name="Too many manual checks for your account. Try again in {0} seconds." xml:space="preserve">
+    <value>Hesabınız için çok fazla manuel kontrol yapıldı. {0} saniye sonra tekrar deneyin.</value>
+  </data>
+  <data name="Certificate expiry warning" xml:space="preserve">
+    <value>Sertifika süresi uyarısı</value>
+  </data>
+  <data name="Invalid certificate expiry warning." xml:space="preserve">
+    <value>Geçersiz sertifika süresi uyarısı.</value>
+  </data>
+  <data name="Off" xml:space="preserve">
+    <value>Kapalı</value>
+  </data>
+  <data name="{0} days before expiry" xml:space="preserve">
+    <value>Süre bitiminden {0} gün önce</value>
+  </data>
+  <data name="https only: one alert when the TLS certificate is about to expire." xml:space="preserve">
+    <value>Yalnızca https: TLS sertifikasının süresi dolmak üzereyken tek bir uyarı gönderilir.</value>
+  </data>
+  <data name="TLS certificate" xml:space="preserve">
+    <value>TLS sertifikası</value>
+  </data>
+  <data name="expired on {0}" xml:space="preserve">
+    <value>{0} tarihinde süresi doldu</value>
+  </data>
+  <data name="expires {0} ({1} days left)" xml:space="preserve">
+    <value>{0} tarihinde sona eriyor ({1} gün kaldı)</value>
+  </data>
+  <data name="Issuer: {0}" xml:space="preserve">
+    <value>Yayıncı: {0}</value>
+  </data>
+  <data name="Not checked yet." xml:space="preserve">
+    <value>Henüz kontrol edilmedi.</value>
+  </data>
+  <data name="Expiry warning: {0}" xml:space="preserve">
+    <value>Süre uyarısı: {0}</value>
+  </data>
+  <data name="Response time ({0})" xml:space="preserve">
+    <value>Yanıt süresi ({0})</value>
+  </data>
+  <data name="Chart range" xml:space="preserve">
+    <value>Grafik aralığı</value>
+  </data>
+  <data name="No check results in this period." xml:space="preserve">
+    <value>Bu dönemde kontrol sonucu yok.</value>
+  </data>
+  <data name="Average and 95th percentile of successful checks; failed checks and incidents are marked in red." xml:space="preserve">
+    <value>Başarılı kontrollerin ortalaması ve 95. yüzdeliği; başarısız kontroller ve olaylar kırmızıyla işaretlenir.</value>
+  </data>
+  <data name="Response time chart" xml:space="preserve">
+    <value>Yanıt süresi grafiği</value>
+  </data>
+  <data name="{0} checks in this period, {1} failed, {2} incidents. Average response time {3} ms, fastest interval {4} ms, slowest interval {5} ms." xml:space="preserve">
+    <value>Bu dönemde {0} kontrol, {1} başarısız, {2} olay. Ortalama yanıt süresi {3} ms, en hızlı aralık {4} ms, en yavaş aralık {5} ms.</value>
+  </data>
+  <data name="Average phases: DNS {0} ms, connect {1} ms, TLS {2} ms, waiting for the response {3} ms, transfer {4} ms." xml:space="preserve">
+    <value>Ortalama aşamalar: DNS {0} ms, bağlantı {1} ms, TLS {2} ms, yanıt bekleme {3} ms, aktarım {4} ms.</value>
+  </data>
+  <data name="Phase breakdown (average, ms)" xml:space="preserve">
+    <value>Aşama kırılımı (ortalama, ms)</value>
+  </data>
+  <data name="A reused connection has no DNS, connect or TLS phase; these phases count as 0 for it." xml:space="preserve">
+    <value>Yeniden kullanılan bağlantıda DNS, bağlantı ve TLS aşaması yoktur; bu aşamalar 0 sayılır.</value>
+  </data>
+  <data name="Phase breakdown chart" xml:space="preserve">
+    <value>Aşama kırılımı grafiği</value>
+  </data>
+  <data name="Phases" xml:space="preserve">
+    <value>Aşamalar</value>
+  </data>
+  <data name="Average (ms)" xml:space="preserve">
+    <value>Ortalama (ms)</value>
+  </data>
+  <data name="95th percentile (ms)" xml:space="preserve">
+    <value>95. yüzdelik (ms)</value>
+  </data>
+  <data name="Failed checks" xml:space="preserve">
+    <value>Başarısız kontroller</value>
+  </data>
+  <data name="Incident" xml:space="preserve">
+    <value>Olay</value>
+  </data>
+  <data name="DNS" xml:space="preserve">
+    <value>DNS</value>
+  </data>
+  <data name="Connect" xml:space="preserve">
+    <value>Bağlantı</value>
+  </data>
+  <data name="TLS" xml:space="preserve">
+    <value>TLS</value>
+  </data>
+  <data name="Waiting (TTFB)" xml:space="preserve">
+    <value>Bekleme (TTFB)</value>
+  </data>
+  <data name="Transfer" xml:space="preserve">
+    <value>Aktarım</value>
+  </data>
+  <data name="reused connection, TTFB {0} ms" xml:space="preserve">
+    <value>yeniden kullanılan bağlantı, TTFB {0} ms</value>
+  </data>
+  <data name="Check failed: {0}{1}. The failure was recorded; a confirmation check runs shortly before the monitor is marked down." xml:space="preserve">
+    <value>Kontrol başarısız: {0}{1}. Hata kaydedildi; monitör kapalı olarak işaretlenmeden önce kısa süre içinde bir doğrulama kontrolü yapılacak.</value>
+  </data>
+  <data name="Confirming failure…" xml:space="preserve">
+    <value>Hata doğrulanıyor…</value>
+  </data>
+  <data name="Confirmation check" xml:space="preserve">
+    <value>Doğrulama kontrolü</value>
+  </data>
+  <data name="Slack" xml:space="preserve">
+    <value>Slack</value>
+  </data>
+  <data name="Microsoft Teams" xml:space="preserve">
+    <value>Microsoft Teams</value>
+  </data>
+  <data name="Telegram" xml:space="preserve">
+    <value>Telegram</value>
+  </data>
+  <data name="SMS" xml:space="preserve">
+    <value>SMS</value>
+  </data>
+  <data name="Voice call" xml:space="preserve">
+    <value>Sesli arama</value>
+  </data>
+  <data name="Bot token" xml:space="preserve">
+    <value>Bot token'ı</value>
+  </data>
+  <data name="The bot token can be at most 200 characters." xml:space="preserve">
+    <value>Bot token'ı en fazla 200 karakter olabilir.</value>
+  </data>
+  <data name="Enter the Slack incoming webhook URL (https://hooks.slack.com/services/...)." xml:space="preserve">
+    <value>Slack Incoming Webhook adresini girin (https://hooks.slack.com/services/...).</value>
+  </data>
+  <data name="Enter the Teams workflow webhook URL (it starts with https://)." xml:space="preserve">
+    <value>Teams iş akışı (workflow) webhook adresini girin (https:// ile başlar).</value>
+  </data>
+  <data name="Enter a numeric Telegram chat id (e.g. -1001234567890) or a @channelname." xml:space="preserve">
+    <value>Sayısal bir Telegram sohbet kimliği (ör. -1001234567890) veya @kanaladi girin.</value>
+  </data>
+  <data name="Enter the bot token from @BotFather (e.g. 123456789:AA...)." xml:space="preserve">
+    <value>@BotFather'dan aldığınız bot token'ını girin (ör. 123456789:AA...).</value>
+  </data>
+  <data name="SMS and voice call alerts are not available for your plan." xml:space="preserve">
+    <value>SMS ve sesli arama bildirimleri planınızda bulunmuyor.</value>
+  </data>
+  <data name="Enter the phone number in international E.164 format, e.g. +905551234567." xml:space="preserve">
+    <value>Telefon numarasını uluslararası E.164 biçiminde girin, ör. +905551234567.</value>
+  </data>
+  <data name="In Slack, add an Incoming Webhook to a channel and paste its URL (https://hooks.slack.com/services/...). Alerts arrive as formatted messages." xml:space="preserve">
+    <value>Slack'te bir kanala Incoming Webhook ekleyin ve adresini yapıştırın (https://hooks.slack.com/services/...). Bildirimler biçimlendirilmiş mesaj olarak gelir.</value>
+  </data>
+  <data name="In Teams, create a workflow from the template &quot;Post to a channel when a webhook request is received&quot; and paste its URL. Alerts arrive as Adaptive Cards." xml:space="preserve">
+    <value>Teams'te "Post to a channel when a webhook request is received" şablonuyla bir iş akışı oluşturun ve adresini yapıştırın. Bildirimler Adaptive Card olarak gelir.</value>
+  </data>
+  <data name="Create a bot with @BotFather, add it to your group or channel, and enter the chat id here. The bot token is never shown again after saving." xml:space="preserve">
+    <value>@BotFather ile bir bot oluşturun, grubunuza veya kanalınıza ekleyin ve sohbet kimliğini buraya girin. Bot token'ı kaydedildikten sonra bir daha gösterilmez.</value>
+  </data>
+  <data name="Mobile phone number in international E.164 format, e.g. +905551234567. Messages are kept short." xml:space="preserve">
+    <value>Uluslararası E.164 biçiminde cep telefonu numarası, ör. +905551234567. Mesajlar kısa tutulur.</value>
+  </data>
+  <data name="Phone number in international E.164 format, e.g. +905551234567. The alert is read out in English." xml:space="preserve">
+    <value>Uluslararası E.164 biçiminde telefon numarası, ör. +905551234567. Bildirim İngilizce okunur.</value>
+  </data>
+  <data name="Leave empty to keep the stored token" xml:space="preserve">
+    <value>Kayıtlı token'ı korumak için boş bırakın</value>
+  </data>
+  <data name="Send a test message to this channel now" xml:space="preserve">
+    <value>Bu kanala şimdi bir test mesajı gönder</value>
+  </data>
+  <data name="Send test" xml:space="preserve">
+    <value>Test gönder</value>
+  </data>
+  <data name="no contact e-mail set" xml:space="preserve">
+    <value>iletişim e-postası tanımlı değil</value>
+  </data>
+  <data name="When no channel is enabled" xml:space="preserve">
+    <value>Hiçbir kanal etkin değilken</value>
+  </data>
+  <data name="Alerts go to every enabled channel above. If no channel is enabled (none added, or all disabled), this setting decides what happens to DOWN / UP alerts. Disabling every channel therefore does not silence alerts unless you choose &quot;Do not send alerts&quot;." xml:space="preserve">
+    <value>Bildirimler yukarıdaki tüm etkin kanallara gönderilir. Hiçbir kanal etkin değilse (hiç eklenmemiş veya hepsi kapalı), DOWN / UP bildirimlerine ne olacağını bu ayar belirler. Bu nedenle tüm kanalları kapatmak, "Bildirim gönderme" seçilmedikçe bildirimleri susturmaz.</value>
+  </data>
+  <data name="No channel is enabled: alerts are currently sent to {0}." xml:space="preserve">
+    <value>Hiçbir kanal etkin değil: bildirimler şu anda {0} adresine gönderiliyor.</value>
+  </data>
+  <data name="No channel is enabled: alerts are currently not sent." xml:space="preserve">
+    <value>Hiçbir kanal etkin değil: bildirimler şu anda gönderilmiyor.</value>
+  </data>
+  <data name="Send alerts to the account contact e-mail ({0}) (default)" xml:space="preserve">
+    <value>Bildirimleri hesabın iletişim e-postasına gönder ({0}) (varsayılan)</value>
+  </data>
+  <data name="Do not send alerts" xml:space="preserve">
+    <value>Bildirim gönderme</value>
+  </data>
+  <data name="The setting was saved." xml:space="preserve">
+    <value>Ayar kaydedildi.</value>
+  </data>
+  <data name="Too many test notifications. Try again in {0} seconds." xml:space="preserve">
+    <value>Çok fazla test bildirimi gönderildi. {0} saniye sonra tekrar deneyin.</value>
+  </data>
+  <data name="Test notification sent to &quot;{0}&quot;." xml:space="preserve">
+    <value>"{0}" kanalına test bildirimi gönderildi.</value>
+  </data>
+  <data name="Test notification to &quot;{0}&quot; failed: {1}" xml:space="preserve">
+    <value>"{0}" kanalına test bildirimi başarısız oldu: {1}</value>
+  </data>
+  <data name="Some enabled channels cannot deliver: SMS and voice call alerts are not available for your plan or not set up for this service. They are skipped, and if no other channel is enabled the setting below applies." xml:space="preserve">
+    <value>Bazı etkin kanallar bildirim iletemez: SMS ve sesli arama bildirimleri planınızda bulunmuyor veya bu hizmette yapılandırılmamış. Bu kanallar atlanır; başka etkin kanal yoksa aşağıdaki ayar uygulanır.</value>
+  </data>
+  <data name="TLS certificate expiry warnings are never sent as voice calls; if voice calls are your only channel, they follow this setting as well." xml:space="preserve">
+    <value>TLS sertifikası süre uyarıları hiçbir zaman sesli arama olarak gönderilmez; tek kanalınız sesli arama ise bu uyarılar da bu ayara göre gönderilir.</value>
+  </data>
+  <data name="equals" xml:space="preserve">
+    <value>eşittir</value>
+  </data>
+  <data name="contains" xml:space="preserve">
+    <value>içerir</value>
+  </data>
+  <data name="exists" xml:space="preserve">
+    <value>mevcut</value>
+  </data>
+  <data name="is less than" xml:space="preserve">
+    <value>küçüktür</value>
+  </data>
+  <data name="is greater than" xml:space="preserve">
+    <value>büyüktür</value>
+  </data>
+  <data name="The target must be a host name without a scheme (e.g. example.com)." xml:space="preserve">
+    <value>Hedef, şema içermeyen bir alan adı olmalıdır (ör. example.com).</value>
+  </data>
+  <data name="Choose a DNS record type." xml:space="preserve">
+    <value>Bir DNS kayıt türü seçin.</value>
+  </data>
+  <data name="A DNS monitor can only check that a record equals or contains the expected value." xml:space="preserve">
+    <value>DNS monitörü yalnızca bir kaydın beklenen değere eşit olduğunu veya onu içerdiğini kontrol edebilir.</value>
+  </data>
+  <data name="The grace period must be between {0} and {1} seconds." xml:space="preserve">
+    <value>Tolerans süresi {0} ile {1} saniye arasında olmalıdır.</value>
+  </data>
+  <data name="A HEAD request has no response body; use GET or POST for keyword and JSON monitors." xml:space="preserve">
+    <value>HEAD isteğinin yanıt gövdesi yoktur; anahtar kelime ve JSON monitörleri için GET veya POST kullanın.</value>
+  </data>
+  <data name="Enter a JSON path like $.status or $.items[0].name (only .name, ['name'] and [index]; no wildcards or filters)." xml:space="preserve">
+    <value>$.status veya $.items[0].name gibi bir JSON yolu girin (yalnızca .ad, ['ad'] ve [indeks]; joker karakter veya filtre yok).</value>
+  </data>
+  <data name="Choose a condition." xml:space="preserve">
+    <value>Bir koşul seçin.</value>
+  </data>
+  <data name="Enter the expected value." xml:space="preserve">
+    <value>Beklenen değeri girin.</value>
+  </data>
+  <data name="For less than / greater than the expected value must be a number, e.g. 250 or 0.5." xml:space="preserve">
+    <value>Küçüktür / büyüktür için beklenen değer bir sayı olmalıdır, ör. 250 veya 0.5.</value>
+  </data>
+  <data name="The JSON path can be at most 500 characters." xml:space="preserve">
+    <value>JSON yolu en fazla 500 karakter olabilir.</value>
+  </data>
+  <data name="The expected value can be at most 500 characters." xml:space="preserve">
+    <value>Beklenen değer en fazla 500 karakter olabilir.</value>
+  </data>
+  <data name="Record type" xml:space="preserve">
+    <value>Kayıt türü</value>
+  </data>
+  <data name="JSON path" xml:space="preserve">
+    <value>JSON yolu</value>
+  </data>
+  <data name="Condition" xml:space="preserve">
+    <value>Koşul</value>
+  </data>
+  <data name="Expected value" xml:space="preserve">
+    <value>Beklenen değer</value>
+  </data>
+  <data name="Grace period (sec)" xml:space="preserve">
+    <value>Tolerans süresi (sn)</value>
+  </data>
+  <data name="A new ping URL was generated. The old URL no longer works." xml:space="preserve">
+    <value>Yeni bir ping URL'si oluşturuldu. Eski URL artık çalışmıyor.</value>
+  </data>
+  <data name="A heartbeat monitor is checked when its ping arrives or is overdue; it cannot be checked on demand." xml:space="preserve">
+    <value>Heartbeat monitörü, ping geldiğinde veya gecikince değerlendirilir; isteğe bağlı olarak kontrol edilemez.</value>
+  </data>
+  <data name="Monitor &quot;{0}&quot; was created. Call its ping URL from your job; it goes down when no ping arrives in time." xml:space="preserve">
+    <value>"{0}" monitörü oluşturuldu. İşinizden ping URL'sini çağırın; ping zamanında gelmezse monitör kapalı duruma geçer.</value>
+  </data>
+  <data name="Host name to look up, e.g. example.com" xml:space="preserve">
+    <value>Sorgulanacak alan adı, ör. example.com</value>
+  </data>
+  <data name="e.g. $.status, $.data.items[0].name or $['odd key']" xml:space="preserve">
+    <value>ör. $.status, $.data.items[0].name veya $['özel anahtar']</value>
+  </data>
+  <data name="Optional. Empty: at least one record must exist." xml:space="preserve">
+    <value>İsteğe bağlı. Boş bırakılırsa en az bir kayıt bulunması yeterlidir.</value>
+  </data>
+  <data name="Not used for &quot;exists&quot;; a number for less / greater than." xml:space="preserve">
+    <value>"mevcut" için kullanılmaz; küçüktür / büyüktür için bir sayı girin.</value>
+  </data>
+  <data name="Heartbeat monitors are not probed. Your job calls a secret ping URL (shown after saving) every interval; the monitor goes down when no ping arrives within the interval plus the grace period, or when a ping reports ?status=fail." xml:space="preserve">
+    <value>Heartbeat monitörleri yoklanmaz. İşiniz her aralıkta gizli bir ping URL'sini (kaydettikten sonra gösterilir) çağırır; aralık artı tolerans süresi içinde ping gelmezse veya bir ping ?status=fail bildirirse monitör kapalı duruma geçer.</value>
+  </data>
+  <data name="Expected ping interval" xml:space="preserve">
+    <value>Beklenen ping aralığı</value>
+  </data>
+  <data name="Extra time allowed for a late ping." xml:space="preserve">
+    <value>Geç gelen bir ping için tanınan ek süre.</value>
+  </data>
+  <data name="Ping URL" xml:space="preserve">
+    <value>Ping URL'si</value>
+  </data>
+  <data name="Copy it now: for security it is shown only once. If you lose it, generate a new one." xml:space="preserve">
+    <value>Şimdi kopyalayın: güvenlik nedeniyle yalnızca bir kez gösterilir. Kaybederseniz yenisini oluşturun.</value>
+  </data>
+  <data name="Example (cron):" xml:space="preserve">
+    <value>Örnek (cron):</value>
+  </data>
+  <data name="report a failure with ?status=fail&amp;msg=..." xml:space="preserve">
+    <value>hata bildirmek için ?status=fail&amp;msg=... ekleyin</value>
+  </data>
+  <data name="Grace period" xml:space="preserve">
+    <value>Tolerans süresi</value>
+  </data>
+  <data name="Generate a new ping URL? The current URL stops working immediately." xml:space="preserve">
+    <value>Yeni bir ping URL'si oluşturulsun mu? Mevcut URL hemen çalışmaz hale gelir.</value>
+  </data>
+  <data name="Generate new URL" xml:space="preserve">
+    <value>Yeni URL oluştur</value>
+  </data>
+  <data name="Last ping" xml:space="preserve">
+    <value>Son ping</value>
+  </data>
+  <data name="No ping received yet." xml:space="preserve">
+    <value>Henüz ping alınmadı.</value>
+  </data>
+  <data name="reported failure" xml:space="preserve">
+    <value>hata bildirdi</value>
+  </data>
+  <data name="any record" xml:space="preserve">
+    <value>herhangi bir kayıt</value>
+  </data>
+  <data name="JSON assertion" xml:space="preserve">
+    <value>JSON doğrulaması</value>
+  </data>
+  <data name="A one-off window can last at most 31 days." xml:space="preserve">
+    <value>Tek seferlik bir bakım penceresi en fazla 31 gün sürebilir.</value>
+  </data>
+  <data name="A window for all monitors also covers monitors added later." xml:space="preserve">
+    <value>Tüm monitörler için tanımlanan pencere sonradan eklenen monitörleri de kapsar.</value>
+  </data>
+  <data name="Acknowledge" xml:space="preserve">
+    <value>Onayla</value>
+  </data>
+  <data name="Acknowledge an incident from the incidents page or with the link in the DOWN alert. Acknowledged or resolved incidents are not escalated; escalation also pauses while a monitor is in maintenance." xml:space="preserve">
+    <value>Bir olayı olaylar sayfasından veya DOWN bildirimindeki bağlantıyla onaylayın. Onaylanmış veya çözülmüş olaylar eskale edilmez; monitör bakımdayken eskalasyon da durur.</value>
+  </data>
+  <data name="Acknowledge incident" xml:space="preserve">
+    <value>Olayı onayla</value>
+  </data>
+  <data name="Acknowledged" xml:space="preserve">
+    <value>Onaylandı</value>
+  </data>
+  <data name="Acknowledging tells your team someone is working on it and stops further escalation steps. The monitor's status is not changed." xml:space="preserve">
+    <value>Onaylamak, ekibinize birinin sorunla ilgilendiğini bildirir ve sonraki eskalasyon adımlarını durdurur. Monitörün durumu değişmez.</value>
+  </data>
+  <data name="Add alert channels first; escalation steps notify channels you choose." xml:space="preserve">
+    <value>Önce bildirim kanalı ekleyin; eskalasyon adımları seçtiğiniz kanallara bildirim gönderir.</value>
+  </data>
+  <data name="Are you sure you want to delete the maintenance window &quot;{0}&quot;? Monitors it covers are alerted normally again." xml:space="preserve">
+    <value>"{0}" bakım penceresini silmek istediğinize emin misiniz? Kapsadığı monitörler için yeniden normal şekilde bildirim gönderilir.</value>
+  </data>
+  <data name="Choose a valid time zone." xml:space="preserve">
+    <value>Geçerli bir saat dilimi seçin.</value>
+  </data>
+  <data name="Choose at least one day." xml:space="preserve">
+    <value>En az bir gün seçin.</value>
+  </data>
+  <data name="Choose at least one monitor, or apply the window to all monitors." xml:space="preserve">
+    <value>En az bir monitör seçin veya pencereyi tüm monitörlere uygulayın.</value>
+  </data>
+  <data name="Current / next ({0})" xml:space="preserve">
+    <value>Şu anki / sonraki ({0})</value>
+  </data>
+  <data name="Days" xml:space="preserve">
+    <value>Günler</value>
+  </data>
+  <data name="Delete maintenance window" xml:space="preserve">
+    <value>Bakım penceresini sil</value>
+  </data>
+  <data name="Duration (minutes)" xml:space="preserve">
+    <value>Süre (dakika)</value>
+  </data>
+  <data name="During planned maintenance, checks keep running but no incidents are opened and no alerts are sent. Maintenance time is left out of uptime." xml:space="preserve">
+    <value>Planlı bakım sırasında kontroller devam eder ancak olay açılmaz ve bildirim gönderilmez. Bakım süresi çalışma süresi hesabına katılmaz.</value>
+  </data>
+  <data name="Edit maintenance window" xml:space="preserve">
+    <value>Bakım penceresini düzenle</value>
+  </data>
+  <data name="Ends" xml:space="preserve">
+    <value>Bitiş</value>
+  </data>
+  <data name="Enter the start and the end." xml:space="preserve">
+    <value>Başlangıç ve bitişi girin.</value>
+  </data>
+  <data name="Enter the start time as HH:mm." xml:space="preserve">
+    <value>Başlangıç saatini SS:dd biçiminde girin.</value>
+  </data>
+  <data name="Escalated to step {0}" xml:space="preserve">
+    <value>{0}. adıma eskale edildi</value>
+  </data>
+  <data name="Escalation enabled" xml:space="preserve">
+    <value>Eskalasyon etkin</value>
+  </data>
+  <data name="Escalation policy" xml:space="preserve">
+    <value>Eskalasyon politikası</value>
+  </data>
+  <data name="Go to incidents" xml:space="preserve">
+    <value>Olaylara git</value>
+  </data>
+  <data name="Grey bands are maintenance windows; checks in them are not counted." xml:space="preserve">
+    <value>Gri bantlar bakım pencereleridir; bu aralıktaki kontroller hesaba katılmaz.</value>
+  </data>
+  <data name="In maintenance" xml:space="preserve">
+    <value>Bakımda</value>
+  </data>
+  <data name="In progress" xml:space="preserve">
+    <value>Devam ediyor</value>
+  </data>
+  <data name="Incident #{0}" xml:space="preserve">
+    <value>Olay #{0}</value>
+  </data>
+  <data name="Leave a row empty to skip it. Each step must come later than the previous one (at most 24 hours)." xml:space="preserve">
+    <value>Bir satırı atlamak için boş bırakın. Her adım bir öncekinden sonra gelmelidir (en fazla 24 saat).</value>
+  </data>
+  <data name="Maintenance window &quot;{0}&quot; was added." xml:space="preserve">
+    <value>"{0}" bakım penceresi eklendi.</value>
+  </data>
+  <data name="Maintenance window &quot;{0}&quot; was deleted." xml:space="preserve">
+    <value>"{0}" bakım penceresi silindi.</value>
+  </data>
+  <data name="Maintenance window &quot;{0}&quot; was updated." xml:space="preserve">
+    <value>"{0}" bakım penceresi güncellendi.</value>
+  </data>
+  <data name="Maintenance windows" xml:space="preserve">
+    <value>Bakım pencereleri</value>
+  </data>
+  <data name="Minutes after the incident started" xml:space="preserve">
+    <value>Olay başladıktan sonraki dakika</value>
+  </data>
+  <data name="Monitor {0} has been down since {1}." xml:space="preserve">
+    <value>{0} monitörü {1} tarihinden beri kapalı.</value>
+  </data>
+  <data name="New maintenance window" xml:space="preserve">
+    <value>Yeni bakım penceresi</value>
+  </data>
+  <data name="No maintenance windows yet." xml:space="preserve">
+    <value>Henüz bakım penceresi yok.</value>
+  </data>
+  <data name="Not escalated" xml:space="preserve">
+    <value>Eskale edilmedi</value>
+  </data>
+  <data name="Note (optional)" xml:space="preserve">
+    <value>Not (isteğe bağlı)</value>
+  </data>
+  <data name="Notify channels" xml:space="preserve">
+    <value>Bildirilecek kanallar</value>
+  </data>
+  <data name="One-off" xml:space="preserve">
+    <value>Tek seferlik</value>
+  </data>
+  <data name="Only account admins can acknowledge incidents." xml:space="preserve">
+    <value>Olayları yalnızca hesap yöneticileri onaylayabilir.</value>
+  </data>
+  <data name="Repeats weekly" xml:space="preserve">
+    <value>Her hafta tekrarlanır</value>
+  </data>
+  <data name="Schedule" xml:space="preserve">
+    <value>Zamanlama</value>
+  </data>
+  <data name="Start and end times are entered in this time zone; weekly windows follow its daylight saving time changes." xml:space="preserve">
+    <value>Başlangıç ve bitiş saatleri bu saat diliminde girilir; haftalık pencereler bu dilimin yaz saati değişikliklerini izler.</value>
+  </data>
+  <data name="Start time" xml:space="preserve">
+    <value>Başlangıç saati</value>
+  </data>
+  <data name="Starts" xml:space="preserve">
+    <value>Başlangıç</value>
+  </data>
+  <data name="Step" xml:space="preserve">
+    <value>Adım</value>
+  </data>
+  <data name="Step {0}: choose at least one alert channel." xml:space="preserve">
+    <value>Adım {0}: en az bir bildirim kanalı seçin.</value>
+  </data>
+  <data name="Step {0}: each step must come later than the previous one." xml:space="preserve">
+    <value>Adım {0}: her adım bir öncekinden sonra gelmelidir.</value>
+  </data>
+  <data name="Step {0}: the delay must be between 1 and {1} minutes." xml:space="preserve">
+    <value>Adım {0}: gecikme 1 ile {1} dakika arasında olmalıdır.</value>
+  </data>
+  <data name="The duration must be between 1 and {0} minutes." xml:space="preserve">
+    <value>Süre 1 ile {0} dakika arasında olmalıdır.</value>
+  </data>
+  <data name="The end must be after the start." xml:space="preserve">
+    <value>Bitiş, başlangıçtan sonra olmalıdır.</value>
+  </data>
+  <data name="The end must be in the future." xml:space="preserve">
+    <value>Bitiş gelecekte olmalıdır.</value>
+  </data>
+  <data name="The escalation policy was saved." xml:space="preserve">
+    <value>Eskalasyon politikası kaydedildi.</value>
+  </data>
+  <data name="The incident is already resolved; resolved incidents cannot be acknowledged." xml:space="preserve">
+    <value>Olay zaten çözüldü; çözülmüş olaylar onaylanamaz.</value>
+  </data>
+  <data name="The incident was acknowledged. No further escalation steps are sent for it." xml:space="preserve">
+    <value>Olay onaylandı. Bu olay için başka eskalasyon adımı gönderilmeyecek.</value>
+  </data>
+  <data name="The incident was already acknowledged." xml:space="preserve">
+    <value>Olay zaten onaylanmış.</value>
+  </data>
+  <data name="Time zone" xml:space="preserve">
+    <value>Saat dilimi</value>
+  </data>
+  <data name="Upcoming" xml:space="preserve">
+    <value>Yaklaşan</value>
+  </data>
+  <data name="View incident" xml:space="preserve">
+    <value>Olayı görüntüle</value>
+  </data>
+  <data name="Weekly on {0} at {1} for {2} ({3})" xml:space="preserve">
+    <value>Her hafta {0}, saat {1}, {2} süreyle ({3})</value>
+  </data>
+  <data name="When a monitor goes DOWN, every enabled channel is notified (step 0). If nobody acknowledges the incident, the steps below notify further channels while the monitor is still down." xml:space="preserve">
+    <value>Bir monitör DOWN olduğunda tüm etkin kanallara bildirim gönderilir (adım 0). Olayı kimse onaylamazsa, monitör hâlâ kapalıyken aşağıdaki adımlar başka kanallara da bildirim gönderir.</value>
+  </data>
+  <data name="a deleted user" xml:space="preserve">
+    <value>silinmiş bir kullanıcı</value>
+  </data>
+  <data name="e.g. Weekly database upgrade" xml:space="preserve">
+    <value>örn. Haftalık veritabanı güncellemesi</value>
+  </data>
+  <data name="{0} by {1}" xml:space="preserve">
+    <value>{0}, {1} tarafından</value>
+  </data>
+  <data name="{0} monitor(s)" xml:space="preserve">
+    <value>{0} monitör</value>
+  </data>
+  <data name="{0} to {1} ({2})" xml:space="preserve">
+    <value>{0} - {1} ({2})</value>
+  </data>
+  <data name="API key &quot;{0}&quot; was created. Copy it now: it will not be shown again." xml:space="preserve">
+    <value>"{0}" API anahtarı oluşturuldu. Şimdi kopyalayın: bir daha gösterilmeyecek.</value>
+  </data>
+  <data name="API key &quot;{0}&quot; was revoked. Requests using it are rejected from now on." xml:space="preserve">
+    <value>"{0}" API anahtarı iptal edildi. Bu anahtarla yapılan istekler artık reddedilir.</value>
+  </data>
+  <data name="Access" xml:space="preserve">
+    <value>Erişim</value>
+  </data>
+  <data name="Expired" xml:space="preserve">
+    <value>Süresi doldu</value>
+  </data>
+  <data name="Expires" xml:space="preserve">
+    <value>Geçerlilik sonu</value>
+  </data>
+  <data name="Key" xml:space="preserve">
+    <value>Anahtar</value>
+  </data>
+  <data name="Keys for the REST API (/api/v1). Send them as &quot;Authorization: Bearer &lt;key&gt;&quot;. Read-only keys can only list and read data." xml:space="preserve">
+    <value>REST API (/api/v1) anahtarları. "Authorization: Bearer &lt;anahtar&gt;" başlığıyla gönderin. Salt okunur anahtarlar yalnızca veri listeleyip okuyabilir.</value>
+  </data>
+  <data name="Last used" xml:space="preserve">
+    <value>Son kullanım</value>
+  </data>
+  <data name="Never" xml:space="preserve">
+    <value>Hiçbir zaman</value>
+  </data>
+  <data name="New API key" xml:space="preserve">
+    <value>Yeni API anahtarı</value>
+  </data>
+  <data name="No API keys yet." xml:space="preserve">
+    <value>Henüz API anahtarı yok.</value>
+  </data>
+  <data name="OpenAPI document" xml:space="preserve">
+    <value>OpenAPI dokümanı</value>
+  </data>
+  <data name="Revoke" xml:space="preserve">
+    <value>İptal et</value>
+  </data>
+  <data name="Revoke API key {0}? Requests using it will be rejected. This cannot be undone." xml:space="preserve">
+    <value>{0} API anahtarı iptal edilsin mi? Bu anahtarla yapılan istekler reddedilecek. Bu işlem geri alınamaz.</value>
+  </data>
+  <data name="Revoked" xml:space="preserve">
+    <value>İptal edildi</value>
+  </data>
+  <data name="e.g. Deploy pipeline" xml:space="preserve">
+    <value>ör. Dağıtım hattı</value>
+  </data>
+  <data name="In 1 year" xml:space="preserve">
+    <value>1 yıl sonra</value>
+  </data>
+  <data name="In {0} days" xml:space="preserve">
+    <value>{0} gün sonra</value>
+  </data>
+  <data name="Invalid access level." xml:space="preserve">
+    <value>Geçersiz erişim düzeyi.</value>
+  </data>
+  <data name="Invalid expiry." xml:space="preserve">
+    <value>Geçersiz geçerlilik süresi.</value>
+  </data>
+  <data name="Name can be at most 100 characters." xml:space="preserve">
+    <value>Ad en fazla 100 karakter olabilir.</value>
+  </data>
+  <data name="Read &amp; write" xml:space="preserve">
+    <value>Okuma ve yazma</value>
+  </data>
+  <data name="Read-only" xml:space="preserve">
+    <value>Salt okunur</value>
+  </data>
+  <data name="You can have at most {0} active API keys. Revoke one you no longer use first." xml:space="preserve">
+    <value>En fazla {0} etkin API anahtarınız olabilir. Önce artık kullanmadığınız birini iptal edin.</value>
+  </data>
+  <data name="Plan, subscription and payments are managed on the Billing page." xml:space="preserve">
+    <value>Plan, abonelik ve ödemeler Faturalandırma sayfasından yönetilir.</value>
+  </data>
+  <data name="AI requests this month" xml:space="preserve">
+    <value>Bu ayki AI istekleri</value>
+  </data>
+  <data name="Plan usage" xml:space="preserve">
+    <value>Plan kullanımı</value>
+  </data>
+  <data name="Limit reached." xml:space="preserve">
+    <value>Sınıra ulaşıldı.</value>
+  </data>
+  <data name="{0}% of your plan limit is used." xml:space="preserve">
+    <value>Plan sınırınızın %{0} kadarı kullanıldı.</value>
+  </data>
+  <data name="The new plan allows fewer monitors than you have. Delete {0} monitor(s) first, then change the plan." xml:space="preserve">
+    <value>Yeni plan sahip olduğunuzdan daha az monitöre izin veriyor. Önce {0} monitörü silin, ardından planı değiştirin.</value>
+  </data>
+  <data name="Online payment is not available at the moment. Please contact us." xml:space="preserve">
+    <value>Çevrimiçi ödeme şu anda kullanılamıyor. Lütfen bizimle iletişime geçin.</value>
+  </data>
+  <data name="The payment provider did not accept the request. Please try again later." xml:space="preserve">
+    <value>Ödeme sağlayıcısı isteği kabul etmedi. Lütfen daha sonra tekrar deneyin.</value>
+  </data>
+  <data name="This action is not possible in the current subscription state." xml:space="preserve">
+    <value>Bu işlem mevcut abonelik durumunda yapılamaz.</value>
+  </data>
+  <data name="First name is required." xml:space="preserve">
+    <value>Ad zorunludur.</value>
+  </data>
+  <data name="Last name is required." xml:space="preserve">
+    <value>Soyad zorunludur.</value>
+  </data>
+  <data name="Phone number is required." xml:space="preserve">
+    <value>Telefon numarası zorunludur.</value>
+  </data>
+  <data name="Enter a valid phone number." xml:space="preserve">
+    <value>Geçerli bir telefon numarası girin.</value>
+  </data>
+  <data name="The identity number has 11 digits." xml:space="preserve">
+    <value>Kimlik numarası 11 hanelidir.</value>
+  </data>
+  <data name="Address is required." xml:space="preserve">
+    <value>Adres zorunludur.</value>
+  </data>
+  <data name="City is required." xml:space="preserve">
+    <value>Şehir zorunludur.</value>
+  </data>
+  <data name="Country is required." xml:space="preserve">
+    <value>Ülke zorunludur.</value>
+  </data>
+  <data name="First name" xml:space="preserve">
+    <value>Ad</value>
+  </data>
+  <data name="Last name" xml:space="preserve">
+    <value>Soyad</value>
+  </data>
+  <data name="Mobile phone" xml:space="preserve">
+    <value>Cep telefonu</value>
+  </data>
+  <data name="Turkish identity or tax number (optional)" xml:space="preserve">
+    <value>T.C. kimlik veya vergi numarası (isteğe bağlı)</value>
+  </data>
+  <data name="Billing address" xml:space="preserve">
+    <value>Fatura adresi</value>
+  </data>
+  <data name="City" xml:space="preserve">
+    <value>Şehir</value>
+  </data>
+  <data name="Country" xml:space="preserve">
+    <value>Ülke</value>
+  </data>
+  <data name="Postal code" xml:space="preserve">
+    <value>Posta kodu</value>
+  </data>
+  <data name="Subscribe" xml:space="preserve">
+    <value>Abone ol</value>
+  </data>
+  <data name="Subscribe to {0}" xml:space="preserve">
+    <value>{0} planına abone ol</value>
+  </data>
+  <data name="Your checkout is ready. Enter your card details on iyzico's secure payment page; you will be brought back here afterwards." xml:space="preserve">
+    <value>Ödeme adımınız hazır. Kart bilgilerinizi iyzico'nun güvenli ödeme sayfasında girin; ardından buraya geri yönlendirileceksiniz.</value>
+  </data>
+  <data name="Continue to secure payment" xml:space="preserve">
+    <value>Güvenli ödemeye devam et</value>
+  </data>
+  <data name="iyzico needs these billing details for the invoice. Your card is entered on iyzico's secure payment page, never on TriggerCheck." xml:space="preserve">
+    <value>iyzico fatura için bu bilgilere ihtiyaç duyar. Kart bilgileriniz TriggerCheck'e değil, iyzico'nun güvenli ödeme sayfasına girilir.</value>
+  </data>
+  <data name="Continue" xml:space="preserve">
+    <value>Devam</value>
+  </data>
+  <data name="Thank you! Your subscription is active." xml:space="preserve">
+    <value>Teşekkürler! Aboneliğiniz etkin.</value>
+  </data>
+  <data name="The payment was not completed. No subscription was started." xml:space="preserve">
+    <value>Ödeme tamamlanmadı. Abonelik başlatılmadı.</value>
+  </data>
+  <data name="Current plan" xml:space="preserve">
+    <value>Mevcut plan</value>
+  </data>
+  <data name="Next renewal" xml:space="preserve">
+    <value>Sonraki yenileme</value>
+  </data>
+  <data name="Active until" xml:space="preserve">
+    <value>Şu tarihe kadar etkin</value>
+  </data>
+  <data name="You are on a free trial. Subscribe before it ends to keep this plan; otherwise your workspace moves to the free plan." xml:space="preserve">
+    <value>Ücretsiz deneme sürecindesiniz. Bu planı korumak için deneme bitmeden abone olun; aksi halde çalışma alanınız ücretsiz plana geçer.</value>
+  </data>
+  <data name="Your last payment failed. Please update your card at iyzico; if the payment is not collected within the grace period your workspace moves to the free plan." xml:space="preserve">
+    <value>Son ödemeniz başarısız oldu. Lütfen iyzico'daki kartınızı güncelleyin; ödeme ek süre içinde tahsil edilemezse çalışma alanınız ücretsiz plana geçer.</value>
+  </data>
+  <data name="Your subscription is cancelled. The plan stays active until the end of the paid period, then your workspace moves to the free plan." xml:space="preserve">
+    <value>Aboneliğiniz iptal edildi. Plan, ödenmiş dönemin sonuna kadar etkin kalır; ardından çalışma alanınız ücretsiz plana geçer.</value>
+  </data>
+  <data name="Cancel the subscription? Your plan stays active until the end of the paid period." xml:space="preserve">
+    <value>Abonelik iptal edilsin mi? Planınız ödenmiş dönemin sonuna kadar etkin kalır.</value>
+  </data>
+  <data name="Cancel subscription" xml:space="preserve">
+    <value>Aboneliği iptal et</value>
+  </data>
+  <data name="Online payment is not available at the moment. Please contact us to change your plan." xml:space="preserve">
+    <value>Çevrimiçi ödeme şu anda kullanılamıyor. Planınızı değiştirmek için lütfen bizimle iletişime geçin.</value>
+  </data>
+  <data name="You have {0} monitors; delete {1} to switch to this plan." xml:space="preserve">
+    <value>{0} monitörünüz var; bu plana geçmek için {1} tanesini silin.</value>
+  </data>
+  <data name="Current" xml:space="preserve">
+    <value>Mevcut</value>
+  </data>
+  <data name="Switch to the {0} plan now? The price difference is prorated by iyzico." xml:space="preserve">
+    <value>Şimdi {0} planına geçilsin mi? Fiyat farkı iyzico tarafından kıst olarak hesaplanır.</value>
+  </data>
+  <data name="Upgrade" xml:space="preserve">
+    <value>Yükselt</value>
+  </data>
+  <data name="Downgrade" xml:space="preserve">
+    <value>Düşür</value>
+  </data>
+  <data name="Only administrators can change the plan." xml:space="preserve">
+    <value>Planı yalnızca yöneticiler değiştirebilir.</value>
+  </data>
+  <data name="Payment history" xml:space="preserve">
+    <value>Ödeme geçmişi</value>
+  </data>
+  <data name="No payments yet." xml:space="preserve">
+    <value>Henüz ödeme yok.</value>
+  </data>
+  <data name="Amount" xml:space="preserve">
+    <value>Tutar</value>
+  </data>
+  <data name="Your plan was changed." xml:space="preserve">
+    <value>Planınız değiştirildi.</value>
+  </data>
+  <data name="Check interval raised to the new plan minimum for {0} monitor(s)." xml:space="preserve">
+    <value>{0} monitörün kontrol aralığı yeni planın en kısa aralığına yükseltildi.</value>
+  </data>
+  <data name="Your subscription was cancelled. Your plan stays active until the end of the paid period." xml:space="preserve">
+    <value>Aboneliğiniz iptal edildi. Planınız ödenmiş dönemin sonuna kadar etkin kalır.</value>
+  </data>
+  <data name="This plan cannot be chosen." xml:space="preserve">
+    <value>Bu plan seçilemez.</value>
+  </data>
+  <data name="The plan change is booked and takes effect on {0}, at the end of the paid period." xml:space="preserve">
+    <value>Plan değişikliği kaydedildi; ödenmiş dönemin sonunda, {0} tarihinde geçerli olur.</value>
+  </data>
+  <data name="Booked change" xml:space="preserve">
+    <value>Planlanan değişiklik</value>
+  </data>
+  <data name="Changes to {0} on {1}" xml:space="preserve">
+    <value>{1} tarihinde {0} planına geçer</value>
+  </data>
+  <data name="Downgrade to the {0} plan at the end of the paid period?" xml:space="preserve">
+    <value>Ödenmiş dönemin sonunda {0} planına düşürülsün mü?</value>
+  </data>
+  <data name="Keep this plan" xml:space="preserve">
+    <value>Bu planda kal</value>
+  </data>
+  <data name="Online payment is not available yet. Contact us to upgrade or change your plan." xml:space="preserve">
+    <value>Çevrimiçi ödeme henüz kullanılamıyor. Planınızı yükseltmek veya değiştirmek için bizimle iletişime geçin.</value>
+  </data>
+  <data name="Upgrade to the {0} plan now? iyzico charges the new price according to its terms." xml:space="preserve">
+    <value>Şimdi {0} planına yükseltilsin mi? iyzico yeni fiyatı kendi koşullarına göre tahsil eder.</value>
+  </data>
+  <data name="We are waiting for iyzico to confirm your payment. This page will show the subscription as soon as it is confirmed." xml:space="preserve">
+    <value>Ödemenizin iyzico tarafından onaylanmasını bekliyoruz. Onaylandığında abonelik bu sayfada görünecek.</value>
+  </data>
+  <data name="API key &quot;{0}&quot;" xml:space="preserve">
+    <value>"{0}" API anahtarı</value>
+  </data>
+  <data name="Delays count from the start of the incident, or from when the policy was turned on if that is later." xml:space="preserve">
+    <value>Gecikmeler olayın başlangıcından, politika daha sonra etkinleştirildiyse etkinleştirildiği andan itibaren sayılır.</value>
+  </data>
+  <data name="Recovered during maintenance." xml:space="preserve">
+    <value>Bakım sırasında düzeldi.</value>
+  </data>
+  <data name="Step {0} has no enabled alert channel left; its alert goes to the account contact e-mail instead (if that fallback is on)." xml:space="preserve">
+    <value>Adım {0} için etkin bildirim kanalı kalmadı; bu adımın bildirimi bunun yerine hesabın iletişim e-postasına gider (bu yedek ayar açıksa).</value>
+  </data>
+  <data name="This acknowledge link is invalid, has expired or belongs to another account. Open the incident from the incidents page instead." xml:space="preserve">
+    <value>Bu onay bağlantısı geçersiz, süresi dolmuş veya başka bir hesaba ait. Olayı bunun yerine olaylar sayfasından açın.</value>
+  </data>
+  <data name="This payment could not be used: your workspace already has a subscription or the plan did not match. It was cancelled and the amount will be refunded to your card." xml:space="preserve">
+    <value>Bu ödeme kullanılamadı: çalışma alanınızın zaten bir aboneliği var veya plan eşleşmedi. Ödeme iptal edildi ve tutar kartınıza iade edilecek.</value>
+  </data>
+  <data name="Thank you for your feedback." xml:space="preserve">
+    <value>Geri bildiriminiz için teşekkürler.</value>
+  </data>
+  <data name="AI features were disabled." xml:space="preserve">
+    <value>Yapay zekâ özellikleri kapatıldı.</value>
+  </data>
+  <data name="AI features were enabled." xml:space="preserve">
+    <value>Yapay zekâ özellikleri açıldı.</value>
+  </data>
+  <data name="Grouping of related incidents" xml:space="preserve">
+    <value>İlişkili kesintilerin gruplanması</value>
+  </data>
+  <data name="Incident summaries and likely causes" xml:space="preserve">
+    <value>Kesinti özetleri ve olası nedenler</value>
+  </data>
+  <data name="Monitor setting suggestions" xml:space="preserve">
+    <value>Monitör ayarı önerileri</value>
+  </data>
+  <data name="Postmortem and status page drafts" xml:space="preserve">
+    <value>Postmortem ve durum sayfası taslakları</value>
+  </data>
+  <data name="Questions in natural language" xml:space="preserve">
+    <value>Doğal dilde sorular</value>
+  </data>
+  <data name="Slowdown explanations" xml:space="preserve">
+    <value>Yavaşlama açıklamaları</value>
+  </data>
+  <data name="Weekly and monthly reports" xml:space="preserve">
+    <value>Haftalık ve aylık raporlar</value>
+  </data>
+  <data name="AI explains incidents and slowdowns, suggests likely causes and proposes settings. It never decides whether a monitor is up or down and never sends or suppresses alerts on its own." xml:space="preserve">
+    <value>Yapay zekâ kesintileri ve yavaşlamaları açıklar, olası nedenleri ve ayar önerilerini sunar. Bir monitörün çalışıp çalışmadığına asla karar vermez ve bildirimleri kendi başına göndermez ya da engellemez.</value>
+  </data>
+  <data name="AI features are currently switched off for this service. Monitoring and alerts work as usual." xml:space="preserve">
+    <value>Yapay zekâ özellikleri bu hizmette şu anda kapalı. İzleme ve bildirimler her zamanki gibi çalışır.</value>
+  </data>
+  <data name="AI interpretation" xml:space="preserve">
+    <value>Yapay zekâ yorumu</value>
+  </data>
+  <data name="AI quota this month" xml:space="preserve">
+    <value>Bu ayki yapay zekâ kotası</value>
+  </data>
+  <data name="Disable AI features" xml:space="preserve">
+    <value>Yapay zekâ özelliklerini kapat</value>
+  </data>
+  <data name="Enable AI features" xml:space="preserve">
+    <value>Yapay zekâ özelliklerini aç</value>
+  </data>
+  <data name="Included in your plan" xml:space="preserve">
+    <value>Planınıza dahil olanlar</value>
+  </data>
+  <data name="Latest AI results" xml:space="preserve">
+    <value>Son yapay zekâ sonuçları</value>
+  </data>
+  <data name="No AI results yet." xml:space="preserve">
+    <value>Henüz yapay zekâ sonucu yok.</value>
+  </data>
+  <data name="Only customer admins can change this." xml:space="preserve">
+    <value>Bunu yalnızca müşteri yöneticileri değiştirebilir.</value>
+  </data>
+  <data name="Privacy" xml:space="preserve">
+    <value>Gizlilik</value>
+  </data>
+  <data name="The AI quota of your plan is used up. AI summaries are unavailable until next month; everything else works as usual." xml:space="preserve">
+    <value>Planınızın yapay zekâ kotası doldu. Yapay zekâ özetleri gelecek aya kadar kullanılamaz; diğer her şey her zamanki gibi çalışır.</value>
+  </data>
+  <data name="You have used {0}% of this month's AI quota." xml:space="preserve">
+    <value>Bu ayki yapay zekâ kotasının %{0} kadarını kullandınız.</value>
+  </data>
+  <data name="Your plan does not include AI features." xml:space="preserve">
+    <value>Planınız yapay zekâ özelliklerini içermiyor.</value>
+  </data>
+  <data name="Only masked technical data is sent to the AI provider (Anthropic, Claude): monitor type, host name, status codes, error types and timings. URL paths and query strings, credentials and tokens, webhook URLs, e-mail addresses and phone numbers are removed first. Your data is not shared with other customers." xml:space="preserve">
+    <value>Yapay zekâ sağlayıcısına (Anthropic, Claude) yalnızca maskelenmiş teknik veri gönderilir: monitör türü, sunucu adı, durum kodları, hata türleri ve süreler. URL yolları ve sorgu parametreleri, kimlik bilgileri ve token'lar, webhook adresleri, e-posta adresleri ve telefon numaraları önceden çıkarılır. Verileriniz başka müşterilerle paylaşılmaz.</value>
+  </data>
+  <data name="You have several unfinished checkouts. Complete one of them or try again in an hour." xml:space="preserve">
+    <value>Tamamlanmamış birkaç ödeme işleminiz var. Bunlardan birini tamamlayın veya bir saat sonra tekrar deneyin.</value>
+  </data>
+  <data name="&quot;{0}&quot; is checked from the main region only." xml:space="preserve">
+    <value>"{0}" yalnızca ana bölgeden kontrol ediliyor.</value>
+  </data>
+  <data name="&quot;{0}&quot; is now checked from {1} region(s); its status is decided by majority." xml:space="preserve">
+    <value>"{0}" artık {1} bölgeden kontrol ediliyor; durumu çoğunluk oyuyla belirlenir.</value>
+  </data>
+  <data name="Avg. 24 h" xml:space="preserve">
+    <value>Ort. 24 sa</value>
+  </data>
+  <data name="Check regions" xml:space="preserve">
+    <value>Kontrol bölgeleri</value>
+  </data>
+  <data name="Checked from the main region only. Add regions to decide the status by majority vote." xml:space="preserve">
+    <value>Yalnızca ana bölgeden kontrol ediliyor. Durumun çoğunluk oyuyla belirlenmesi için bölge ekleyin.</value>
+  </data>
+  <data name="Choose one of the listed regions." xml:space="preserve">
+    <value>Listelenen bölgelerden birini seçin.</value>
+  </data>
+  <data name="Failed (24 h)" xml:space="preserve">
+    <value>Başarısız (24 sa)</value>
+  </data>
+  <data name="Failing regions: {0}" xml:space="preserve">
+    <value>Hata veren bölgeler: {0}</value>
+  </data>
+  <data name="Heartbeat monitors receive pings and are not checked from regions." xml:space="preserve">
+    <value>Heartbeat monitörleri ping alır; bölgelerden kontrol edilmez.</value>
+  </data>
+  <data name="Last check ({0})" xml:space="preserve">
+    <value>Son kontrol ({0})</value>
+  </data>
+  <data name="Main region" xml:space="preserve">
+    <value>Ana bölge</value>
+  </data>
+  <data name="Manage regions" xml:space="preserve">
+    <value>Bölgeleri yönet</value>
+  </data>
+  <data name="No additional regions are available yet." xml:space="preserve">
+    <value>Henüz ek bölge yok.</value>
+  </data>
+  <data name="No recent result: not counted in the vote" xml:space="preserve">
+    <value>Yakın zamanda sonuç yok: oylamaya katılmıyor</value>
+  </data>
+  <data name="Not voting" xml:space="preserve">
+    <value>Oy vermiyor</value>
+  </data>
+  <data name="Regions" xml:space="preserve">
+    <value>Bölgeler</value>
+  </data>
+  <data name="The main region always checks this monitor. Additional regions check it too: with three or more regions reporting, the monitor goes down only when the majority of them fail, so a single region's network problem does not open an incident. With fewer, the main region decides and the other regions confirm its failures." xml:space="preserve">
+    <value>Ana bölge bu monitörü her zaman kontrol eder. Ek bölgeler de kontrol eder: üç veya daha fazla bölge sonuç bildirdiğinde monitör yalnızca çoğunluk hata verirse kapalı sayılır, böylece tek bir bölgenin ağ sorunu olay açmaz. Daha azında ana bölge karar verir, diğer bölgeler onun hatalarını doğrular.</value>
+  </data>
+  <data name="The regions were changed in the meantime. Review them and try again." xml:space="preserve">
+    <value>Bölgeler bu arada değiştirildi. Gözden geçirip tekrar deneyin.</value>
+  </data>
+  <data name="With three or more regions voting, the status is decided by majority; otherwise the main region decides. Stale regions and results from maintenance windows or older settings do not vote. Uptime follows the voted status." xml:space="preserve">
+    <value>Üç veya daha fazla bölge oy verdiğinde durum çoğunlukla belirlenir; aksi halde ana bölge karar verir. Yanıt vermeyen bölgeler ile bakım penceresinde veya eski ayarlarla alınan sonuçlar oy vermez. Çalışma süresi oylanan durumu izler.</value>
+  </data>
+  <data name="Your plan ({0}) allows at most {1} additional region(s) per monitor." xml:space="preserve">
+    <value>Planınız ({0}) monitör başına en fazla {1} ek bölgeye izin veriyor.</value>
+  </data>
+  <data name="Your plan ({0}) checks monitors from the main region only." xml:space="preserve">
+    <value>Planınızda ({0}) monitörler yalnızca ana bölgeden kontrol edilir.</value>
+  </data>
+  <data name="The SLA target must be between 0 and 100." xml:space="preserve">
+    <value>SLA hedefi 0 ile 100 arasında olmalıdır.</value>
+  </data>
+  <data name="SLA target (%)" xml:space="preserve">
+    <value>SLA hedefi (%)</value>
+  </data>
+  <data name="Optional. The monthly SLA report shows whether the uptime met it." xml:space="preserve">
+    <value>İsteğe bağlı. Aylık SLA raporu çalışma oranının bu hedefi tutup tutmadığını gösterir.</value>
+  </data>
+  <data name="Edit status page" xml:space="preserve">
+    <value>Durum sayfasını düzenle</value>
+  </data>
+  <data name="Status pages" xml:space="preserve">
+    <value>Durum sayfaları</value>
+  </data>
+  <data name="This address is already taken." xml:space="preserve">
+    <value>Bu adres zaten kullanılıyor.</value>
+  </data>
+  <data name="Status page &quot;{0}&quot; was created." xml:space="preserve">
+    <value>"{0}" durum sayfası oluşturuldu.</value>
+  </data>
+  <data name="You have reached the status page limit of your plan ({0}). Upgrade your plan to add another one." xml:space="preserve">
+    <value>Planınızın durum sayfası sınırına ulaştınız ({0}). Yeni bir tane eklemek için planınızı yükseltin.</value>
+  </data>
+  <data name="Status page &quot;{0}&quot; was updated." xml:space="preserve">
+    <value>"{0}" durum sayfası güncellendi.</value>
+  </data>
+  <data name="e.g. Acme status" xml:space="preserve">
+    <value>örn. Acme durum</value>
+  </data>
+  <data name="Lower-case letters, digits and hyphens." xml:space="preserve">
+    <value>Küçük harfler, rakamlar ve tire.</value>
+  </data>
+  <data name="Optional plain-text message shown at the top of the page." xml:space="preserve">
+    <value>Sayfanın üstünde gösterilen isteğe bağlı düz metin mesaj.</value>
+  </data>
+  <data name="Public (search engines may index it)" xml:space="preserve">
+    <value>Herkese açık (arama motorları dizine ekleyebilir)</value>
+  </data>
+  <data name="Unlisted (only people with the address)" xml:space="preserve">
+    <value>Liste dışı (yalnızca adresi bilenler)</value>
+  </data>
+  <data name="Only selected monitors are shown, under the public name you enter. Visitors never see the monitor's own name, target or error details." xml:space="preserve">
+    <value>Yalnızca seçilen monitörler, girdiğiniz herkese açık adla gösterilir. Ziyaretçiler monitörün kendi adını, hedefini veya hata ayrıntılarını asla görmez.</value>
+  </data>
+  <data name="Public name" xml:space="preserve">
+    <value>Herkese açık ad</value>
+  </data>
+  <data name="The title contains invalid characters." xml:space="preserve">
+    <value>Başlık geçersiz karakterler içeriyor.</value>
+  </data>
+  <data name="The announcement contains invalid characters." xml:space="preserve">
+    <value>Duyuru geçersiz karakterler içeriyor.</value>
+  </data>
+  <data name="Invalid visibility." xml:space="preserve">
+    <value>Geçersiz görünürlük.</value>
+  </data>
+  <data name="Unknown time zone." xml:space="preserve">
+    <value>Bilinmeyen saat dilimi.</value>
+  </data>
+  <data name="Use 3-50 lower-case letters, digits and hyphens (not at the start or end). Some words are reserved." xml:space="preserve">
+    <value>3-50 küçük harf, rakam ve tire kullanın (başta veya sonda tire olmadan). Bazı kelimeler ayrılmıştır.</value>
+  </data>
+  <data name="Select at least one monitor." xml:space="preserve">
+    <value>En az bir monitör seçin.</value>
+  </data>
+  <data name="A status page can show at most {0} monitors." xml:space="preserve">
+    <value>Bir durum sayfası en fazla {0} monitör gösterebilir.</value>
+  </data>
+  <data name="Unknown monitor." xml:space="preserve">
+    <value>Bilinmeyen monitör.</value>
+  </data>
+  <data name="Every selected monitor needs a public display name (at most 100 characters)." xml:space="preserve">
+    <value>Seçilen her monitörün herkese açık bir adı olmalıdır (en fazla 100 karakter).</value>
+  </data>
+  <data name="Title is required." xml:space="preserve">
+    <value>Başlık zorunludur.</value>
+  </data>
+  <data name="The title can be at most 100 characters." xml:space="preserve">
+    <value>Başlık en fazla 100 karakter olabilir.</value>
+  </data>
+  <data name="The address can be at most 50 characters." xml:space="preserve">
+    <value>Adres en fazla 50 karakter olabilir.</value>
+  </data>
+  <data name="The announcement can be at most 2000 characters." xml:space="preserve">
+    <value>Duyuru en fazla 2000 karakter olabilir.</value>
+  </data>
+  <data name="Title" xml:space="preserve">
+    <value>Başlık</value>
+  </data>
+  <data name="Address" xml:space="preserve">
+    <value>Adres</value>
+  </data>
+  <data name="Announcement" xml:space="preserve">
+    <value>Duyuru</value>
+  </data>
+  <data name="Visibility" xml:space="preserve">
+    <value>Görünürlük</value>
+  </data>
+  <data name="A note must be 1-1000 characters of plain text." xml:space="preserve">
+    <value>Not 1-1000 karakter düz metin olmalıdır.</value>
+  </data>
+  <data name="An incident can have at most {0} notes." xml:space="preserve">
+    <value>Bir olayın en fazla {0} notu olabilir.</value>
+  </data>
+  <data name="The note was published." xml:space="preserve">
+    <value>Not yayımlandı.</value>
+  </data>
+  <data name="The note was deleted." xml:space="preserve">
+    <value>Not silindi.</value>
+  </data>
+  <data name="Delete status page" xml:space="preserve">
+    <value>Durum sayfasını sil</value>
+  </data>
+  <data name="Are you sure you want to delete the status page &quot;{0}&quot;? Its address stops working and all its subscribers and notes are removed." xml:space="preserve">
+    <value>"{0}" durum sayfasını silmek istediğinizden emin misiniz? Adresi çalışmayı durdurur ve tüm aboneleri ile notları silinir.</value>
+  </data>
+  <data name="New status page" xml:space="preserve">
+    <value>Yeni durum sayfası</value>
+  </data>
+  <data name="Custom domain" xml:space="preserve">
+    <value>Özel alan adı</value>
+  </data>
+  <data name="Custom domains are available on the Pro and Enterprise plans." xml:space="preserve">
+    <value>Özel alan adları Pro ve Enterprise planlarında kullanılabilir.</value>
+  </data>
+  <data name="Domain" xml:space="preserve">
+    <value>Alan adı</value>
+  </data>
+  <data name="Status:" xml:space="preserve">
+    <value>Durum:</value>
+  </data>
+  <data name="Verified" xml:space="preserve">
+    <value>Doğrulandı</value>
+  </data>
+  <data name="Not verified" xml:space="preserve">
+    <value>Doğrulanmadı</value>
+  </data>
+  <data name="Create a CNAME record for {0} pointing to this app's host name." xml:space="preserve">
+    <value>{0} için bu uygulamanın sunucu adını gösteren bir CNAME kaydı oluşturun.</value>
+  </data>
+  <data name="Create a TXT record to prove that you control the domain:" xml:space="preserve">
+    <value>Alan adını kontrol ettiğinizi kanıtlamak için bir TXT kaydı oluşturun:</value>
+  </data>
+  <data name="Verify. The page is served on the domain only after a successful verification." xml:space="preserve">
+    <value>Doğrulayın. Sayfa bu alan adında yalnızca başarılı bir doğrulamadan sonra yayınlanır.</value>
+  </data>
+  <data name="Verify" xml:space="preserve">
+    <value>Doğrula</value>
+  </data>
+  <data name="Remove the custom domain?" xml:space="preserve">
+    <value>Özel alan adı kaldırılsın mı?</value>
+  </data>
+  <data name="Remove" xml:space="preserve">
+    <value>Kaldır</value>
+  </data>
+  <data name="Enter a host name such as status.example.com." xml:space="preserve">
+    <value>status.example.com gibi bir sunucu adı girin.</value>
+  </data>
+  <data name="This domain is already used by another status page." xml:space="preserve">
+    <value>Bu alan adı başka bir durum sayfası tarafından kullanılıyor.</value>
+  </data>
+  <data name="Domain saved. Publish the TXT record below, then verify." xml:space="preserve">
+    <value>Alan adı kaydedildi. Aşağıdaki TXT kaydını yayınlayın, sonra doğrulayın.</value>
+  </data>
+  <data name="The domain {0} is verified." xml:space="preserve">
+    <value>{0} alan adı doğrulandı.</value>
+  </data>
+  <data name="The TXT record was not found yet. DNS changes can take a while; try again later." xml:space="preserve">
+    <value>TXT kaydı henüz bulunamadı. DNS değişiklikleri biraz zaman alabilir; daha sonra tekrar deneyin.</value>
+  </data>
+  <data name="The custom domain was removed." xml:space="preserve">
+    <value>Özel alan adı kaldırıldı.</value>
+  </data>
+  <data name="Status page &quot;{0}&quot; was deleted." xml:space="preserve">
+    <value>"{0}" durum sayfası silindi.</value>
+  </data>
+  <data name="Incident notes" xml:space="preserve">
+    <value>Olay notları</value>
+  </data>
+  <data name="Notes are published on the status page immediately, as plain text, under the incident. Write them for your customers: they never see the monitor's target or error details." xml:space="preserve">
+    <value>Notlar durum sayfasında olayın altında hemen, düz metin olarak yayımlanır. Müşterileriniz için yazın: monitörün hedefini veya hata ayrıntılarını asla görmezler.</value>
+  </data>
+  <data name="No incidents in the last {0} days." xml:space="preserve">
+    <value>Son {0} günde olay yok.</value>
+  </data>
+  <data name="Delete this note?" xml:space="preserve">
+    <value>Bu not silinsin mi?</value>
+  </data>
+  <data name="e.g. We identified the cause and are rolling out a fix." xml:space="preserve">
+    <value>örn. Nedeni bulduk ve bir düzeltme yayınlıyoruz.</value>
+  </data>
+  <data name="Note" xml:space="preserve">
+    <value>Not</value>
+  </data>
+  <data name="Publish note" xml:space="preserve">
+    <value>Notu yayımla</value>
+  </data>
+  <data name="Public pages that show the current status, uptime and incident history of selected monitors under public names. Targets and error details are never shown." xml:space="preserve">
+    <value>Seçilen monitörlerin güncel durumunu, çalışma oranını ve olay geçmişini herkese açık adlarla gösteren sayfalar. Hedefler ve hata ayrıntıları asla gösterilmez.</value>
+  </data>
+  <data name="Your plan ({0}) allows {1} status page(s); {2} in use." xml:space="preserve">
+    <value>Planınız ({0}) {1} durum sayfasına izin veriyor; {2} kullanımda.</value>
+  </data>
+  <data name="No status pages yet." xml:space="preserve">
+    <value>Henüz durum sayfası yok.</value>
+  </data>
+  <data name="Subscribers" xml:space="preserve">
+    <value>Aboneler</value>
+  </data>
+  <data name="Public" xml:space="preserve">
+    <value>Herkese açık</value>
+  </data>
+  <data name="Unlisted" xml:space="preserve">
+    <value>Liste dışı</value>
+  </data>
+  <data name="SLA report" xml:space="preserve">
+    <value>SLA raporu</value>
+  </data>
+  <data name="Monthly uptime, downtime and response times per monitor. Maintenance windows are excluded." xml:space="preserve">
+    <value>Monitör başına aylık çalışma oranı, kesinti ve yanıt süreleri. Bakım pencereleri hariç tutulur.</value>
+  </data>
+  <data name="Month" xml:space="preserve">
+    <value>Ay</value>
+  </data>
+  <data name="Show" xml:space="preserve">
+    <value>Göster</value>
+  </data>
+  <data name="Download PDF" xml:space="preserve">
+    <value>PDF indir</value>
+  </data>
+  <data name="Download CSV" xml:space="preserve">
+    <value>CSV indir</value>
+  </data>
+  <data name="Period: {0} ({1})" xml:space="preserve">
+    <value>Dönem: {0} ({1})</value>
+  </data>
+  <data name="Month in progress" xml:space="preserve">
+    <value>Ay devam ediyor</value>
+  </data>
+  <data name="Part of this month is older than your plan's data retention; figures may be incomplete." xml:space="preserve">
+    <value>Bu ayın bir kısmı planınızın veri saklama süresinden eski; rakamlar eksik olabilir.</value>
+  </data>
+  <data name="Uptime" xml:space="preserve">
+    <value>Çalışma oranı</value>
+  </data>
+  <data name="Downtime" xml:space="preserve">
+    <value>Kesinti süresi</value>
+  </data>
+  <data name="MTTR" xml:space="preserve">
+    <value>MTTR</value>
+  </data>
+  <data name="p95 response" xml:space="preserve">
+    <value>p95 yanıt</value>
+  </data>
+  <data name="SLA met / missed" xml:space="preserve">
+    <value>SLA tutuldu / kaçırıldı</value>
+  </data>
+  <data name="No monitors in this period." xml:space="preserve">
+    <value>Bu dönemde monitör yok.</value>
+  </data>
+  <data name="SLA target" xml:space="preserve">
+    <value>SLA hedefi</value>
+  </data>
+  <data name="SLA" xml:space="preserve">
+    <value>SLA</value>
+  </data>
+  <data name="Avg response" xml:space="preserve">
+    <value>Ort. yanıt</value>
+  </data>
+  <data name="Met" xml:space="preserve">
+    <value>Tutuldu</value>
+  </data>
+  <data name="Missed" xml:space="preserve">
+    <value>Kaçırıldı</value>
+  </data>
+  <data name="Uptime excludes maintenance windows. Downtime is the time monitors had an open incident; response times are of successful checks." xml:space="preserve">
+    <value>Çalışma oranına bakım pencereleri dahil değildir. Kesinti süresi, monitörlerin açık olayının bulunduğu süredir; yanıt süreleri başarılı kontrollere aittir.</value>
+  </data>
+  <data name="Set an SLA target on a monitor's edit page to see whether it was met." xml:space="preserve">
+    <value>Tutulup tutulmadığını görmek için monitörün düzenleme sayfasında bir SLA hedefi belirleyin.</value>
+  </data>
+  <data name="Report settings" xml:space="preserve">
+    <value>Rapor ayarları</value>
+  </data>
+  <data name="Time zone of the month boundaries" xml:space="preserve">
+    <value>Ay sınırlarının saat dilimi</value>
+  </data>
+  <data name="E-mail the report to the admins on the 1st of each month" xml:space="preserve">
+    <value>Raporu her ayın 1'inde yöneticilere e-postayla gönder</value>
+  </data>
+  <data name="Time zone: {0}" xml:space="preserve">
+    <value>Saat dilimi: {0}</value>
+  </data>
+  <data name="Monthly e-mail: on" xml:space="preserve">
+    <value>Aylık e-posta: açık</value>
+  </data>
+  <data name="Monthly e-mail: off" xml:space="preserve">
+    <value>Aylık e-posta: kapalı</value>
+  </data>
+  <data name="Report settings saved." xml:space="preserve">
+    <value>Rapor ayarları kaydedildi.</value>
+  </data>
+  <data name="Slowdown" xml:space="preserve">
+    <value>Yavaşlama</value>
+  </data>
+  <data name="Slowdown ended" xml:space="preserve">
+    <value>Yavaşlama sona erdi</value>
+  </data>
+  <data name="Evidence as of {0}." xml:space="preserve">
+    <value>Kanıtların tarihi: {0}.</value>
+  </data>
+  <data name="Settings suggestions" xml:space="preserve">
+    <value>Ayar önerileri</value>
+  </data>
+  <data name="Based on this monitor's history. Nothing changes until an admin applies a suggestion." xml:space="preserve">
+    <value>Bu monitörün geçmişine dayanır. Bir yönetici öneriyi uygulayana kadar hiçbir şey değişmez.</value>
+  </data>
+  <data name="Raise the failure threshold from {0} to {1}" xml:space="preserve">
+    <value>Hata eşiğini {0} değerinden {1} değerine yükseltin</value>
+  </data>
+  <data name="In the last {0} days, {1} of {2} incidents recovered at the next check (each lasted at most {3} s)." xml:space="preserve">
+    <value>Son {0} günde {2} olayın {1} tanesi bir sonraki kontrolde düzeldi (her biri en fazla {3} sn sürdü).</value>
+  </data>
+  <data name="A higher threshold avoids these alerts but reports a real outage one check later." xml:space="preserve">
+    <value>Daha yüksek bir eşik bu alarmları önler ancak gerçek bir kesintiyi bir kontrol sonra bildirir.</value>
+  </data>
+  <data name="Raise the timeout from {0} s to {1} s" xml:space="preserve">
+    <value>Zaman aşımını {0} sn değerinden {1} sn değerine yükseltin</value>
+  </data>
+  <data name="In the last {0} days, {1} of {2} successful checks took at least {3} ms (80% of the timeout) and {4} checks timed out. 95th percentile {5} ms, 99th percentile {6} ms, slowest {7} ms." xml:space="preserve">
+    <value>Son {0} günde {2} başarılı kontrolün {1} tanesi en az {3} ms sürdü (zaman aşımının %80'i) ve {4} kontrol zaman aşımına uğradı. 95. yüzdelik {5} ms, 99. yüzdelik {6} ms, en yavaş {7} ms.</value>
+  </data>
+  <data name="The target may be wrong" xml:space="preserve">
+    <value>Hedef yanlış olabilir</value>
+  </data>
+  <data name="No check has succeeded since the first check on {0}: {1} checks failed over {2} hours." xml:space="preserve">
+    <value>{0} tarihindeki ilk kontrolden beri hiçbir kontrol başarılı olmadı: {2} saat boyunca {1} kontrol başarısız oldu.</value>
+  </data>
+  <data name="Check the address, the port and the expected status codes." xml:space="preserve">
+    <value>Adresi, portu ve beklenen durum kodlarını kontrol edin.</value>
+  </data>
+  <data name="Most common error ({0} checks):" xml:space="preserve">
+    <value>En sık görülen hata ({0} kontrol):</value>
+  </data>
+  <data name="Review the keyword" xml:space="preserve">
+    <value>Anahtar kelimeyi gözden geçirin</value>
+  </data>
+  <data name="In the last {0} days the page answered but the keyword was not found in {1} of {2} checks ({3} in a row now)." xml:space="preserve">
+    <value>Son {0} günde sayfa yanıt verdi ancak {2} kontrolün {1} tanesinde anahtar kelime bulunamadı (şu anda art arda {3}).</value>
+  </data>
+  <data name="Last match: {0}." xml:space="preserve">
+    <value>Son eşleşme: {0}.</value>
+  </data>
+  <data name="No match in this period." xml:space="preserve">
+    <value>Bu dönemde eşleşme yok.</value>
+  </data>
+  <data name="Response bodies are not stored, so check the page content yourself." xml:space="preserve">
+    <value>Yanıt gövdeleri saklanmadığı için sayfa içeriğini kendiniz kontrol edin.</value>
+  </data>
+  <data name="The keyword has extra whitespace. Suggested keyword:" xml:space="preserve">
+    <value>Anahtar kelimede fazladan boşluk var. Önerilen anahtar kelime:</value>
+  </data>
+  <data name="Apply" xml:space="preserve">
+    <value>Uygula</value>
+  </data>
+  <data name="Edit settings" xml:space="preserve">
+    <value>Ayarları düzenle</value>
+  </data>
+  <data name="Dismiss" xml:space="preserve">
+    <value>Yoksay</value>
+  </data>
+  <data name="Dismissed suggestions are not shown again for {0} days." xml:space="preserve">
+    <value>Yoksayılan öneriler {0} gün boyunca tekrar gösterilmez.</value>
+  </data>
+  <data name="The suggestion was applied." xml:space="preserve">
+    <value>Öneri uygulandı.</value>
+  </data>
+  <data name="This suggestion is out of date: the setting was changed in the meantime." xml:space="preserve">
+    <value>Bu öneri güncel değil: ayar bu arada değiştirildi.</value>
+  </data>
+  <data name="This suggestion has no value to apply. Edit the monitor settings instead." xml:space="preserve">
+    <value>Bu önerinin uygulanacak bir değeri yok. Bunun yerine monitör ayarlarını düzenleyin.</value>
+  </data>
+  <data name="The suggestion could not be applied: {0}" xml:space="preserve">
+    <value>Öneri uygulanamadı: {0}</value>
+  </data>
+  <data name="The suggestion was dismissed. It will not be shown again for {0} days." xml:space="preserve">
+    <value>Öneri yoksayıldı. {0} gün boyunca tekrar gösterilmeyecek.</value>
+  </data>
+  <data name="Response times are above this monitor's usual level." xml:space="preserve">
+    <value>Yanıt süreleri bu monitörün olağan seviyesinin üzerinde.</value>
+  </data>
+  <data name="Since {0} {1}" xml:space="preserve">
+    <value>{0} {1} itibarıyla</value>
+  </data>
+  <data name="up to {0}× the baseline" xml:space="preserve">
+    <value>olağan seviyenin {0} katına kadar</value>
+  </data>
+  <data name="No outage so far: the monitor is still up." xml:space="preserve">
+    <value>Henüz kesinti yok: monitör hâlâ çalışıyor.</value>
+  </data>
+  <data name="Slow" xml:space="preserve">
+    <value>Yavaş</value>
+  </data>
+  <data name="Language of AI summaries" xml:space="preserve">
+    <value>Yapay zekâ özetlerinin dili</value>
+  </data>
+  <data name="The AI summary language was saved." xml:space="preserve">
+    <value>Yapay zekâ özeti dili kaydedildi.</value>
+  </data>
+  <data name="Other monitors on the same host failed at the same time. AI summary of the related incident:" xml:space="preserve">
+    <value>Aynı sunucudaki diğer monitörler de aynı anda hata verdi. İlgili olayın yapay zekâ özeti:</value>
+  </data>
+  <data name="Downtime counts from when a monitor went DOWN (after its failure threshold) until it recovered. Paused time counts as available, incidents are counted in the month they started, and closed months are cached for up to 6 hours." xml:space="preserve">
+    <value>Kesinti süresi, monitörün DOWN olduğu andan (hata eşiğinden sonra) düzelene kadar sayılır. Duraklatılan süre erişilebilir sayılır, olaylar başladıkları ayda sayılır ve kapanmış aylar 6 saate kadar önbellekte tutulur.</value>
+  </data>
+  <data name="The AI narrative is available once the period is over." xml:space="preserve">
+    <value>Yapay zekâ anlatısı dönem bittikten sonra hazırlanabilir.</value>
+  </data>
+  <data name="The AI narrative is being prepared. It appears here within a few minutes." xml:space="preserve">
+    <value>Yapay zekâ anlatısı hazırlanıyor. Birkaç dakika içinde burada görünecek.</value>
+  </data>
+  <data name="AI narratives are not available for your account." xml:space="preserve">
+    <value>Yapay zekâ anlatıları hesabınız için kullanılamıyor.</value>
+  </data>
+  <data name="Week" xml:space="preserve">
+    <value>Hafta</value>
+  </data>
+  <data name="Show week" xml:space="preserve">
+    <value>Haftayı göster</value>
+  </data>
+  <data name="Weekly view" xml:space="preserve">
+    <value>Haftalık görünüm</value>
+  </data>
+  <data name="Back to the monthly report" xml:space="preserve">
+    <value>Aylık rapora dön</value>
+  </data>
+  <data name="Week in progress" xml:space="preserve">
+    <value>Hafta devam ediyor</value>
+  </data>
+  <data name="The AI only interprets the figures of this report; it may still be wrong." xml:space="preserve">
+    <value>Yapay zekâ yalnızca bu rapordaki rakamları yorumlar; yine de yanılabilir.</value>
+  </data>
+  <data name="What happened" xml:space="preserve">
+    <value>Neler oldu</value>
+  </data>
+  <data name="What changed" xml:space="preserve">
+    <value>Ne değişti</value>
+  </data>
+  <data name="What to watch" xml:space="preserve">
+    <value>Neye dikkat edilmeli</value>
+  </data>
+  <data name="The AI narrative of this period is being prepared. Reload the page in a few minutes." xml:space="preserve">
+    <value>Bu dönemin yapay zekâ anlatısı hazırlanıyor. Birkaç dakika sonra sayfayı yenileyin.</value>
+  </data>
+  <data name="The AI narrative could not be generated." xml:space="preserve">
+    <value>Yapay zekâ anlatısı oluşturulamadı.</value>
+  </data>
+  <data name="No AI narrative for this period yet." xml:space="preserve">
+    <value>Bu dönem için henüz yapay zekâ anlatısı yok.</value>
+  </data>
+  <data name="Prepare AI narrative" xml:space="preserve">
+    <value>Yapay zekâ anlatısı hazırla</value>
+  </data>
+  <data name="AI report narratives are not included in your plan." xml:space="preserve">
+    <value>Yapay zekâ rapor anlatıları planınıza dahil değil.</value>
+  </data>
+  <data name="No AI narrative: there was nothing to report for this period." xml:space="preserve">
+    <value>Yapay zekâ anlatısı yok: bu dönemde raporlanacak bir şey yoktu.</value>
+  </data>
+  <data name="The AI narrative was tried recently. Please try again later." xml:space="preserve">
+    <value>Yapay zekâ anlatısı kısa süre önce denendi. Lütfen daha sonra tekrar deneyin.</value>
+  </data>
+  <data name="The AI budget of this month is used up." xml:space="preserve">
+    <value>Bu ayın yapay zekâ bütçesi tükendi.</value>
+  </data>
+  <data name="Ask about your monitors and incidents, for example &quot;Which service was slowest last week?&quot;. The assistant only reads your monitoring data; it cannot change anything." xml:space="preserve">
+    <value>Monitörleriniz ve olaylarınız hakkında soru sorun, örneğin "Geçen hafta en yavaş servisim hangisiydi?". Asistan yalnızca izleme verilerinizi okur; hiçbir şeyi değiştiremez.</value>
+  </data>
+  <data name="Conversation" xml:space="preserve">
+    <value>Konuşma</value>
+  </data>
+  <data name="AI output may be wrong. Check the linked records." xml:space="preserve">
+    <value>Yapay zekâ çıktısı hatalı olabilir. Bağlantılı kayıtları kontrol edin.</value>
+  </data>
+  <data name="Some numbers in this answer could not be verified against your data: {0}" xml:space="preserve">
+    <value>Bu yanıttaki bazı sayılar verilerinizle doğrulanamadı: {0}</value>
+  </data>
+  <data name="Sources" xml:space="preserve">
+    <value>Kaynaklar</value>
+  </data>
+  <data name="Your question" xml:space="preserve">
+    <value>Sorunuz</value>
+  </data>
+  <data name="At most {0} characters. Answers use your account's AI language. Earlier questions on this page are sent along for context and are not stored." xml:space="preserve">
+    <value>En fazla {0} karakter. Yanıtlar hesabınızın yapay zekâ dilinde verilir. Bu sayfadaki önceki sorular bağlam için birlikte gönderilir ve saklanmaz.</value>
+  </data>
+  <data name="Ask" xml:space="preserve">
+    <value>Sor</value>
+  </data>
+  <data name="New conversation" xml:space="preserve">
+    <value>Yeni konuşma</value>
+  </data>
+  <data name="AI features are disabled for your account. A customer admin can enable them on the AI features page." xml:space="preserve">
+    <value>Hesabınızda yapay zekâ özellikleri kapalı. Bir müşteri yöneticisi bunları Yapay zekâ özellikleri sayfasından açabilir.</value>
+  </data>
+  <data name="Questions in natural language are not included in your plan." xml:space="preserve">
+    <value>Doğal dilde sorular planınıza dahil değil.</value>
+  </data>
+  <data name="The AI quota of your plan is used up. Questions can be asked again next month." xml:space="preserve">
+    <value>Planınızın yapay zekâ kotası doldu. Sorular gelecek ay yeniden sorulabilir.</value>
+  </data>
+  <data name="You are asking questions too quickly. Try again in {0} seconds." xml:space="preserve">
+    <value>Çok hızlı soru soruyorsunuz. {0} saniye sonra yeniden deneyin.</value>
+  </data>
+  <data name="The assistant is busy. Try again in a moment." xml:space="preserve">
+    <value>Asistan şu anda meşgul. Birazdan yeniden deneyin.</value>
+  </data>
+  <data name="Enter a question of at most {0} characters." xml:space="preserve">
+    <value>En fazla {0} karakterlik bir soru girin.</value>
+  </data>
+  <data name="This question could not be answered." xml:space="preserve">
+    <value>Bu soru yanıtlanamadı.</value>
+  </data>
+  <data name="The answer could not be generated. Try again later." xml:space="preserve">
+    <value>Yanıt oluşturulamadı. Daha sonra yeniden deneyin.</value>
+  </data>
+  <data name="Incident of {0} ({1})" xml:space="preserve">
+    <value>{0} olayı ({1})</value>
+  </data>
+  <data name="(unknown record)" xml:space="preserve">
+    <value>(bilinmeyen kayıt)</value>
+  </data>
+  <data name="Describe what to monitor" xml:space="preserve">
+    <value>Neyi izlemek istediğinizi yazın</value>
+  </data>
+  <data name="e.g. Check example.com/checkout every minute and alert if the text 'Pay now' is missing" xml:space="preserve">
+    <value>ör. example.com/odeme sayfasını dakikada bir kontrol et, 'Şimdi öde' yazısı yoksa alarm ver</value>
+  </data>
+  <data name="The assistant only fills in the form below; nothing is saved until you click Create. Links are shared with the AI as host name only, and text in quotes is not shared at all." xml:space="preserve">
+    <value>Asistan yalnızca aşağıdaki formu doldurur; Oluştur'a tıklayana kadar hiçbir şey kaydedilmez. Bağlantılar yapay zekâyla yalnızca sunucu adı olarak paylaşılır, tırnak içindeki metin hiç paylaşılmaz.</value>
+  </data>
+  <data name="Fill in the form" xml:space="preserve">
+    <value>Formu doldur</value>
+  </data>
+  <data name="Monitor setup assistant" xml:space="preserve">
+    <value>Monitör kurulum asistanı</value>
+  </data>
+  <data name="You asked for a check every {0}. Your plan ({1}) allows {2} at the fastest, so {2} was set." xml:space="preserve">
+    <value>{0} aralıkla kontrol istediniz. Planınız ({1}) en sık {2} aralığa izin veriyor, bu yüzden {2} ayarlandı.</value>
+  </data>
+  <data name="A check every {0} is not offered; {1} was set." xml:space="preserve">
+    <value>{0} kontrol aralığı sunulmuyor; {1} ayarlandı.</value>
+  </data>
+  <data name="The timeout was changed from {0} s to {1} s (it must be 1-60 s and shorter than the check interval)." xml:space="preserve">
+    <value>Zaman aşımı {0} sn yerine {1} sn yapıldı (1-60 sn arasında ve kontrol aralığından kısa olmalı).</value>
+  </data>
+  <data name="The failure threshold was changed from {0} to {1} (allowed: 1-5)." xml:space="preserve">
+    <value>Hata eşiği {0} yerine {1} yapıldı (izin verilen: 1-5).</value>
+  </data>
+  <data name="The grace period was changed from {0} s to {1} s (allowed: {2}-{3} s)." xml:space="preserve">
+    <value>Tolerans süresi {0} sn yerine {1} sn yapıldı (izin verilen: {2}-{3} sn).</value>
+  </data>
+  <data name="The suggested port is not valid; enter a port between 1 and 65535." xml:space="preserve">
+    <value>Önerilen port geçerli değil; 1 ile 65535 arasında bir port girin.</value>
+  </data>
+  <data name="The user name and password were removed from the address; credentials in the URL are not supported." xml:space="preserve">
+    <value>Kullanıcı adı ve parola adresten çıkarıldı; URL içinde kimlik bilgisi desteklenmez.</value>
+  </data>
+  <data name="GET is used instead of HEAD because keyword and JSON monitors need the response body." xml:space="preserve">
+    <value>Anahtar kelime ve JSON monitörleri yanıt gövdesine ihtiyaç duyduğu için HEAD yerine GET kullanıldı.</value>
+  </data>
+  <data name="The suggested status codes were not valid; the default 200-299 is used." xml:space="preserve">
+    <value>Önerilen durum kodları geçerli değildi; varsayılan 200-299 kullanıldı.</value>
+  </data>
+  <data name="The assistant referred to text that is not in your request; that value was left empty." xml:space="preserve">
+    <value>Asistan isteğinizde olmayan bir metne başvurdu; bu değer boş bırakıldı.</value>
+  </data>
+  <data name="Your description was too long and was shortened." xml:space="preserve">
+    <value>Açıklamanız çok uzundu ve kısaltıldı.</value>
+  </data>
+  <data name="Describe the monitor you need first." xml:space="preserve">
+    <value>Önce ihtiyacınız olan monitörü tarif edin.</value>
+  </data>
+  <data name="The AI budget of your plan is used up this month. Please fill in the form yourself." xml:space="preserve">
+    <value>Planınızın bu ayki yapay zekâ bütçesi doldu. Lütfen formu kendiniz doldurun.</value>
+  </data>
+  <data name="You have used the assistant often in the last hour. Please try again later or fill in the form yourself." xml:space="preserve">
+    <value>Asistanı son bir saatte çok sık kullandınız. Lütfen daha sonra tekrar deneyin veya formu kendiniz doldurun.</value>
+  </data>
+  <data name="The assistant could not fill in the form this time. Please try again or fill it in yourself." xml:space="preserve">
+    <value>Asistan bu sefer formu dolduramadı. Lütfen tekrar deneyin veya formu kendiniz doldurun.</value>
+  </data>
+  <data name="The assistant is not available for your account." xml:space="preserve">
+    <value>Asistan hesabınız için kullanılamıyor.</value>
+  </data>
+  <data name="The assistant could not tell which kind of monitor you need. Please name the address or host and what to check." xml:space="preserve">
+    <value>Asistan hangi tür monitöre ihtiyacınız olduğunu anlayamadı. Lütfen adresi veya sunucuyu ve neyin kontrol edileceğini belirtin.</value>
+  </data>
+  <data name="Some suggested values need your attention; see the highlighted fields." xml:space="preserve">
+    <value>Önerilen bazı değerler kontrol etmenizi gerektiriyor; işaretli alanlara bakın.</value>
+  </data>
+  <data name="Review the values and click Create to save. Nothing has been saved yet." xml:space="preserve">
+    <value>Değerleri gözden geçirin ve kaydetmek için Oluştur'a tıklayın. Henüz hiçbir şey kaydedilmedi.</value>
+  </data>
+  <data name="AI: likely separate" xml:space="preserve">
+    <value>YZ: muhtemelen ayrı</value>
+  </data>
+  <data name="AI: likely the same cause" xml:space="preserve">
+    <value>YZ: muhtemelen aynı neden</value>
+  </data>
+  <data name="Accepted" xml:space="preserve">
+    <value>Kabul edildi</value>
+  </data>
+  <data name="Accepted suggestions (last {0} days)" xml:space="preserve">
+    <value>Kabul edilen öneriler (son {0} gün)</value>
+  </data>
+  <data name="Group the selected incidents" xml:space="preserve">
+    <value>Seçili olayları grupla</value>
+  </data>
+  <data name="Group these {0} incidents?" xml:space="preserve">
+    <value>Bu {0} olay gruplansın mı?</value>
+  </data>
+  <data name="Grouped automatically" xml:space="preserve">
+    <value>Otomatik gruplandı</value>
+  </data>
+  <data name="Grouped incidents" xml:space="preserve">
+    <value>Gruplanan olaylar</value>
+  </data>
+  <data name="Grouped under" xml:space="preserve">
+    <value>Şu olayın altında gruplandı:</value>
+  </data>
+  <data name="Grouping of related incidents is currently unavailable. Every incident is notified on its own." xml:space="preserve">
+    <value>İlişkili olayların gruplanması şu anda kullanılamıyor. Her olay için ayrı bildirim gönderilir.</value>
+  </data>
+  <data name="Grouping of related incidents is not included in your plan." xml:space="preserve">
+    <value>İlişkili olayların gruplanması planınıza dahil değil.</value>
+  </data>
+  <data name="Grouping of related incidents is part of the AI features, which are turned off for your account." xml:space="preserve">
+    <value>İlişkili olayların gruplanması, hesabınızda kapalı olan yapay zekâ özelliklerinin bir parçasıdır.</value>
+  </data>
+  <data name="Grouping of related incidents is switched off. Every incident is notified on its own." xml:space="preserve">
+    <value>İlişkili olayların gruplanması kapalı. Her olay için ayrı bildirim gönderilir.</value>
+  </data>
+  <data name="Grouping of related incidents was switched off. Every incident is notified on its own." xml:space="preserve">
+    <value>İlişkili olayların gruplanması kapatıldı. Her olay için ayrı bildirim gönderilir.</value>
+  </data>
+  <data name="Grouping of related incidents was switched on." xml:space="preserve">
+    <value>İlişkili olayların gruplanması açıldı.</value>
+  </data>
+  <data name="Keep in group" xml:space="preserve">
+    <value>Grupta tut</value>
+  </data>
+  <data name="Keep separate" xml:space="preserve">
+    <value>Ayrı tut</value>
+  </data>
+  <data name="Monitors that go down within a few minutes of each other with the same signals (same host or IP, same error type) can be grouped into one primary incident and the affected ones. Grouping only combines notifications: no incident is closed or hidden, and monitors left out of a group are notified on their own." xml:space="preserve">
+    <value>Birkaç dakika içinde aynı sinyallerle (aynı sunucu veya IP, aynı hata türü) çöken monitörler tek bir ana olay ve etkilenenler olarak gruplanabilir. Gruplama yalnızca bildirimleri birleştirir: hiçbir olay kapatılmaz veya gizlenmez, grup dışında kalan monitörler ayrı bildirim alır.</value>
+  </data>
+  <data name="No groups yet." xml:space="preserve">
+    <value>Henüz grup yok.</value>
+  </data>
+  <data name="No suggestions right now." xml:space="preserve">
+    <value>Şu anda öneri yok.</value>
+  </data>
+  <data name="Notifications of related incidents are combined: the first incident is notified at once, related ones that follow are listed in one short follow-up instead of separate alerts. When it recovers, or after {0} minutes, monitors still down are notified on their own." xml:space="preserve">
+    <value>İlişkili olayların bildirimleri birleştirilir: ilk olay hemen bildirilir, ardından gelen ilişkili olaylar ayrı uyarılar yerine tek bir kısa takip mesajında listelenir. İlk olay düzeldiğinde veya {0} dakika sonra, hâlâ çalışmayan monitörler ayrı ayrı bildirilir.</value>
+  </data>
+  <data name="Possibly related" xml:space="preserve">
+    <value>Muhtemelen ilişkili</value>
+  </data>
+  <data name="Primary" xml:space="preserve">
+    <value>Ana olay</value>
+  </data>
+  <data name="Primary incident" xml:space="preserve">
+    <value>Ana olay (grup)</value>
+  </data>
+  <data name="Primary incident of a group" xml:space="preserve">
+    <value>Bir grubun ana olayı</value>
+  </data>
+  <data name="Recent groups" xml:space="preserve">
+    <value>Son gruplar</value>
+  </data>
+  <data name="Rejected" xml:space="preserve">
+    <value>Reddedildi</value>
+  </data>
+  <data name="Related incidents" xml:space="preserve">
+    <value>İlişkili olaylar</value>
+  </data>
+  <data name="Same signals" xml:space="preserve">
+    <value>Aynı sinyaller</value>
+  </data>
+  <data name="Suggested" xml:space="preserve">
+    <value>Önerildi</value>
+  </data>
+  <data name="Suggestions" xml:space="preserve">
+    <value>Öneriler</value>
+  </data>
+  <data name="Switch grouping off" xml:space="preserve">
+    <value>Gruplamayı kapat</value>
+  </data>
+  <data name="Switch grouping on" xml:space="preserve">
+    <value>Gruplamayı aç</value>
+  </data>
+  <data name="The group was undone. Monitors that are still down are notified on their own." xml:space="preserve">
+    <value>Gruplama geri alındı. Hâlâ çalışmayan monitörler ayrı ayrı bildirilir.</value>
+  </data>
+  <data name="The incidents were grouped." xml:space="preserve">
+    <value>Olaylar gruplandı.</value>
+  </data>
+  <data name="The suggestion was rejected. The incidents stay separate." xml:space="preserve">
+    <value>Öneri reddedildi. Olaylar ayrı kalır.</value>
+  </data>
+  <data name="This suggestion was already decided." xml:space="preserve">
+    <value>Bu öneri için zaten karar verilmiş.</value>
+  </data>
+  <data name="TriggerCheck suggests groups of related incidents for you to accept or reject. Notifications are not changed." xml:space="preserve">
+    <value>TriggerCheck, kabul etmeniz veya reddetmeniz için ilişkili olay grupları önerir. Bildirimler değişmez.</value>
+  </data>
+  <data name="Undo grouping" xml:space="preserve">
+    <value>Gruplamayı geri al</value>
+  </data>
+  <data name="Undone" xml:space="preserve">
+    <value>Geri alındı</value>
+  </data>
+  <data name="same IP address" xml:space="preserve">
+    <value>aynı IP adresi</value>
+  </data>
+  <data name="same domain" xml:space="preserve">
+    <value>aynı alan adı</value>
+  </data>
+  <data name="same error type" xml:space="preserve">
+    <value>aynı hata türü</value>
+  </data>
+  <data name="same host" xml:space="preserve">
+    <value>aynı sunucu</value>
+  </data>
+  <data name="started within a few minutes" xml:space="preserve">
+    <value>birkaç dakika içinde başladı</value>
+  </data>
+  <data name="{0} accepted, {1} rejected" xml:space="preserve">
+    <value>{0} kabul, {1} ret</value>
+  </data>
+  <data name="A chosen status page does not show this monitor. Your text was saved but not published." xml:space="preserve">
+    <value>Seçilen bir durum sayfası bu monitörü göstermiyor. Metniniz kaydedildi ancak yayınlanmadı.</value>
+  </data>
+  <data name="A postmortem can be drafted once the incident is resolved." xml:space="preserve">
+    <value>Postmortem taslağı olay çözüldükten sonra hazırlanabilir.</value>
+  </data>
+  <data name="AI drafts are not available for your account. You can write the draft yourself." xml:space="preserve">
+    <value>Yapay zekâ taslakları hesabınız için kullanılamıyor. Taslağı kendiniz yazabilirsiniz.</value>
+  </data>
+  <data name="AI drafts are not available. You can write the draft yourself." xml:space="preserve">
+    <value>Yapay zekâ taslakları kullanılamıyor. Taslağı kendiniz yazabilirsiniz.</value>
+  </data>
+  <data name="AI postmortem drafts are not included in your plan." xml:space="preserve">
+    <value>Yapay zekâ postmortem taslakları planınıza dahil değil.</value>
+  </data>
+  <data name="Acknowledged by the team" xml:space="preserve">
+    <value>Ekip tarafından onaylandı</value>
+  </data>
+  <data name="Another monitor failed" xml:space="preserve">
+    <value>Başka bir monitör hata verdi</value>
+  </data>
+  <data name="Approve and publish" xml:space="preserve">
+    <value>Onayla ve yayınla</value>
+  </data>
+  <data name="Approved and published on {0} status page(s)." xml:space="preserve">
+    <value>Onaylandı ve {0} durum sayfasında yayınlandı.</value>
+  </data>
+  <data name="Approved by {0} on {1} and published on: {2}." xml:space="preserve">
+    <value>{0} tarafından {1} tarihinde onaylandı ve şu sayfalarda yayınlandı: {2}.</value>
+  </data>
+  <data name="Certificate / TLS error" xml:space="preserve">
+    <value>Sertifika / TLS hatası</value>
+  </data>
+  <data name="Choose at least one status page to publish on. Your text was not published." xml:space="preserve">
+    <value>Yayınlamak için en az bir durum sayfası seçin. Metniniz yayınlanmadı.</value>
+  </data>
+  <data name="Client errors (HTTP 4xx)" xml:space="preserve">
+    <value>İstemci hataları (HTTP 4xx)</value>
+  </data>
+  <data name="Connection error" xml:space="preserve">
+    <value>Bağlantı hatası</value>
+  </data>
+  <data name="Content check failed" xml:space="preserve">
+    <value>İçerik kontrolü başarısız</value>
+  </data>
+  <data name="Customer message" xml:space="preserve">
+    <value>Müşteri mesajı</value>
+  </data>
+  <data name="Customer message (published on approval)" xml:space="preserve">
+    <value>Müşteri mesajı (onaylanınca yayınlanır)</value>
+  </data>
+  <data name="DNS error" xml:space="preserve">
+    <value>DNS hatası</value>
+  </data>
+  <data name="Draft" xml:space="preserve">
+    <value>Taslak</value>
+  </data>
+  <data name="Draft again with AI" xml:space="preserve">
+    <value>Yapay zekâ ile yeniden taslak oluştur</value>
+  </data>
+  <data name="Draft with AI" xml:space="preserve">
+    <value>Yapay zekâ ile taslak oluştur</value>
+  </data>
+  <data name="During maintenance" xml:space="preserve">
+    <value>Bakım sırasında</value>
+  </data>
+  <data name="Failed regions" xml:space="preserve">
+    <value>Hata veren bölgeler</value>
+  </data>
+  <data name="First failing check" xml:space="preserve">
+    <value>İlk başarısız kontrol</value>
+  </data>
+  <data name="Impact" xml:space="preserve">
+    <value>Etki</value>
+  </data>
+  <data name="Incident opened (monitor DOWN)" xml:space="preserve">
+    <value>Olay açıldı (monitör DOWN)</value>
+  </data>
+  <data name="Likely cause (internal, never published)" xml:space="preserve">
+    <value>Olası neden (dahili, asla yayınlanmaz)</value>
+  </data>
+  <data name="Likely cause and customer message" xml:space="preserve">
+    <value>Olası neden ve müşteri mesajı</value>
+  </data>
+  <data name="Maintenance ended" xml:space="preserve">
+    <value>Bakım bitti</value>
+  </data>
+  <data name="Maintenance started" xml:space="preserve">
+    <value>Bakım başladı</value>
+  </data>
+  <data name="Missed heartbeat / ping" xml:space="preserve">
+    <value>Kaçan heartbeat / ping</value>
+  </data>
+  <data name="No postmortem has been drafted for this incident yet." xml:space="preserve">
+    <value>Bu olay için henüz postmortem taslağı hazırlanmadı.</value>
+  </data>
+  <data name="None" xml:space="preserve">
+    <value>Yok</value>
+  </data>
+  <data name="Nothing here is public until a customer admin approves it. Only the customer message is published, exactly as approved, as a note on the chosen status pages." xml:space="preserve">
+    <value>Bir müşteri yöneticisi onaylayana kadar buradaki hiçbir şey herkese açık değildir. Yalnızca müşteri mesajı, onaylandığı haliyle, seçilen durum sayfalarında not olarak yayınlanır.</value>
+  </data>
+  <data name="Other error" xml:space="preserve">
+    <value>Diğer hata</value>
+  </data>
+  <data name="Other monitors affected" xml:space="preserve">
+    <value>Etkilenen diğer monitörler</value>
+  </data>
+  <data name="Postmortem" xml:space="preserve">
+    <value>Postmortem</value>
+  </data>
+  <data name="Postmortem and status page draft" xml:space="preserve">
+    <value>Postmortem ve durum sayfası taslağı</value>
+  </data>
+  <data name="Postmortem of incident #{0}" xml:space="preserve">
+    <value>#{0} numaralı olayın postmortemi</value>
+  </data>
+  <data name="Publish the customer message on the selected status pages? It becomes public immediately." xml:space="preserve">
+    <value>Müşteri mesajı seçilen durum sayfalarında yayınlansın mı? Hemen herkese açık olur.</value>
+  </data>
+  <data name="Published" xml:space="preserve">
+    <value>Yayınlandı</value>
+  </data>
+  <data name="Replace the current texts with a new AI draft?" xml:space="preserve">
+    <value>Mevcut metinler yeni bir yapay zekâ taslağıyla değiştirilsin mi?</value>
+  </data>
+  <data name="Resolved (monitor UP)" xml:space="preserve">
+    <value>Çözüldü (monitör UP)</value>
+  </data>
+  <data name="Save draft" xml:space="preserve">
+    <value>Taslağı kaydet</value>
+  </data>
+  <data name="Server errors (HTTP 5xx)" xml:space="preserve">
+    <value>Sunucu hataları (HTTP 5xx)</value>
+  </data>
+  <data name="Shown on status pages" xml:space="preserve">
+    <value>Gösterildiği durum sayfaları</value>
+  </data>
+  <data name="The AI budget of this month is used up. You can write the draft yourself." xml:space="preserve">
+    <value>Bu ayın yapay zekâ bütçesi doldu. Taslağı kendiniz yazabilirsiniz.</value>
+  </data>
+  <data name="The AI draft could not be generated. You can write the draft yourself." xml:space="preserve">
+    <value>Yapay zekâ taslağı oluşturulamadı. Taslağı kendiniz yazabilirsiniz.</value>
+  </data>
+  <data name="The AI draft is ready. Review and edit it; nothing is published until you approve it." xml:space="preserve">
+    <value>Yapay zekâ taslağı hazır. İnceleyip düzenleyin; siz onaylayana kadar hiçbir şey yayınlanmaz.</value>
+  </data>
+  <data name="The AI only writes text: times, durations and counts are filled in from the incident data." xml:space="preserve">
+    <value>Yapay zekâ yalnızca metni yazar: saatler, süreler ve sayılar olay verisinden doldurulur.</value>
+  </data>
+  <data name="The draft was saved. Nothing is published yet." xml:space="preserve">
+    <value>Taslak kaydedildi. Henüz hiçbir şey yayınlanmadı.</value>
+  </data>
+  <data name="The likely cause can have at most {0} and the customer message at most {1} characters of plain text." xml:space="preserve">
+    <value>Olası neden en fazla {0}, müşteri mesajı en fazla {1} karakter düz metin olabilir.</value>
+  </data>
+  <data name="This monitor is not shown on any status page, so there is nowhere to publish. You can still keep the postmortem here." xml:space="preserve">
+    <value>Bu monitör hiçbir durum sayfasında gösterilmiyor, bu yüzden yayınlanacak yer yok. Postmortemi yine de burada saklayabilirsiniz.</value>
+  </data>
+  <data name="This postmortem was already approved and published." xml:space="preserve">
+    <value>Bu postmortem zaten onaylandı ve yayınlandı.</value>
+  </data>
+  <data name="Timeline" xml:space="preserve">
+    <value>Zaman çizelgesi</value>
+  </data>
+  <data name="Unexpected HTTP status code" xml:space="preserve">
+    <value>Beklenmeyen HTTP durum kodu</value>
+  </data>
+  <data name="Write the customer message before publishing." xml:space="preserve">
+    <value>Yayınlamadan önce müşteri mesajını yazın.</value>
+  </data>
+  <data name="after {0}" xml:space="preserve">
+    <value>{0} sonra</value>
+  </data>
+  <data name="{0} of {1}" xml:space="preserve">
+    <value>{0} / {1}</value>
   </data>
 </root>

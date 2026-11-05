@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    FEAT-6 probe agent: a small worker that runs checks in a remote region and reports them to the main app.
+    It reuses the main app's checkers and SSRF guard (TriggerCheck.Monitoring) so every region probes identically.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>TriggerCheck.ProbeAgent</RootNamespace>
+    <StartupObject>TriggerCheck.ProbeAgent.AgentProgram</StartupObject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TriggerCheck.Monitoring\TriggerCheck.Monitoring.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

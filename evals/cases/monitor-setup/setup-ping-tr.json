@@ -1,0 +1,18 @@
+{
+  "id": "setup-ping-tr",
+  "feature": "MonitorSetupAssistant",
+  "language": "tr",
+  "description": "Turkish: ping a router every 30 seconds.",
+  "request": "router.example.test adresine 30 saniyede bir ping at",
+  "expect": {
+    "primaryCause": "setup_form",
+    "fields": { "type": "Ping", "target": "router.example.test", "intervalSeconds": 30 }
+  },
+  "canned": {
+    "outcome": "form", "clarification": null,
+    "explanation": "Bir ping monitörü yönlendiriciyi 30 saniyede bir kontrol eder ve yanıt vermezse alarm üretir.",
+    "type": "ping", "name": "router.example.test ping", "target": "router.example.test", "port": null, "keyword": null,
+    "http_method": null, "expected_status_codes": null, "interval_seconds": 30, "timeout_seconds": null, "failure_threshold": null,
+    "dns_record_type": null, "json_path": null, "assertion_operator": null, "expected_value": null, "grace_period_seconds": null
+  }
+}

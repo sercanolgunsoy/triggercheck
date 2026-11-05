@@ -4,13 +4,14 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Infrastructure.Data;
+using TriggerCheck.Monitoring.Engine;
 using TriggerCheck.Web.Infrastructure;
 using TriggerCheck.Web.Localization;
 
 namespace TriggerCheck.Web.Areas.SuperAdmin.Pages.Monitors;
 
 [Authorize(Policy = Policies.SuperAdmin)]
-public class IndexModel(AppDbContext db, Text<AdminResource> L) : PageModel
+public class IndexModel(AppDbContext db, MonitorLifecycle lifecycle, Text<AdminResource> L) : PageModel
 {
     public const int PageSize = 50;
 
@@ -40,8 +41,9 @@ public class IndexModel(AppDbContext db, Text<AdminResource> L) : PageModel
         if (Type is MonitorType t) q = q.Where(m => m.Type == t);
         if (!string.IsNullOrWhiteSpace(Q))
         {
-            var like = $"%{Q.Trim()}%";
-            q = q.Where(m => EF.Functions.Like(m.Target, like) || EF.Functions.Like(m.Name, like));
+            // Case-insensitive on both providers (Postgres LIKE is case-sensitive, SQLite's is not).
+            var term = Q.Trim().ToLowerInvariant();
+            q = q.Where(m => m.Target.ToLower().Contains(term) || m.Name.ToLower().Contains(term));
         }
 
         Total = await q.CountAsync();
@@ -55,31 +57,25 @@ public class IndexModel(AppDbContext db, Text<AdminResource> L) : PageModel
             .ToListAsync();
     }
 
-    public async Task<IActionResult> OnPostPauseAsync(int id) => await SetPausedAsync(id, paused: true);
-    public async Task<IActionResult> OnPostResumeAsync(int id) => await SetPausedAsync(id, paused: false);
+    public async Task<IActionResult> OnPostPauseAsync(int id, CancellationToken ct) => await SetPausedAsync(id, paused: true, ct);
+    public async Task<IActionResult> OnPostResumeAsync(int id, CancellationToken ct) => await SetPausedAsync(id, paused: false, ct);
 
-    private async Task<IActionResult> SetPausedAsync(int id, bool paused)
+    private async Task<IActionResult> SetPausedAsync(int id, bool paused, CancellationToken ct)
     {
-        var m = await db.Monitors.FindAsync(id);
-        if (m is null) return NotFound();
-        var now = DateTime.UtcNow;
-        if (paused && m.IsEnabled)
+        // Same semantics as the customer panel (closes open incidents on pause), see MonitorLifecycle.
+        MonitorLifecycleResult? r;
+        try
         {
-            m.IsEnabled = false;
-            m.Status = MonitorStatus.Paused;
-            m.StatusChangedAtUtc = now;
-            TempData["Success"] = L["\"{0}\" was paused.", m.Name].Value;
+            r = paused ? await lifecycle.PauseAsync(id, customerId: null, ct) : await lifecycle.ResumeAsync(id, customerId: null, ct);
         }
-        else if (!paused && !m.IsEnabled)
+        catch (DbUpdateConcurrencyException)
         {
-            m.IsEnabled = true;
-            m.Status = MonitorStatus.Unknown;
-            m.ConsecutiveFailures = 0;
-            m.StatusChangedAtUtc = now;
-            m.NextCheckAtUtc = now;
-            TempData["Success"] = L["\"{0}\" was resumed.", m.Name].Value;
+            TempData["Error"] = L["This monitor was changed in the meantime (for example paused or edited by someone else). Reload the page and try again."].Value;
+            return RedirectToPage(new { CustomerId, Status, Type, Q, p = PageNo });
         }
-        await db.SaveChangesAsync();
+        if (r is null) return NotFound();
+        if (r.Changed)
+            TempData["Success"] = (paused ? L["\"{0}\" was paused.", r.Name] : L["\"{0}\" was resumed.", r.Name]).Value;
         return RedirectToPage(new { CustomerId, Status, Type, Q, p = PageNo });
     }
 }

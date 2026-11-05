@@ -1,0 +1,54 @@
+@page
+@model TriggerCheck.Web.Areas.SuperAdmin.Pages.Refunds.IndexModel
+@{ ViewData["Title"] = L["Refunds"]; }
+
+<div class="page-head">
+    <div>
+        <h2>@L["Refunds"]</h2>
+        <div class="sub">@L["Payments for subscriptions that were not activated (second subscription or unexpected plan). They were cancelled at iyzico; refund them in the iyzico merchant panel, then mark them here."]</div>
+    </div>
+</div>
+
+<div class="card mb-4" data-testid="refunds-open">
+    <div class="card-header fw-semibold">@L["To refund"] (@Model.Open.Count)</div>
+    <div class="table-responsive">
+        <table class="table align-middle mb-0">
+            <thead class="table-light"><tr><th>@L["Customer"]</th><th>@L["Plan"]</th><th>@L["iyzico reference"]</th><th>@L["Since"]</th><th></th></tr></thead>
+            <tbody>
+            @if (Model.Open.Count == 0) { <tr><td colspan="5" class="text-center text-muted py-4">@L["No records found."]</td></tr> }
+            @foreach (var r in Model.Open)
+            {
+                <tr>
+                    <td><a href="/SuperAdmin/Customers/Details/@r.CustomerId">@r.CustomerName</a></td>
+                    <td>@r.PlanName</td>
+                    <td class="font-monospace small">@r.Reference</td>
+                    <td>@Fmt.Time(r.NeededAtUtc)</td>
+                    <td class="text-end">
+                        <form method="post" asp-page-handler="MarkRefunded" asp-route-id="@r.Id" data-confirm="@L["Mark this payment as refunded in iyzico?"]">
+                            <button type="submit" class="btn btn-sm btn-outline-success">@L["Mark as refunded"]</button>
+                        </form>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@if (Model.Handled.Count > 0)
+{
+    <div class="card">
+        <div class="card-header fw-semibold">@L["Refunded"]</div>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead class="table-light"><tr><th>@L["Customer"]</th><th>@L["iyzico reference"]</th><th>@L["Refunded"]</th><th>@L["By"]</th></tr></thead>
+                <tbody>
+                @foreach (var r in Model.Handled)
+                {
+                    <tr><td>@r.CustomerName</td><td class="font-monospace small">@r.Reference</td><td>@Fmt.Time(r.HandledAtUtc)</td><td>@r.HandledBy</td></tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}

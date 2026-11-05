@@ -1,0 +1,18 @@
+{
+  "id": "setup-dns-mx",
+  "feature": "MonitorSetupAssistant",
+  "language": "en",
+  "description": "DNS monitor: the MX record must contain the mail host.",
+  "request": "Alert me if the MX record of example.test no longer contains mail.example.test",
+  "expect": {
+    "primaryCause": "setup_form",
+    "fields": { "type": "Dns", "target": "example.test", "dnsRecordType": "MX", "assertionOperator": "Contains", "expectedValue": "mail.example.test" }
+  },
+  "canned": {
+    "outcome": "form", "clarification": null,
+    "explanation": "A DNS monitor looks up the MX record of the domain and alerts when it no longer contains the mail host.",
+    "type": "dns", "name": "example.test MX", "target": "example.test", "port": null, "keyword": null,
+    "http_method": null, "expected_status_codes": null, "interval_seconds": null, "timeout_seconds": null, "failure_threshold": null,
+    "dns_record_type": "MX", "json_path": null, "assertion_operator": "contains", "expected_value": "mail.example.test", "grace_period_seconds": null
+  }
+}

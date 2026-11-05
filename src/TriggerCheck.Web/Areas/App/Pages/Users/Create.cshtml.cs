@@ -54,7 +54,8 @@ public class CreateModel(UserManager<ApplicationUser> users, ICurrentCustomer cu
             EmailConfirmed = true,
             FullName = Input.FullName.Trim(),
             CustomerId = current.RequiredCustomerId,
-            IsActive = true
+            IsActive = true,
+            MustChangePassword = true // the password was chosen by the admin
         };
         var result = await users.CreateAsync(user, Input.Password);
         if (!result.Succeeded)

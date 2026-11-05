@@ -2,7 +2,7 @@
 @model TriggerCheck.Web.Areas.App.Pages.Monitors.EditModel
 @{ ViewData["Title"] = L["Edit monitor"].Value; }
 
-<nav aria-label="breadcrumb"><ol class="breadcrumb">
+<nav aria-label="@L["Breadcrumb"]"><ol class="breadcrumb">
     <li class="breadcrumb-item"><a asp-page="Index">@L["Monitors"]</a></li>
     <li class="breadcrumb-item"><a asp-page="Details" asp-route-id="@Model.Id">@Model.Input.Name</a></li>
     <li class="breadcrumb-item active">@L["Edit"]</li>

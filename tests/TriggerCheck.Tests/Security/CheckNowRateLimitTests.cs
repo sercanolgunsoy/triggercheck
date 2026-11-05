@@ -1,0 +1,182 @@
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Time.Testing;
+using TriggerCheck.Domain.Entities;
+using TriggerCheck.Monitoring;
+using TriggerCheck.Tests.App;
+using TriggerCheck.Tests.Infrastructure;
+using TriggerCheck.Web.Infrastructure;
+using static TriggerCheck.Web.Infrastructure.ManualCheckLimiter;
+
+namespace TriggerCheck.Tests.Security;
+
+public class ManualCheckLimiterTests
+{
+    private readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero));
+    private DateTime Now => _time.GetUtcNow().UtcDateTime;
+
+    [Theory]
+    [InlineData(15, 30)]
+    [InlineData(30, 30)]
+    [InlineData(60, 60)]
+    [InlineData(300, 300)]
+    public void Cooldown_is_plan_minimum_or_30_seconds(int planMin, int expected) =>
+        Assert.Equal(TimeSpan.FromSeconds(expected), CooldownFor(planMin));
+
+    [Fact]
+    public void Only_a_short_guard_applies_after_a_scheduled_check()
+    {
+        var limiter = new ManualCheckLimiter(_time);
+        var d = limiter.TryAcquire(1, 10, Now.AddSeconds(-4), planMinIntervalSeconds: 300);
+        Assert.Equal(Denial.MonitorCooldown, d.Denial);
+        Assert.Equal(6, d.RetryAfterSeconds);
+
+        // Monitor at the plan minimum (300s), scheduler checked it 10s ago: a manual check is allowed...
+        Assert.True(limiter.TryAcquire(1, 10, Now.AddSeconds(-10), 300).Allowed);
+        // ...and the plan cooldown then applies between manual checks.
+        _time.Advance(TimeSpan.FromSeconds(60));
+        d = limiter.TryAcquire(1, 10, Now.AddSeconds(-60), 300);
+        Assert.Equal(Denial.MonitorCooldown, d.Denial);
+        Assert.Equal(240, d.RetryAfterSeconds);
+    }
+
+    [Fact]
+    public void Second_manual_check_waits_for_the_cooldown_even_before_the_result_is_saved()
+    {
+        var limiter = new ManualCheckLimiter(_time);
+        Assert.True(limiter.TryAcquire(1, 10, null, 15).Allowed);
+        Assert.Equal(Denial.MonitorCooldown, limiter.TryAcquire(1, 10, null, 15).Denial);
+        _time.Advance(TimeSpan.FromSeconds(29));
+        Assert.Equal(Denial.MonitorCooldown, limiter.TryAcquire(1, 10, null, 15).Denial);
+        _time.Advance(TimeSpan.FromSeconds(1));
+        Assert.True(limiter.TryAcquire(1, 10, null, 15).Allowed);
+    }
+
+    [Fact]
+    public void Customer_quota_is_per_minute_and_per_customer()
+    {
+        var limiter = new ManualCheckLimiter(_time);
+        for (var i = 0; i < PerCustomerPerMinute; i++)
+            Assert.True(limiter.TryAcquire(1, 100 + i, null, 15).Allowed);
+
+        var denied = limiter.TryAcquire(1, 999, null, 15);
+        Assert.Equal(Denial.CustomerQuota, denied.Denial);
+        Assert.Equal(60, denied.RetryAfterSeconds);
+
+        Assert.True(limiter.TryAcquire(2, 500, null, 15).Allowed);               // other customer unaffected
+
+        _time.Advance(TimeSpan.FromMinutes(1));
+        Assert.True(limiter.TryAcquire(1, 999, null, 15).Allowed);
+    }
+}
+
+public class CheckNowRateLimitTests : IAsyncLifetime
+{
+    private readonly CountingRunner _runner = new();
+    // The limiter runs on a frozen clock: wall-clock gaps (a loaded or sleeping machine) cannot expire a cooldown mid-test.
+    private readonly FakeTimeProvider _time = new(DateTimeOffset.UtcNow);
+    private DateTime Now => _time.GetUtcNow().UtcDateTime;
+    private TestWebAppFactory _base = null!;
+    private Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<Program> _f = null!;
+
+    public Task InitializeAsync()
+    {
+        _base = new TestWebAppFactory();
+        _f = _base.WithWebHostBuilder(b => b.ConfigureTestServices(s =>
+        {
+            s.RemoveAll<IMonitorCheckRunner>();
+            s.AddSingleton<IMonitorCheckRunner>(_runner);
+            s.RemoveAll<ManualCheckLimiter>();
+            s.AddSingleton(new ManualCheckLimiter(_time));
+        }));
+        return Task.CompletedTask;
+    }
+
+    public async Task DisposeAsync()
+    {
+        await _f.DisposeAsync();
+        await _base.DisposeAsync();
+    }
+
+    private async Task<HttpClient> AdminAsync()
+    {
+        var client = _f.CreateClient(new() { AllowAutoRedirect = false, HandleCookies = true });
+        var r = await client.PostFormAsync("/Account/Login", new() { ["Input.Email"] = TestWebAppFactory.DemoAdminEmail, ["Input.Password"] = TestWebAppFactory.DemoAdminPassword });
+        Assert.Equal(System.Net.HttpStatusCode.Redirect, r.StatusCode);
+        return client;
+    }
+
+    private async Task<int> AddMonitorAsync(DateTime? lastChecked, int intervalSeconds = 300)
+    {
+        using var scope = _f.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<TriggerCheck.Infrastructure.Data.AppDbContext>();
+        var cid = db.Users.Where(u => u.Email == TestWebAppFactory.DemoAdminEmail).Select(u => u.CustomerId!.Value).First();
+        var m = new TriggerCheck.Domain.Entities.Monitor
+        {
+            CustomerId = cid, Name = "Rate-" + Guid.NewGuid().ToString("N")[..6], Type = MonitorType.Http, Target = "https://example.org/",
+            IntervalSeconds = intervalSeconds, Status = MonitorStatus.Up, LastCheckedAtUtc = lastChecked, NextCheckAtUtc = DateTime.UtcNow.AddHours(1)
+        };
+        db.Monitors.Add(m);
+        await db.SaveChangesAsync();
+        return m.Id;
+    }
+
+    private static readonly System.Text.RegularExpressions.Regex FlashRx = new("<div class=\"alert alert-(?:success|danger)[^\"]*\">([^<]*)");
+
+    /// <summary>Clicks "Check now" and returns the flash message(s) shown after the redirect (short, so a failure shows it whole).</summary>
+    private static async Task<string> CheckNowAsync(HttpClient c, int id)
+    {
+        var url = $"/App/Monitors/Details/{id}";
+        var r = await c.PostFormAsync(url + "?handler=CheckNow", new(), url);
+        AppTestData.AssertRedirect(r, url);
+        var html = await c.GetHtmlAsync(url);
+        return string.Join(" | ", FlashRx.Matches(html).Select(m => m.Groups[1].Value.Trim()));
+    }
+
+    [Fact]
+    public async Task Check_within_cooldown_is_refused_without_probing()
+    {
+        var c = await AdminAsync();
+        var id = await AddMonitorAsync(Now.AddSeconds(-5));
+
+        var flash = await CheckNowAsync(c, id);
+
+        Assert.Contains("This monitor was checked moments ago. Try again in", flash);
+        Assert.Equal(0, _runner.Calls(id));
+    }
+
+    [Fact]
+    public async Task First_check_runs_and_an_immediate_second_one_is_refused()
+    {
+        // Demo plan "Standard" has a 60s minimum; the monitor runs at it and the scheduler checked it 15s ago.
+        var c = await AdminAsync();
+        var id = await AddMonitorAsync(Now.AddSeconds(-15), intervalSeconds: 60);
+
+        Assert.Contains("Check succeeded", await CheckNowAsync(c, id));
+        Assert.Contains("This monitor was checked moments ago.", await CheckNowAsync(c, id));
+        Assert.Equal(1, _runner.Calls(id));
+    }
+
+    [Fact]
+    public async Task Cooldown_message_is_localized()
+    {
+        var c = await AdminAsync();
+        await c.SetLanguageAsync("tr");
+        var id = await AddMonitorAsync(Now);
+        Assert.Contains("Bu monitör az önce kontrol edildi.", await CheckNowAsync(c, id));
+    }
+
+    private sealed class CountingRunner : IMonitorCheckRunner
+    {
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<int, int> _calls = new();
+        public int Calls(int id) => _calls.GetValueOrDefault(id);
+
+        public Task<CheckResult> RunAsync(int monitorId, CancellationToken ct = default)
+        {
+            _calls.AddOrUpdate(monitorId, 1, (_, n) => n + 1);
+            return Task.FromResult(new CheckResult { MonitorId = monitorId, CheckedAtUtc = DateTime.UtcNow, IsUp = true, ResponseTimeMs = 5, StatusCode = 200 });
+        }
+    }
+}

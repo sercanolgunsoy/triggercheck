@@ -1,0 +1,60 @@
+@page "{id:int}"
+@model TriggerCheck.Web.Areas.SuperAdmin.Pages.Customers.ApiKeysModel
+@using TriggerCheck.Domain.Entities
+@using TriggerCheck.Web.Api
+@{
+    var c = Model.Customer;
+    ViewData["Title"] = L["API keys"].Value + " - " + c.Name;
+    var active = Model.Keys.Count(k => k.RevokedAtUtc is null && !k.IsExpired(Model.Now));
+}
+
+<nav aria-label="@L["Breadcrumb"]"><ol class="breadcrumb">
+    <li class="breadcrumb-item"><a asp-page="Index">@L["Customers"]</a></li>
+    <li class="breadcrumb-item"><a asp-page="Details" asp-route-id="@c.Id">@c.Name</a></li>
+    <li class="breadcrumb-item active">@L["API keys"]</li>
+</ol></nav>
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <div>
+        <h2 class="mb-0">@L["API keys"]</h2>
+        <div class="text-muted small">@L["Keys belong to the customer, not to the user who created them: they keep working after that user is removed."]</div>
+    </div>
+    @if (Model.Keys.Any(k => k.RevokedAtUtc is null))
+    {
+        <form method="post" asp-page-handler="RevokeAll" asp-route-id="@c.Id" data-confirm="@L["Revoke all API keys of this customer? Requests using them will be rejected. This cannot be undone."]">
+            <button type="submit" class="btn btn-outline-danger">@L["Revoke all"]</button>
+        </form>
+    }
+</div>
+
+@if (Model.Keys.Count == 0)
+{
+    <div class="alert alert-light border">@L["This customer has no API keys."]</div>
+}
+else
+{
+    <p class="text-muted small">@L["Active keys: {0}", active]</p>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead><tr><th>@L["Name"]</th><th>@L["Key"]</th><th>@L["Access"]</th><th>@L["Status"]</th><th>@L["Created by"]</th><th>@L["Created ({0})", Fmt.TimeZoneLabel]</th><th>@L["Last used"]</th></tr></thead>
+            <tbody>
+            @foreach (var k in Model.Keys)
+            {
+                <tr>
+                    <td>@k.Name</td>
+                    <td class="font-monospace small">@ApiKeyTokens.Display(k.Prefix)</td>
+                    <td>@(k.Scope == ApiKeyScope.ReadWrite ? L["Read & write"] : L["Read-only"])</td>
+                    <td>
+                        @if (k.RevokedAtUtc is not null) { <span class="badge bg-secondary">@L["Revoked"]</span> }
+                        else if (k.IsExpired(Model.Now)) { <span class="badge bg-warning text-dark">@L["Expired"]</span> }
+                        else { <span class="badge bg-success">@L["Active"]</span> }
+                    </td>
+                    <td class="small">@(k.CreatedBy ?? "—")</td>
+                    <td class="small text-muted">@Fmt.Time(k.CreatedAtUtc)</td>
+                    <td class="small text-muted">@(k.LastUsedAtUtc is null ? L["Never"].Value : Fmt.Time(k.LastUsedAtUtc))</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+}

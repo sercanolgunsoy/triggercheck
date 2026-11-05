@@ -25,18 +25,20 @@
     @await RenderSectionAsync("Head", required: false)
 </head>
 <body>
+<a class="skip-link" href="#main-content">@L["Skip to main content"]</a>
 @if (hasShell)
 {
 <div class="app-shell">
-    <aside class="app-sidebar offcanvas-lg offcanvas-start" tabindex="-1" id="sidebar" aria-label="@L["Main navigation"]">
+    <aside class="app-sidebar offcanvas-lg offcanvas-start" tabindex="-1" id="sidebar" aria-label="@L["Menu"]">
         <div class="sidebar-inner">
             <div class="d-flex align-items-center justify-content-between">
                 <a class="sidebar-brand" href="@(isSuper ? "/SuperAdmin" : "/App")">@Icons.Logo(28) TriggerCheck
-                    @if (isSuper) { <span class="tag">Admin</span> }
+                    @if (isSuper) { <span class="tag">@L["Admin"]</span> }
                 </a>
                 <button type="button" class="btn btn-sm text-white d-lg-none" data-bs-dismiss="offcanvas" data-bs-target="#sidebar" aria-label="@L["Close"]">@Icons.Get("x")</button>
             </div>
 
+            <nav class="sidebar-navs" aria-label="@L["Main navigation"]">
             @if (isCustomer)
             {
                 <div>
@@ -46,13 +48,21 @@
                         @NavItem("/App/Monitors", "activity", L["Monitors"])
                         @NavItem("/App/Incidents", "alert", L["Incidents"])
                         @NavItem("/App/Alerts", "bell", L["Alert channels"])
+                        @NavItem("/App/Maintenance", "clock", L["Maintenance"])
+                        @NavItem("/App/Escalation", "zap", L["Escalation"])
+                        @NavItem("/App/StatusPages", "globe", L["Status pages"])
+                        @NavItem("/App/Reports", "chart", L["Reports"])
+                        @NavItem("/App/Ask", "sparkles", L["Ask AI"])
                     </ul>
                 </div>
                 <div>
                     <div class="sidebar-section">@L["Settings"]</div>
                     <ul class="sidebar-nav">
                         @if (isCustomerAdmin) { @NavItem("/App/Users", "users", L["Users"]) }
+                        @NavItem("/App/Billing", "layers", L["Billing"])
+                        @NavItem("/App/ApiKeys", "lock", L["API keys"])
                         @NavItem("/App/Account", "card", L["Account & plan"])
+                        @NavItem("/App/Ai", "sparkles", L["AI features"])
                     </ul>
                 </div>
             }
@@ -65,9 +75,14 @@
                         @NavItem("/SuperAdmin/Customers", "building", L["Customers"])
                         @NavItem("/SuperAdmin/Plans", "layers", L["Plans"])
                         @NavItem("/SuperAdmin/Monitors", "list", L["All monitors"])
+                        @NavItem("/SuperAdmin/Regions", "globe", L["Probe regions"])
+                        @NavItem("/SuperAdmin/Refunds", "card", L["Refunds"])
+                        @NavItem("/SuperAdmin/Ai", "sparkles", L["AI usage"])
+                        @NavItem("/SuperAdmin/Insights", "chart", L["Insights"])
                     </ul>
                 </div>
             }
+            </nav>
 
             <div class="sidebar-foot">
                 <div class="sidebar-user">
@@ -86,16 +101,16 @@
 
     <div class="app-main">
         <header class="app-topbar">
-            <button class="tool-btn d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebar" aria-controls="sidebar" aria-label="@L["Menu"]">@Icons.Get("menu", 16)</button>
+            <button class="tool-btn d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebar" aria-controls="sidebar" aria-expanded="false" aria-label="@L["Menu"]">@Icons.Get("menu", 16)</button>
             <div class="crumb">@ViewData["Title"]</div>
             <div class="ms-auto d-flex align-items-center gap-2">
                 <partial name="_Toolbar" />
             </div>
         </header>
         <div class="app-content">
-            @if (TempData["Success"] is string ok) { <div class="alert alert-success alert-dismissible fade show">@ok<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="@L["Close"]"></button></div> }
-            @if (TempData["Error"] is string err) { <div class="alert alert-danger alert-dismissible fade show">@err<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="@L["Close"]"></button></div> }
-            <main role="main">
+            <main role="main" id="main-content" tabindex="-1">
+                @if (TempData["Success"] is string ok) { <div class="alert alert-success alert-dismissible fade show">@ok<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="@L["Close"]"></button></div> }
+                @if (TempData["Error"] is string err) { <div class="alert alert-danger alert-dismissible fade show">@err<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="@L["Close"]"></button></div> }
                 @RenderBody()
             </main>
         </div>
@@ -120,9 +135,11 @@ else
         </div>
     </header>
     <div class="app-content">
-        @if (TempData["Success"] is string ok) { <div class="alert alert-success">@ok</div> }
-        @if (TempData["Error"] is string err) { <div class="alert alert-danger">@err</div> }
-        <main role="main">@RenderBody()</main>
+        <main role="main" id="main-content" tabindex="-1">
+            @if (TempData["Success"] is string ok) { <div class="alert alert-success">@ok</div> }
+            @if (TempData["Error"] is string err) { <div class="alert alert-danger">@err</div> }
+            @RenderBody()
+        </main>
     </div>
 }
 <script src="~/lib/jquery/dist/jquery.min.js"></script>

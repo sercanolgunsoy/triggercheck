@@ -2,7 +2,7 @@
 @model TriggerCheck.Web.Areas.SuperAdmin.Pages.Plans.EditModel
 @{ ViewData["Title"] = L["Edit plan"]; }
 
-<nav aria-label="breadcrumb"><ol class="breadcrumb">
+<nav aria-label="@L["Breadcrumb"]"><ol class="breadcrumb">
     <li class="breadcrumb-item"><a asp-page="Index">@L["Plans"]</a></li>
     <li class="breadcrumb-item active">@Model.Plan.Name</li>
 </ol></nav>

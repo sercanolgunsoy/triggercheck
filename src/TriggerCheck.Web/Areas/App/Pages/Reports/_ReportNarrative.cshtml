@@ -1,0 +1,84 @@
+@model TriggerCheck.Web.Areas.App.Pages.Reports.ReportNarrativeModel
+@using TriggerCheck.Ai.Narrative
+@*
+    AI-6 narrative of the shown report period: "what happened, what changed, what to watch". Every number in it was
+    checked against the figures computed from the database (items with other numbers were removed). Rendered as text
+    (HTML-encoded); monitor labels are replaced with the names here. The report works fully without it.
+*@
+@{
+    var v = Model.View;
+    var o = v.Output;
+}
+<div class="mb-4" id="report-narrative" data-narrative-state="@v.State.ToString().ToLowerInvariant()">
+@switch (v.State)
+{
+    case NarrativeState.Ready when o is not null:
+        <section class="card ai-content" data-ai-decision="@v.DecisionId" aria-label="@L["AI-generated"]">
+            <div class="card-header d-flex align-items-center gap-2 flex-wrap">
+                <span class="badge text-bg-info ai-badge">@Icons.Get("sparkles", 12) @L["AI-generated"]</span>
+                <span class="small text-muted">@L["The AI only interprets the figures of this report; it may still be wrong."]</span>
+            </div>
+            <div class="card-body">
+                <p class="fw-semibold mb-3 ai-summary">@Model.Text(o.Headline)</p>
+                @foreach (var (title, items, id) in new[] { (L["What happened"].Value, o.WhatHappened, "happened"), (L["What changed"].Value, o.WhatChanged, "changed"), (L["What to watch"].Value, o.WhatToWatch, "watch") })
+                {
+                    if (items.Count == 0) continue;
+                    <h3 class="h6 mt-2">@title</h3>
+                    <ul class="small mb-2" data-narrative-section="@id">
+                        @foreach (var i in items) { <li>@Model.Text(i.Text)</li> }
+                    </ul>
+                }
+            </div>
+            <div class="card-footer d-flex align-items-center gap-2 small">
+                <span class="text-muted">@L["Was this helpful?"]</span>
+                @foreach (var (value, emoji, label) in new[] { (1, "👍", L["Helpful"].Value), (-1, "👎", L["Not helpful"].Value) })
+                {
+                    <form method="post" asp-area="App" asp-page="/Ai/Feedback" class="d-inline m-0">
+                        <input type="hidden" name="decisionId" value="@v.DecisionId" />
+                        <input type="hidden" name="value" value="@value" />
+                        <input type="hidden" name="returnUrl" value="@Model.ReturnUrl" />
+                        <button type="submit" class="btn btn-sm @(Model.MyFeedback == value ? "btn-primary" : "btn-outline-secondary")"
+                                title="@label" aria-label="@label" aria-pressed="@(Model.MyFeedback == value ? "true" : "false")">@emoji</button>
+                    </form>
+                }
+            </div>
+        </section>
+        break;
+    case NarrativeState.Pending:
+        <div class="ai-unavailable small text-muted">@Icons.Get("sparkles", 14) @L["The AI narrative of this period is being prepared. Reload the page in a few minutes."]</div>
+        break;
+    case NarrativeState.Requestable:
+    case NarrativeState.Failed:
+    case NarrativeState.Budget:
+    case NarrativeState.NoData:
+        <div class="ai-unavailable small text-muted d-flex flex-wrap align-items-center gap-2">
+            @Icons.Get("sparkles", 14)
+            @switch (v.State)
+            {
+                case NarrativeState.Failed: @L["The AI narrative could not be generated."] break;
+                case NarrativeState.Budget: @L["AI summary unavailable this month."] break;
+                case NarrativeState.NoData: @L["No AI narrative: there was nothing to report for this period."] break;
+                default: @L["No AI narrative for this period yet."] break;
+            }
+            @if (Model.CanRequest)
+            {
+                <form method="post" asp-page-handler="Narrative" asp-route-month="@(Model.Week is null ? Model.Month : null)" asp-route-week="@Model.Week" class="d-inline m-0">
+                    <button type="submit" class="btn btn-sm btn-outline-primary">@L["Prepare AI narrative"]</button>
+                </form>
+            }
+        </div>
+        break;
+    case NarrativeState.NotComplete:
+        <div class="ai-unavailable small text-muted">@Icons.Get("sparkles", 14) @L["The AI narrative is available once the period is over."]</div>
+        break;
+    case NarrativeState.NotInPlan:
+        <div class="ai-unavailable small text-muted">@Icons.Get("sparkles", 14) @L["AI report narratives are not included in your plan."]</div>
+        break;
+    case NarrativeState.OptOut:
+        <div class="ai-unavailable small text-muted">@Icons.Get("sparkles", 14) @L["AI summaries are turned off for your account."]
+            @if (Model.CanRequest) { <a asp-area="App" asp-page="/Ai/Index">@L["AI settings"]</a> }</div>
+        break;
+    default: // Off: the report works without AI; nothing to say
+        break;
+}
+</div>

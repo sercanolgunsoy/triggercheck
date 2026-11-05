@@ -1,0 +1,72 @@
+{
+  "id": "suggest-failure-threshold",
+  "feature": "SettingsSuggestions",
+  "language": "en",
+  "description": "14 of 15 incidents in a week recovered at the next check with failure threshold 1 (flapping).",
+  "expect": {
+    "primaryCause": "raise_failure_threshold"
+  },
+  "monitor": {
+    "name": "Checkout API",
+    "type": "Http",
+    "target": "https://shop.example.test/api/checkout?token=abc123",
+    "status": "Up",
+    "intervalSeconds": 300,
+    "timeoutSeconds": 10,
+    "failureThreshold": 1
+  },
+  "checks": [
+    {
+      "minutesAgo": 3,
+      "repeat": 100,
+      "everyMinutes": 60,
+      "up": true,
+      "status": 200,
+      "ms": 210
+    }
+  ],
+  "incidents": [
+    {
+      "startedMinutesAgo": 600,
+      "resolvedMinutesAgo": 596,
+      "repeat": 14,
+      "everyMinutes": 600,
+      "cause": "Timeout after 10s"
+    },
+    {
+      "startedMinutesAgo": 9500,
+      "resolvedMinutesAgo": 9400,
+      "cause": "Unexpected status code 503 (expected 200-299)"
+    }
+  ],
+  "secrets": [
+    "abc123",
+    "Checkout API"
+  ],
+  "canned": {
+    "summary": "In the last 7 days 14 of 15 incidents recovered at the next check, each within 240 seconds. Raising the failure threshold from 1 to 2 avoids these alerts, but a real outage is reported a check later.",
+    "hypotheses": [
+      {
+        "cause": "Short network or server hiccups end before the next check, so most alerts are noise.",
+        "confidence": "high",
+        "evidence": [
+          "brief_incidents: 14 of 15 incidents recovered at the next check"
+        ],
+        "category": "raise_failure_threshold",
+        "evidence_refs": [
+          "brief_incidents",
+          "incidents"
+        ]
+      }
+    ],
+    "suggested_actions": [
+      {
+        "action": "raise_failure_threshold",
+        "description": "Set the failure threshold to 2.",
+        "autonomy": "A1",
+        "reversible": true
+      }
+    ],
+    "unknowns": []
+  }
+}

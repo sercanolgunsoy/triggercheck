@@ -1,0 +1,14 @@
+@page
+@model TriggerCheck.Web.Pages.Account.ConfirmEmailModel
+@{ ViewData["Title"] = L["Confirm e-mail"]; Layout = "_AuthLayout"; }
+@if (Model.Confirmed)
+{
+    <h1 class="mb-2">@L["E-mail confirmed"]</h1>
+    <p class="text-muted mb-4" data-testid="confirmed">@L["Thank you. Your account is ready: sign in to set up your first monitor."]</p>
+}
+else
+{
+    <h1 class="mb-2">@L["Link not valid"]</h1>
+    <p class="text-muted mb-4" data-testid="not-confirmed">@L["This confirmation link is invalid or has expired. Sign up again with the same address to get a new link."]</p>
+}
+<a class="btn btn-primary w-100" href="/Account/Login">@L["Sign in"]</a>

@@ -1,0 +1,134 @@
+@page
+@model TriggerCheck.Web.Areas.App.Pages.Reports.IndexModel
+@using TriggerCheck.Web.Reporting
+@using TriggerCheck.Web.Areas.App.Pages.StatusPages
+@{
+    ViewData["Title"] = L["Reports"].Value;
+    var isAdmin = User.IsInRole(Roles.CustomerAdmin);
+    var r = Model.Report;
+    var s = r.Summary;
+}
+
+<div class="page-head">
+    <div>
+        <h2 class="mb-0">@L["SLA report"]</h2>
+        <div class="text-muted small">@L["Monthly uptime, downtime and response times per monitor. Maintenance windows are excluded."]</div>
+    </div>
+    <div class="d-flex flex-wrap gap-2 align-items-center">
+        <form method="get" class="d-flex gap-2">
+            <select name="month" class="form-select form-select-sm" aria-label="@L["Month"]">
+                @foreach (var m in Model.Months)
+                {
+                    <option value="@m" selected="@(Model.Week is null && m == Model.Month)">@m</option>
+                }
+            </select>
+            <button type="submit" class="btn btn-sm btn-outline-secondary">@L["Show"]</button>
+        </form>
+        <form method="get" class="d-flex gap-2" id="report-week-form">
+            <select name="week" class="form-select form-select-sm" aria-label="@L["Week"]">
+                @foreach (var w in Model.Weeks)
+                {
+                    <option value="@w" selected="@(w == Model.Week)">@w</option>
+                }
+            </select>
+            <button type="submit" class="btn btn-sm btn-outline-secondary">@L["Show week"]</button>
+        </form>
+        @if (Model.Week is null)
+        {
+            <a class="btn btn-sm btn-outline-primary" asp-page-handler="Pdf" asp-route-month="@Model.Month">@L["Download PDF"]</a>
+            <a class="btn btn-sm btn-outline-primary" asp-page-handler="Csv" asp-route-month="@Model.Month">@L["Download CSV"]</a>
+        }
+    </div>
+</div>
+
+<p class="small text-muted">@L["Period: {0} ({1})", r.PeriodKey, r.TimeZoneId]
+    @if (Model.Week is not null) { <span class="badge bg-light text-dark border">@L["Weekly view"]</span> <a asp-page="./Index" asp-route-month="@Model.Month">@L["Back to the monthly report"]</a> }
+    @if (r.IsPartial) { <span class="badge bg-secondary">@(Model.Week is null ? L["Month in progress"] : L["Week in progress"])</span> }
+</p>
+@if (r.HistoryIncomplete)
+{
+    <div class="alert alert-warning small">@L["Part of this month is older than your plan's data retention; figures may be incomplete."]</div>
+}
+
+<div class="row g-3 mb-4" id="report-summary">
+    <div class="col-6 col-md-2"><div class="card card-body py-2"><div class="small text-muted">@L["Uptime"]</div><div class="fs-5 fw-semibold">@Fmt.Percent(s.UptimePercent)</div></div></div>
+    <div class="col-6 col-md-2"><div class="card card-body py-2"><div class="small text-muted">@L["Downtime"]</div><div class="fs-5 fw-semibold">@SlaReportPdf.Minutes(s.DowntimeMinutes)</div></div></div>
+    <div class="col-6 col-md-2"><div class="card card-body py-2"><div class="small text-muted">@L["Incidents"]</div><div class="fs-5 fw-semibold">@s.IncidentCount</div></div></div>
+    <div class="col-6 col-md-2"><div class="card card-body py-2"><div class="small text-muted">@L["MTTR"]</div><div class="fs-5 fw-semibold">@SlaReportPdf.Minutes(s.MttrMinutes)</div></div></div>
+    <div class="col-6 col-md-2"><div class="card card-body py-2"><div class="small text-muted">@L["p95 response"]</div><div class="fs-5 fw-semibold">@SlaReportPdf.Ms(s.P95ResponseMs)</div></div></div>
+    <div class="col-6 col-md-2"><div class="card card-body py-2"><div class="small text-muted">@L["SLA met / missed"]</div><div class="fs-5 fw-semibold">@s.SlaMet / @s.SlaMissed</div></div></div>
+</div>
+
+<partial name="_ReportNarrative" model="Model.Narrative" />
+
+@if (r.Monitors.Count == 0)
+{
+    <div class="alert alert-light border">@L["No monitors in this period."]</div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-hover align-middle" id="report-monitors">
+            <thead><tr>
+                <th>@L["Monitor"]</th><th class="text-end">@L["SLA target"]</th><th class="text-end">@L["Uptime"]</th><th>@L["SLA"]</th>
+                <th class="text-end">@L["Downtime"]</th><th class="text-end">@L["Maintenance"]</th><th class="text-end">@L["Incidents"]</th>
+                <th class="text-end">@L["MTTR"]</th><th class="text-end">@L["Avg response"]</th><th class="text-end">@L["p95 response"]</th>
+            </tr></thead>
+            <tbody>
+            @foreach (var m in r.Monitors)
+            {
+                <tr data-monitor-id="@m.MonitorId">
+                    <td><a asp-page="/Monitors/Details" asp-route-id="@m.MonitorId">@m.Name</a></td>
+                    <td class="text-end">@(m.SlaTarget is { } t ? Fmt.Percent(t) : "—")</td>
+                    <td class="text-end">@Fmt.Percent(m.UptimePercent)</td>
+                    <td>@switch (m.SlaMet)
+                        {
+                            case true: <span class="badge bg-success">@L["Met"]</span> break;
+                            case false: <span class="badge bg-danger">@L["Missed"]</span> break;
+                            default: <span class="text-muted">—</span> break;
+                        }</td>
+                    <td class="text-end">@SlaReportPdf.Minutes(m.DowntimeMinutes)</td>
+                    <td class="text-end">@SlaReportPdf.Minutes(m.MaintenanceMinutes)</td>
+                    <td class="text-end">@m.IncidentCount</td>
+                    <td class="text-end">@SlaReportPdf.Minutes(m.MttrMinutes)</td>
+                    <td class="text-end">@SlaReportPdf.Ms(m.AvgResponseMs)</td>
+                    <td class="text-end">@SlaReportPdf.Ms(m.P95ResponseMs)</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+    <p class="small text-muted">@L["Uptime excludes maintenance windows. Downtime is the time monitors had an open incident; response times are of successful checks."] @L["Set an SLA target on a monitor's edit page to see whether it was met."]</p>
+    <p class="small text-muted" id="report-fidelity">@L["Downtime counts from when a monitor went DOWN (after its failure threshold) until it recovered. Paused time counts as available, incidents are counted in the month they started, and closed months are cached for up to 6 hours."]</p>
+}
+
+<div class="card mt-4" id="report-settings">
+    <div class="card-body">
+        <h3 class="h6">@L["Report settings"]</h3>
+        @if (isAdmin)
+        {
+            <form method="post" asp-page-handler="Settings" asp-route-month="@Model.Month" class="row g-2 align-items-end">
+                <div class="col-md-5">
+                    <label class="form-label small" for="report-tz">@L["Time zone of the month boundaries"]</label>
+                    <select name="timeZoneId" id="report-tz" class="form-select form-select-sm">
+                        @foreach (var z in StatusPageInput.TimeZoneIds)
+                        {
+                            <option value="@z" selected="@(Model.TimeZoneId == z)">@z</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-5">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="monthlyEmail" value="true" id="report-email" checked="@Model.MonthlyEmail" />
+                        <label class="form-check-label" for="report-email">@L["E-mail the report to the admins on the 1st of each month"]</label>
+                    </div>
+                </div>
+                <div class="col-md-2"><button type="submit" class="btn btn-sm btn-primary">@L["Save"]</button></div>
+            </form>
+        }
+        else
+        {
+            <p class="small mb-0">@L["Time zone: {0}", Model.TimeZoneId] · @(Model.MonthlyEmail ? L["Monthly e-mail: on"] : L["Monthly e-mail: off"])</p>
+        }
+    </div>
+</div>

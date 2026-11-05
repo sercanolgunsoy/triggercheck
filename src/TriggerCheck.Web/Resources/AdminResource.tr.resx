@@ -394,9 +394,6 @@
   <data name="Suspended" xml:space="preserve">
     <value>Askıda</value>
   </data>
-  <data name="The customer could not be created: {0}" xml:space="preserve">
-    <value>Müşteri oluşturulamadı: {0}</value>
-  </data>
   <data name="The customer is already active." xml:space="preserve">
     <value>Müşteri zaten aktif.</value>
   </data>
@@ -426,6 +423,9 @@
   </data>
   <data name="This customer is suspended: its users cannot sign in and its monitors are not checked." xml:space="preserve">
     <value>Bu müşteri askıda: kullanıcıları giriş yapamaz, monitörleri kontrol edilmez.</value>
+  </data>
+  <data name="This monitor was changed in the meantime (for example paused or edited by someone else). Reload the page and try again." xml:space="preserve">
+    <value>Bu monitör bu arada değiştirildi (örneğin başka biri tarafından duraklatıldı veya düzenlendi). Sayfayı yenileyip tekrar deneyin.</value>
   </data>
   <data name="Times: {0} (Europe/Istanbul)" xml:space="preserve">
     <value>Saatler: {0} (Europe/Istanbul)</value>
@@ -489,5 +489,533 @@
   </data>
   <data name="{0}–{1} / {2} monitors" xml:space="preserve">
     <value>{0}–{1} / {2} monitör</value>
+  </data>
+  <data name="The customer could not be created because of an unexpected error. Reference: {0}" xml:space="preserve">
+    <value>Beklenmeyen bir hata nedeniyle müşteri oluşturulamadı. Referans: {0}</value>
+  </data>
+  <data name="SMS and voice call alerts (Twilio)" xml:space="preserve">
+    <value>SMS ve sesli arama bildirimleri (Twilio)</value>
+  </data>
+  <data name="Customers on this plan can add SMS and voice call alert channels. They are only offered when Twilio is configured for this installation." xml:space="preserve">
+    <value>Bu plandaki müşteriler SMS ve sesli arama bildirim kanalları ekleyebilir. Bu kanallar yalnızca bu kurulumda Twilio yapılandırılmışsa sunulur.</value>
+  </data>
+  <data name="Access" xml:space="preserve">
+    <value>Erişim</value>
+  </data>
+  <data name="Active keys: {0}" xml:space="preserve">
+    <value>Etkin anahtarlar: {0}</value>
+  </data>
+  <data name="Created ({0})" xml:space="preserve">
+    <value>Oluşturulma ({0})</value>
+  </data>
+  <data name="Created by" xml:space="preserve">
+    <value>Oluşturan</value>
+  </data>
+  <data name="Expired" xml:space="preserve">
+    <value>Süresi doldu</value>
+  </data>
+  <data name="Key" xml:space="preserve">
+    <value>Anahtar</value>
+  </data>
+  <data name="Keys belong to the customer, not to the user who created them: they keep working after that user is removed." xml:space="preserve">
+    <value>Anahtarlar onları oluşturan kullanıcıya değil müşteriye aittir: o kullanıcı silindikten sonra da çalışmaya devam eder.</value>
+  </data>
+  <data name="Last used" xml:space="preserve">
+    <value>Son kullanım</value>
+  </data>
+  <data name="Never" xml:space="preserve">
+    <value>Hiçbir zaman</value>
+  </data>
+  <data name="Read &amp; write" xml:space="preserve">
+    <value>Okuma ve yazma</value>
+  </data>
+  <data name="Revoke all" xml:space="preserve">
+    <value>Tümünü iptal et</value>
+  </data>
+  <data name="Revoke all API keys of this customer? Requests using them will be rejected. This cannot be undone." xml:space="preserve">
+    <value>Bu müşterinin tüm API anahtarları iptal edilsin mi? Bu anahtarlarla yapılan istekler reddedilecek. Bu işlem geri alınamaz.</value>
+  </data>
+  <data name="Revoked" xml:space="preserve">
+    <value>İptal edildi</value>
+  </data>
+  <data name="This customer has no API keys." xml:space="preserve">
+    <value>Bu müşterinin API anahtarı yok.</value>
+  </data>
+  <data name="{0} API key(s) were revoked." xml:space="preserve">
+    <value>{0} API anahtarı iptal edildi.</value>
+  </data>
+  <data name="Trial ends {0}" xml:space="preserve">
+    <value>Deneme bitişi {0}</value>
+  </data>
+  <data name="Subscription" xml:space="preserve">
+    <value>Abonelik</value>
+  </data>
+  <data name="Paid until" xml:space="preserve">
+    <value>Ödendiği tarih</value>
+  </data>
+  <data name="Past due since" xml:space="preserve">
+    <value>Ödeme gecikmesi başlangıcı</value>
+  </data>
+  <data name="Plan assigned by an administrator; no online subscription." xml:space="preserve">
+    <value>Plan bir yönetici tarafından atandı; çevrimiçi abonelik yok.</value>
+  </data>
+  <data name="Event" xml:space="preserve">
+    <value>Olay</value>
+  </data>
+  <data name="Result" xml:space="preserve">
+    <value>Sonuç</value>
+  </data>
+  <data name="Offered on the sign-up page (with a free trial for paid plans) and on the customers' Billing page. Turn off for sales-led plans such as Enterprise." xml:space="preserve">
+    <value>Kayıt sayfasında (ücretli planlarda ücretsiz denemeyle) ve müşterilerin Faturalandırma sayfasında sunulur. Enterprise gibi satış ekibi üzerinden satılan planlar için kapatın.</value>
+  </data>
+  <data name="iyzico subscription" xml:space="preserve">
+    <value>iyzico aboneliği</value>
+  </data>
+  <data name="Create the product and a monthly pricing plan in the iyzico merchant panel and paste their reference codes here. Paid plans without a pricing plan code cannot be bought online." xml:space="preserve">
+    <value>Ürünü ve aylık ödeme planını iyzico üye işyeri panelinde oluşturup referans kodlarını buraya yapıştırın. Ödeme planı kodu olmayan ücretli planlar çevrimiçi satın alınamaz.</value>
+  </data>
+  <data name="Self-service" xml:space="preserve">
+    <value>Self servis</value>
+  </data>
+  <data name="Plan &quot;{0}&quot; has subscription history and cannot be deleted. Deactivate it instead." xml:space="preserve">
+    <value>"{0}" planının abonelik geçmişi olduğu için silinemez. Bunun yerine pasifleştirin.</value>
+  </data>
+  <data name="Only letters, digits, - and _ are allowed." xml:space="preserve">
+    <value>Yalnızca harf, rakam, - ve _ kullanılabilir.</value>
+  </data>
+  <data name="Self-service sign-up and billing" xml:space="preserve">
+    <value>Self servis kayıt ve faturalandırma</value>
+  </data>
+  <data name="iyzico product reference code" xml:space="preserve">
+    <value>iyzico ürün referans kodu</value>
+  </data>
+  <data name="iyzico pricing plan reference code (monthly)" xml:space="preserve">
+    <value>iyzico ödeme planı referans kodu (aylık)</value>
+  </data>
+  <data name="The customer is not in trial." xml:space="preserve">
+    <value>Müşteri deneme sürecinde değil.</value>
+  </data>
+  <data name="The trial can only be extended for a customer in trial, by 1 to 90 days." xml:space="preserve">
+    <value>Deneme süresi yalnızca deneme sürecindeki bir müşteri için 1 ile 90 gün arasında uzatılabilir.</value>
+  </data>
+  <data name="The trial now ends on {0}." xml:space="preserve">
+    <value>Deneme süresi artık {0} tarihinde bitiyor.</value>
+  </data>
+  <data name="The trial was ended; the customer is now on the {0} plan." xml:space="preserve">
+    <value>Deneme sona erdirildi; müşteri artık {0} planında.</value>
+  </data>
+  <data name="Days" xml:space="preserve">
+    <value>Gün</value>
+  </data>
+  <data name="End the trial now? The customer moves to the free plan." xml:space="preserve">
+    <value>Deneme şimdi sona erdirilsin mi? Müşteri ücretsiz plana geçer.</value>
+  </data>
+  <data name="End trial" xml:space="preserve">
+    <value>Denemeyi bitir</value>
+  </data>
+  <data name="Extend trial" xml:space="preserve">
+    <value>Denemeyi uzat</value>
+  </data>
+  <data name="The customer has an active subscription. Its plan follows the subscription: the customer changes or cancels it on the Billing page." xml:space="preserve">
+    <value>Müşterinin etkin bir aboneliği var. Planı aboneliğe bağlıdır: müşteri planı Faturalandırma sayfasından değiştirir veya iptal eder.</value>
+  </data>
+  <data name="The trial or cancelled subscription was ended; the plan is now managed manually." xml:space="preserve">
+    <value>Deneme veya iptal edilmiş abonelik sona erdirildi; plan artık elle yönetiliyor.</value>
+  </data>
+  <data name="AI status" xml:space="preserve">
+    <value>Yapay zekâ durumu</value>
+  </data>
+  <data name="API key" xml:space="preserve">
+    <value>API anahtarı</value>
+  </data>
+  <data name="Available" xml:space="preserve">
+    <value>Kullanılabilir</value>
+  </data>
+  <data name="Configured" xml:space="preserve">
+    <value>Yapılandırıldı</value>
+  </data>
+  <data name="Current calendar month (UTC). Costs are estimates from token counts and list prices." xml:space="preserve">
+    <value>İçinde bulunulan takvim ayı (UTC). Maliyetler token sayıları ve liste fiyatlarından hesaplanan tahminlerdir.</value>
+  </data>
+  <data name="Default model" xml:space="preserve">
+    <value>Varsayılan model</value>
+  </data>
+  <data name="Estimated cost" xml:space="preserve">
+    <value>Tahmini maliyet</value>
+  </data>
+  <data name="Feedback (helpful / not helpful)" xml:space="preserve">
+    <value>Geri bildirim (faydalı / faydalı değil)</value>
+  </data>
+  <data name="Global switch (Ai:Enabled)" xml:space="preserve">
+    <value>Genel anahtar (Ai:Enabled)</value>
+  </data>
+  <data name="No AI usage yet." xml:space="preserve">
+    <value>Henüz yapay zekâ kullanımı yok.</value>
+  </data>
+  <data name="Not configured" xml:space="preserve">
+    <value>Yapılandırılmadı</value>
+  </data>
+  <data name="Off" xml:space="preserve">
+    <value>Kapalı</value>
+  </data>
+  <data name="On" xml:space="preserve">
+    <value>Açık</value>
+  </data>
+  <data name="Opted in" xml:space="preserve">
+    <value>Katılım verdi</value>
+  </data>
+  <data name="Read-only: AI is switched on and off with the Ai:Enabled setting (environment variable Ai__Enabled) and needs ANTHROPIC_API_KEY. Customers must also opt in." xml:space="preserve">
+    <value>Salt okunur: yapay zekâ Ai:Enabled ayarıyla (ortam değişkeni Ai__Enabled) açılıp kapatılır ve ANTHROPIC_API_KEY gerektirir. Müşterilerin ayrıca katılım vermesi gerekir.</value>
+  </data>
+  <data name="This month" xml:space="preserve">
+    <value>Bu ay</value>
+  </data>
+  <data name="Timeout" xml:space="preserve">
+    <value>Zaman aşımı</value>
+  </data>
+  <data name="Unavailable" xml:space="preserve">
+    <value>Kullanılamıyor</value>
+  </data>
+  <data name="Usage by customer" xml:space="preserve">
+    <value>Müşteri bazında kullanım</value>
+  </data>
+  <data name="effort" xml:space="preserve">
+    <value>efor</value>
+  </data>
+  <data name="over budget" xml:space="preserve">
+    <value>bütçe aşıldı</value>
+  </data>
+  <data name="AI calls / month" xml:space="preserve">
+    <value>Yapay zekâ çağrısı / ay</value>
+  </data>
+  <data name="{0} features" xml:space="preserve">
+    <value>{0} özellik</value>
+  </data>
+  <data name="AI call limit is required." xml:space="preserve">
+    <value>Yapay zekâ çağrı limiti zorunludur.</value>
+  </data>
+  <data name="AI calls per month" xml:space="preserve">
+    <value>Aylık yapay zekâ çağrısı</value>
+  </data>
+  <data name="AI token limit is required." xml:space="preserve">
+    <value>Yapay zekâ token limiti zorunludur.</value>
+  </data>
+  <data name="AI tokens per month (0 = no token limit)" xml:space="preserve">
+    <value>Aylık yapay zekâ token sayısı (0 = token limiti yok)</value>
+  </data>
+  <data name="The AI call limit must be 0 or greater." xml:space="preserve">
+    <value>Yapay zekâ çağrı limiti 0 veya daha büyük olmalıdır.</value>
+  </data>
+  <data name="The AI token limit must be 0 or greater." xml:space="preserve">
+    <value>Yapay zekâ token limiti 0 veya daha büyük olmalıdır.</value>
+  </data>
+  <data name="Monthly AI budget per customer on this plan. When it is used up, AI output is skipped until next month; monitoring is not affected. 0 AI calls = no AI." xml:space="preserve">
+    <value>Bu plandaki her müşteri için aylık yapay zekâ bütçesi. Bütçe dolduğunda yapay zekâ çıktısı gelecek aya kadar atlanır; izleme etkilenmez. 0 yapay zekâ çağrısı = yapay zekâ yok.</value>
+  </data>
+  <data name="Succeeded" xml:space="preserve">
+    <value>Başarılı</value>
+  </data>
+  <data name="Refused by the model" xml:space="preserve">
+    <value>Model reddetti</value>
+  </data>
+  <data name="Failed" xml:space="preserve">
+    <value>Başarısız</value>
+  </data>
+  <data name="Truncated (output limit)" xml:space="preserve">
+    <value>Kesildi (çıktı sınırı)</value>
+  </data>
+  <data name="In progress" xml:space="preserve">
+    <value>Devam ediyor</value>
+  </data>
+  <data name="Skipped: budget used up" xml:space="preserve">
+    <value>Atlandı: bütçe doldu</value>
+  </data>
+  <data name="Skipped: customer opted out" xml:space="preserve">
+    <value>Atlandı: müşteri katılmadı</value>
+  </data>
+  <data name="Skipped: not in plan" xml:space="preserve">
+    <value>Atlandı: planda yok</value>
+  </data>
+  <data name="Skipped: AI off" xml:space="preserve">
+    <value>Atlandı: yapay zekâ kapalı</value>
+  </data>
+  <data name="{0} refused payment(s) must be refunded in the iyzico panel." xml:space="preserve">
+    <value>Reddedilen {0} ödemenin iyzico panelinden iade edilmesi gerekiyor.</value>
+  </data>
+  <data name="The refund was marked as done." xml:space="preserve">
+    <value>İade yapıldı olarak işaretlendi.</value>
+  </data>
+  <data name="By" xml:space="preserve">
+    <value>İşlemi yapan</value>
+  </data>
+  <data name="Mark as refunded" xml:space="preserve">
+    <value>İade edildi olarak işaretle</value>
+  </data>
+  <data name="Mark this payment as refunded in iyzico?" xml:space="preserve">
+    <value>Bu ödeme iyzico'da iade edildi olarak işaretlensin mi?</value>
+  </data>
+  <data name="Payments for subscriptions that were not activated (second subscription or unexpected plan). They were cancelled at iyzico; refund them in the iyzico merchant panel, then mark them here." xml:space="preserve">
+    <value>Etkinleştirilmeyen aboneliklerin ödemeleri (ikinci abonelik veya beklenmeyen plan). iyzico'da iptal edildiler; iyzico üye işyeri panelinden iade edip burada işaretleyin.</value>
+  </data>
+  <data name="Refunded" xml:space="preserve">
+    <value>İade edildi</value>
+  </data>
+  <data name="Since" xml:space="preserve">
+    <value>Başlangıç</value>
+  </data>
+  <data name="To refund" xml:space="preserve">
+    <value>İade edilecek</value>
+  </data>
+  <data name="iyzico reference" xml:space="preserve">
+    <value>iyzico referansı</value>
+  </data>
+  <data name="&quot;central&quot; is reserved for the main app." xml:space="preserve">
+    <value>"central" ana uygulamaya ayrılmıştır.</value>
+  </data>
+  <data name="1 = checked by the main app only. Higher values let customers add probe regions to a monitor; its status is then decided by majority vote." xml:space="preserve">
+    <value>1 = yalnızca ana uygulama kontrol eder. Daha yüksek değerlerde müşteriler monitörlerine kontrol bölgesi ekleyebilir; durum o zaman çoğunluk oyuyla belirlenir.</value>
+  </data>
+  <data name="A region whose agent has not called in recently is stale: it is left out of the majority vote until it reports again. Customers choose regions per monitor within their plan's region limit." xml:space="preserve">
+    <value>Ajanı yakın zamanda bağlanmayan bölge yanıt vermiyor sayılır: tekrar bildirene kadar çoğunluk oylamasına katılmaz. Müşteriler bölgeleri monitör başına, planlarının bölge sınırı içinde seçer.</value>
+  </data>
+  <data name="A region with this code already exists." xml:space="preserve">
+    <value>Bu koda sahip bir bölge zaten var.</value>
+  </data>
+  <data name="Agent credential" xml:space="preserve">
+    <value>Ajan kimlik bilgisi</value>
+  </data>
+  <data name="Agent credential of region &quot;{0}&quot;. Copy it now: it will not be shown again." xml:space="preserve">
+    <value>"{0}" bölgesinin ajan kimlik bilgisi. Şimdi kopyalayın: tekrar gösterilmeyecek.</value>
+  </data>
+  <data name="Agent last seen" xml:space="preserve">
+    <value>Ajanın son görülmesi</value>
+  </data>
+  <data name="At most {0} regions can be created." xml:space="preserve">
+    <value>En fazla {0} bölge oluşturulabilir.</value>
+  </data>
+  <data name="Credential" xml:space="preserve">
+    <value>Kimlik bilgisi</value>
+  </data>
+  <data name="Disable" xml:space="preserve">
+    <value>Devre dışı bırak</value>
+  </data>
+  <data name="Disable region {0}? Its agent is rejected and its results no longer count." xml:space="preserve">
+    <value>{0} bölgesi devre dışı bırakılsın mı? Ajanı reddedilir ve sonuçları artık sayılmaz.</value>
+  </data>
+  <data name="Each region runs one probe agent (Dockerfile.probe) that checks the monitors assigned to it and reports to this app. The main app itself is the region &quot;central&quot;." xml:space="preserve">
+    <value>Her bölgede, kendisine atanan monitörleri kontrol edip bu uygulamaya bildiren bir kontrol ajanı (Dockerfile.probe) çalışır. Ana uygulamanın kendisi "central" bölgesidir.</value>
+  </data>
+  <data name="Enable" xml:space="preserve">
+    <value>Etkinleştir</value>
+  </data>
+  <data name="Enable region {0}?" xml:space="preserve">
+    <value>{0} bölgesi etkinleştirilsin mi?</value>
+  </data>
+  <data name="Max regions is required." xml:space="preserve">
+    <value>Bölge sayısı sınırı zorunludur.</value>
+  </data>
+  <data name="Max regions must be between {1} and {2}." xml:space="preserve">
+    <value>Bölge sayısı sınırı {1} ile {2} arasında olmalıdır.</value>
+  </data>
+  <data name="Max regions per monitor (incl. central, 0 = all)" xml:space="preserve">
+    <value>Monitör başına en fazla bölge (central dahil, 0 = tümü)</value>
+  </data>
+  <data name="Multi-region checks" xml:space="preserve">
+    <value>Çok bölgeli kontrol</value>
+  </data>
+  <data name="Name can be at most 100 characters." xml:space="preserve">
+    <value>Ad en fazla 100 karakter olabilir.</value>
+  </data>
+  <data name="New region" xml:space="preserve">
+    <value>Yeni bölge</value>
+  </data>
+  <data name="No probe regions yet. All monitors are checked by the main app only." xml:space="preserve">
+    <value>Henüz kontrol bölgesi yok. Tüm monitörler yalnızca ana uygulama tarafından kontrol ediliyor.</value>
+  </data>
+  <data name="Region &quot;{0}&quot; was created. Configure its agent with the credential below." xml:space="preserve">
+    <value>"{0}" bölgesi oluşturuldu. Ajanını aşağıdaki kimlik bilgisiyle yapılandırın.</value>
+  </data>
+  <data name="Region &quot;{0}&quot; was disabled. Its agent is rejected and it no longer votes." xml:space="preserve">
+    <value>"{0}" bölgesi devre dışı bırakıldı. Ajanı reddedilir ve artık oy vermez.</value>
+  </data>
+  <data name="Region &quot;{0}&quot; was enabled." xml:space="preserve">
+    <value>"{0}" bölgesi etkinleştirildi.</value>
+  </data>
+  <data name="Region code" xml:space="preserve">
+    <value>Bölge kodu</value>
+  </data>
+  <data name="Region code is required." xml:space="preserve">
+    <value>Bölge kodu zorunludur.</value>
+  </data>
+  <data name="Replace the credential of region {0}? The agent stops working until it is given the new credential." xml:space="preserve">
+    <value>{0} bölgesinin kimlik bilgisi değiştirilsin mi? Ajan yeni kimlik bilgisi verilene kadar çalışmaz.</value>
+  </data>
+  <data name="Rotate credential" xml:space="preserve">
+    <value>Kimlik bilgisini yenile</value>
+  </data>
+  <data name="Rotated {0}" xml:space="preserve">
+    <value>Yenilendi: {0}</value>
+  </data>
+  <data name="Set it as Agent__Credential and the region code as Agent__RegionId on the agent." xml:space="preserve">
+    <value>Ajanda bunu Agent__Credential, bölge kodunu da Agent__RegionId olarak ayarlayın.</value>
+  </data>
+  <data name="The credential of region &quot;{0}&quot; was replaced. The old credential no longer works; update the agent." xml:space="preserve">
+    <value>"{0}" bölgesinin kimlik bilgisi değiştirildi. Eski kimlik bilgisi artık çalışmıyor; ajanı güncelleyin.</value>
+  </data>
+  <data name="The region code must be 2 to 32 characters." xml:space="preserve">
+    <value>Bölge kodu 2 ile 32 karakter arasında olmalıdır.</value>
+  </data>
+  <data name="Use lower-case letters, digits and single dashes, e.g. eu-central." xml:space="preserve">
+    <value>Küçük harf, rakam ve tek tire kullanın, ör. eu-central.</value>
+  </data>
+  <data name="e.g. Frankfurt" xml:space="preserve">
+    <value>ör. Frankfurt</value>
+  </data>
+  <data name="Status pages" xml:space="preserve">
+    <value>Durum sayfaları</value>
+  </data>
+  <data name="The status page limit must be 0 or greater." xml:space="preserve">
+    <value>Durum sayfası sınırı 0 veya daha büyük olmalıdır.</value>
+  </data>
+  <data name="Status pages (empty = unlimited)" xml:space="preserve">
+    <value>Durum sayfaları (boş = sınırsız)</value>
+  </data>
+  <data name="Status pages on custom domains" xml:space="preserve">
+    <value>Özel alan adlarında durum sayfaları</value>
+  </data>
+  <data name="Grouping suggestions accepted (last {0} days)" xml:space="preserve">
+    <value>Kabul edilen gruplama önerileri (son {0} gün)</value>
+  </data>
+  <data name="{0} accepted, {1} rejected" xml:space="preserve">
+    <value>{0} kabul, {1} ret</value>
+  </data>
+  <data name="AI is switched off; the signals below are computed without it." xml:space="preserve">
+    <value>Yapay zekâ kapalı; aşağıdaki sinyaller onsuz hesaplanır.</value>
+  </data>
+  <data name="AI quota" xml:space="preserve">
+    <value>Yapay zekâ kotası</value>
+  </data>
+  <data name="AI summary" xml:space="preserve">
+    <value>Yapay zekâ özeti</value>
+  </data>
+  <data name="Acknowledgements" xml:space="preserve">
+    <value>Onaylamalar</value>
+  </data>
+  <data name="An AI summary was generated a moment ago. Try again in a few minutes." xml:space="preserve">
+    <value>Az önce bir yapay zekâ özeti oluşturuldu. Birkaç dakika sonra tekrar deneyin.</value>
+  </data>
+  <data name="At least {0} incidents or {1} alerts in the last {2} days; flaps are incidents resolved within {3} minutes." xml:space="preserve">
+    <value>Son {2} günde en az {0} olay veya {1} uyarı; {3} dakika içinde çözülen olaylar dalgalanma sayılır.</value>
+  </data>
+  <data name="Customers close to their plan limits" xml:space="preserve">
+    <value>Plan sınırına yaklaşan müşteriler</value>
+  </data>
+  <data name="DOWN / enabled monitors" xml:space="preserve">
+    <value>DOWN / etkin monitörler</value>
+  </data>
+  <data name="Flaps" xml:space="preserve">
+    <value>Dalgalanmalar</value>
+  </data>
+  <data name="Generate AI summary" xml:space="preserve">
+    <value>Yapay zekâ özeti oluştur</value>
+  </data>
+  <data name="Generated {0}" xml:space="preserve">
+    <value>Oluşturulma: {0}</value>
+  </data>
+  <data name="Incidents per monitor" xml:space="preserve">
+    <value>Monitör başına olay</value>
+  </data>
+  <data name="Limit" xml:space="preserve">
+    <value>Sınır</value>
+  </data>
+  <data name="Longest DOWN" xml:space="preserve">
+    <value>En uzun DOWN</value>
+  </data>
+  <data name="Monitors DOWN without interruption for at least {0} days; acknowledgements counted over the same period." xml:space="preserve">
+    <value>En az {0} gündür kesintisiz DOWN olan monitörler; onaylamalar aynı dönem için sayılır.</value>
+  </data>
+  <data name="Monitors at the plan's fastest interval" xml:space="preserve">
+    <value>Planın en hızlı aralığındaki monitörler</value>
+  </data>
+  <data name="No AI summary yet. The summary only describes the signals below; it writes no numbers of its own." xml:space="preserve">
+    <value>Henüz yapay zekâ özeti yok. Özet yalnızca aşağıdaki sinyalleri anlatır; kendi sayısını yazmaz.</value>
+  </data>
+  <data name="No customer is above the noise thresholds." xml:space="preserve">
+    <value>Gürültü eşiklerini aşan müşteri yok.</value>
+  </data>
+  <data name="No customer is close to a plan limit." xml:space="preserve">
+    <value>Plan sınırına yaklaşan müşteri yok.</value>
+  </data>
+  <data name="No monitor has been DOWN that long." xml:space="preserve">
+    <value>Bu kadar uzun süre DOWN kalan monitör yok.</value>
+  </data>
+  <data name="Noisiest customers" xml:space="preserve">
+    <value>En çok gürültü üreten müşteriler</value>
+  </data>
+  <data name="Noisiest monitor" xml:space="preserve">
+    <value>En gürültülü monitör</value>
+  </data>
+  <data name="Platform AI budget this month: {0} / {1} summaries, estimated cost {2}. Not charged to any customer." xml:space="preserve">
+    <value>Bu ayki platform yapay zekâ bütçesi: {0} / {1} özet, tahmini maliyet {2}. Hiçbir müşteriye yansıtılmaz.</value>
+  </data>
+  <data name="Platform insight summaries (not charged to customers)" xml:space="preserve">
+    <value>Platform içgörü özetleri (müşterilere yansıtılmaz)</value>
+  </data>
+  <data name="Platform signals computed by fixed rules. Nothing is sent to customers and nothing is changed automatically." xml:space="preserve">
+    <value>Sabit kurallarla hesaplanan platform sinyalleri. Müşterilere hiçbir şey gönderilmez ve hiçbir şey otomatik değiştirilmez.</value>
+  </data>
+  <data name="Possibly abandoned accounts" xml:space="preserve">
+    <value>Terk edilmiş olabilecek hesaplar</value>
+  </data>
+  <data name="Refresh AI summary" xml:space="preserve">
+    <value>Yapay zekâ özetini yenile</value>
+  </data>
+  <data name="Regions per monitor" xml:space="preserve">
+    <value>Monitör başına bölge</value>
+  </data>
+  <data name="SMS / voice per day (busiest day)" xml:space="preserve">
+    <value>Günlük SMS / sesli arama (en yoğun gün)</value>
+  </data>
+  <data name="Signals changed since this summary" xml:space="preserve">
+    <value>Bu özetten sonra sinyaller değişti</value>
+  </data>
+  <data name="The AI summary was generated." xml:space="preserve">
+    <value>Yapay zekâ özeti oluşturuldu.</value>
+  </data>
+  <data name="The last attempt failed ({0}); the signals are not affected." xml:space="preserve">
+    <value>Son deneme başarısız oldu ({0}); sinyaller bundan etkilenmez.</value>
+  </data>
+  <data name="The platform AI budget for insight summaries is used up this month." xml:space="preserve">
+    <value>İçgörü özetleri için platform yapay zekâ bütçesi bu ay doldu.</value>
+  </data>
+  <data name="The signals have not changed; the last AI summary is still current." xml:space="preserve">
+    <value>Sinyaller değişmedi; son yapay zekâ özeti hâlâ güncel.</value>
+  </data>
+  <data name="There are no signals to summarize." xml:space="preserve">
+    <value>Özetlenecek sinyal yok.</value>
+  </data>
+  <data name="Thresholds are set with the Ai:Insights:* settings. TriggerCheck keeps no login history, so acknowledgements are the activity evidence." xml:space="preserve">
+    <value>Eşikler Ai:Insights:* ayarlarıyla belirlenir. TriggerCheck oturum açma geçmişi tutmadığı için etkinlik kanıtı olarak onaylamalar kullanılır.</value>
+  </data>
+  <data name="Usage" xml:space="preserve">
+    <value>Kullanım</value>
+  </data>
+  <data name="Usage at or above {0}% of a limit (upgrade signal)." xml:space="preserve">
+    <value>Bir sınırın %{0} veya üzerinde kullanım (yükseltme sinyali).</value>
+  </data>
+  <data name="Used / limit" xml:space="preserve">
+    <value>Kullanılan / sınır</value>
+  </data>
+  <data name="all monitors DOWN" xml:space="preserve">
+    <value>tüm monitörler DOWN</value>
+  </data>
+  <data name="unknown customer" xml:space="preserve">
+    <value>bilinmeyen müşteri</value>
+  </data>
+  <data name="unknown monitor" xml:space="preserve">
+    <value>bilinmeyen monitör</value>
+  </data>
+  <data name="{0} days, since {1}" xml:space="preserve">
+    <value>{0} gün, {1} tarihinden beri</value>
   </data>
 </root>

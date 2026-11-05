@@ -1,0 +1,20 @@
+{
+  "id": "setup-http-basic-auth",
+  "feature": "MonitorSetupAssistant",
+  "language": "en",
+  "description": "Basic-auth credentials in the link: never sent, removed from the pre-filled target with a note.",
+  "request": "Check https://admin:hunter2@intranet.example.test/status every 5 minutes",
+  "expect": {
+    "primaryCause": "setup_form",
+    "fields": { "type": "Http", "target": "https://intranet.example.test/status", "intervalSeconds": 300 },
+    "notes": ["CredentialsRemoved"]
+  },
+  "secrets": ["hunter2", "admin:", "/status"],
+  "canned": {
+    "outcome": "form", "clarification": null,
+    "explanation": "An HTTP monitor checks the status page every 5 minutes and expects a 2xx answer.",
+    "type": "http", "name": "intranet.example.test status", "target": "[U1]", "port": null, "keyword": null,
+    "http_method": "GET", "expected_status_codes": null, "interval_seconds": 300, "timeout_seconds": null, "failure_threshold": null,
+    "dns_record_type": null, "json_path": null, "assertion_operator": null, "expected_value": null, "grace_period_seconds": null
+  }
+}

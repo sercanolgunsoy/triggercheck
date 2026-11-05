@@ -1,0 +1,16 @@
+{
+  "id": "setup-ambiguous",
+  "feature": "MonitorSetupAssistant",
+  "language": "en",
+  "description": "No target: the assistant asks instead of guessing.",
+  "request": "Monitor our servers",
+  "expect": { "primaryCause": "setup_clarify" },
+  "canned": {
+    "outcome": "clarify",
+    "clarification": "Which server should be monitored (address or host name), and should it be checked over HTTP, TCP or ping?",
+    "explanation": "The request does not name a server to monitor.",
+    "type": null, "name": null, "target": null, "port": null, "keyword": null,
+    "http_method": null, "expected_status_codes": null, "interval_seconds": null, "timeout_seconds": null, "failure_threshold": null,
+    "dns_record_type": null, "json_path": null, "assertion_operator": null, "expected_value": null, "grace_period_seconds": null
+  }
+}

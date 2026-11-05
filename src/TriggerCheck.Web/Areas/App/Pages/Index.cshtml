@@ -34,6 +34,8 @@
     }
 </div>
 
+<partial name="Billing/_UsageMeters" model="Model.Usage" />
+
 @if (Model.OpenIncidents.Count > 0)
 {
     <div class="card border-danger mb-4">
@@ -69,7 +71,7 @@
                 @foreach (var m in Model.Monitors)
                 {
                     <tr>
-                        <td><partial name="_StatusBadge" model="m.Status" /></td>
+                        <td><partial name="_StatusBadge" model="m.Status" />@if (Model.SlowMonitorIds.Contains(m.Id)) { <span class="badge text-bg-warning ms-1 slow-badge" title="@L["Response times are above this monitor's usual level."]">@L["Slow"]</span> }</td>
                         <td><a asp-page="/Monitors/Details" asp-route-id="@m.Id">@m.Name</a></td>
                         <td>@Fmt.TypeName(m.Type)</td>
                         <td class="text-truncate" style="max-width: 280px">@m.Target</td>

@@ -57,19 +57,36 @@ public class EditModel(AppDbContext db, Text<AdminResource> L) : PageModel
         var newPlan = Plans.FirstOrDefault(p => p.Id == Input.PlanId);
         if (Input.PlanId is not null && newPlan is null)
             ModelState.AddModelError("Input.PlanId", L["Select a valid, active plan."]);
+        // M3: a paying customer's plan follows its subscription; the operator cannot silently change what is billed.
+        if (newPlan is not null && newPlan.Id != Customer.PlanId
+            && await db.Subscriptions.AnyAsync(s => s.CustomerId == id && (s.Status == SubscriptionStatus.Active || s.Status == SubscriptionStatus.PastDue)))
+            ModelState.AddModelError("Input.PlanId", L["The customer has an active subscription. Its plan follows the subscription: the customer changes or cancels it on the Billing page."]);
         if (!ModelState.IsValid) return Page();
 
         Customer.Name = Input.Name.Trim();
+        Customer.SignupPending = false; // managed by an operator now: never purged as an unconfirmed sign-up
         Customer.ContactEmail = Input.ContactEmail.Trim();
 
         var messages = new List<string> { L["Customer details were saved."] };
         string? warning = null;
+        // The interval clamp is a set-based update: commit it together with the customer change.
+        await using var tx = await db.Database.BeginTransactionAsync();
         if (newPlan!.Id != Customer.PlanId)
         {
             var oldPlanName = Customer.Plan.Name;
             var planEntity = await db.Plans.FirstAsync(p => p.Id == newPlan.Id);
             var result = await SuperAdminOps.ChangePlanAsync(db, Customer, planEntity);
             messages.Add(L["The plan was changed from {0} to {1}.", oldPlanName, planEntity.Name]);
+            // A manual plan replaces any trial or cancelled subscription (which would otherwise downgrade it later).
+            if (Customer.BillingStatus != BillingStatus.None || Customer.TrialEndsAtUtc is not null)
+            {
+                Customer.BillingStatus = BillingStatus.None;
+                Customer.TrialEndsAtUtc = null;
+                Customer.TrialReminderSentAtUtc = null;
+                await db.Subscriptions.Where(s => s.CustomerId == id && s.Status == SubscriptionStatus.Cancelled)
+                    .ExecuteUpdateAsync(u => u.SetProperty(s => s.Status, SubscriptionStatus.Expired));
+                messages.Add(L["The trial or cancelled subscription was ended; the plan is now managed manually."]);
+            }
             if (result.AdjustedMonitors > 0)
                 messages.Add(L["Check interval raised to the plan minimum ({1}) for {0} monitor(s).", result.AdjustedMonitors, Fmt.Interval(planEntity.MinIntervalSeconds)]);
             if (result.OverMonitorLimit)
@@ -77,6 +94,7 @@ public class EditModel(AppDbContext db, Text<AdminResource> L) : PageModel
         }
 
         await db.SaveChangesAsync();
+        await tx.CommitAsync();
         TempData["Success"] = string.Join(" ", messages);
         if (warning is not null) TempData["Error"] = warning;
         return RedirectToPage("Details", new { id });

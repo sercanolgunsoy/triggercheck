@@ -19,8 +19,9 @@
     @await RenderSectionAsync("Head", required: false)
 </head>
 <body class="site">
+<a class="skip-link" href="#main-content">@L["Skip to main content"]</a>
 <header class="site-nav">
-    <nav class="navbar navbar-expand-lg">
+    <nav class="navbar navbar-expand-lg" aria-label="@L["Main navigation"]">
         <div class="container">
             <a class="navbar-brand" href="/">@Icons.Logo(30) TriggerCheck</a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#siteNav" aria-controls="siteNav" aria-expanded="false" aria-label="@L["Menu"]">@Icons.Get("menu", 22)</button>
@@ -39,7 +40,7 @@
                     else
                     {
                         <a class="btn btn-ghost btn-sm" href="/Account/Login">@L["Sign in"]</a>
-                        <a class="btn btn-primary btn-sm" href="@mailto">@L["Request access"]</a>
+                        <a class="btn btn-primary btn-sm" href="/Account/Register">@L["Start free trial"]</a>
                     }
                 </div>
             </div>
@@ -47,7 +48,7 @@
     </nav>
 </header>
 
-<main role="main">
+<main role="main" id="main-content" tabindex="-1">
     @RenderBody()
 </main>
 
@@ -59,7 +60,7 @@
                 <p class="text-muted mt-3 mb-0" style="max-width: 24rem">@L["Uptime monitoring for websites, APIs and servers. Know about downtime before your customers do."]</p>
             </div>
             <div class="col-6 col-lg-2">
-                <h4>@L["Product"]</h4>
+                <h2>@L["Product"]</h2>
                 <ul>
                     <li><a href="/Features">@L["Features"]</a></li>
                     <li><a href="/Pricing">@L["Pricing"]</a></li>
@@ -67,7 +68,7 @@
                 </ul>
             </div>
             <div class="col-6 col-lg-2">
-                <h4>@L["Resources"]</h4>
+                <h2>@L["Resources"]</h2>
                 <ul>
                     <li><a href="/Pricing#faq">@L["FAQ"]</a></li>
                     <li><a href="/Features#alerts">@L["Webhook format"]</a></li>
@@ -75,7 +76,7 @@
                 </ul>
             </div>
             <div class="col-6 col-lg-3">
-                <h4>@L["Company"]</h4>
+                <h2>@L["Company"]</h2>
                 <ul>
                     <li><a href="@mailto">@Marketing.ContactEmail(Config)</a></li>
                     <li><a href="/Account/Login">@L["Sign in"]</a></li>

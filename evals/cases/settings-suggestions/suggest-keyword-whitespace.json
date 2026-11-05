@@ -1,0 +1,68 @@
+{
+  "id": "suggest-keyword-whitespace",
+  "feature": "SettingsSuggestions",
+  "language": "en",
+  "description": "Keyword with a trailing space stopped matching; the page still answers 200.",
+  "expect": {
+    "primaryCause": "review_keyword"
+  },
+  "monitor": {
+    "name": "Portal",
+    "type": "Keyword",
+    "target": "https://portal.example.test/account",
+    "keyword": "Welcome back ",
+    "status": "Down",
+    "intervalSeconds": 300
+  },
+  "checks": [
+    {
+      "minutesAgo": 1,
+      "repeat": 100,
+      "everyMinutes": 5,
+      "up": false,
+      "status": 200,
+      "ms": 300,
+      "error": "Keyword 'Welcome back ' not found in response"
+    },
+    {
+      "minutesAgo": 1000,
+      "repeat": 1500,
+      "everyMinutes": 5,
+      "up": true,
+      "status": 200,
+      "ms": 250
+    }
+  ],
+  "secrets": [
+    "Welcome back"
+  ],
+  "canned": {
+    "summary": "The page answered with status 200 but the keyword was missing in 100 of 1600 checks, the last 100 in a row; the last match was at 2026-03-09T19:20:00Z. The keyword has extra whitespace, and removing it may fix the mismatch.",
+    "hypotheses": [
+      {
+        "cause": "The page text changed slightly, so the keyword with its trailing whitespace no longer matches.",
+        "confidence": "high",
+        "evidence": [
+          "keyword_misses: 100",
+          "keyword_has_extra_whitespace: yes"
+        ],
+        "category": "review_keyword",
+        "evidence_refs": [
+          "keyword_misses",
+          "keyword_has_extra_whitespace"
+        ]
+      }
+    ],
+    "suggested_actions": [
+      {
+        "action": "review_keyword",
+        "description": "Use the keyword without the extra whitespace.",
+        "autonomy": "A1",
+        "reversible": true
+      }
+    ],
+    "unknowns": [
+      "What the page shows now."
+    ]
+  }
+}

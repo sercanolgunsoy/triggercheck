@@ -1,0 +1,58 @@
+{
+  "id": "same-host-overload-tr",
+  "feature": "CorrelationGrouping",
+  "language": "tr",
+  "description": "Turkish summary: 5xx and a timeout on the same host.",
+  "expect": {
+    "primaryCause": "candidate_verdicts",
+    "keep": [
+      "Reports API"
+    ],
+    "leaveOut": []
+  },
+  "group": {
+    "incidents": [
+      {
+        "name": "Search API",
+        "type": "Http",
+        "target": "https://api.example.test/search",
+        "startedMinutesAgo": 8,
+        "cause": "Unexpected status code 503 (expected 200-299)"
+      },
+      {
+        "name": "Catalog API",
+        "type": "Http",
+        "target": "https://api.example.test/catalog",
+        "startedMinutesAgo": 7.5,
+        "cause": "Unexpected status code 502 (expected 200-299)"
+      },
+      {
+        "name": "Reports API",
+        "type": "Http",
+        "target": "https://api.example.test/reports",
+        "startedMinutesAgo": 7,
+        "cause": "Timeout after 10s"
+      }
+    ]
+  },
+  "secrets": [],
+  "canned": {
+    "summary": "api.example.test üzerindeki üç monitör bir dakika içinde hata verdi: ikisi HTTP 5xx, biri zaman aşımı; sunucu aşırı yüklenmiş görünüyor.",
+    "hypotheses": [
+      {
+        "cause": "Aynı sunucu aynı anda 5xx ve zaman aşımı veriyor: aşırı yük.",
+        "confidence": "high",
+        "evidence": [
+          "incident C: aynı sunucu, 60 sn sonra zaman aşımı"
+        ],
+        "category": "shared_cause",
+        "evidence_refs": [
+          "incident C",
+          "incident A"
+        ]
+      }
+    ],
+    "suggested_actions": [],
+    "unknowns": []
+  }
+}

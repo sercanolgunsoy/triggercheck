@@ -22,6 +22,9 @@ public class DetailsModel(AppDbContext db, UserManager<ApplicationUser> users, T
     public List<MonitorEntity> Monitors { get; private set; } = [];
     public List<Incident> OpenIncidents { get; private set; } = [];
     public int AlertChannelCount { get; private set; }
+    /// <summary>Latest subscription that was ever activated (BIZ-2), if any.</summary>
+    public Subscription? Subscription { get; private set; }
+    public List<PaymentEvent> PaymentEvents { get; private set; } = [];
 
     public record UserRow(string Id, string Email, string FullName, string Role, bool IsActive, DateTime CreatedAtUtc, bool LockedOut);
 
@@ -46,7 +49,46 @@ public class DetailsModel(AppDbContext db, UserManager<ApplicationUser> users, T
             .Where(i => i.Monitor.CustomerId == id && i.ResolvedAtUtc == null)
             .OrderByDescending(i => i.StartedAtUtc).ToListAsync();
         AlertChannelCount = await db.AlertChannels.CountAsync(a => a.CustomerId == id);
+        Subscription = await db.Subscriptions.AsNoTracking().Include(s => s.Plan)
+            .Where(s => s.CustomerId == id && s.Status != SubscriptionStatus.Pending && s.Status != SubscriptionStatus.Superseded && s.Status != SubscriptionStatus.Failed)
+            .OrderByDescending(s => s.Id).FirstOrDefaultAsync();
+        PaymentEvents = await db.PaymentEvents.AsNoTracking().Where(e => e.CustomerId == id)
+            .OrderByDescending(e => e.OccurredAtUtc).Take(10).ToListAsync();
         return Page();
+    }
+
+    /// <summary>M3: give a trial customer more time (from the current end, or from now when it already passed).</summary>
+    public async Task<IActionResult> OnPostExtendTrialAsync(int id, int days, [FromServices] TimeProvider time)
+    {
+        var c = await db.Customers.FindAsync(id);
+        if (c is null) return NotFound();
+        if (c.BillingStatus != BillingStatus.Trial || days is < 1 or > 90)
+        {
+            TempData["Error"] = L["The trial can only be extended for a customer in trial, by 1 to 90 days."].Value;
+            return RedirectToPage(new { id });
+        }
+        var now = time.GetUtcNow().UtcDateTime;
+        c.TrialEndsAtUtc = (c.TrialEndsAtUtc is DateTime end && end > now ? end : now).AddDays(days);
+        c.TrialReminderSentAtUtc = null;
+        c.SignupPending = false;
+        await db.SaveChangesAsync();
+        TempData["Success"] = L["The trial now ends on {0}.", Fmt.Date(c.TrialEndsAtUtc)].Value;
+        return RedirectToPage(new { id });
+    }
+
+    /// <summary>M3: end the trial now: the customer moves to the fallback plan (intervals clamped) and is e-mailed.</summary>
+    public async Task<IActionResult> OnPostEndTrialAsync(int id, [FromServices] Billing.BillingService billing, [FromServices] Billing.BillingMailer mailer)
+    {
+        var c = await db.Customers.Include(x => x.Plan).FirstOrDefaultAsync(x => x.Id == id);
+        if (c is null) return NotFound();
+        // Saved on its own: the downgrade below may be skipped or rolled back.
+        await db.Customers.Where(x => x.Id == id).ExecuteUpdateAsync(u => u.SetProperty(x => x.SignupPending, false));
+        c.SignupPending = false;
+        if (c.BillingStatus != BillingStatus.Trial || !await billing.DowngradeToFallbackAsync(c, null, BillingStatus.Trial, mailer.TrialEndedReason, HttpContext.RequestAborted))
+            TempData["Error"] = L["The customer is not in trial."].Value;
+        else
+            TempData["Success"] = L["The trial was ended; the customer is now on the {0} plan.", c.Plan.Name].Value;
+        return RedirectToPage(new { id });
     }
 
     public async Task<IActionResult> OnPostSuspendAsync(int id)
@@ -57,7 +99,7 @@ public class DetailsModel(AppDbContext db, UserManager<ApplicationUser> users, T
 
         c.IsActive = false;
         await db.SaveChangesAsync();
-        // Invalidate existing sessions (security stamp) in addition to ActiveAccountFilter's per-request check.
+        // Invalidate existing sessions (security stamp) in addition to SessionValidator's per-request active check.
         await SuperAdminOps.InvalidateCustomerSessionsAsync(users, id);
         TempData["Success"] = L["\"{0}\" was suspended. Its users cannot sign in and its monitors are not checked.", c.Name].Value;
         return RedirectToPage(new { id });
@@ -69,11 +111,25 @@ public class DetailsModel(AppDbContext db, UserManager<ApplicationUser> users, T
         if (c is null) return NotFound();
         if (c.IsActive) { TempData["Error"] = L["The customer is already active."].Value; return RedirectToPage(new { id }); }
 
-        c.IsActive = true;
-        var now = DateTime.UtcNow;
-        var monitors = await db.Monitors.Where(m => m.CustomerId == id).ToListAsync();
-        foreach (var m in monitors) m.NextCheckAtUtc = now; // resume checking immediately
-        await db.SaveChangesAsync();
+        await using (var tx = await db.Database.BeginTransactionAsync())
+        {
+            c.IsActive = true;
+            await db.SaveChangesAsync();
+            // Resume checking immediately. Set-based and bumping the concurrency token: never conflicts with a running
+            // check, and an in-flight check re-reads the row afterwards.
+            var now = DateTime.UtcNow;
+            await db.Monitors.Where(m => m.CustomerId == id && m.Type != MonitorType.Heartbeat)
+                .ExecuteUpdateAsync(s => s.SetProperty(m => m.NextCheckAtUtc, now).SetProperty(m => m.Version, m => m.Version + 1));
+            // Heartbeats get a full interval + grace for their first ping (pings during the suspension were ignored).
+            var heartbeats = await db.Monitors.AsNoTracking().Where(m => m.CustomerId == id && m.Type == MonitorType.Heartbeat).ToListAsync();
+            foreach (var hb in heartbeats)
+            {
+                var deadline = Monitoring.Checks.HeartbeatSchedule.FirstDeadline(hb, now);
+                await db.Monitors.Where(m => m.Id == hb.Id)
+                    .ExecuteUpdateAsync(s => s.SetProperty(m => m.NextCheckAtUtc, deadline).SetProperty(m => m.Version, m => m.Version + 1));
+            }
+            await tx.CommitAsync();
+        }
         TempData["Success"] = L["\"{0}\" was activated again.", c.Name].Value;
         return RedirectToPage(new { id });
     }

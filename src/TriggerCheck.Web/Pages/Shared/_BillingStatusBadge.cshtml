@@ -1,0 +1,10 @@
+@model TriggerCheck.Domain.Entities.BillingStatus
+@* Billing state badge (BIZ-1/BIZ-2), used by the customer Billing page and the SuperAdmin customer pages. *@
+@switch (Model)
+{
+    case BillingStatus.Trial: <span class="badge bg-info text-dark" data-billing="trial">@L["Trial"]</span> break;
+    case BillingStatus.Active: <span class="badge bg-success" data-billing="active">@L["Subscribed"]</span> break;
+    case BillingStatus.PastDue: <span class="badge bg-danger" data-billing="pastdue">@L["Past due"]</span> break;
+    case BillingStatus.Cancelled: <span class="badge bg-warning text-dark" data-billing="cancelled">@L["Cancelled"]</span> break;
+    default: <span class="badge bg-light text-dark border" data-billing="none">@L["No subscription"]</span> break;
+}

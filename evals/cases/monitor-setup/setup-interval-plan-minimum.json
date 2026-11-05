@@ -1,0 +1,20 @@
+{
+  "id": "setup-interval-plan-minimum",
+  "feature": "MonitorSetupAssistant",
+  "language": "en",
+  "description": "15 seconds on a plan with a 60 second minimum: clamped by the server with a note.",
+  "request": "Check https://www.example.test every 15 seconds",
+  "planMinIntervalSeconds": 60,
+  "expect": {
+    "primaryCause": "setup_form",
+    "fields": { "type": "Http", "target": "https://www.example.test", "intervalSeconds": 60 },
+    "notes": ["IntervalRaisedToPlanMinimum"]
+  },
+  "canned": {
+    "outcome": "form", "clarification": null,
+    "explanation": "An HTTP monitor checks the website every 15 seconds and expects a 2xx answer.",
+    "type": "http", "name": "www.example.test", "target": "[U1]", "port": null, "keyword": null,
+    "http_method": null, "expected_status_codes": null, "interval_seconds": 15, "timeout_seconds": null, "failure_threshold": null,
+    "dns_record_type": null, "json_path": null, "assertion_operator": null, "expected_value": null, "grace_period_seconds": null
+  }
+}

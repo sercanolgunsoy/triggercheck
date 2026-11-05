@@ -60,7 +60,8 @@ public class AddUserModel(AppDbContext db, UserManager<ApplicationUser> users, T
         var user = new ApplicationUser
         {
             UserName = email, Email = email, EmailConfirmed = true,
-            FullName = Input.FullName.Trim(), CustomerId = customerId, IsActive = true
+            FullName = Input.FullName.Trim(), CustomerId = customerId, IsActive = true,
+            MustChangePassword = true // the password was chosen by the SuperAdmin
         };
         var r = await users.CreateAsync(user, Input.Password);
         if (r.Succeeded) r = await users.AddToRoleAsync(user, Input.Role);

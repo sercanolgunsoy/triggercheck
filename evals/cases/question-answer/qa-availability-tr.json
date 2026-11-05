@@ -1,0 +1,93 @@
+{
+  "id": "qa-availability-tr",
+  "feature": "QuestionAnswer",
+  "language": "tr",
+  "description": "Yesterday's availability of one monitor (Turkish).",
+  "expect": {
+    "primaryCause": "qa_grounded_answer",
+    "references": [
+      "monitor:Müşteri API"
+    ],
+    "tools": [
+      "monitor_stats"
+    ],
+    "notInAnswer": []
+  },
+  "question": "Dün Müşteri API'nin erişilebilirliği neydi?",
+  "qaMonitors": [
+    {
+      "name": "Müşteri API",
+      "type": "Http",
+      "target": "https://api.example.test/v2/customers",
+      "status": "Up",
+      "checks": [
+        {
+          "minutesAgo": 800,
+          "repeat": 18,
+          "everyMinutes": 60,
+          "up": true,
+          "ms": 210,
+          "status": 200
+        },
+        {
+          "minutesAgo": 790,
+          "repeat": 2,
+          "everyMinutes": 5,
+          "up": false,
+          "ms": 10000,
+          "status": null,
+          "error": "Timeout after 10 s"
+        }
+      ],
+      "incidents": []
+    },
+    {
+      "name": "Kurumsal site",
+      "type": "Http",
+      "target": "https://www.example.test/",
+      "status": "Up",
+      "checks": [
+        {
+          "minutesAgo": 800,
+          "repeat": 10,
+          "everyMinutes": 60,
+          "up": true,
+          "ms": 140,
+          "status": 200
+        }
+      ],
+      "incidents": []
+    }
+  ],
+  "otherTenant": [],
+  "secrets": [
+    "/v2/customers"
+  ],
+  "cannedTurns": [
+    {
+      "tools": [
+        {
+          "name": "list_monitors",
+          "input": {
+            "name_contains": "Müşteri"
+          }
+        }
+      ]
+    },
+    {
+      "tools": [
+        {
+          "name": "monitor_stats",
+          "input": {
+            "from": "2026-03-09T00:00:00Z",
+            "to": "2026-03-10T00:00:00Z",
+            "monitor_id": "{{monitor_id:Müşteri API}}"
+          }
+        }
+      ]
+    },
+    {
+      "answer": "Dün {{monitor:Müşteri API}} için 20 kontrolün 18'i başarılı oldu, yani erişilebilirlik %90 idi; 2 kontrol başarısız oldu."
+    }
+  ]
+}

@@ -1,5 +1,6 @@
 @page
 @model PricingModel
+@inject Microsoft.Extensions.Options.IOptions<TriggerCheck.Web.Billing.BillingOptions> Billing
 @{
     ViewData["Title"] = L["Pricing"].Value;
     Layout = "_MarketingLayout";
@@ -23,6 +24,7 @@
         <span class="eyebrow"><span class="pill">@L["Pricing"]</span> @L["Every check type and alert channel on every plan"]</span>
         <h1 class="display-title mt-4 mb-3">@L["Pricing that is"] <span class="gradient-text">@L["simple and transparent."]</span></h1>
         <p class="lead-lg mx-auto mb-5">@L["Every plan includes every check type and alert channel. Pick the one that matches how fast and how much you need to monitor."]</p>
+        <h2 class="visually-hidden">@L["Plans"]</h2>
         <div class="text-start">
             <partial name="_PlanCards" model="new PlanCardsModel(plans, Model.ContactEmail)" />
         </div>
@@ -90,7 +92,8 @@
                 (L["Will I get an alert for every failed check?"].Value, L["No. A monitor is marked down only after the number of consecutive failures you choose. You get one alert when it goes down and one when it recovers."].Value),
                 (L["What happens when I reach my monitor limit?"].Value, L["Existing monitors keep running. To add more, remove one you no longer need or move to a larger plan."].Value),
                 (L["How long do you keep check results?"].Value, L["Check results are kept for the number of days in your plan and deleted automatically after that. Incidents stay in your history."].Value),
-                (L["Can I change plans later?"].Value, L["Yes. Contact us and we'll move your workspace to the new plan; your monitors and history stay as they are."].Value),
+                (L["Can I change plans later?"].Value, L["Yes. Upgrade, downgrade or cancel at any time on the Billing page; your monitors and history stay as they are."].Value),
+                (L["How does the free trial work?"].Value, L["Paid plans start with a {0}-day free trial, no credit card required. Subscribe before it ends to keep the plan; otherwise your workspace moves to the free plan.", Billing.Value.TrialDays].Value),
                 (L["Do I need to install anything?"].Value, L["No. All checks run from our servers against your public addresses. There is no agent or code to install."].Value) })
             {
                 <details>

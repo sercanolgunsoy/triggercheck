@@ -1,0 +1,22 @@
+@page
+@model TriggerCheck.Web.Areas.App.Pages.Maintenance.CreateModel
+@{
+    ViewData["Title"] = L["New maintenance window"].Value;
+    ViewData["Monitors"] = Model.Monitors;
+}
+
+<nav aria-label="@L["Breadcrumb"]"><ol class="breadcrumb">
+    <li class="breadcrumb-item"><a asp-page="Index">@L["Maintenance windows"]</a></li>
+    <li class="breadcrumb-item active">@L["New"]</li>
+</ol></nav>
+
+<h2 class="mb-3">@L["New maintenance window"]</h2>
+<div class="card"><div class="card-body">
+    <form method="post">
+        <partial name="_MaintenanceForm" for="Input" />
+        <div class="mt-4">
+            <button type="submit" class="btn btn-primary">@L["Add"]</button>
+            <a asp-page="Index" class="btn btn-link">@L["Cancel"]</a>
+        </div>
+    </form>
+</div></div>

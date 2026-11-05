@@ -1,0 +1,65 @@
+@page
+@model TriggerCheck.Web.Areas.App.Pages.Maintenance.IndexModel
+@{
+    ViewData["Title"] = L["Maintenance windows"].Value;
+    var isAdmin = User.IsInRole(Roles.CustomerAdmin);
+}
+
+<div class="page-head">
+    <div>
+        <h2 class="mb-0">@L["Maintenance windows"]</h2>
+        <div class="text-muted small">@L["During planned maintenance, checks keep running but no incidents are opened and no alerts are sent. Maintenance time is left out of uptime."]</div>
+    </div>
+    @if (isAdmin)
+    {
+        <a class="btn btn-primary" asp-page="Create">@Icons.Get("plus", 16) @L["New maintenance window"]</a>
+    }
+</div>
+
+@if (Model.Windows.Count == 0)
+{
+    <div class="alert alert-light border">@L["No maintenance windows yet."]</div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-hover align-middle" id="maintenance-windows">
+            <thead><tr><th>@L["Status"]</th><th>@L["Name"]</th><th>@L["Schedule"]</th><th>@L["Monitors"]</th><th>@L["Current / next ({0})", Fmt.TimeZoneLabel]</th><th></th></tr></thead>
+            <tbody>
+            @foreach (var w in Model.Windows)
+            {
+                <tr data-window-id="@w.Id">
+                    <td>
+                        @switch (w.State)
+                        {
+                            case IndexModel.WindowState.Active: <span class="badge bg-info text-dark">@L["In progress"]</span> break;
+                            case IndexModel.WindowState.Upcoming: <span class="badge bg-secondary">@L["Upcoming"]</span> break;
+                            default: <span class="badge text-bg-light border">@L["Ended"]</span> break;
+                        }
+                    </td>
+                    <td>@w.Name</td>
+                    <td class="small">@w.Schedule</td>
+                    <td>@w.Scope</td>
+                    <td class="small text-nowrap">
+                        @if (w.Occurrence is { } o)
+                        {
+                            @Fmt.Time(o.StartUtc) <span class="text-muted">–</span> @Fmt.Time(o.EndUtc)
+                        }
+                        else
+                        {
+                            <span class="text-muted">—</span>
+                        }
+                    </td>
+                    <td class="text-end text-nowrap">
+                        @if (isAdmin)
+                        {
+                            <a class="btn btn-sm btn-outline-primary" asp-page="Edit" asp-route-id="@w.Id">@L["Edit"]</a>
+                            <a class="btn btn-sm btn-outline-danger" asp-page="Delete" asp-route-id="@w.Id">@L["Delete"]</a>
+                        }
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+}

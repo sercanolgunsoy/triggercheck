@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,6 +13,7 @@ using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Monitoring;
 using TriggerCheck.Monitoring.Alerting;
 using TriggerCheck.Monitoring.Checks;
+using TriggerCheck.Tests.Infrastructure;
 using MonitorEntity = TriggerCheck.Domain.Entities.Monitor;
 
 namespace TriggerCheck.Tests.Monitoring;
@@ -26,13 +26,19 @@ public sealed class MonitoringTestHost : IAsyncDisposable
 {
     public static readonly DateTimeOffset Start = new(2026, 1, 1, 12, 0, 0, TimeSpan.Zero);
 
-    private readonly string _dbPath;
+    private readonly TestDatabase _db;
     public FakeTimeProvider Time { get; }
+
+    /// <summary>
+    /// Due times of every timer created on the fake clock (Task.Delay, CancellationTokenSource timeouts...), in creation
+    /// order. Lets tests assert the waits the code asked for, independently of when the test advanced the clock.
+    /// </summary>
+    public IReadOnlyList<TimeSpan> TimerDueTimes => ((RecordingFakeTimeProvider)Time).DueTimes.ToList();
     public ServiceProvider Services { get; }
 
-    private MonitoringTestHost(string dbPath, FakeTimeProvider time, ServiceProvider services)
+    private MonitoringTestHost(TestDatabase db, FakeTimeProvider time, ServiceProvider services)
     {
-        _dbPath = dbPath;
+        _db = db;
         Time = time;
         Services = services;
     }
@@ -41,17 +47,20 @@ public sealed class MonitoringTestHost : IAsyncDisposable
 
     public static async Task<MonitoringTestHost> CreateAsync(Action<IServiceCollection>? configure = null, Dictionary<string, string?>? settings = null)
     {
-        var dbPath = Path.Combine(Path.GetTempPath(), $"triggercheck-mon-{Guid.NewGuid():N}.db");
-        var all = new Dictionary<string, string?>
+        var tdb = TestDatabase.Create("mon");
+        var all = new Dictionary<string, string?>(tdb.Settings)
         {
-            ["ConnectionStrings:Default"] = $"Data Source={dbPath}",
             ["Monitoring:Enabled"] = "false",
             ["Monitoring:MaxConcurrency"] = "4",
+            // Tests probe local servers; SSRF blocking itself is covered in Security/ with the flag off.
+            ["Monitoring:AllowPrivateTargets"] = "true",
+            // Scripted checkers count probes; confirm-before-alert is covered explicitly in ConfirmBeforeAlertTests.
+            ["Monitoring:ConfirmBeforeDown"] = "false",
         };
         foreach (var kv in settings ?? new()) all[kv.Key] = kv.Value;
         var config = new ConfigurationBuilder().AddInMemoryCollection(all).Build();
 
-        var time = new FakeTimeProvider(Start);
+        var time = new RecordingFakeTimeProvider(Start);
         var services = new ServiceCollection();
         services.AddLogging(b => b.SetMinimumLevel(LogLevel.Warning));
         services.AddSingleton<IConfiguration>(config);
@@ -62,8 +71,36 @@ public sealed class MonitoringTestHost : IAsyncDisposable
 
         var sp = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = true });
         using (var scope = sp.CreateScope())
-            await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.EnsureCreatedAsync();
-        return new MonitoringTestHost(dbPath, time, sp);
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await db.Database.EnsureCreatedAsync(); // same startup steps as DbSeeder
+            await db.EnableSqliteWalAsync();
+        }
+        // Alerts are delivered by the hosted sender in production; run it here too (the scheduler is not started).
+        await sp.GetRequiredService<AlertSenderService>().StartAsync(CancellationToken.None);
+        return new MonitoringTestHost(tdb, time, sp);
+    }
+
+    public AlertQueue Alerts => Services.GetRequiredService<AlertQueue>();
+
+    /// <summary>Waits (real time, bounded) until every queued alert has been delivered and recorded.</summary>
+    public Task AlertsIdleAsync() => Alerts.WhenIdleAsync().WaitAsync(TimeSpan.FromSeconds(10));
+
+    /// <summary>
+    /// Moves the fake clock forward in <paramref name="step"/>s (letting timeouts and retry waits fire) until every
+    /// queued alert is done. Throws if that takes more than <paramref name="maxSimulated"/> of fake time.
+    /// </summary>
+    public async Task AdvanceUntilAlertsIdleAsync(TimeSpan? step = null, TimeSpan? maxSimulated = null)
+    {
+        var s = step ?? TimeSpan.FromSeconds(1);
+        var deadline = Time.GetUtcNow() + (maxSimulated ?? TimeSpan.FromMinutes(15));
+        await Task.Delay(20); // let the sender pick the alert up
+        while (Alerts.Pending > 0)
+        {
+            if (Time.GetUtcNow() > deadline) throw new TimeoutException("Alerts still pending after advancing the fake clock");
+            Time.Advance(s);
+            await Task.Delay(5);
+        }
     }
 
     public async Task<T> WithDbAsync<T>(Func<AppDbContext, Task<T>> action)
@@ -82,8 +119,13 @@ public sealed class MonitoringTestHost : IAsyncDisposable
         return await action(scope.ServiceProvider);
     }
 
-    public Task<CheckResult> RunCheckAsync(int monitorId) =>
-        InScope(sp => sp.GetRequiredService<IMonitorCheckRunner>().RunAsync(monitorId));
+    /// <summary>Runs one check and waits until the alerts it queued are delivered (so tests can assert on them).</summary>
+    public async Task<CheckResult> RunCheckAsync(int monitorId)
+    {
+        var result = await InScope(sp => sp.GetRequiredService<IMonitorCheckRunner>().RunAsync(monitorId));
+        await AlertsIdleAsync();
+        return result;
+    }
 
     public Task<Customer> AddCustomerAsync(bool isActive = true, int retentionDays = 30, string contactEmail = "ops@example.test") =>
         WithDbAsync(async db =>
@@ -110,9 +152,30 @@ public sealed class MonitoringTestHost : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        using (var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5)))
+            await Services.GetRequiredService<AlertSenderService>().StopAsync(stop.Token);
         await Services.DisposeAsync();
-        SqliteConnection.ClearAllPools();
-        try { File.Delete(_dbPath); } catch { /* ignore */ }
+        _db.Dispose();
+    }
+}
+
+/// <summary>
+/// Runs <see cref="Action"/> once, inside the first SaveChanges matching the predicate, before it executes.
+/// Used to make a concurrent change land deterministically between a read and the following save.
+/// </summary>
+public sealed class SaveHook(Func<DbContext, bool> when) : Microsoft.EntityFrameworkCore.Diagnostics.SaveChangesInterceptor
+{
+    private int _fired;
+    public Func<Task>? Action { get; set; }
+    public bool Fired => _fired == 1;
+
+    public override async ValueTask<Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<int>> SavingChangesAsync(
+        Microsoft.EntityFrameworkCore.Diagnostics.DbContextEventData eventData,
+        Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<int> result, CancellationToken cancellationToken = default)
+    {
+        if (Action is not null && eventData.Context is { } db && when(db) && Interlocked.Exchange(ref _fired, 1) == 0)
+            await Action();
+        return result;
     }
 }
 
@@ -144,10 +207,10 @@ public sealed class RecordingNotifier(AlertChannelType type, Func<string, Notify
     public ConcurrentQueue<(string Target, AlertMessage Message)> Sent { get; } = new();
     public AlertChannelType Type => type;
 
-    public Task<NotifyResult> SendAsync(string target, AlertMessage message, CancellationToken ct)
+    public Task<NotifyResult> SendAsync(NotifyTarget target, AlertMessage message, CancellationToken ct)
     {
-        Sent.Enqueue((target, message));
-        return Task.FromResult(behavior?.Invoke(target) ?? NotifyResult.Ok);
+        Sent.Enqueue((target.Address, message));
+        return Task.FromResult(behavior?.Invoke(target.Address) ?? NotifyResult.Ok);
     }
 }
 
@@ -197,5 +260,17 @@ public sealed class LocalHttpServer : IAsyncDisposable
     {
         await _app.StopAsync();
         await _app.DisposeAsync();
+    }
+}
+
+/// <summary><see cref="FakeTimeProvider"/> that remembers the due time of every timer created on it.</summary>
+public sealed class RecordingFakeTimeProvider(DateTimeOffset start) : FakeTimeProvider(start)
+{
+    public ConcurrentQueue<TimeSpan> DueTimes { get; } = new();
+
+    public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+    {
+        DueTimes.Enqueue(dueTime);
+        return base.CreateTimer(callback, state, dueTime, period);
     }
 }

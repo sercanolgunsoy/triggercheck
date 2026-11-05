@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Time.Testing;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Monitoring;
 using TriggerCheck.Monitoring.Checks;
@@ -26,10 +27,12 @@ public class MonitorSchedulerTests
         await host.AddMonitorAsync(active.Id, m => { m.NextCheckAtUtc = null; m.Status = MonitorStatus.Paused; }); // paused
         await host.AddMonitorAsync(active.Id, m => { m.NextCheckAtUtc = null; m.IsEnabled = false; });            // disabled
         await host.AddMonitorAsync(suspended.Id, m => m.NextCheckAtUtc = null);                                    // suspended customer
+        await host.AddMonitorAsync(active.Id, m => { m.NextCheckAtUtc = now; m.LeaseOwner = "other"; m.LeasedUntilUtc = now.AddSeconds(1); }); // leased
+        var expiredLease = await host.AddMonitorAsync(active.Id, m => { m.NextCheckAtUtc = now; m.LeaseOwner = "crashed"; m.LeasedUntilUtc = now; });
 
-        var due = await host.WithDbAsync(db => DueMonitorQuery.SelectDueIdsAsync(db, now, 100, CancellationToken.None));
+        var due = (await host.WithDbAsync(db => DueMonitorQuery.SelectUnleasedDueAsync(db, now, 100, CancellationToken.None))).Select(c => c.Id).ToList();
 
-        Assert.Equal(new[] { neverChecked.Id, overdue.Id, exactlyNow.Id }.Order(), due.Order());
+        Assert.Equal(new[] { neverChecked.Id, overdue.Id, exactlyNow.Id, expiredLease.Id }.Order(), due.Order());
         Assert.Equal(neverChecked.Id, due[0]); // never-checked monitors first
     }
 
@@ -133,6 +136,54 @@ public class MonitorSchedulerTests
         finally
         {
             await scheduler.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact]
+    public async Task Fifteen_second_monitor_runs_240_times_per_hour_without_drift()
+    {
+        // Every clock read costs 10ms of simulated time, so each check starts a little after its scheduled
+        // time - like in production (tick granularity + dispatch latency). Scheduling from the actual run
+        // time drifted by a whole tick per cycle (225 runs/hour instead of 240).
+        var checker = new ScriptedChecker(MonitorType.Http);
+        var clock = new SlowClock(new FakeTimeProvider(MonitoringTestHost.Start));
+        await using var host = await MonitoringTestHost.CreateAsync(s =>
+        {
+            s.ReplaceCheckers(checker);
+            s.AddSingleton<TimeProvider>(clock);
+        });
+        var c = await host.AddCustomerAsync();
+        await host.AddMonitorAsync(c.Id, x => { x.IntervalSeconds = 15; x.NextCheckAtUtc = MonitoringTestHost.Start.UtcDateTime; });
+        var scheduler = host.Services.GetRequiredService<MonitorScheduler>();
+
+        for (var tick = 0; tick < 3600; tick++)
+        {
+            clock.AdvanceTo(MonitoringTestHost.Start.AddSeconds(tick)); // scheduler tick every second
+            await scheduler.DispatchDueAsync(CancellationToken.None);
+            await scheduler.WhenIdleAsync();
+        }
+
+        Assert.InRange(checker.Calls, 238, 242);
+    }
+
+    /// <summary>Fake clock that advances by 10 ms on every read.</summary>
+    private sealed class SlowClock(FakeTimeProvider inner) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow()
+        {
+            lock (inner)
+            {
+                inner.Advance(TimeSpan.FromMilliseconds(10));
+                return inner.GetUtcNow();
+            }
+        }
+
+        public void AdvanceTo(DateTimeOffset t)
+        {
+            lock (inner)
+            {
+                if (inner.GetUtcNow() < t) inner.SetUtcNow(t);
+            }
         }
     }
 

@@ -45,12 +45,17 @@ public class EditModel(AppDbContext db, Text<AdminResource> L) : PageModel
         Input.ApplyTo(Plan);
 
         var adjusted = 0;
-        if (Plan.MinIntervalSeconds > oldMin)
+        // The interval clamp is a set-based update: commit it together with the plan change.
+        await using (var tx = await db.Database.BeginTransactionAsync())
         {
-            var customerIds = await db.Customers.Where(c => c.PlanId == id).Select(c => c.Id).ToListAsync();
-            adjusted = await SuperAdminOps.ClampMonitorsAsync(db, Plan, customerIds);
+            if (Plan.MinIntervalSeconds > oldMin)
+            {
+                var customerIds = await db.Customers.Where(c => c.PlanId == id).Select(c => c.Id).ToListAsync();
+                adjusted = await SuperAdminOps.ClampMonitorsAsync(db, Plan, customerIds);
+            }
+            await db.SaveChangesAsync();
+            await tx.CommitAsync();
         }
-        await db.SaveChangesAsync();
 
         var msg = L["Plan \"{0}\" was updated.", Plan.Name].Value;
         if (adjusted > 0)

@@ -1,18 +1,31 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using TriggerCheck.Ai;
 using TriggerCheck.Domain;
 using TriggerCheck.Infrastructure;
 using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Infrastructure.Identity;
 using TriggerCheck.Monitoring;
+using TriggerCheck.Web.Agents;
+using TriggerCheck.Web.Api;
+using TriggerCheck.Web.Billing;
+using TriggerCheck.Web.Heartbeat;
 using TriggerCheck.Web.Infrastructure;
 using TriggerCheck.Web.Localization;
+using TriggerCheck.Web.Reporting;
+using TriggerCheck.Web.StatusPages;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddInfrastructure(builder.Configuration);
+// AI layer (opt-in, Ai:Enabled kill switch); the monitoring engine does not depend on it. Registered before the
+// engine so its hosted services stop after the engine's (hosted services stop in reverse registration order).
+builder.Services.AddAi(builder.Configuration);
 builder.Services.AddMonitoringEngine(builder.Configuration);
 builder.Services.AddAppLocalization();
+// OPS-4: OpenTelemetry (OTLP export only when configured) and /health/live + /health/ready.
+builder.AddAppTelemetry();
+builder.Services.AddAppHealthChecks();
 
 builder.Services
     .AddIdentity<ApplicationUser, IdentityRole>(o =>
@@ -36,7 +49,16 @@ builder.Services.ConfigureApplicationCookie(o =>
     o.AccessDeniedPath = "/Account/AccessDenied";
     o.Cookie.Name = "TriggerCheck.Auth";
     o.SlidingExpiration = true;
+    // Role / active-state changes take effect on the next request (security stamp, active state and customer
+    // checked per request; replaces the former ActiveAccountFilter).
+    SessionValidator.Attach(o);
+    // FEAT-8: /api requests are authenticated by the API key scheme only (no cookie, no SessionValidator there).
+    o.ForwardDefaultSelector = ApiSetup.ForwardApiRequests;
 });
+// FEAT-8: REST API (API key scheme + policies, per-key rate limit, OpenAPI document).
+builder.Services.AddTriggerCheckApi(builder.Configuration);
+// FEAT-6: internal probe agent API (/api/agent/v1, own auth scheme and per-region rate limit).
+builder.Services.AddProbeAgentApi(builder.Configuration);
 
 builder.Services.AddAuthorization(o =>
 {
@@ -47,18 +69,53 @@ builder.Services.AddAuthorization(o =>
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentCustomer, CurrentCustomer>();
-builder.Services.AddScoped<ActiveAccountFilter>();
+builder.Services.AddScoped<AiPanels>(); // AI-2 / AI-3 blocks on incident and monitor pages
+builder.Services.AddScoped<TriggerCheck.Web.Areas.App.Support.MonitorCommands>();
+builder.Services.AddScoped<TriggerCheck.Web.Areas.App.Support.SettingsSuggestionCommands>(); // AI-5 apply / dismiss
+builder.Services.AddSingleton<ManualCheckLimiter>();
+builder.Services.AddHeartbeatEndpoint(builder.Configuration); // FEAT-9: /hb/{token} ping endpoint of heartbeat monitors
+// BIZ-1/2/3: self-service sign-up, trial, iyzico subscriptions, usage meters (+ their rate limits and background job).
+builder.Services.AddBilling(builder.Configuration);
+builder.Services.AddSingleton<TriggerCheck.Web.Areas.App.Pages.Alerts.TestNotificationLimiter>();
+// FEAT-4: public status pages (output cache, rate limits, subscriber notifications); FEAT-10: monthly SLA reports.
+builder.Services.AddStatusPages(builder.Configuration);
+builder.Services.AddReporting(builder.Configuration);
 
 builder.Services.AddRazorPages(o =>
 {
     // Customer panel: /App/...
     o.Conventions.AuthorizeAreaFolder("App", "/", Policies.Customer);
-    o.Conventions.AddAreaFolderApplicationModelConvention("App", "/", m => m.Filters.Add(new ServiceFilterAttribute(typeof(ActiveAccountFilter))));
     // Platform administration: /SuperAdmin/...
     o.Conventions.AuthorizeAreaFolder("SuperAdmin", "/", Policies.SuperAdmin);
 }).AddAppDataAnnotationsLocalization();
+// Users flagged MustChangePassword (e.g. the seeded SuperAdmin) are sent to /Account/ChangePassword first (all pages, all areas).
+builder.Services.Configure<MvcOptions>(o => o.Filters.Add(new MustChangePasswordFilter()));
 
 var app = builder.Build();
+
+// OPS-1: `dotnet TriggerCheck.Web.dll migrate` applies the migrations and exits (the separate deployment step used with
+// Database:MigrateOnStartup=false); otherwise startup migrates, then seeds (DbSeeder below). Runs before the app's
+// configuration checks: it only needs the database.
+if (args.Contains("migrate", StringComparer.OrdinalIgnoreCase))
+{
+    await DbSeeder.MigrateAsync(app.Services);
+    return;
+}
+
+app.ValidateBillingConfiguration();
+
+if (!app.Environment.IsDevelopment() && TriggerCheck.Monitoring.Escalation.IncidentAckLinks.ParseBaseUrl(app.Configuration["Site:PublicBaseUrl"]) is null)
+    app.Logger.LogWarning("Site:PublicBaseUrl is not set (or not an absolute http(s) URL): acknowledge links are omitted from alerts.");
+
+if (!app.Environment.IsDevelopment() && app.Configuration.GetValue<bool>("Monitoring:AllowPrivateTargets"))
+    app.Logger.LogWarning("Monitoring:AllowPrivateTargets is enabled in {Environment}: SSRF protection is OFF and monitors/webhooks " +
+                          "can reach internal addresses. Use this only for development or testing.", app.Environment.EnvironmentName);
+
+// Behind a reverse proxy (ForwardedHeaders:Enabled): real client IP and scheme, before anything that uses them.
+app.UseAppForwardedHeaders();
+app.UseSecurityHeaders();
+// FEAT-4: status pages on verified custom domains (host-based rewrite, before routing).
+app.UseStatusPageCustomDomains();
 
 if (!app.Environment.IsDevelopment())
 {
@@ -70,14 +127,25 @@ if (!app.Environment.IsDevelopment())
 // English (default) / Turkish UI; parsing stays culture-invariant (see LocalizationSetup).
 app.UseAppLocalization();
 
+// FEAT-8, /api only: problem+json for errors and the per-IP limit (before routing and authentication).
+app.UseApiPipeline();
 app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter(); // after authorization: the API limit is partitioned by the authenticated key
+app.UseOutputCache(); // public status pages only (policy on those endpoints); after the rate limiter so cached hits count too
 
-app.MapStaticAssets();
+// AllowAnonymous on static assets and the health endpoints also tells SessionValidator to skip its per-request DB check there.
+app.MapStaticAssets().AllowAnonymous();
 app.MapRazorPages().WithStaticAssets();
-app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+app.MapAppHealthChecks(includeDetails: app.Environment.IsDevelopment());
+app.MapHeartbeatEndpoint();
 app.MapSetLanguage();
+app.MapBillingEndpoints();
+app.MapTriggerCheckApi();
+app.MapProbeAgentApi();
+app.MapStatusPageEndpoints();
+app.MapReportEndpoints();
 
 await DbSeeder.SeedAsync(app.Services);
 

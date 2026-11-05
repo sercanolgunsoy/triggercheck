@@ -13,7 +13,8 @@ public class IndexModel(AppDbContext db, Text<AdminResource> L) : PageModel
 {
     public List<Row> Rows { get; private set; } = [];
 
-    public record Row(int Id, string Name, int MinIntervalSeconds, int MaxMonitors, int RetentionDays, decimal MonthlyPrice, bool IsActive, int Customers, int ActiveCustomers, int Monitors);
+    public record Row(int Id, string Name, int MinIntervalSeconds, int MaxMonitors, int RetentionDays, decimal MonthlyPrice, bool IsActive, int Customers, int ActiveCustomers, int Monitors,
+        int AiCalls = 0, int AiFeatureCount = 0, bool AllowsSelfSignup = false, bool HasIyzicoPlan = false);
 
     public async Task OnGetAsync()
     {
@@ -27,7 +28,9 @@ public class IndexModel(AppDbContext db, Text<AdminResource> L) : PageModel
             .Select(p => new Row(p.Id, p.Name, p.MinIntervalSeconds, p.MaxMonitors, p.RetentionDays, p.MonthlyPrice, p.IsActive,
                 cust.FirstOrDefault(x => x.PlanId == p.Id)?.Total ?? 0,
                 cust.FirstOrDefault(x => x.PlanId == p.Id)?.Active ?? 0,
-                mons.FirstOrDefault(x => x.PlanId == p.Id)?.Count ?? 0))
+                mons.FirstOrDefault(x => x.PlanId == p.Id)?.Count ?? 0,
+                p.AiMonthlyCallLimit, Domain.AiFeatures.Parse(p.AiFeatures).Count,
+                p.AllowsSelfSignup, !string.IsNullOrEmpty(p.IyzicoPricingPlanReferenceCode)))
             .ToList();
     }
 
@@ -39,6 +42,11 @@ public class IndexModel(AppDbContext db, Text<AdminResource> L) : PageModel
         if (used > 0)
         {
             TempData["Error"] = L["Plan \"{0}\" is used by {1} customer(s) and cannot be deleted. Move the customers to another plan first, or deactivate the plan.", plan.Name, used].Value;
+            return RedirectToPage();
+        }
+        if (await db.Subscriptions.AnyAsync(s => s.PlanId == id))
+        {
+            TempData["Error"] = L["Plan \"{0}\" has subscription history and cannot be deleted. Deactivate it instead.", plan.Name].Value;
             return RedirectToPage();
         }
         db.Plans.Remove(plan);

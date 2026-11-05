@@ -1,0 +1,59 @@
+{
+  "id": "suggest-target-404",
+  "feature": "SettingsSuggestions",
+  "language": "en",
+  "description": "New monitor has returned 404 on every check for three days (typo in the path).",
+  "expect": {
+    "primaryCause": "target_may_be_wrong"
+  },
+  "monitor": {
+    "name": "Billing health",
+    "type": "Http",
+    "target": "https://billing.example.test/helth",
+    "status": "Down",
+    "createdDaysAgo": 3,
+    "intervalSeconds": 900
+  },
+  "checks": [
+    {
+      "minutesAgo": 1,
+      "repeat": 288,
+      "everyMinutes": 15,
+      "up": false,
+      "status": 404,
+      "ms": 120,
+      "error": "Unexpected status code 404 (expected 200-299)"
+    }
+  ],
+  "secrets": [
+    "/helth"
+  ],
+  "canned": {
+    "summary": "None of the 288 checks in 71 hours succeeded; each returned status 404, so the server answers but the address does not exist. Check the path of the target URL.",
+    "hypotheses": [
+      {
+        "cause": "The URL path is wrong: the host answers with 404 Not Found.",
+        "confidence": "high",
+        "evidence": [
+          "error E1: Unexpected status code 404 in all 288 checks"
+        ],
+        "category": "target_may_be_wrong",
+        "evidence_refs": [
+          "error E1",
+          "failed_checks"
+        ]
+      }
+    ],
+    "suggested_actions": [
+      {
+        "action": "review_target",
+        "description": "Correct the target URL.",
+        "autonomy": "A1",
+        "reversible": true
+      }
+    ],
+    "unknowns": [
+      "Whether the endpoint has been deployed yet."
+    ]
+  }
+}

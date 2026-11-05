@@ -1,0 +1,78 @@
+@model SettingsSuggestionsModel
+@using TriggerCheck.Ai.Features
+@*
+    AI-5 settings suggestions of one monitor (autonomy A1). The evidence is the rule's own numbers from the database;
+    the AI block below it only explains them. Apply / Dismiss are CustomerAdmin only; Apply runs the normal monitor
+    validation. Nothing is rendered when there is no open suggestion (or the plan / opt-in does not allow them).
+*@
+@if (Model.Items.Count > 0)
+{
+    <section class="card mb-4" id="settings-suggestions" aria-labelledby="settings-suggestions-title">
+        <div class="card-header">
+            <h3 class="h6 mb-0" id="settings-suggestions-title">@L["Settings suggestions"]</h3>
+            <div class="small text-muted">@L["Based on this monitor's history. Nothing changes until an admin applies a suggestion."]</div>
+        </div>
+        <ul class="list-group list-group-flush">
+            @foreach (var v in Model.Items)
+            {
+                var s = v.Suggestion;
+                <li class="list-group-item settings-suggestion" data-suggestion-kind="@s.Kind" data-suggestion-id="@s.Id">
+                    @switch (s.Kind)
+                    {
+                        case SettingsSuggestionKind.RaiseFailureThreshold:
+                            <div class="fw-semibold">@L["Raise the failure threshold from {0} to {1}", s.CurrentValue ?? "", s.SuggestedValue ?? ""]</div>
+                            <p class="small mb-2 suggestion-evidence">@L["In the last {0} days, {1} of {2} incidents recovered at the next check (each lasted at most {3} s).", v.Fact("window_days"), v.Fact("brief_incidents"), v.Fact("incidents"), v.Fact("longest_brief_incident_seconds")]
+                                @L["A higher threshold avoids these alerts but reports a real outage one check later."]</p>
+                            break;
+                        case SettingsSuggestionKind.RaiseTimeout:
+                            <div class="fw-semibold">@L["Raise the timeout from {0} s to {1} s", s.CurrentValue ?? "", s.SuggestedValue ?? ""]</div>
+                            <p class="small mb-2 suggestion-evidence">@L["In the last {0} days, {1} of {2} successful checks took at least {3} ms (80% of the timeout) and {4} checks timed out. 95th percentile {5} ms, 99th percentile {6} ms, slowest {7} ms.", v.Fact("window_days"), v.Fact("near_timeout_checks"), v.Fact("successful_checks"), v.Fact("near_timeout_from_ms"), v.Fact("timed_out_checks"), v.Fact("p95_ms"), v.Fact("p99_ms"), v.Fact("max_ms")]</p>
+                            break;
+                        case SettingsSuggestionKind.TargetMayBeWrong:
+                            <div class="fw-semibold">@L["The target may be wrong"]</div>
+                            <p class="small mb-2 suggestion-evidence">@L["No check has succeeded since the first check on {0}: {1} checks failed over {2} hours.", Fmt.Time(v.FactTime("first_check_at")), v.Fact("failed_checks"), v.Fact("hours_without_success")]
+                                @L["Check the address, the port and the expected status codes."]</p>
+                            @if (SuggestionFact.Get(v.Facts, SettingsSuggestionRules.TopErrorKey) is string err)
+                            {
+                                <p class="small text-muted mb-2">@L["Most common error ({0} checks):", v.Fact("top_error_checks")] <span class="font-monospace text-break">@err</span></p>
+                            }
+                            break;
+                        default:
+                            <div class="fw-semibold">@L["Review the keyword"]</div>
+                            <p class="small mb-2 suggestion-evidence">@L["In the last {0} days the page answered but the keyword was not found in {1} of {2} checks ({3} in a row now).", v.Fact("window_days"), v.Fact("keyword_misses"), v.Fact("checks"), v.Fact("misses_in_a_row")]
+                                @(v.FactTime("last_match_at") is DateTime lastMatch ? L["Last match: {0}.", Fmt.Time(lastMatch)] : L["No match in this period."])
+                                @L["Response bodies are not stored, so check the page content yourself."]</p>
+                            @if (s.SuggestedValue is not null)
+                            {
+                                <p class="small mb-2">@L["The keyword has extra whitespace. Suggested keyword:"] <code class="text-break">@s.SuggestedValue</code></p>
+                            }
+                            break;
+                    }
+                    <div class="small text-muted mb-2 suggestion-as-of">@L["Evidence as of {0}.", Fmt.Time(s.EvidenceUpdatedAtUtc)]</div>
+                    @if (v.Ai is not null) { <div class="mb-2"><partial name="_AiPanel" model="v.Ai" /></div> }
+                    @if (Model.CanManage)
+                    {
+                        <div class="d-flex flex-wrap gap-2">
+                            @if (v.OneClick)
+                            {
+                                <form method="post" asp-page="/Monitors/Suggestion" asp-page-handler="Apply" class="m-0">
+                                    <input type="hidden" name="suggestionId" value="@s.Id" />
+                                    <button type="submit" class="btn btn-sm btn-primary">@L["Apply"]</button>
+                                </form>
+                            }
+                            else
+                            {
+                                <a class="btn btn-sm btn-outline-primary" asp-page="/Monitors/Edit" asp-route-id="@Model.MonitorId">@L["Edit settings"]</a>
+                            }
+                            <form method="post" asp-page="/Monitors/Suggestion" asp-page-handler="Dismiss" class="m-0">
+                                <input type="hidden" name="suggestionId" value="@s.Id" />
+                                <button type="submit" class="btn btn-sm btn-outline-secondary">@L["Dismiss"]</button>
+                            </form>
+                            <span class="small text-muted align-self-center">@L["Dismissed suggestions are not shown again for {0} days.", Model.DismissDays]</span>
+                        </div>
+                    }
+                </li>
+            }
+        </ul>
+    </section>
+}

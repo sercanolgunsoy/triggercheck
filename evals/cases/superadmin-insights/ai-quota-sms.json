@@ -1,0 +1,22 @@
+{
+  "id": "insights-ai-quota-sms",
+  "feature": "PlatformInsights",
+  "language": "en",
+  "description": "A customer is close to its daily SMS / voice limit and its monthly AI quota.",
+  "expect": { "primaryCause": "insights_summary", "focusCustomers": ["Chatty Alerts Inc"] },
+  "insights": {
+    "customers": [
+      { "name": "Chatty Alerts Inc", "plan": "Pro", "allowsSmsVoice": true, "aiCallLimit": 100, "aiCalls": 92, "smsPeak": 95,
+        "monitors": [ { "name": "Pager gateway", "target": "https://pager.example.test/" } ] },
+      { "name": "Calm Customer", "plan": "Pro", "allowsSmsVoice": true, "smsPeak": 3, "aiCalls": 5,
+        "monitors": [ { "name": "Calm site", "target": "https://calm.example.test/" } ] }
+    ]
+  },
+  "canned": {
+    "headline": "[[C1]] is close to its SMS and AI limits.",
+    "points": [
+      "[[C1]] sent {{C1.limit.sms_voice.used}} SMS or voice alerts on its busiest day against a daily limit of {{C1.limit.sms_voice.limit}}.",
+      "[[C1]] has used {{C1.limit.ai_quota.percent}} of its monthly AI quota."
+    ]
+  }
+}

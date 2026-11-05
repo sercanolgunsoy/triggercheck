@@ -1,0 +1,43 @@
+@page "{id:int}"
+@model TriggerCheck.Web.Areas.App.Pages.StatusPages.NotesModel
+@using TriggerCheck.Web.StatusPages
+@{ ViewData["Title"] = L["Incident notes"].Value; }
+
+<nav aria-label="@L["Breadcrumb"]"><ol class="breadcrumb">
+    <li class="breadcrumb-item"><a asp-page="Index">@L["Status pages"]</a></li>
+    <li class="breadcrumb-item active">@Model.StatusPage.Title</li>
+</ol></nav>
+
+<h2 class="mb-1">@L["Incident notes"]</h2>
+<p class="text-muted small">@L["Notes are published on the status page immediately, as plain text, under the incident. Write them for your customers: they never see the monitor's target or error details."] · @L["times in {0}", Fmt.TimeZoneLabel]</p>
+
+@if (Model.Incidents.Count == 0)
+{
+    <div class="alert alert-light border">@L["No incidents in the last {0} days.", PublicStatusService.IncidentHistoryDays]</div>
+}
+@foreach (var i in Model.Incidents)
+{
+    <div class="card mb-3" data-incident-id="@i.Id">
+        <div class="card-body">
+            <div class="fw-semibold">@i.DisplayName
+                @if (i.ResolvedAtUtc is null) { <span class="badge bg-danger">@L["Open"]</span> } else { <span class="badge bg-success">@L["Resolved"]</span> }
+            </div>
+            <div class="small text-muted mb-2">@Fmt.Time(i.StartedAtUtc) – @Fmt.Time(i.ResolvedAtUtc)</div>
+            @foreach (var n in i.Notes)
+            {
+                <div class="d-flex justify-content-between align-items-start border-top py-1 small">
+                    <div style="white-space: pre-line"><span class="text-muted">@Fmt.Time(n.CreatedAtUtc):</span> @n.Body</div>
+                    <form method="post" asp-page-handler="Delete" asp-route-id="@Model.StatusPage.Id" data-confirm="@L["Delete this note?"]">
+                        <input type="hidden" name="noteId" value="@n.Id" />
+                        <button type="submit" class="btn btn-sm btn-link text-danger">@L["Delete"]</button>
+                    </form>
+                </div>
+            }
+            <form method="post" asp-page-handler="Add" asp-route-id="@Model.StatusPage.Id" class="mt-2">
+                <input type="hidden" name="incidentId" value="@i.Id" />
+                <textarea name="body" class="form-control form-control-sm" rows="2" maxlength="@StatusPageRules.MaxNoteLength" placeholder="@L["e.g. We identified the cause and are rolling out a fix."]" aria-label="@L["Note"]"></textarea>
+                <button type="submit" class="btn btn-sm btn-primary mt-1">@L["Publish note"]</button>
+            </form>
+        </div>
+    </div>
+}

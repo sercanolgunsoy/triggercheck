@@ -1,0 +1,207 @@
+# TriggerCheck REST API (v1)
+
+Tenant-scoped JSON API for monitors, checks, incidents and a status summary. Everything a key can see or change
+belongs to the customer that owns the key; a customer id is never accepted from the client, and ids of other
+customers answer `404`.
+
+- Base URL: `https://<host>/api/v1`
+- OpenAPI document: [`/api/v1/openapi.json`](/api/v1/openapi.json) (anonymous, contains no data)
+- Messages in API responses are English.
+- `/api/agent/v1/*` is the **internal** probe agent protocol (FEAT-6, multi-region checks): it accepts only probe
+  agent credentials (`tcr_...`, issued under SuperAdmin > Probe regions), never customer API keys, is not part of the
+  OpenAPI document and may change without notice. See [DEPLOYMENT.md](DEPLOYMENT.md#probe-agents-multi-region-checks).
+
+## API keys
+
+Create keys in the panel under **Settings > API keys** (`/App/ApiKeys`, CustomerAdmin only; viewers see the list).
+
+- Format: `tc_<prefix>_<secret>`. The full key is shown **once**, right after creation. Only a SHA-256 hash is
+  stored; the public prefix identifies the key in the list.
+- Access: **Read-only** (GET endpoints) or **Read & write** (all endpoints).
+- Optional expiry (30 / 90 / 365 days or never). Revoked or expired keys, and keys of suspended customers, get `401`.
+- "Last used" is updated at most once a minute per key.
+- Keys belong to the customer, not to the user who created them: they keep working after that user is deactivated or
+  deleted. Revoke keys you no longer need. At most 20 active keys per customer. A SuperAdmin can list a customer's
+  keys and revoke them all at once (SuperAdmin > Customers > customer > API keys).
+- After creation the panel redirects and shows the key once (kept server-side for at most 5 minutes until that page
+  is opened; never stored in a cookie). Refreshing does not show it again or create another key.
+  The pending key is held in the memory of the app instance (TriggerCheck runs as a single instance on SQLite); after
+  a restart within those minutes it is lost and the key has to be revoked and created again.
+
+Send the key as a bearer token:
+
+```bash
+export TC=https://triggercheck.example.com
+export TC_KEY=tc_abcdefghij_...
+curl -H "Authorization: Bearer $TC_KEY" $TC/api/v1/status
+```
+
+A browser session (cookie) never authenticates the API, and an API key never opens panel pages.
+
+## Rate limit
+
+Three limits apply to `/api` requests; over any of them the API answers `429 Too Many Requests` (problem+json) with a
+`Retry-After` header (seconds):
+
+| Limit | Default | Setting | Notes |
+|-------|---------|---------|-------|
+| Per API key | 120 / min (fixed window) | `Api:RequestsPerMinute` | |
+| Per customer, all keys together | 300 / min (fixed window) | `Api:RequestsPerMinutePerCustomer` | |
+| Per client IP (IPv6: per /64) | 600 / min (sliding window) | `Api:RequestsPerMinutePerIp` | Applied before authentication, so it also throttles invalid-key floods. Behind a reverse proxy enable `ForwardedHeaders:Enabled` with `KnownProxies` / `KnownNetworks` (see DEPLOYMENT.md), otherwise all clients share the proxy's IP. |
+
+Limits are kept in memory per app instance.
+
+## Errors
+
+Errors use [RFC 7807](https://www.rfc-editor.org/rfc/rfc7807) `application/problem+json`:
+
+| Status | When |
+|--------|------|
+| 400 | Validation failed (`errors` maps each field to its messages), malformed JSON, bad query parameter |
+| 401 | Missing / invalid / revoked / expired key, or the customer is suspended |
+| 403 | Write with a read-only key |
+| 404 | Unknown id or an id of another customer |
+| 409 | Plan monitor quota reached, or a concurrent change (retry) |
+| 415 | Body is not JSON, or has an unknown charset |
+| 429 | Rate limit exceeded (see `Retry-After`) |
+| 500 | Unexpected error (generic message; details are only logged) |
+| 503 | Database busy; retry after `Retry-After` |
+
+```json
+{
+  "type": "https://tools.ietf.org/html/rfc9110#section-15.5.1",
+  "title": "One or more validation errors occurred.",
+  "status": 400,
+  "errors": { "intervalSeconds": ["This check interval is not available on your plan (Basic). Allowed: 5 min."] }
+}
+```
+
+## Endpoints
+
+| Method | Path | Scope | Description |
+|--------|------|-------|-------------|
+| GET | `/monitors` | read | All monitors of the customer |
+| GET | `/monitors/{id}` | read | One monitor |
+| POST | `/monitors` | write | Create (`201` + `Location`) |
+| PUT | `/monitors/{id}` | write | Replace the monitor's settings (omitted fields get their defaults) |
+| DELETE | `/monitors/{id}` | write | Delete with its history (`204`) |
+| POST | `/monitors/{id}/pause` | write | Pause (closes an open incident); idempotent |
+| POST | `/monitors/{id}/resume` | write | Resume (status `Unknown`, checked right away; a heartbeat gets a full interval + grace for its first ping); idempotent |
+| POST | `/monitors/{id}/heartbeat-token` | write | Heartbeat only: new ping token, the old URL stops working; the response has the new `pingUrl` |
+| GET | `/monitors/{id}/checks?from&to&limit&region` | read | Check results, newest first. Default: last 24 h, `limit` 100 (max 1000). Times in ISO 8601. Central checks only; `region=all` adds remote probe regions' results (multi-region monitors), each labelled by `regionCode` |
+| GET | `/incidents?status=open\|resolved&monitorId&limit` | read | Incidents, newest first. `limit` 100 (max 500) |
+| POST | `/incidents/{id}/acknowledge` | read-write | Acknowledges an open incident (stops further escalation steps; the monitor status is not changed). Optional body `{ "note": "..." }` (max 500 chars). 409 if already acknowledged or resolved |
+| GET | `/status` | read | Counts by status, open incidents, 24 h uptime, plan limits |
+| GET | `/status-pages` | read | The customer's public status pages (FEAT-4) |
+| GET | `/status-pages/{id}` | read | One status page |
+| POST | `/status-pages` | write | Create (`201` + `Location`); `409` when the plan's status page limit is reached or the address / domain was taken concurrently |
+| PUT | `/status-pages/{id}` | write | Replace (omitted fields get their defaults; an omitted `customDomain` removes it) |
+| DELETE | `/status-pages/{id}` | write | Delete with its subscribers and notes (`204`) |
+
+### Status page body (POST / PUT)
+
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| `title` | string | (required) | max 100, plain text |
+| `slug` | string | (required) | public address `/status/{slug}`: 3-50 lower-case letters, digits and inner hyphens, unique, some words reserved |
+| `announcement` | string | | optional plain text shown at the top, max 2000 |
+| `visibility` | `Public` \| `Unlisted` | `Public` | unlisted pages are served with `noindex` |
+| `timeZoneId` | string | `UTC` | IANA zone for times and daily uptime bars |
+| `monitors` | `[{ "monitorId": 1, "displayName": "Website" }]` | (at least one) | the customer's own monitors, shown only under `displayName` (max 100) |
+| `customDomain` | string | | Pro / Enterprise only, e.g. `status.example.com`. A new or changed domain is unverified; the response's `customDomainVerificationRecord` is the TXT record to publish, verification is done in the panel |
+
+Responses add `id`, `url`, `customDomainVerified` and `createdAtUtc`. Incident notes and subscribers are managed in
+the panel. The public page itself is anonymous: `/status/{slug}` (HTML), `/status/{slug}.json`, `/status/{slug}/feed`
+(Atom).
+
+Monitors include `inMaintenance` (an active maintenance window covers the monitor), checks include `inMaintenance`
+(not counted in uptime), and incidents include `acknowledgedAtUtc`, `acknowledgeNote`, `escalationLevel` and
+`resolvedDuringMaintenance`. Maintenance windows and escalation policies are managed in the panel only.
+
+### Monitor body (POST / PUT)
+
+The same fields and rules as the panel's monitor form: plan interval and monitor quota, private / internal targets
+rejected (SSRF protection), type-specific fields.
+
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| `name` | string | (required) | max 200 |
+| `type` | `Http` \| `Keyword` \| `Tcp` \| `Ping` \| `Dns` \| `Heartbeat` \| `JsonApi` | `Http` | |
+| `target` | string | (required, except Heartbeat) | URL for Http/Keyword/JsonApi, host or IP for Tcp/Ping, DNS name for Dns (e.g. `_dmarc.example.com`, IDN allowed) |
+| `port` | int | | required for Tcp (1-65535) |
+| `keyword` | string | | required for Keyword |
+| `httpMethod` | `GET` \| `HEAD` \| `POST` | `GET` | Http/Keyword/JsonApi; `HEAD` only for Http (no body to check otherwise) |
+| `expectedStatusCodes` | string | `200-299` | e.g. `200-299,301` |
+| `dnsRecordType` | `A` \| `AAAA` \| `CNAME` \| `MX` \| `NS` \| `TXT` | | required for Dns |
+| `jsonPath` | string | | required for JsonApi: `$`, `.name`, `['name']`, `[0]` only (no wildcards, filters or scripts), max 500 |
+| `assertionOperator` | `Equal` \| `Contains` \| `Exists` \| `LessThan` \| `GreaterThan` | | required for JsonApi; Dns: `Equal` (default) or `Contains` |
+| `expectedValue` | string | | JsonApi: required except for `Exists`, a number for `LessThan`/`GreaterThan`. Dns: optional (empty = at least one record) |
+| `intervalSeconds` | 300 \| 60 \| 30 \| 15 | 300 | must be allowed by the plan. Heartbeat: 60, 300, 900, 1800, 3600, 21600, 43200 or 86400 (plan minimum applies) |
+| `gracePeriodSeconds` | int | 60 | Heartbeat: 10-86400, extra time for a late ping |
+| `timeoutSeconds` | int | 10 | 1-60, below the interval (not used by Heartbeat) |
+| `failureThreshold` | int | 2 | 1-5; always 1 for Heartbeat (the grace period is the tolerance) |
+| `slaTarget` | number | | optional SLA target in percent (0-100, e.g. `99.9`) for the monthly SLA report |
+
+Responses contain these fields plus `id`, `status` (`Unknown`/`Up`/`Down`/`Paused`), `isPaused`, `lastCheckedAtUtc`,
+`nextCheckAtUtc`, `lastResponseTimeMs`, `lastError`, `statusChangedAtUtc`, `createdAtUtc` (UTC, ISO 8601). Heartbeat
+monitors also carry `heartbeatTokenPrefix`, `lastHeartbeatAtUtc`, `lastHeartbeatFailed`, `lastHeartbeatMessage`.
+
+### Heartbeat ping URL
+
+Only a hash of the ping token is stored. The full URL is returned **once**, as `pingUrl`, in the response that issued
+the token: `POST /monitors` with `type: Heartbeat`, a `PUT` that changes a monitor to Heartbeat, and
+`POST /monitors/{id}/heartbeat-token`. These responses are sent with `Cache-Control: no-store`; store the URL in your
+secret store. Every other response has `pingUrl: null`.
+
+The job calls `GET`, `POST` or `HEAD` `https://<host>/hb/<token>` (no API key, no body needed). Add `?status=fail`
+(optionally `&msg=...`, at most 200 characters, masked) to report a failure, which counts as a failed check right away.
+The endpoint always answers `200 OK` (also for unknown tokens) or `429` with `Retry-After` when rate limited (per token,
+per client IP / IPv6 /64 and globally, see `Heartbeat__*` in [DEPLOYMENT.md](DEPLOYMENT.md)). Pings to paused monitors
+or suspended accounts are ignored. The URL's host comes from `Site__PublicBaseUrl` when set, otherwise from the request.
+
+## Examples
+
+```bash
+# List monitors
+curl -H "Authorization: Bearer $TC_KEY" $TC/api/v1/monitors
+
+# Create an HTTP monitor checked every minute
+curl -X POST -H "Authorization: Bearer $TC_KEY" -H "Content-Type: application/json" \
+  -d '{"name":"Website","type":"Http","target":"https://example.com/","intervalSeconds":60}' \
+  $TC/api/v1/monitors
+
+# Change it to a keyword monitor
+curl -X PUT -H "Authorization: Bearer $TC_KEY" -H "Content-Type: application/json" \
+  -d '{"name":"Website","type":"Keyword","target":"https://example.com/","keyword":"Welcome","intervalSeconds":60}' \
+  $TC/api/v1/monitors/42
+
+# Heartbeat for a nightly job (the response's pingUrl is shown only now)
+curl -X POST -H "Authorization: Bearer $TC_KEY" -H "Content-Type: application/json" \
+  -d '{"name":"Nightly backup","type":"Heartbeat","intervalSeconds":86400,"gracePeriodSeconds":1800}' \
+  $TC/api/v1/monitors
+# in the job:  curl -fsS -m 10 --retry 3 "$PING_URL"   or on failure:  curl -fsS "$PING_URL?status=fail&msg=exit+2"
+
+# JSON API monitor: $.status must equal "ok"
+curl -X POST -H "Authorization: Bearer $TC_KEY" -H "Content-Type: application/json" \
+  -d '{"name":"API health","type":"JsonApi","target":"https://api.example.com/health","jsonPath":"$.status","assertionOperator":"Equal","expectedValue":"ok","intervalSeconds":60}' \
+  $TC/api/v1/monitors
+
+# Pause during maintenance, then resume
+curl -X POST -H "Authorization: Bearer $TC_KEY" $TC/api/v1/monitors/42/pause
+curl -X POST -H "Authorization: Bearer $TC_KEY" $TC/api/v1/monitors/42/resume
+
+# Checks of the last hour
+curl -H "Authorization: Bearer $TC_KEY" "$TC/api/v1/monitors/42/checks?from=$(date -u -v-1H +%Y-%m-%dT%H:%M:%SZ)&limit=500"
+
+# Open incidents
+curl -H "Authorization: Bearer $TC_KEY" "$TC/api/v1/incidents?status=open"
+
+# Acknowledge one (read-write key)
+curl -X POST -H "Authorization: Bearer $TC_KEY" -H "Content-Type: application/json" \
+     -d '{"note":"Looking into it"}' "$TC/api/v1/incidents/42/acknowledge"
+
+# Delete
+curl -X DELETE -H "Authorization: Bearer $TC_KEY" $TC/api/v1/monitors/42
+```
+
+(`date -v-1H` is the macOS / BSD form; on Linux use `date -u -d '-1 hour' +%Y-%m-%dT%H:%M:%SZ`.)

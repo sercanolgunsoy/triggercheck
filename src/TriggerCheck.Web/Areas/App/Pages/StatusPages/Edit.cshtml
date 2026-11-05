@@ -1,0 +1,19 @@
+@page "{id:int}"
+@model TriggerCheck.Web.Areas.App.Pages.StatusPages.EditModel
+@{ ViewData["Title"] = L["Edit status page"].Value; }
+
+<nav aria-label="@L["Breadcrumb"]"><ol class="breadcrumb">
+    <li class="breadcrumb-item"><a asp-page="Index">@L["Status pages"]</a></li>
+    <li class="breadcrumb-item active">@L["Edit"]</li>
+</ol></nav>
+
+<h2 class="mb-3">@L["Edit status page"]</h2>
+<div class="card"><div class="card-body">
+    <form method="post" asp-route-id="@Model.Id">
+        <partial name="_StatusPageForm" model="Model" />
+        <div class="mt-4">
+            <button type="submit" class="btn btn-primary">@L["Save"]</button>
+            <a asp-page="Index" class="btn btn-link">@L["Cancel"]</a>
+        </div>
+    </form>
+</div></div>

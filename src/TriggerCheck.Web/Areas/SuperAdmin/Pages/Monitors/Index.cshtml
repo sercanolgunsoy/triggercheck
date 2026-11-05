@@ -19,13 +19,13 @@
 
 <form method="get" class="row g-2 mb-3">
     <div class="col-md-3">
-        <select asp-for="CustomerId" class="form-select">
+        <select asp-for="CustomerId" class="form-select" aria-label="@L["Customer"]">
             <option value="">@L["All customers"]</option>
             @foreach (var c in Model.Customers) { <option value="@c.Id">@c.Name</option> }
         </select>
     </div>
     <div class="col-md-2">
-        <select asp-for="Status" class="form-select">
+        <select asp-for="Status" class="form-select" aria-label="@L["Status"]">
             <option value="">@L["All statuses"]</option>
             <option value="Up">@Fmt.StatusName(MonitorStatus.Up)</option>
             <option value="Down">@Fmt.StatusName(MonitorStatus.Down)</option>
@@ -34,13 +34,13 @@
         </select>
     </div>
     <div class="col-md-2">
-        <select asp-for="Type" class="form-select">
+        <select asp-for="Type" class="form-select" aria-label="@L["Type"]">
             <option value="">@L["All types"]</option>
             @foreach (var t in Enum.GetValues<MonitorType>()) { <option value="@t">@Fmt.TypeName(t)</option> }
         </select>
     </div>
     <div class="col-md-3">
-        <input asp-for="Q" class="form-control" placeholder="@L["Search target / name"]" />
+        <input asp-for="Q" class="form-control" placeholder="@L["Search target / name"]" aria-label="@L["Search"]" />
     </div>
     <div class="col-md-2 d-grid">
         <button type="submit" class="btn btn-outline-secondary">@L["Filter"]</button>
