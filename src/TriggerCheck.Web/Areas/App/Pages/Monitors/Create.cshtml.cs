@@ -49,6 +49,9 @@ public class CreateModel(MonitorCommands commands, ICurrentCustomer current, Tex
     /// </summary>
     public async Task<IActionResult> OnPostAssistAsync(string? assistantRequest, CancellationToken ct)
     {
+        // Server-side cap (the textarea's maxlength is client-side only): the service and the echo never see more.
+        var cap = MonitorSetupRequest.RawCap(assistant.MaxRequestChars);
+        if (assistantRequest is { } text && text.Length > cap) assistantRequest = text[..cap];
         await LoadAsync(ct);
         ModelState.Clear(); // the posted box is not the form: render the model values, not posted ones
         Input = new MonitorInput();

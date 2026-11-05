@@ -267,7 +267,8 @@ public static partial class MonitorSetupForm
         {
             if (u.UserInfo.Length > 0) notes.Add(new(MonitorSetupNoteKind.CredentialsRemoved));
             if (!u.IsDefaultPort && u.Port > 0) port = u.Port;
-            return u.HostNameType == UriHostNameType.IPv6 ? u.Host.Trim('[', ']') : u.Host;
+            // Punycode for Unicode names: the TCP / ping / DNS validation and checkers expect an ASCII host.
+            return u.HostNameType == UriHostNameType.IPv6 ? u.Host.Trim('[', ']') : u.IdnHost;
         }
         return v;
     }

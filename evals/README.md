@@ -60,7 +60,7 @@ evals/
     incident-interpretation/       AI-2: 23 labelled scenarios (en + tr)
     slowdown-explanation/          AI-3: 5 labelled scenarios
     settings-suggestions/          AI-5: 8 labelled scenarios (one per suggestion kind, en + tr)
-    monitor-setup/                 AI-9: 13 labelled requests (every monitor type, clarification, clamping, masking; en + tr)
+    monitor-setup/                 AI-9: 14 labelled requests (every monitor type, clarification, clamping, masking; en + tr)
   reports/                         gitignored, except sample-report.md
     last-report.md / .json         last run (per feature and per case, tokens, cost)
     prompts/<case>.txt             the user turn actually sent for each case

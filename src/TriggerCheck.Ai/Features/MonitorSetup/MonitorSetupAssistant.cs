@@ -38,8 +38,9 @@ public sealed record MonitorSetupResult(MonitorSetupStatus Status, MonitorSetupP
 /// <see cref="AiDecision"/> row; the customer reviews the pre-filled form and saves it through the normal create path
 /// (plan rules, SSRF pre-check, quota). Runs on the request path because the customer waits for the form, with the
 /// usual guards: global switch, opt-in, plan feature (AI-10), monthly budget (reserved atomically like
-/// <see cref="AiInterpreter"/>), a per-user hourly limit, the call timeout, and K5 masking of the request
-/// (<see cref="MonitorSetupRequest"/>). An identical request of the same customer reuses the earlier answer.
+/// <see cref="AiInterpreter"/>), a per-user hourly limit (calls, reused answers and budget skips count), the call
+/// timeout, and K5 masking of the request (<see cref="MonitorSetupRequest"/>). An identical request of the same customer
+/// reuses the earlier answer and writes an audit row with ErrorCode <see cref="ReusedCode"/> and no tokens.
 /// </summary>
 public sealed class MonitorSetupAssistant(
     AppDbContext db,
@@ -52,8 +53,21 @@ public sealed class MonitorSetupAssistant(
     /// <summary>AiDecision.SubjectType; the subject id is the requesting user's id (the rate limit is counted on it).</summary>
     public const string SubjectType = "MonitorSetup";
 
-    private static readonly AiDecisionStatus[] CallStatuses =
-        [AiDecisionStatus.Succeeded, AiDecisionStatus.Refused, AiDecisionStatus.Failed, AiDecisionStatus.Truncated, AiDecisionStatus.Pending];
+    /// <summary>ErrorCode of a Succeeded row that reused an earlier answer (no call, no tokens, audit only).</summary>
+    public const string ReusedCode = "reused";
+
+    /// <summary>
+    /// Rows that count towards the per-user hourly limit: every call (also reused answers) and over-budget skips, so
+    /// repeated posts with a used-up budget do not write unlimited rows.
+    /// </summary>
+    private static readonly AiDecisionStatus[] LimitedStatuses =
+    [
+        AiDecisionStatus.Succeeded, AiDecisionStatus.Refused, AiDecisionStatus.Failed, AiDecisionStatus.Truncated, AiDecisionStatus.Pending,
+        AiDecisionStatus.SkippedBudget
+    ];
+
+    /// <summary>Ai:SetupAssistant:MaxRequestChars (the page also caps what it echoes back).</summary>
+    public int MaxRequestChars => Math.Max(1, options.Value.SetupAssistant.MaxRequestChars);
 
     public bool IsAvailable => options.Value.Enabled && client.IsAvailable;
 
@@ -107,26 +121,34 @@ public sealed class MonitorSetupAssistant(
             .OrderByDescending(d => d.Id)
             .Select(d => new { d.Id, d.OutputJson })
             .FirstOrDefaultAsync(ct);
-        if (earlier is not null && MonitorSetupDraft.TryParse(earlier.OutputJson) is { } cached)
-            return new(MonitorSetupStatus.Ready, MonitorSetupForm.Build(cached, customer.Plan, request), earlier.Id);
+        var cached = earlier is null ? null : MonitorSetupDraft.TryParse(earlier.OutputJson);
 
-        // Rate limit and budget are checked and the reservation (Pending row) written in one (SQLite: IMMEDIATE)
-        // transaction, so parallel requests cannot all pass.
+        // The rate limit is checked and the row (reused answer, budget skip or Pending reservation) written in one
+        // (SQLite: IMMEDIATE) transaction, so parallel requests cannot all pass.
         await using (var tx = await db.Database.BeginTransactionAsync(ct))
         {
             var since = now.AddHours(-1);
             var recent = await db.AiDecisions.CountAsync(d => d.CustomerId == customer.Id && d.Feature == feature && d.SubjectType == SubjectType
-                                                              && d.SubjectId == userId && d.CreatedAtUtc >= since && CallStatuses.Contains(d.Status), ct);
+                                                              && d.SubjectId == userId && d.CreatedAtUtc >= since && LimitedStatuses.Contains(d.Status), ct);
             if (recent >= Math.Max(0, o.SetupAssistant.RequestsPerUserPerHour))
             {
                 await tx.RollbackAsync(ct);
                 return new(MonitorSetupStatus.RateLimited);
             }
-            decision.Status = (await usage.GetMonthlyUsageAsync(customer.Id, ct)).IsOverBudget ? AiDecisionStatus.SkippedBudget : AiDecisionStatus.Pending;
+            if (cached is not null)
+            {
+                // Audit row for the reused answer: no call, no tokens (free for the budget), same input hash.
+                decision.Status = AiDecisionStatus.Succeeded;
+                decision.ErrorCode = ReusedCode;
+                decision.OutputJson = cached.ToJson();
+            }
+            else
+                decision.Status = (await usage.GetMonthlyUsageAsync(customer.Id, ct)).IsOverBudget ? AiDecisionStatus.SkippedBudget : AiDecisionStatus.Pending;
             db.AiDecisions.Add(decision);
             await db.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
         }
+        if (cached is not null) return new(MonitorSetupStatus.Ready, MonitorSetupForm.Build(cached, customer.Plan, request), decision.Id);
         if (decision.Status == AiDecisionStatus.SkippedBudget) return new(MonitorSetupStatus.OverBudget, DecisionId: decision.Id);
 
         MonitorSetupDraft? draft = null;

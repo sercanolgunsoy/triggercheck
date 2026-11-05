@@ -41,12 +41,25 @@ public class MonitorSetupTests
 
         await SuggestAsync(host, c.Id,
             "Watch https://admin:hunter2@shop.example.test/checkout/pay?session=s3cr3tSession and alert if 'Pay now' is missing. " +
-            "Token: ghp_abcdefghijklmnopqrstuvwxyz0123456789, Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.abc123def456, mail ops@corp.test or call +90 532 123 45 67");
+            "Token: ghp_abcdefghijklmnopqrstuvwxyz0123456789, Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.abc123def456, mail ops@corp.test or call +90 532 123 45 67. " +
+            // Scheme-less links (IPv4, IDN, localhost, [v6], query only, user@), a quote with a link, plain-word credentials.
+            "Also 10.0.0.5:8080/admin/health?key=k3yHunter ödeme.example.com/checkout/order-8812?ref=abcRef localhost:8080/internal/secret-path " +
+            "[2001:db8::1]:8443/status/v6secret shop.example.com?q=PrivateCustomer42 root@shop.example.com/private/path " +
+            "\"Login at https://x.example.test/y fails for user bob pw pwBob99\" basic auth user webadmin password pw4Basic şifre gizliSifre1 " +
+            "token is tok9Plain postgres://dbuser:pgPass1@db.example.com:5432/app https://[::1]/v6admin");
 
         var sent = Assert.Single(host.Client.Requests);
         var all = sent.SystemPrompt + sent.UserContent;
-        foreach (var secret in new[] { "hunter2", "admin", "/checkout", "s3cr3tSession", "Pay now", "ghp_abc", "eyJhbGci", "ops@corp.test", "532 123" })
+        foreach (var secret in new[]
+                 {
+                     "hunter2", "admin", "/checkout", "s3cr3tSession", "Pay now", "ghp_abc", "eyJhbGci", "ops@corp.test", "532 123",
+                     "k3yHunter", "/health", "order-8812", "abcRef", "/internal", "secret-path", "/status", "v6secret", "PrivateCustomer42",
+                     "root@", "/private", "Login at", "bob", "pwBob99", "x.example.test/y", "webadmin", "pw4Basic", "gizliSifre1", "tok9Plain",
+                     "dbuser", "pgPass1", "/app", "v6admin"
+                 })
             Assert.DoesNotContain(secret, all, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("https://ödeme.example.com/…", sent.UserContent);
+        Assert.Contains("https://localhost:8080/…", sent.UserContent);
         Assert.Contains("[U1]", sent.UserContent);
         Assert.Contains("U1: https://shop.example.test/…", sent.UserContent);
         Assert.Contains("\"[T1]\"", sent.UserContent);
@@ -247,6 +260,15 @@ public class MonitorSetupTests
         Assert.Equal(MonitorSetupStatus.Ready, again.Status);
         Assert.Equal("https://shop.example.test/b", again.Proposal!.Fields!.Target);
         Assert.Single(host.Client.Requests);
+        // ... and is audited: its own row, marked reused, without tokens (free for the budget).
+        var reused = await host.WithDbAsync(db => db.AiDecisions.AsNoTracking().OrderByDescending(x => x.Id).FirstAsync());
+        Assert.Equal(again.DecisionId, reused.Id);
+        Assert.NotEqual(d.Id, reused.Id);
+        Assert.Equal(AiDecisionStatus.Succeeded, reused.Status);
+        Assert.Equal(MonitorSetupAssistant.ReusedCode, reused.ErrorCode);
+        Assert.Equal(0, reused.InputTokens + reused.OutputTokens);
+        Assert.Equal(d.InputHash, reused.InputHash);
+        Assert.Equal(1, (await host.InScopeAsync(sp => sp.GetRequiredService<TriggerCheck.Ai.Budget.IAiUsage>().GetMonthlyUsageAsync(c.Id))).Calls);
     }
 
     [Fact]
@@ -340,5 +362,140 @@ public class MonitorSetupTests
         var r = await SuggestAsync(host, c.Id, "check https://shop.example.test " + new string('x', 200));
         Assert.Contains(r.Proposal!.Notes, n => n.Kind == MonitorSetupNoteKind.RequestTruncated);
         Assert.DoesNotContain("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", Assert.Single(host.Client.Requests).UserContent);
+    }
+
+    // ---------------------------------------------------------------- review fixes (K5 gaps, IDN, budget, concurrency)
+
+    private static string Sent(string request, int maxChars = 1000) => MonitorSetupPrompts.UserContent(new MonitorSetupRequest(request, maxChars), "en");
+
+    [Theory]
+    [InlineData("watch 10.0.0.5:8080/admin/health?key=hunter2", "U1: https://10.0.0.5:8080/…", "/admin", "hunter2")]
+    [InlineData("watch ödeme.example.com/checkout/order-8812?ref=abc every minute", "[U1] every minute", "/checkout", "8812", "ref=abc")]
+    [InlineData("watch localhost:8080/internal/secret-path", "U1: https://localhost:8080/…", "/internal", "secret-path")]
+    [InlineData("watch [2001:db8::1]:8443/status/secret", "[U1]", "/status", "secret")]
+    [InlineData("check shop.example.com?q=PrivateCustomer42", "U1: https://shop.example.com/…", "PrivateCustomer42")]
+    [InlineData("watch admin@shop.example.com/private/path", "U1: https://shop.example.com/…", "admin", "/private", "[email]")]
+    [InlineData("check postgres://admin:hunter2@db.example.com:5432/app", "[U1]", "admin", "hunter2", "/app")]
+    [InlineData("watch https://[::1]/admin", "U1: https://[::1]/…", "/admin")]
+    [InlineData("some.host.example/x#frag-secret?", "[U1]", "frag-secret")]
+    [InlineData("alert if \"Login at https://x.com/y fails for user bob pw hunter2\" missing", "\"[T1]\"", "x.com", "bob", "hunter2", "[U")]
+    [InlineData("basic auth user admin password hunter2 for https://x.com", "user [secret] password [secret]", "admin", "hunter2")]
+    [InlineData("kullanıcı adı yonetici şifre gizli123 ile giriş", "şifre [secret]", "yonetici", "gizli123")]
+    [InlineData("the token is abc123xyz and the secret = s3cr3t", "token is [secret]", "abc123xyz", "s3cr3t")]
+    [InlineData("header X-Api-Key: abcd1234 on https://api.example.com/v1", "[secret]", "abcd1234", "/v1")]
+    public void Scheme_less_links_quotes_and_plain_credentials_are_masked(string request, string expected, params string[] secrets)
+    {
+        var sent = Sent(request);
+        Assert.Contains(expected, sent);
+        foreach (var secret in secrets) Assert.DoesNotContain(secret, sent, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void A_quote_that_is_exactly_one_link_stays_that_link_otherwise_it_is_hidden_whole()
+    {
+        var link = new MonitorSetupRequest("monitor \"https://shop.example.test/pay\" please", 1000);
+        Assert.Equal("https://shop.example.test/pay", link.Urls["U1"]);
+        Assert.Contains("\"[U1]\"", link.PlaceholderText);
+        Assert.Empty(link.Quotes);
+
+        var mixed = new MonitorSetupRequest("alert if \"Login at https://x.com/y fails\" is shown", 1000);
+        Assert.Equal("Login at https://x.com/y fails", Assert.Single(mixed.Quotes).Value);
+        Assert.Empty(mixed.Urls); // the link only lived inside the hidden quote
+        Assert.Equal("alert if \"[T1]\" is shown", mixed.PlaceholderText);
+    }
+
+    [Fact]
+    public void Extraction_runs_before_truncation_and_an_unclosed_quote_runs_to_the_end()
+    {
+        // The quote is cut by the length limit: it is still hidden, never sent half-open.
+        var cut = new MonitorSetupRequest("check https://shop.example.test/a and alert if 'TopSecretPhrase is missing from the page", 40);
+        Assert.True(cut.Truncated);
+        Assert.DoesNotContain("TopSecret", cut.PlaceholderText);
+        Assert.DoesNotContain("TopSecret", Sent("check https://shop.example.test/a and alert if 'TopSecretPhrase is missing from the page", 40));
+        Assert.True(cut.PlaceholderText.Length <= 40);
+        Assert.DoesNotContain("[U", cut.PlaceholderText.Replace("[U1]", ""), StringComparison.Ordinal); // never half a placeholder
+
+        var unclosed = new MonitorSetupRequest("alert if “Pay now is missing", 1000);
+        Assert.Equal("Pay now is missing", Assert.Single(unclosed.Quotes).Value);
+
+        // Turkish suffixes after a link or a name are apostrophes, not quotes.
+        var tr = new MonitorSetupRequest("shop.example.test/odeme'nin içinde 'Öde' yazısı olsun, example.com'un ana sayfası", 1000);
+        Assert.Equal("Öde", Assert.Single(tr.Quotes).Value);
+        Assert.Contains("example.com'un ana sayfası", tr.PlaceholderText);
+
+        // The raw input is capped before normalisation.
+        Assert.Equal(2000, MonitorSetupRequest.RawCap(1000));
+        var huge = new MonitorSetupRequest(new string('a', 1_000_000), 1000);
+        Assert.Equal(1000, huge.PlaceholderText.Length);
+    }
+
+    [Fact]
+    public void Placeholder_look_alikes_inside_a_users_link_are_kept()
+    {
+        var r = new MonitorSetupRequest("monitor https://x.example.test/a[U1]b and also [U1] typed by hand", 1000);
+        Assert.Equal("https://x.example.test/a[U1]b", r.Urls["U1"]);
+        Assert.Contains("(U1) typed by hand", r.PlaceholderText);
+        var p = MonitorSetupForm.Build(MonitorSetupDraft.TryParse(Answer())!, Plan(), r);
+        Assert.Equal("https://x.example.test/a[U1]b", p.Fields!.Target);
+    }
+
+    [Theory]
+    [InlineData("ping", "ödeme.example.com")]
+    [InlineData("tcp", "[U1]")]
+    [InlineData("dns", "https://ödeme.example.com/x")]
+    public void Unicode_hosts_become_punycode_for_tcp_ping_and_dns(string type, string target)
+    {
+        var p = Build(Answer(type, target).Replace("\"port\":null", "\"port\":22"), "connect to ödeme.example.com:22/x");
+        Assert.Equal("xn--deme-4qa.example.com", p.Fields!.Target);
+        Assert.True(MonitorInput.IsHostOrIp(p.Fields.Target) && MonitorInput.IsDnsName(p.Fields.Target));
+    }
+
+    [Fact]
+    public async Task Over_budget_posts_count_towards_the_hourly_limit()
+    {
+        await using var host = await AiTestHost.CreateAsync(new() { ["Ai:SetupAssistant:RequestsPerUserPerHour"] = "2" });
+        var c = await host.AddCustomerAsync(callLimit: 1);
+        await host.WithDbAsync(async db =>
+        {
+            db.AiDecisions.Add(new AiDecision { CustomerId = c.Id, Feature = AiFeatures.IncidentInterpretation, SubjectType = "Incident", SubjectId = "1",
+                Status = AiDecisionStatus.Succeeded, InputTokens = 10, OutputTokens = 10, CreatedAtUtc = host.Now });
+            await db.SaveChangesAsync();
+        });
+
+        Assert.Equal(MonitorSetupStatus.OverBudget, (await SuggestAsync(host, c.Id, "check https://a.example.test")).Status);
+        Assert.Equal(MonitorSetupStatus.OverBudget, (await SuggestAsync(host, c.Id, "check https://b.example.test")).Status);
+        for (var i = 0; i < 5; i++)
+            Assert.Equal(MonitorSetupStatus.RateLimited, (await SuggestAsync(host, c.Id, $"check https://c{i}.example.test")).Status);
+        Assert.Equal(2, await host.WithDbAsync(db => db.AiDecisions.CountAsync(d => d.Feature == AiFeatures.MonitorSetupAssistant)));
+        Assert.Empty(host.Client.Requests);
+    }
+
+    private sealed class SlowSetupClient : IAiClient
+    {
+        private int _calls;
+        public int Calls => _calls;
+        public bool IsAvailable => true;
+
+        public async Task<AiCallResult> CompleteAsync(AiCallRequest request, CancellationToken ct)
+        {
+            Interlocked.Increment(ref _calls);
+            await Task.Delay(200, ct);
+            return FakeAiClient.Success(Answer());
+        }
+    }
+
+    [Fact]
+    public async Task Parallel_requests_cannot_exceed_the_hourly_limit()
+    {
+        var slow = new SlowSetupClient();
+        await using var host = await AiTestHost.CreateAsync(new() { ["Ai:SetupAssistant:RequestsPerUserPerHour"] = "3" }, client: slow);
+        var c = await host.AddCustomerAsync();
+
+        var results = await Task.WhenAll(Enumerable.Range(0, 8).Select(i => SuggestAsync(host, c.Id, $"check https://p{i}.example.test")));
+
+        Assert.Equal(3, slow.Calls);
+        Assert.Equal(3, results.Count(r => r.Status == MonitorSetupStatus.Ready));
+        Assert.Equal(5, results.Count(r => r.Status == MonitorSetupStatus.RateLimited));
+        Assert.Equal(0, await host.WithDbAsync(db => db.AiDecisions.CountAsync(d => d.Status == AiDecisionStatus.Pending)));
     }
 }

@@ -34,7 +34,7 @@ public class EvalHarnessTests
 
         // AI-9: every monitor type the assistant offers, clarification, plan clamping and masking, in en and tr.
         var setup = cases.Where(c => c.Feature == AiFeatures.MonitorSetupAssistant).ToList();
-        Assert.Equal(13, setup.Count);
+        Assert.Equal(14, setup.Count);
         foreach (var type in new[] { "Http", "Keyword", "Tcp", "Ping", "Dns", "Heartbeat", "JsonApi" })
             Assert.Contains(setup, c => c.Expect.Fields?.TryGetValue("type", out var t) == true && t.GetString() == type);
         Assert.Contains(setup, c => c.Expect.PrimaryCause == MonitorSetupEval.ClarifyLabel && c.Language == "tr");

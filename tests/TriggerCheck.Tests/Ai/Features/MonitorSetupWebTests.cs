@@ -165,6 +165,35 @@ public class MonitorSetupWebTests(MonitorSetupWebAppFactory f) : IClassFixture<M
         Assert.Contains("alert-warning", page);
     }
 
+    [Theory]
+    [InlineData("monitor http://10.0.0.5/x", "http://10.0.0.5/x", "Http")]
+    [InlineData("check localhost:8080/internal/health every minute", "https://localhost:8080/internal/health", "Http")]
+    [InlineData("ping 192.168.1.10:22/x", "192.168.1.10", "Ping")]
+    public async Task Private_link_restored_from_the_users_own_text_is_rejected_by_validation(string request, string restored, string type)
+    {
+        await ArrangeAsync();
+        Respond(Answer(type.ToLowerInvariant(), "[U1]", 60, explanation: "A monitor."));
+        var page = await (await AssistAsync(await AdminAsync(), request)).ReadHtmlAsync();
+
+        Assert.Contains($"value=\"{restored}\"", page); // the user's own link is back in the form ...
+        Assert.Contains("This address points to a private or internal network and cannot be monitored.", page); // ... and rejected
+        Assert.Contains("Some suggested values need your attention; see the highlighted fields.", page);
+        Assert.DoesNotContain("/internal", f.Fake.Requests.Last().UserContent);
+    }
+
+    [Fact]
+    public async Task Overlong_posts_are_capped_on_the_server()
+    {
+        await ArrangeAsync();
+        Respond(Answer("http", "[U1]", 60, explanation: "An HTTP monitor."));
+        var huge = "check https://www.example.test " + new string('z', 50_000);
+        var page = await (await AssistAsync(await AdminAsync(), huge)).ReadHtmlAsync();
+
+        Assert.DoesNotContain(new string('z', MonitorSetupRequest.RawCap(1000) + 1), page); // the echo is capped
+        Assert.Contains("Your description was too long and was shortened.", page);
+        Assert.True(f.Fake.Requests.Last().UserContent.Length < 3000);
+    }
+
     [Fact]
     public async Task Ambiguous_request_asks_instead_of_filling()
     {

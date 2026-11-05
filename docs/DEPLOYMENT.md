@@ -453,7 +453,7 @@ product works fully without it: status, incidents and alerts are always decided 
 | `Ai__Events__PollSeconds` (10), `Ai__Events__LookbackMinutes` (15) | | Event watcher of AI-2 / AI-3: how often new / resolved incidents and new slowdown signals are looked up, and how old an event without an AI decision may be to still be picked up after a restart. Runs only when AI is on and a key is set. |
 | `Ai__Events__MonitorCooldownMinutes` (30), `__HostWindowMinutes` (10), `__MaxJobsPerCustomerPerScan` (5) | | Cost damping of AI-2: a monitor whose incident was interpreted within the cool-down gets no new summary for the same (normalised) cause (flapping; a different cause is interpreted, at most once per cool-down); of incidents of one customer on the same host within the window only the first is interpreted (its page is linked from the others); per scan at most this many jobs per customer, round-robin across customers. Events over the cap or refused by a full queue are retried on the next scan. |
 | `Ai__Suggestions__Enabled` (true), `__IntervalMinutes` (360), `__WindowDays` (7), `__DismissDays` (30), `__MaxChecksPerMonitor` (30000), `__BatchSize` (50) | | AI-5 settings suggestion job (rules, no key needed for detection). Runs only when `Monitoring__Enabled` is true, on the cluster leader. `WindowDays` is the history the rules read (never before the monitor's last settings change) and how often the evidence of an open suggestion is refreshed; `DismissDays` is how long a dismissed kind stays hidden (closed suggestions are kept at least `DismissDays + 1` days regardless of plan retention). |
-| `Ai__SetupAssistant__RequestsPerUserPerHour` (20), `__MaxRequestChars` (1000) | | AI-9 monitor setup assistant: model calls one user may make per rolling hour (an identical request of the same customer reuses the earlier answer and is free), and the length a description is cut to before masking. Model / effort / tokens per feature as usual (`Ai__Features__MonitorSetupAssistant__…`). |
+| `Ai__SetupAssistant__RequestsPerUserPerHour` (20), `__MaxRequestChars` (1000) | | AI-9 monitor setup assistant: requests one user may make per rolling hour (model calls, reused answers and over-budget skips all count; an identical request of the same customer reuses the earlier answer without a call and is recorded as a `Succeeded` row with `ErrorCode` `reused` and no tokens), and the length a description is cut to before masking. Model / effort / tokens per feature as usual (`Ai__Features__MonitorSetupAssistant__…`). |
 
 **Slowdown detection latency (AI-1):** a slowdown is flagged when 3 of the last 5 successful checks are anomalous.
 The first job run after the third slow check flags it, so the latency is 3 check intervals plus up to
@@ -494,8 +494,12 @@ is a fixed JSON schema of form fields. The server rejects unknown monitor types,
 user's own links and quoted text, normalizes the target and clamps every value (an interval below the plan minimum is
 raised to it, with an explanation). The pre-filled form is then validated like a normal post (plan rules, SSRF
 pre-check), so a private or internal target shows the usual error. The assistant never saves: the user reviews the form
-and clicks Create. Links in the description reach the model as scheme + host only and quoted text ("Pay now") not at
-all; the rest of the description is masked like other free text (secrets, tokens, e-mail, phone). The default plans
+and clicks Create. Links in the description (with any scheme, or scheme-less: host names incl. Unicode, IPv4, `[v6]`,
+`localhost:port`, `user@host/...`, a host followed by a path, query or fragment) reach the model as scheme + host only,
+and quoted text ("Pay now"; an unclosed quote runs to the end) not at all; credentials written in plain words
+("user admin password x", "şifre x", "token is x") are masked, and the rest of the description is masked like other
+free text (secrets, tokens, e-mail, phone). The raw description is capped at twice `MaxRequestChars` on the server
+before anything else, and cut to `MaxRequestChars` only after links and quotes were extracted. The default plans
 include it from Standard up (the AI-10 tiers did not list it); existing databases get it when a SuperAdmin ticks
 `MonitorSetupAssistant` on the *Plans* page. When AI is off, the customer opted out or the plan lacks the feature, the
 box is hidden and the form works as before.
