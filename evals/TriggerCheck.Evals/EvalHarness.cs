@@ -12,6 +12,7 @@ using TriggerCheck.Ai.Client;
 using TriggerCheck.Ai.Execution;
 using TriggerCheck.Ai.Features;
 using TriggerCheck.Ai.Features.Correlation;
+using TriggerCheck.Ai.Features.Postmortem;
 using TriggerCheck.Ai.Interpretation;
 using TriggerCheck.Ai.Narrative;
 using TriggerCheck.Domain;
@@ -95,6 +96,7 @@ public static class EvalHarness
         services.AddScoped<IAiContextProvider>(sp => new RecordingContextProvider(ActivatorUtilities.CreateInstance<NarrativeReportProvider>(sp), prompts));
         services.AddScoped<IAiContextProvider>(sp => new RecordingContextProvider(ActivatorUtilities.CreateInstance<CorrelationGroupingProvider>(sp), prompts));
         services.AddScoped<IAiContextProvider>(sp => new RecordingContextProvider(ActivatorUtilities.CreateInstance<SettingsSuggestionProvider>(sp), prompts));
+        services.AddScoped<IAiContextProvider>(sp => new RecordingContextProvider(ActivatorUtilities.CreateInstance<PostmortemDraftProvider>(sp), prompts));
 
         var report = new EvalReport
         {
@@ -149,7 +151,9 @@ public static class EvalHarness
                 }
                 var result = correlation is not null
                     ? EvalCorrelation.Grade(scenario, correlation, recorder.LastRequest, recorder.LastResult, decision, prompts.Last)
-                    : EvalGrader.Grade(scenario, recorder.LastRequest, recorder.LastResult, decision, prompts.Last);
+                    : scenario.Feature == AiFeatures.PostmortemDraft
+                        ? EvalPostmortem.Grade(scenario, recorder.LastRequest, recorder.LastResult, decision, prompts.Last)
+                        : EvalGrader.Grade(scenario, recorder.LastRequest, recorder.LastResult, decision, prompts.Last);
                 result.Model = o.ModelFor(scenario.Feature);
                 result.Effort = o.EffortFor(scenario.Feature);
                 result.CostUsd = decision?.CostEstimate ?? 0;

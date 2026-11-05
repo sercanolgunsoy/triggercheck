@@ -43,6 +43,7 @@ public static class StatusPageSetup
         services.AddScoped<PublicStatusService>();
         services.AddScoped<StatusPageSubscriptions>();
         services.AddScoped<StatusPageNotifier>();
+        services.AddScoped<PostmortemPublisher>(); // AI-8: approved postmortem drafts become notes
         services.AddScoped<CustomDomainReverifier>();
         services.AddSingleton<CustomDomainMap>();
         services.AddSingleton<ICustomDomainVerifier, DnsCustomDomainVerifier>();

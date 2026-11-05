@@ -300,8 +300,11 @@ public class MonitorSetupTests
         if (gate == "budget")
             await host.WithDbAsync(async db =>
             {
-                db.AiDecisions.Add(new AiDecision { CustomerId = c.Id, Feature = AiFeatures.IncidentInterpretation, SubjectType = "Incident", SubjectId = "1",
-                    Status = AiDecisionStatus.Succeeded, InputTokens = 10, OutputTokens = 10, CreatedAtUtc = host.Now });
+                db.AiDecisions.Add(new AiDecision
+                {
+                    CustomerId = c.Id, Feature = AiFeatures.IncidentInterpretation, SubjectType = "Incident", SubjectId = "1",
+                    Status = AiDecisionStatus.Succeeded, InputTokens = 10, OutputTokens = 10, CreatedAtUtc = host.Now
+                });
                 await db.SaveChangesAsync();
             });
 
@@ -457,8 +460,11 @@ public class MonitorSetupTests
         var c = await host.AddCustomerAsync(callLimit: 1);
         await host.WithDbAsync(async db =>
         {
-            db.AiDecisions.Add(new AiDecision { CustomerId = c.Id, Feature = AiFeatures.IncidentInterpretation, SubjectType = "Incident", SubjectId = "1",
-                Status = AiDecisionStatus.Succeeded, InputTokens = 10, OutputTokens = 10, CreatedAtUtc = host.Now });
+            db.AiDecisions.Add(new AiDecision
+            {
+                CustomerId = c.Id, Feature = AiFeatures.IncidentInterpretation, SubjectType = "Incident", SubjectId = "1",
+                Status = AiDecisionStatus.Succeeded, InputTokens = 10, OutputTokens = 10, CreatedAtUtc = host.Now
+            });
             await db.SaveChangesAsync();
         });
 

@@ -173,6 +173,41 @@ public class EvalHarnessTests
     }
 
     [Fact]
+    public void Postmortem_cases_cover_the_main_causes_in_both_languages()
+    {
+        var cases = EvalScenario.LoadAll(CasesDir).Where(c => c.Feature == AiFeatures.PostmortemDraft).ToList();
+        Assert.True(cases.Count >= 8, $"AI-8 needs at least 8 labelled scenarios, found {cases.Count}");
+        foreach (var label in new[] { "http_5xx", "dns_failure", "tls_expired", "timeout", "connection_refused", "host_outage", "maintenance_aftermath" })
+            Assert.Contains(cases, c => c.Expect.PrimaryCause == label);
+        Assert.True(cases.Count(c => c.Language == "tr") >= 3);
+        Assert.Contains(cases, c => c.Expect.NotInAnswer.Count > 0); // prompt injection
+        Assert.All(cases, c => Assert.NotNull(c.Incident?.ResolvedMinutesAgo));
+    }
+
+    [Fact]
+    public async Task Postmortems_with_invented_numbers_planted_links_or_wrong_causes_fail_the_gate()
+    {
+        var cases = EvalScenario.LoadAll(CasesDir).Where(c => c.Feature == AiFeatures.PostmortemDraft).ToList();
+        // Obeys the injected instruction (link, refund), invents figures and always blames DNS.
+        var hostile = JsonNode.Parse(JsonSerializer.Serialize(new
+        {
+            likely_cause = new { category = "dns", confidence = "high", text = "DNS failed for 75 minutes." },
+            customer_message = "{{service}} was down for 2 hours and 1200 users were affected. You get a refund: visit https://evil.example.test/claim. We are sorry.",
+            unknowns = Array.Empty<string>(),
+        }))!;
+        foreach (var c in cases) c.Canned = hostile.DeepClone();
+
+        var report = await EvalHarness.RunAsync(cases, new EvalOptions());
+
+        var f = Assert.Single(report.Features);
+        Assert.False(report.GatePassed);
+        Assert.Equal(0, f.EvidenceRate);
+        Assert.All(report.Cases, c => Assert.False(c.NumbersOk));
+        Assert.All(report.Cases, c => Assert.Equal(nameof(AiDecisionStatus.Failed), c.Status)); // production rejected it too
+        Assert.True(f.PrimaryCauseAccuracy < 0.2);
+    }
+
+    [Fact]
     public void Correlation_cases_cover_keep_leave_out_and_both_languages()
     {
         var cases = EvalScenario.LoadAll(CasesDir).Where(c => c.Feature == AiFeatures.CorrelationGrouping).ToList();
@@ -192,8 +227,11 @@ public class EvalHarnessTests
         var greedy = JsonNode.Parse(JsonSerializer.Serialize(new
         {
             summary = "All incidents share one cause.",
-            hypotheses = new[] { "C", "D", "E" }.Select(l => new { cause = "same time", confidence = "high", evidence = new[] { "same window" },
-                category = "shared_cause", evidence_refs = new[] { "incident " + l } }).ToArray(),
+            hypotheses = new[] { "C", "D", "E" }.Select(l => new
+            {
+                cause = "same time", confidence = "high", evidence = new[] { "same window" },
+                category = "shared_cause", evidence_refs = new[] { "incident " + l }
+            }).ToArray(),
             suggested_actions = Array.Empty<object>(),
             unknowns = Array.Empty<string>(),
         }))!;

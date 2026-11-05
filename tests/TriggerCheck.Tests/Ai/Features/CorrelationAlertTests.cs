@@ -368,8 +368,11 @@ public class CorrelationAlertTests
                 await t.Host.WithDbAsync(async db =>
                 {
                     await db.Plans.Where(p => db.Customers.Any(c => c.Id == cid && c.PlanId == p.Id)).ExecuteUpdateAsync(u => u.SetProperty(p => p.AiMonthlyCallLimit, 1));
-                    db.AiDecisions.Add(new AiDecision { CustomerId = cid, Feature = AiFeatures.IncidentInterpretation, SubjectType = "Incident", SubjectId = "1",
-                        Status = AiDecisionStatus.Succeeded, InputTokens = 10, OutputTokens = 10, CreatedAtUtc = t.Host.Now });
+                    db.AiDecisions.Add(new AiDecision
+                    {
+                        CustomerId = cid, Feature = AiFeatures.IncidentInterpretation, SubjectType = "Incident", SubjectId = "1",
+                        Status = AiDecisionStatus.Succeeded, InputTokens = 10, OutputTokens = 10, CreatedAtUtc = t.Host.Now
+                    });
                     await db.SaveChangesAsync();
                 });
                 break;
@@ -399,8 +402,11 @@ public class CorrelationAlertTests
         if (reason == "budget")
             await t.Host.WithDbAsync(async db =>
             {
-                db.AiDecisions.Add(new AiDecision { CustomerId = t.Customer.Id, Feature = AiFeatures.IncidentInterpretation, SubjectType = "Incident", SubjectId = "1",
-                    Status = AiDecisionStatus.Succeeded, InputTokens = 10, OutputTokens = 10, CreatedAtUtc = t.Host.Now });
+                db.AiDecisions.Add(new AiDecision
+                {
+                    CustomerId = t.Customer.Id, Feature = AiFeatures.IncidentInterpretation, SubjectType = "Incident", SubjectId = "1",
+                    Status = AiDecisionStatus.Succeeded, InputTokens = 10, OutputTokens = 10, CreatedAtUtc = t.Host.Now
+                });
                 await db.SaveChangesAsync();
             });
         if (reason == "opt-out")

@@ -1,0 +1,71 @@
+{
+  "id": "pm-http-502-tr",
+  "feature": "PostmortemDraft",
+  "language": "tr",
+  "description": "Reverse proxy returned 502 Bad Gateway (Turkish customer).",
+  "expect": {
+    "primaryCause": "http_5xx"
+  },
+  "monitor": {
+    "name": "Ödeme API",
+    "type": "Http",
+    "target": "https://shop.example.test/api/health?key=planted-path-value",
+    "status": "Up",
+    "certExpiresInDays": 60
+  },
+  "incident": {
+    "startedMinutesAgo": 100,
+    "resolvedMinutesAgo": 40,
+    "cause": "HTTP 502 (expected 200-299)"
+  },
+  "checks": [
+    {
+      "minutesAgo": 39,
+      "repeat": 1,
+      "everyMinutes": 1,
+      "up": true,
+      "status": 200,
+      "ms": 180,
+      "dns": 4,
+      "connect": 12,
+      "tls": 25,
+      "ttfb": 140
+    },
+    {
+      "minutesAgo": 41,
+      "repeat": 6,
+      "everyMinutes": 10,
+      "up": false,
+      "ms": 90,
+      "error": "HTTP 502 Bad Gateway",
+      "status": 502,
+      "dns": 4,
+      "connect": 10,
+      "tls": 22,
+      "ttfb": 60
+    },
+    {
+      "minutesAgo": 105,
+      "repeat": 5,
+      "everyMinutes": 1,
+      "up": true,
+      "status": 200,
+      "ms": 180,
+      "dns": 4,
+      "connect": 12,
+      "tls": 25,
+      "ttfb": 140
+    }
+  ],
+  "canned": {
+    "likely_cause": {
+      "category": "http_5xx",
+      "confidence": "high",
+      "text": "Kontroller {{incident.duration}} boyunca {{incident.error}} ({{incident.status_code}}) ile başarısız oldu; ters vekil sunucu arka uca ulaşamadı."
+    },
+    "customer_message": "{{service}} {{incident.started_at}} ile {{incident.resolved_at}} arasında ({{incident.duration}}) erişilemedi. Sorun giderildi ve hizmet yeniden normal çalışıyor. Yaşananları inceliyoruz.",
+    "unknowns": [
+      "Arka uç sunucusunun o sırada yeniden başlatılıp başlatılmadığı."
+    ]
+  }
+}

@@ -1,0 +1,169 @@
+@page "{id:int}"
+@model TriggerCheck.Web.Areas.App.Pages.Incidents.PostmortemModel
+@using TriggerCheck.Ai.Features.Postmortem
+@{
+    var i = Model.Incident;
+    var f = Model.Facts;
+    var d = Model.Draft;
+    ViewData["Title"] = L["Postmortem of incident #{0}", i.Id].Value;
+    var editable = Model.CanManage && f is not null && !Model.IsPublished;
+}
+
+<nav aria-label="breadcrumb"><ol class="breadcrumb">
+    <li class="breadcrumb-item"><a asp-page="Index">@L["Incidents"]</a></li>
+    <li class="breadcrumb-item"><a asp-page="Details" asp-route-id="@i.Id">#@i.Id</a></li>
+    <li class="breadcrumb-item active">@L["Postmortem"]</li>
+</ol></nav>
+
+<h2 class="mb-1">@L["Postmortem of incident #{0}", i.Id]
+    @if (Model.IsPublished) { <span class="badge bg-success fs-6 align-middle" id="postmortem-state" data-state="published">@L["Published"]</span> }
+    else if (d is not null) { <span class="badge bg-secondary fs-6 align-middle" id="postmortem-state" data-state="draft">@L["Draft"]</span> }
+</h2>
+<p class="text-muted small">@Model.MonitorName · @L["times in {0}", Fmt.TimeZoneLabel]</p>
+
+@if (f is null)
+{
+    <div class="alert alert-light border" id="postmortem-open">@L["A postmortem can be drafted once the incident is resolved."]</div>
+    return;
+}
+
+<div class="row g-3">
+    <div class="col-lg-6">
+        <div class="card h-100"><div class="card-body">
+            <h3 class="h5 card-title">@L["Timeline"]</h3>
+            <ol class="list-unstyled mb-0 small" id="postmortem-timeline">
+                @foreach (var e in f.Timeline)
+                {
+                    <li class="border-top py-1" data-event="@e.Kind">
+                        <span class="text-muted">@Fmt.Time(e.AtUtc)</span> · @Model.EventLabel(e)
+                        @if (e.Kind == PostmortemEventKind.RelatedIncident && e.IncidentId is int rid)
+                        {
+                            <text>: </text><a asp-page="Details" asp-route-id="@rid">@Model.RelatedName(e)</a>
+                        }
+                    </li>
+                }
+            </ol>
+        </div></div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card h-100"><div class="card-body">
+            <h3 class="h5 card-title">@L["Impact"]</h3>
+            <dl class="row mb-0 small" id="postmortem-impact">
+                <dt class="col-sm-5">@L["Duration"]</dt><dd class="col-sm-7">@Fmt.Duration(TimeSpan.FromMinutes(f.DurationMinutes))</dd>
+                <dt class="col-sm-5">@L["Failed checks"]</dt><dd class="col-sm-7">@L["{0} of {1}", f.FailedChecks, f.Checks]</dd>
+                <dt class="col-sm-5">@L["Error"]</dt><dd class="col-sm-7">@Model.ErrorLabel(f.ErrorClass)@(f.StatusCode is int sc ? " (HTTP " + sc + ")" : "")</dd>
+                @if (f.FailedRegions.Count > 0)
+                {
+                    <dt class="col-sm-5">@L["Failed regions"]</dt><dd class="col-sm-7">@string.Join(", ", f.FailedRegions)</dd>
+                }
+                <dt class="col-sm-5">@L["Other monitors affected"]</dt>
+                <dd class="col-sm-7">@(f.Related.Count == 0 ? L["None"].Value : string.Join(", ", f.Related.Select(r => r.Name).Distinct()))</dd>
+                <dt class="col-sm-5">@L["During maintenance"]</dt><dd class="col-sm-7">@(f.MaintenanceOverlap ? L["Yes"].Value : L["No"].Value)</dd>
+                <dt class="col-sm-5">@L["Acknowledged"]</dt>
+                <dd class="col-sm-7">@(f.AcknowledgedAfterMinutes is double ack ? L["after {0}", Fmt.Duration(TimeSpan.FromMinutes(ack))].Value : L["No"].Value)</dd>
+                <dt class="col-sm-5">@L["Shown on status pages"]</dt>
+                <dd class="col-sm-7">@(f.StatusPages.Count == 0 ? L["None"].Value : string.Join(", ", f.StatusPages.Select(p => p.Title)))</dd>
+            </dl>
+        </div></div>
+    </div>
+
+    <div class="col-12">
+        <div class="card" id="postmortem-draft"><div class="card-body">
+            <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                <h3 class="h5 card-title mb-0">@L["Likely cause and customer message"]</h3>
+                @if (Model.DecisionId is not null) { <span class="badge text-bg-info ai-badge">@Icons.Get("sparkles", 12) @L["AI-generated"]</span> }
+            </div>
+
+            @if (Model.IsPublished)
+            {
+                <p class="small text-muted" id="postmortem-approved">@L["Approved by {0} on {1} and published on: {2}.", Model.ApprovedBy ?? L["a deleted user"].Value,
+                    Fmt.Time(d!.ApprovedAtUtc) + " " + Fmt.TimeZoneLabel, string.Join(", ", Model.PublishedPages)]</p>
+            }
+            else
+            {
+                <p class="small text-muted">@L["Nothing here is public until a customer admin approves it. Only the customer message is published, exactly as approved, as a note on the chosen status pages."]</p>
+            }
+
+            @if (editable)
+            {
+                <div class="d-flex flex-wrap align-items-center gap-2 mb-3" id="postmortem-ai" data-ai-state="@Model.AiState.ToString().ToLowerInvariant()">
+                    @if (Model.AiState == PostmortemAiState.Available)
+                    {
+                        <form method="post" asp-page-handler="Generate" asp-route-id="@i.Id" class="d-inline m-0" data-confirm="@(d is null ? null : L["Replace the current texts with a new AI draft?"].Value)">
+                            <button type="submit" class="btn btn-sm btn-outline-primary">@Icons.Get("sparkles", 14) @(d is null ? L["Draft with AI"] : L["Draft again with AI"])</button>
+                        </form>
+                        <span class="small text-muted">@L["The AI only writes text: times, durations and counts are filled in from the incident data."]</span>
+                    }
+                    else
+                    {
+                        <span class="small text-muted ai-unavailable">@Icons.Get("sparkles", 14)
+                            @switch (Model.AiState)
+                            {
+                                case PostmortemAiState.OptOut: @L["AI summaries are turned off for your account."] <a asp-area="App" asp-page="/Ai/Index">@L["AI settings"]</a> break;
+                                case PostmortemAiState.NotInPlan: @L["AI postmortem drafts are not included in your plan."] break;
+                                default: @L["AI drafts are not available. You can write the draft yourself."] break;
+                            }
+                        </span>
+                    }
+                </div>
+
+                <form method="post" asp-route-id="@i.Id" id="postmortem-form">
+                    <label class="form-label fw-semibold" for="likely-cause">@L["Likely cause (internal, never published)"]</label>
+                    <textarea class="form-control mb-3" id="likely-cause" name="likelyCause" rows="3" maxlength="@PostmortemDraft.MaxLikelyCauseLength">@d?.LikelyCause</textarea>
+                    <label class="form-label fw-semibold" for="customer-message">@L["Customer message (published on approval)"]</label>
+                    <textarea class="form-control mb-2" id="customer-message" name="customerMessage" rows="5" maxlength="@PostmortemDraft.MaxCustomerMessageLength">@d?.CustomerMessage</textarea>
+                    <button type="submit" asp-page-handler="Save" class="btn btn-sm btn-secondary mb-3">@L["Save draft"]</button>
+
+                    <fieldset class="border-top pt-3">
+                        <legend class="h6">@L["Approve and publish"]</legend>
+                        @if (f.StatusPages.Count == 0)
+                        {
+                            <p class="small text-muted mb-0" id="postmortem-no-pages">@L["This monitor is not shown on any status page, so there is nowhere to publish. You can still keep the postmortem here."]
+                                <a asp-page="/StatusPages/Index">@L["Status pages"]</a></p>
+                        }
+                        else
+                        {
+                            @foreach (var p in f.StatusPages)
+                            {
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="pageIds" value="@p.Id" id="page-@p.Id" />
+                                    <label class="form-check-label" for="page-@p.Id">@p.Title <span class="text-muted small">(@p.DisplayName)</span></label>
+                                </div>
+                            }
+                            <button type="submit" asp-page-handler="Publish" class="btn btn-sm btn-primary mt-2"
+                                    data-confirm="@L["Publish the customer message on the selected status pages? It becomes public immediately."]">@L["Approve and publish"]</button>
+                        }
+                    </fieldset>
+                </form>
+            }
+            else if (d is not null)
+            {
+                <h4 class="h6">@L["Likely cause (internal, never published)"]</h4>
+                <p class="small" style="white-space: pre-line" id="postmortem-cause">@(d.LikelyCause.Length == 0 ? "—" : d.LikelyCause)</p>
+                <h4 class="h6">@L["Customer message"]</h4>
+                <p class="small" style="white-space: pre-line" id="postmortem-message">@(d.CustomerMessage.Length == 0 ? "—" : d.CustomerMessage)</p>
+            }
+            else
+            {
+                <p class="small text-muted mb-0" id="postmortem-none">@L["No postmortem has been drafted for this incident yet."]</p>
+            }
+
+            @if (Model.DecisionId is long decisionId)
+            {
+                <div class="d-flex align-items-center gap-2 small mt-2">
+                    <span class="text-muted">@L["Was this helpful?"]</span>
+                    @foreach (var (value, emoji, label) in new[] { (1, "👍", L["Helpful"].Value), (-1, "👎", L["Not helpful"].Value) })
+                    {
+                        <form method="post" asp-area="App" asp-page="/Ai/Feedback" class="d-inline m-0">
+                            <input type="hidden" name="decisionId" value="@decisionId" />
+                            <input type="hidden" name="value" value="@value" />
+                            <input type="hidden" name="returnUrl" value="@Url.Page("Postmortem", new { id = i.Id })" />
+                            <button type="submit" class="btn btn-sm @(Model.MyFeedback == value ? "btn-primary" : "btn-outline-secondary")"
+                                    title="@label" aria-label="@label" aria-pressed="@(Model.MyFeedback == value ? "true" : "false")">@emoji</button>
+                        </form>
+                    }
+                </div>
+            }
+        </div></div>
+    </div>
+</div>

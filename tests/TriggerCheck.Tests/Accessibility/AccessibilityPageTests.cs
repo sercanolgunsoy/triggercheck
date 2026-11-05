@@ -12,7 +12,7 @@ namespace TriggerCheck.Tests.Accessibility;
 /// <summary>UI-3: key pages of every layout pass the static accessibility audit, in English and Turkish.</summary>
 public class AccessibilityPageTests(StatusPageTestFactory f) : IClassFixture<StatusPageTestFactory>
 {
-    private sealed record Tenant(int CustomerId, string Admin, int UpId, int DownId, int IncidentId, int MaintenanceId, int StatusPageId, string Slug);
+    private sealed record Tenant(int CustomerId, string Admin, int UpId, int DownId, int IncidentId, int MaintenanceId, int StatusPageId, string Slug, int ResolvedIncidentId);
 
     private static readonly SemaphoreSlim Gate = new(1, 1);
     private static Tenant? _tenant;
@@ -35,12 +35,12 @@ public class AccessibilityPageTests(StatusPageTestFactory f) : IClassFixture<Sta
                 await f.AddCheckAsync(up, now.AddMinutes(-10 * i), up: true, ms: 120 + i);
                 await f.AddCheckAsync(down, now.AddMinutes(-10 * i), up: i > 3, ms: 300);
             }
-            await f.AddIncidentAsync(up, now.AddDays(-2), now.AddDays(-2).AddMinutes(20));
+            var resolved = await f.AddIncidentAsync(up, now.AddDays(-2), now.AddDays(-2).AddMinutes(20));
             var incident = await f.AddIncidentAsync(down, now.AddMinutes(-35), null);
             var window = await f.AddMaintenanceAsync(cid, "A11y window", now.AddDays(1), now.AddDays(1).AddHours(2), up);
             var page = await f.AddStatusPageAsync(cid, "a11y", [up, down], p => p.Announcement = "Planned work on Friday");
             await f.EvictAsync();
-            return _tenant = new Tenant(cid, admin, up, down, incident, window, page, "a11y");
+            return _tenant = new Tenant(cid, admin, up, down, incident, window, page, "a11y", resolved);
         }
         finally { Gate.Release(); }
     }
@@ -92,7 +92,7 @@ public class AccessibilityPageTests(StatusPageTestFactory f) : IClassFixture<Sta
         var c = await ClientAsync(lang, () => f.LoginAsync(t.Admin, Password));
         await AuditAllAsync(c, [
             "/App", "/App/Monitors", "/App/Monitors/Create", $"/App/Monitors/Details/{t.UpId}", $"/App/Monitors/Details/{t.DownId}",
-            $"/App/Monitors/Edit/{t.UpId}", "/App/Incidents", $"/App/Incidents/Details/{t.IncidentId}", "/App/Alerts", "/App/Alerts/Create",
+            $"/App/Monitors/Edit/{t.UpId}", "/App/Incidents", $"/App/Incidents/Details/{t.IncidentId}", $"/App/Incidents/Postmortem/{t.ResolvedIncidentId}", "/App/Alerts", "/App/Alerts/Create",
             "/App/Maintenance", "/App/Maintenance/Create", "/App/Escalation", "/App/StatusPages", "/App/StatusPages/Create",
             $"/App/Monitors/Regions/{t.UpId}", $"/App/Maintenance/Edit/{t.MaintenanceId}", $"/App/StatusPages/Edit/{t.StatusPageId}",
             $"/App/StatusPages/Notes/{t.StatusPageId}", $"/App/StatusPages/Domain/{t.StatusPageId}",

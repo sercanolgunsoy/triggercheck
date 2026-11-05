@@ -46,6 +46,10 @@
                     }
                 </dd>
             </dl>
+            @if (i.ResolvedAtUtc is not null)
+            {
+                <a class="btn btn-sm btn-outline-secondary mt-3" id="postmortem-link" asp-page="Postmortem" asp-route-id="@i.Id">@L["Postmortem and status page draft"]</a>
+            }
         </div></div>
     </div>
     <div class="col-12 order-last" id="incident-ai">

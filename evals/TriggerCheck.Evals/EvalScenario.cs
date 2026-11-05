@@ -19,7 +19,7 @@ public sealed class EvalScenario
     public string Description { get; set; } = "";
     public EvalExpectation Expect { get; set; } = new();
     public EvalMonitor Monitor { get; set; } = new();
-    /// <summary>AI-2 subject. Required for IncidentInterpretation.</summary>
+    /// <summary>AI-2 subject. Required for IncidentInterpretation; AI-8 (PostmortemDraft) needs a resolved one.</summary>
     public EvalIncident? Incident { get; set; }
     public List<EvalCheck> Checks { get; set; } = [];
     /// <summary>Incident history of the monitor (AI-5 rule input); each entry may repeat going back in time.</summary>
@@ -74,6 +74,7 @@ public sealed class EvalScenario
             if (s.Feature == AiFeatures.QuestionAnswer && (string.IsNullOrWhiteSpace(s.Question) || s.QaMonitors.Count == 0)) throw new InvalidDataException($"{file}: question or qaMonitors missing");
             if (s.Feature == AiFeatures.MonitorSetupAssistant && string.IsNullOrWhiteSpace(s.Request)) throw new InvalidDataException($"{file}: request missing");
             if (s.Feature == AiFeatures.CorrelationGrouping && s.Group is null) throw new InvalidDataException($"{file}: group missing");
+            if (s.Feature == AiFeatures.PostmortemDraft && s.Incident?.ResolvedMinutesAgo is null) throw new InvalidDataException($"{file}: resolved incident missing");
             if (s.Feature == AiFeatures.NarrativeReport)
             {
                 if (s.Narrative is not { Monitors.Count: > 0 }) throw new InvalidDataException($"{file}: narrative monitors missing");
@@ -112,7 +113,7 @@ public sealed class EvalExpectation
     /// <summary>AI-7: records the answer must cite ("monitor:Name", "incident:Name#1") and tools it must have used.</summary>
     public List<string> References { get; set; } = [];
     public List<string> Tools { get; set; } = [];
-    /// <summary>AI-7: text the answer must not contain (e.g. a link planted in an error text).</summary>
+    /// <summary>AI-7 / AI-8: text the answer (AI-8: the rendered customer message) must not contain (e.g. a link planted in an error text).</summary>
     public List<string> NotInAnswer { get; set; } = [];
     /// <summary>
     /// AI-9: expected values of the pre-filled form (property names of MonitorSetupFields in camelCase, enums as names,

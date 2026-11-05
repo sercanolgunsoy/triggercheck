@@ -112,8 +112,11 @@ public class NarrativeReportHardeningTests(NarrativeReportsTestFactory f) : ICla
             db.Plans.Add(plan);
             await db.SaveChangesAsync();
             await db.Customers.Where(c => c.Id == cid).ExecuteUpdateAsync(u => u.SetProperty(c => c.PlanId, plan.Id));
-            db.AiDecisions.Add(new AiDecision { CustomerId = cid, Feature = AiFeatures.IncidentInterpretation, SubjectType = "Incident", SubjectId = "1",
-                Status = AiDecisionStatus.Succeeded, InputTokens = 10, OutputTokens = 1, CreatedAtUtc = f.Now });
+            db.AiDecisions.Add(new AiDecision
+            {
+                CustomerId = cid, Feature = AiFeatures.IncidentInterpretation, SubjectType = "Incident", SubjectId = "1",
+                Status = AiDecisionStatus.Succeeded, InputTokens = 10, OutputTokens = 1, CreatedAtUtc = f.Now
+            });
             await db.SaveChangesAsync();
         });
         await JobAsync(); // the queued row meets the used-up budget: one recorded skip
