@@ -35,8 +35,11 @@ public class CorrelationTests
     private static Task<int> AddIncidentAsync(AiTestHost host, int monitorId, string cause, double minutesAgo, double? resolvedMinutesAgo = null) =>
         host.WithDbAsync(async db =>
         {
-            var i = new Incident { MonitorId = monitorId, StartedAtUtc = host.Now.AddMinutes(-minutesAgo), Cause = cause,
-                ResolvedAtUtc = resolvedMinutesAgo is double r ? host.Now.AddMinutes(-r) : null };
+            var i = new Incident
+            {
+                MonitorId = monitorId, StartedAtUtc = host.Now.AddMinutes(-minutesAgo), Cause = cause,
+                ResolvedAtUtc = resolvedMinutesAgo is double r ? host.Now.AddMinutes(-r) : null
+            };
             db.Incidents.Add(i);
             await db.SaveChangesAsync();
             return i.Id;
@@ -234,8 +237,11 @@ public class CorrelationTests
         var c = await host.AddCustomerAsync(callLimit: 1);
         await host.WithDbAsync(async db =>
         {
-            db.AiDecisions.Add(new AiDecision { CustomerId = c.Id, Feature = AiFeatures.IncidentInterpretation, SubjectType = "Incident", SubjectId = "1",
-                Status = AiDecisionStatus.Succeeded, InputTokens = 10, OutputTokens = 10, CreatedAtUtc = host.Now });
+            db.AiDecisions.Add(new AiDecision
+            {
+                CustomerId = c.Id, Feature = AiFeatures.IncidentInterpretation, SubjectType = "Incident", SubjectId = "1",
+                Status = AiDecisionStatus.Succeeded, InputTokens = 10, OutputTokens = 10, CreatedAtUtc = host.Now
+            });
             await db.SaveChangesAsync();
         });
         await DownAsync(host, c.Id, "https://api.example.test/a", Timeout, 3);

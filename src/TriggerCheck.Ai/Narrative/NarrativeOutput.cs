@@ -70,7 +70,9 @@ public sealed record NarrativeOutput(
             var r = JsonSerializer.Deserialize<NarrativeOutput>(json, Json);
             return r is { Headline: not null } ? r with
             {
-                WhatHappened = r.WhatHappened ?? [], WhatChanged = r.WhatChanged ?? [], WhatToWatch = r.WhatToWatch ?? []
+                WhatHappened = r.WhatHappened ?? [],
+                WhatChanged = r.WhatChanged ?? [],
+                WhatToWatch = r.WhatToWatch ?? []
             } : null;
         }
         catch (JsonException)
