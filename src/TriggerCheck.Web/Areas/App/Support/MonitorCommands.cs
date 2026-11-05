@@ -119,6 +119,28 @@ public sealed class MonitorCommands(AppDbContext db, HeartbeatRateLimiter? heart
         }
     }
 
+    /// <summary>
+    /// Like <see cref="UpdateAsync"/> but saves once: when the row changed since it was loaded (Version token) it returns
+    /// Conflict with the change tracker cleared instead of re-applying <paramref name="input"/> on fresh state. For callers
+    /// that change one field and must re-read and re-validate the whole monitor on every attempt (AI-5 apply), so a
+    /// concurrent edit is never overwritten with stale form values.
+    /// </summary>
+    public async Task<MonitorCommandResult> TryUpdateOnceAsync(MonitorEntity m, MonitorInput input, CancellationToken ct)
+    {
+        ApplyInput(m, input);
+        try
+        {
+            await db.SaveChangesAsync(ct);
+            if (m.Type == MonitorType.Heartbeat) await db.MonitorRegionStates.Where(s => s.MonitorId == m.Id).ExecuteDeleteAsync(ct);
+            return new(m, MonitorCommandError.None) { IssuedHeartbeatToken = Known(input.IssuedHeartbeatToken) };
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            db.ChangeTracker.Clear();
+            return new(null, MonitorCommandError.Conflict);
+        }
+    }
+
     private static void ApplyInput(MonitorEntity m, MonitorInput input)
     {
         var before = ProbeSettings.Of(m);

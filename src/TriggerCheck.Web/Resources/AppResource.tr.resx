@@ -1813,6 +1813,84 @@
   <data name="Slowdown ended" xml:space="preserve">
     <value>Yavaşlama sona erdi</value>
   </data>
+  <data name="Settings suggestions" xml:space="preserve">
+    <value>Ayar önerileri</value>
+  </data>
+  <data name="Based on this monitor's history. Nothing changes until an admin applies a suggestion." xml:space="preserve">
+    <value>Bu monitörün geçmişine dayanır. Bir yönetici öneriyi uygulayana kadar hiçbir şey değişmez.</value>
+  </data>
+  <data name="Raise the failure threshold from {0} to {1}" xml:space="preserve">
+    <value>Hata eşiğini {0} değerinden {1} değerine yükseltin</value>
+  </data>
+  <data name="In the last {0} days, {1} of {2} incidents recovered at the next check (each lasted at most {3} s)." xml:space="preserve">
+    <value>Son {0} günde {2} olayın {1} tanesi bir sonraki kontrolde düzeldi (her biri en fazla {3} sn sürdü).</value>
+  </data>
+  <data name="A higher threshold avoids these alerts but reports a real outage one check later." xml:space="preserve">
+    <value>Daha yüksek bir eşik bu alarmları önler ancak gerçek bir kesintiyi bir kontrol sonra bildirir.</value>
+  </data>
+  <data name="Raise the timeout from {0} s to {1} s" xml:space="preserve">
+    <value>Zaman aşımını {0} sn değerinden {1} sn değerine yükseltin</value>
+  </data>
+  <data name="In the last {0} days, {1} of {2} successful checks took at least {3} ms (80% of the timeout) and {4} checks timed out. 95th percentile {5} ms, 99th percentile {6} ms, slowest {7} ms." xml:space="preserve">
+    <value>Son {0} günde {2} başarılı kontrolün {1} tanesi en az {3} ms sürdü (zaman aşımının %80'i) ve {4} kontrol zaman aşımına uğradı. 95. yüzdelik {5} ms, 99. yüzdelik {6} ms, en yavaş {7} ms.</value>
+  </data>
+  <data name="The target may be wrong" xml:space="preserve">
+    <value>Hedef yanlış olabilir</value>
+  </data>
+  <data name="No check has succeeded since the first check on {0}: {1} checks failed over {2} hours." xml:space="preserve">
+    <value>{0} tarihindeki ilk kontrolden beri hiçbir kontrol başarılı olmadı: {2} saat boyunca {1} kontrol başarısız oldu.</value>
+  </data>
+  <data name="Check the address, the port and the expected status codes." xml:space="preserve">
+    <value>Adresi, portu ve beklenen durum kodlarını kontrol edin.</value>
+  </data>
+  <data name="Most common error ({0} checks):" xml:space="preserve">
+    <value>En sık görülen hata ({0} kontrol):</value>
+  </data>
+  <data name="Review the keyword" xml:space="preserve">
+    <value>Anahtar kelimeyi gözden geçirin</value>
+  </data>
+  <data name="In the last {0} days the page answered but the keyword was not found in {1} of {2} checks ({3} in a row now)." xml:space="preserve">
+    <value>Son {0} günde sayfa yanıt verdi ancak {2} kontrolün {1} tanesinde anahtar kelime bulunamadı (şu anda art arda {3}).</value>
+  </data>
+  <data name="Last match: {0}." xml:space="preserve">
+    <value>Son eşleşme: {0}.</value>
+  </data>
+  <data name="No match in this period." xml:space="preserve">
+    <value>Bu dönemde eşleşme yok.</value>
+  </data>
+  <data name="Response bodies are not stored, so check the page content yourself." xml:space="preserve">
+    <value>Yanıt gövdeleri saklanmadığı için sayfa içeriğini kendiniz kontrol edin.</value>
+  </data>
+  <data name="The keyword has extra whitespace. Suggested keyword:" xml:space="preserve">
+    <value>Anahtar kelimede fazladan boşluk var. Önerilen anahtar kelime:</value>
+  </data>
+  <data name="Apply" xml:space="preserve">
+    <value>Uygula</value>
+  </data>
+  <data name="Edit settings" xml:space="preserve">
+    <value>Ayarları düzenle</value>
+  </data>
+  <data name="Dismiss" xml:space="preserve">
+    <value>Yoksay</value>
+  </data>
+  <data name="Dismissed suggestions are not shown again for 30 days." xml:space="preserve">
+    <value>Yoksayılan öneriler 30 gün boyunca tekrar gösterilmez.</value>
+  </data>
+  <data name="The suggestion was applied." xml:space="preserve">
+    <value>Öneri uygulandı.</value>
+  </data>
+  <data name="This suggestion is out of date: the setting was changed in the meantime." xml:space="preserve">
+    <value>Bu öneri güncel değil: ayar bu arada değiştirildi.</value>
+  </data>
+  <data name="This suggestion has no value to apply. Edit the monitor settings instead." xml:space="preserve">
+    <value>Bu önerinin uygulanacak bir değeri yok. Bunun yerine monitör ayarlarını düzenleyin.</value>
+  </data>
+  <data name="The suggestion could not be applied: {0}" xml:space="preserve">
+    <value>Öneri uygulanamadı: {0}</value>
+  </data>
+  <data name="The suggestion was dismissed. It will not be shown again for 30 days." xml:space="preserve">
+    <value>Öneri yoksayıldı. 30 gün boyunca tekrar gösterilmeyecek.</value>
+  </data>
   <data name="Response times are above this monitor's usual level." xml:space="preserve">
     <value>Yanıt süreleri bu monitörün olağan seviyesinin üzerinde.</value>
   </data>

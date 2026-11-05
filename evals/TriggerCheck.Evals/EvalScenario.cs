@@ -22,6 +22,8 @@ public sealed class EvalScenario
     /// <summary>AI-2 subject. Required for IncidentInterpretation.</summary>
     public EvalIncident? Incident { get; set; }
     public List<EvalCheck> Checks { get; set; } = [];
+    /// <summary>Incident history of the monitor (AI-5 rule input); each entry may repeat going back in time.</summary>
+    public List<EvalIncident> Incidents { get; set; } = [];
     public List<EvalMonitor> SameHost { get; set; } = [];
     /// <summary>AI-1 signal: the AI-3 subject, or context for AI-2.</summary>
     public EvalAnomaly? Anomaly { get; set; }
@@ -104,6 +106,9 @@ public sealed class EvalIncident
     public double StartedMinutesAgo { get; set; }
     public double? ResolvedMinutesAgo { get; set; }
     public string? Cause { get; set; }
+    /// <summary>History entries only (<see cref="EvalScenario.Incidents"/>): this many incidents, <see cref="EveryMinutes"/> apart.</summary>
+    public int Repeat { get; set; } = 1;
+    public double EveryMinutes { get; set; } = 60;
 }
 
 /// <summary>One check, or <see cref="Repeat"/> checks <see cref="EveryMinutes"/> apart going back in time.</summary>

@@ -24,7 +24,7 @@ namespace TriggerCheck.Web.Areas.App.Pages.Monitors;
 /// <summary>Readable by all customer members; the POST handlers (pause/resume/check now) are CustomerAdmin only.</summary>
 public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStatsService stats, MonitorLifecycle lifecycle, ILogger<DetailsModel> logger, Text<AppResource> L,
     ManualCheckLimiter limiter, IResponseTimeSeriesService series, TimeProvider time, MonitorCommands commands, HeartbeatUrlReveal reveals, AiPanels ai,
-    IOptionsMonitor<RegionOptions> regionOptions) : PageModel
+    IOptionsMonitor<RegionOptions> regionOptions, SettingsSuggestionCommands suggestions) : PageModel
 {
     public const int MaxChartPoints = ResponseTimeSeriesService.MaxPoints;
 
@@ -71,6 +71,8 @@ public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStat
     /// <summary>Highest observed / baseline ratio of <see cref="Slowdown"/> (raw L1 text).</summary>
     public double? SlowdownRatio { get; private set; }
     public AiPanelModel? SlowdownAi { get; private set; }
+    /// <summary>AI-5: open settings suggestions of this monitor (empty when none or not allowed by plan / opt-in).</summary>
+    public SettingsSuggestionsModel? Suggestions { get; private set; }
 
     /// <summary>Compact phase breakdown of one check for the history table (empty without timing data).</summary>
     public string PhaseText(CheckResult c)
@@ -150,6 +152,8 @@ public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStat
             .ToListAsync(ct);
 
         await LoadSlowdownAsync(m, ct);
+        Suggestions = await suggestions.LoadAsync(await current.GetCustomerAsync(ct), m.Id, Url.Page("Details", new { id = m.Id }) ?? "/App/Monitors",
+            User.FindFirstValue(ClaimTypes.NameIdentifier), IsAdmin, ct);
         return Page();
     }
 

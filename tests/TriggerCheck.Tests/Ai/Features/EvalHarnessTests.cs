@@ -42,7 +42,7 @@ public class EvalHarnessTests
         Assert.All(report.Cases, c => Assert.True(c.Passed, $"{c.Id}: {string.Join("; ", c.Notes)}"));
         Assert.All(report.Cases, c => Assert.Equal(nameof(AiDecisionStatus.Succeeded), c.Status));
         Assert.True(report.GatePassed);
-        Assert.Equal(2, report.Features.Count);
+        Assert.Equal(3, report.Features.Count);
         Assert.All(report.Features, f => Assert.Equal(1.0, f.PrimaryCauseAccuracy));
         Assert.All(report.Cases, c => Assert.True(c.InputTokens > 0 && c.CostUsd > 0));
 

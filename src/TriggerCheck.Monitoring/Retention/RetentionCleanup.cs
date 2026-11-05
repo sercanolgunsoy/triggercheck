@@ -12,12 +12,14 @@ namespace TriggerCheck.Monitoring.Retention;
 /// CheckResults, resolved Incidents (by resolution time; open incidents are never deleted) and Notifications.
 /// Notifications of deleted monitors are removed regardless of age. SMS / voice usage counters (one row per customer
 /// and UTC day, only needed for today's limit) are kept for <see cref="SmsVoiceUsageDays"/> days.
-/// AI records follow the same retention: AI decisions (never those of the current month, which the AI budget counts)
-/// and closed anomaly signals.
+/// AI records follow the same retention: AI decisions (never those of the current month, which the AI budget counts),
+/// closed anomaly signals and closed settings suggestions (dismissals are kept at least 31 days).
 /// </summary>
 public sealed class RetentionCleaner(IDbContextFactory<AppDbContext> dbFactory, TimeProvider time, ILogger<RetentionCleaner> logger)
 {
     public const int SmsVoiceUsageDays = 35;
+    /// <summary>Closed AI-5 suggestions are kept at least this long (a dismissal suppresses its kind for 30 days).</summary>
+    public const int SuggestionDismissKeepDays = 31;
 
     public async Task<int> CleanupAsync(CancellationToken ct = default)
     {
@@ -52,6 +54,11 @@ public sealed class RetentionCleaner(IDbContextFactory<AppDbContext> dbFactory, 
                 .ExecuteDeleteAsync(ct);
             ai += await db.AnomalySignals
                 .Where(a => a.EndedAtUtc != null && a.EndedAtUtc < cutoff && customerIds.Contains(a.CustomerId))
+                .ExecuteDeleteAsync(ct);
+            // AI-5: closed suggestions; a dismissal is kept at least as long as it suppresses the suggestion (30 days).
+            var suggestionCutoff = cutoff < now.AddDays(-SuggestionDismissKeepDays) ? cutoff : now.AddDays(-SuggestionDismissKeepDays);
+            ai += await db.SettingsSuggestions
+                .Where(x => x.ClosedAtUtc != null && x.ClosedAtUtc < suggestionCutoff && customerIds.Contains(x.CustomerId))
                 .ExecuteDeleteAsync(ct);
         }
 

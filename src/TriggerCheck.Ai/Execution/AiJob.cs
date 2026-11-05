@@ -21,8 +21,14 @@ public sealed record AiJob(string Feature, int CustomerId, string SubjectType, s
 /// </param>
 /// <param name="EvidenceKeys">Keys of the evidence items present in <paramref name="UserContent"/> ("check #1234", "ttfb", ...).</param>
 /// <param name="RefAllowed">(category, key) → whether that key may support a hypothesis of that category.</param>
+/// <param name="Grounding">
+/// Optional feature-specific output check, applied after the category contract: returns the output with ungrounded
+/// parts removed, or null when it is unusable (recorded as Failed / "invalid_output"). AI-5 uses it to drop text with
+/// numbers that are not in the input (<see cref="Interpretation.AiNumberGrounding"/>).
+/// </param>
 public sealed record AiPrompt(string FeatureInstructions, string UserContent, IReadOnlyList<string> AllowedActions,
-    IReadOnlyList<string>? Categories = null, IReadOnlySet<string>? EvidenceKeys = null, Func<string, string, bool>? RefAllowed = null);
+    IReadOnlyList<string>? Categories = null, IReadOnlySet<string>? EvidenceKeys = null, Func<string, string, bool>? RefAllowed = null,
+    Func<Interpretation.AiInterpretation, Interpretation.AiInterpretation?>? Grounding = null);
 
 /// <summary>
 /// Builds the model input for one feature (registered per feature in DI). Must load data only through

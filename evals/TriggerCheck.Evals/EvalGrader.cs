@@ -84,6 +84,11 @@ public static partial class EvalGrader
         ["slow_tls"] = ["slow_tls"],
         ["slow_connect"] = ["slow_connect"],
         ["slow_ttfb"] = ["slow_ttfb"],
+        // AI-5: the suggestion the rules made (hypotheses[].category is the suggestion code).
+        ["raise_failure_threshold"] = ["raise_failure_threshold"],
+        ["raise_timeout"] = ["raise_timeout"],
+        ["target_may_be_wrong"] = ["target_may_be_wrong"],
+        ["review_keyword"] = ["review_keyword"],
     };
 
     /// <summary>Categories that only make sense for slowdowns are not counted for incident causes (and vice versa).</summary>
@@ -153,7 +158,7 @@ public static partial class EvalGrader
         r.UserContent = request?.UserContent;
         if (request is null)
         {
-            r.Notes.Add("no request was sent");
+            r.Notes.Add(s.Feature == Domain.AiFeatures.SettingsSuggestions && decision is null ? "the rules made no suggestion" : "no request was sent");
             return r;
         }
 
@@ -205,6 +210,16 @@ public static partial class EvalGrader
         r.LanguageOk = requestLanguageOk && LooksTurkish(raw.Summary) == (expectedLanguage == "Turkish");
         if (!r.LanguageOk) r.Notes.Add($"summary is not in {expectedLanguage}");
 
+        // ---- AI-5: every number in the model's text is one of the input's numbers ----
+        if (s.Feature == Domain.AiFeatures.SettingsSuggestions)
+        {
+            var texts = new[] { raw.Summary }.Concat(hypotheses.SelectMany(h => new[] { h.Cause }.Concat(h.Evidence ?? [])))
+                .Concat((raw.SuggestedActions ?? []).Select(a => a?.Description)).Concat(raw.Unknowns ?? []);
+            var invented = texts.SelectMany(t => AiNumberGrounding.Ungrounded(t, request.UserContent)).Distinct().ToList();
+            r.NumbersOk = invented.Count == 0;
+            if (!r.NumbersOk.Value) r.Notes.Add("numbers not in the input: " + string.Join(", ", invented));
+        }
+
         // ---- AI-3 ----
         if (s.Expect.NoOutageStatement)
         {
@@ -246,6 +261,8 @@ public sealed class EvalCaseResult
     public bool LanguageOk { get; set; }
     /// <summary>Null when the case does not check it.</summary>
     public bool? NoOutageOk { get; set; }
+    /// <summary>AI-5: no number in the output that is not in the input (null for other features).</summary>
+    public bool? NumbersOk { get; set; }
     public string Model { get; set; } = "";
     public string Effort { get; set; } = "";
     public long InputTokens { get; set; }
@@ -258,5 +275,5 @@ public sealed class EvalCaseResult
     [System.Text.Json.Serialization.JsonIgnore]
     public string? UserContent { get; set; }
 
-    public bool Passed => PrimaryCauseOk && EvidenceOk && MaskingOk && LanguageOk && NoOutageOk != false;
+    public bool Passed => PrimaryCauseOk && EvidenceOk && MaskingOk && LanguageOk && NoOutageOk != false && NumbersOk != false;
 }
