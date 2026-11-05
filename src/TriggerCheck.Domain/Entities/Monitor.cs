@@ -102,6 +102,12 @@ public class Monitor
     /// <summary>When a failure last pulled the regions' next probes forward (at most once per interval).</summary>
     public DateTime? RegionsExpeditedAtUtc { get; set; }
 
+    // ---- OPS-3: multi-instance scheduler lease (see MonitorLease) ----
+    /// <summary>A scheduler instance is checking this monitor until then; null or past = free. Written outside <see cref="Version"/>.</summary>
+    public DateTime? LeasedUntilUtc { get; set; }
+    /// <summary>Instance id (Monitoring:InstanceId) of the scheduler holding the lease.</summary>
+    public string? LeaseOwner { get; set; }
+
     /// <summary>
     /// Application-managed optimistic concurrency token (SQLite has no rowversion). Bumped by user changes (edit,
     /// pause, resume, SuperAdmin interval clamp / reactivation) and by the check runner whenever it changes Status or

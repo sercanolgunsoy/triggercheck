@@ -50,8 +50,8 @@ public class HeartbeatEngineTests
             .SetProperty(m => m.Version, m => m.Version + 1)));
     }
 
-    private static Task<List<int>> DueAsync(MonitoringTestHost host) =>
-        host.WithDbAsync(db => DueMonitorQuery.SelectDueIdsAsync(db, host.Now, 100, CancellationToken.None));
+    private static async Task<List<int>> DueAsync(MonitoringTestHost host) =>
+        (await host.WithDbAsync(db => DueMonitorQuery.SelectUnleasedDueAsync(db, host.Now, 100, CancellationToken.None))).Select(c => c.Id).ToList();
 
     [Fact]
     public void Evaluation_rules()

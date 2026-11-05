@@ -35,6 +35,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
     public DbSet<StatusPageNote> StatusPageNotes => Set<StatusPageNote>();
     public DbSet<StatusPageEvent> StatusPageEvents => Set<StatusPageEvent>();
     public DbSet<MonthlyReportDelivery> MonthlyReportDeliveries => Set<MonthlyReportDelivery>();
+    public DbSet<ClusterLease> ClusterLeases => Set<ClusterLease>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -330,5 +331,14 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
         });
 
         b.Entity<Incident>(e => e.Property(x => x.FailedRegions).HasMaxLength(500));
+
+        // OPS-3: scheduler lease per monitor and cluster-wide job leases.
+        b.Entity<MonitorEntity>(e => e.Property(x => x.LeaseOwner).HasMaxLength(100));
+        b.Entity<ClusterLease>(e =>
+        {
+            e.HasKey(x => x.Name);
+            e.Property(x => x.Name).HasMaxLength(64);
+            e.Property(x => x.Owner).HasMaxLength(100).IsRequired();
+        });
     }
 }

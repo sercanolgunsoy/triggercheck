@@ -72,9 +72,12 @@ public sealed class ProbeLeaseService(
             var itemId = NewItemId();
             var until = now.AddSeconds(Math.Clamp(monitor.TimeoutSeconds <= 0 ? 10 : monitor.TimeoutSeconds, 1, 120) + Math.Max(5, o.LeaseGraceSeconds));
             var fingerprint = RegionQuorum.Fingerprint(monitor);
-            // Conditional: a concurrent lease call of the same region cannot hand out the same probe twice.
+            // Conditional: a concurrent lease call of the same region cannot hand out the same probe twice, neither
+            // while leased nor (still due, OPS-3) after the other call's result already moved the next probe on.
             var updated = await db.MonitorRegionStates
-                .Where(s => s.MonitorId == monitor.Id && s.RegionId == regionId && (s.LeasedUntilUtc == null || s.LeasedUntilUtc <= now))
+                .Where(s => s.MonitorId == monitor.Id && s.RegionId == regionId
+                            && (s.NextCheckAtUtc == null || s.NextCheckAtUtc <= now)
+                            && (s.LeasedUntilUtc == null || s.LeasedUntilUtc <= now))
                 .ExecuteUpdateAsync(u => u
                     .SetProperty(s => s.LeaseItemId, itemId)
                     .SetProperty(s => s.LeasedAtUtc, now)

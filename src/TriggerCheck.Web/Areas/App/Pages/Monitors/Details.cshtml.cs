@@ -11,6 +11,7 @@ using TriggerCheck.Monitoring.Checks;
 using TriggerCheck.Monitoring.Engine;
 using TriggerCheck.Monitoring.Maintenance;
 using TriggerCheck.Monitoring.Regions;
+using TriggerCheck.Monitoring.Scheduling;
 using Microsoft.Extensions.Options;
 using TriggerCheck.Monitoring.Stats;
 using TriggerCheck.Web.Areas.App.Support;
@@ -229,7 +230,7 @@ public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStat
             return Back(id, null);
         }
 
-        var runner = HttpContext.RequestServices.GetService<IMonitorCheckRunner>();
+        var runner = HttpContext.RequestServices.GetService<ManualCheckRunner>();
         if (runner is null)
         {
             TempData["Error"] = L["The on-demand check service is currently unavailable."].Value;
@@ -250,7 +251,12 @@ public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStat
 
         try
         {
-            var r = await runner.RunAsync(m.Id, ct);
+            // OPS-3: waits while a scheduled check (any instance) holds the monitor; gives up after the probe timeout.
+            if (await runner.RunAsync(m.Id, ct) is not { } r)
+            {
+                TempData["Error"] = L["This monitor is being checked right now. Try again in a few seconds."].Value;
+                return Back(id, null);
+            }
             var http = r.StatusCode is int sc ? $" (HTTP {sc})" : "";
             var confirming = !r.IsUp && await db.Monitors.AsNoTracking().AnyAsync(x => x.Id == m.Id && x.PendingConfirmationSinceUtc != null, ct);
             if (r.IsUp) TempData["Success"] = L["Check succeeded: {0}{1}.", Fmt.Ms(r.ResponseTimeMs), http].Value;
@@ -258,7 +264,7 @@ public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStat
                 TempData["Error"] = L["Check failed: {0}{1}. The failure was recorded; a confirmation check runs shortly before the monitor is marked down.", r.Error ?? L["an unknown error"].Value, http].Value;
             else TempData["Error"] = L["Check failed: {0}{1}.", r.Error ?? L["an unknown error"].Value, http].Value;
         }
-        catch (MonitorCheckDiscardedException ex) when (ex.MonitorDeleted)
+        catch (Exception ex) when (ex is KeyNotFoundException || ex is MonitorCheckDiscardedException { MonitorDeleted: true })
         {
             TempData["Error"] = L["The monitor was deleted while it was being checked."].Value;
             return RedirectToPage("Index");
