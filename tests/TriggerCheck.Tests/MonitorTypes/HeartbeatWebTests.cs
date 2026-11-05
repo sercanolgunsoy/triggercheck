@@ -498,9 +498,17 @@ public class HeartbeatTraceTests
         var token = HeartbeatTokens.NewToken();
         Assert.Equal(HttpStatusCode.OK, (await f.CreateClient().GetAsync($"/hb/{token}?status=fail&msg=secret-msg-77")).StatusCode);
 
-        Assert.True(f.Services.GetRequiredService<TracerProvider>().ForceFlush(5000));
-        List<Activity> spans;
-        lock (f.Spans) spans = f.Spans.Where(s => s.Source.Name == "Microsoft.AspNetCore").ToList();
+        // TestServer hands the response to the client before the hosting layer stops the request activity, so the
+        // span can be exported a moment after the call returns: wait for it instead of reading the list once.
+        List<Activity> spans = [];
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (true)
+        {
+            Assert.True(f.Services.GetRequiredService<TracerProvider>().ForceFlush(5000));
+            lock (f.Spans) spans = f.Spans.Where(s => s.Source.Name == "Microsoft.AspNetCore").ToList();
+            if (spans.Count > 0 || DateTime.UtcNow >= deadline) break;
+            await Task.Delay(50);
+        }
         Assert.NotEmpty(spans);
         foreach (var span in spans)
         {
