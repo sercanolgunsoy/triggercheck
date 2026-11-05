@@ -1301,10 +1301,13 @@ namespace TriggerCheck.Migrations.Sqlite.Migrations
                     b.Property<bool>("AllowsSelfSignup")
                         .HasColumnType("INTEGER");
 
-                    b.Property<bool>("AllowsSmsVoice")
+                    b.Property<bool>("AllowsSms")
                         .HasColumnType("INTEGER");
 
                     b.Property<bool>("AllowsStatusPageCustomDomain")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("AllowsVoiceCall")
                         .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsActive")
@@ -1326,6 +1329,9 @@ namespace TriggerCheck.Migrations.Sqlite.Migrations
                         .HasDefaultValue(1);
 
                     b.Property<int?>("MaxStatusPages")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("MaxUsers")
                         .HasColumnType("INTEGER");
 
                     b.Property<int>("MinIntervalSeconds")

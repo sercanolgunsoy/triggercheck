@@ -12,6 +12,9 @@ public static class PlanRules
     public static IReadOnlyList<int> AllowedIntervals(Plan plan) =>
         SupportedIntervals.Where(i => i >= plan.MinIntervalSeconds).ToList();
 
+    /// <summary>A customer with <paramref name="currentUsers"/> users (active or not) may add another one.</summary>
+    public static bool CanAddUser(Plan plan, int currentUsers) => plan.MaxUsers is not { } max || currentUsers < max;
+
     public static bool IsIntervalAllowed(Plan plan, int intervalSeconds) =>
         SupportedIntervals.Contains(intervalSeconds) && intervalSeconds >= plan.MinIntervalSeconds;
 
@@ -36,4 +39,22 @@ public static class PlanRules
 
     /// <summary>Neutral English form for logs; the UI uses the localized TriggerCheck.Web.Localization.Fmt.Interval.</summary>
     public static string FormatInterval(int seconds) => seconds >= 60 && seconds % 60 == 0 ? $"{seconds / 60} min" : $"{seconds} sec";
+}
+
+/// <summary>
+/// FEAT-7: the Twilio alert channels a plan includes (<see cref="Plan.AllowsSms"/>, <see cref="Plan.AllowsVoiceCall"/>).
+/// Every other channel type is included in every plan.
+/// </summary>
+public readonly record struct SmsVoiceAccess(bool Sms, bool Voice)
+{
+    public static SmsVoiceAccess Of(Plan plan) => new(plan.AllowsSms, plan.AllowsVoiceCall);
+
+    public bool Any => Sms || Voice;
+
+    public bool Allows(AlertChannelType type) => type switch
+    {
+        AlertChannelType.Sms => Sms,
+        AlertChannelType.VoiceCall => Voice,
+        _ => true,
+    };
 }

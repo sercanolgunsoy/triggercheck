@@ -32,7 +32,9 @@ public class PlanInput
 
     [Display(Name = "Active (offered to new customers)")] public bool IsActive { get; set; } = true;
 
-    [Display(Name = "SMS and voice call alerts (Twilio)")] public bool AllowsSmsVoice { get; set; }
+    [Display(Name = "SMS alerts (Twilio)")] public bool AllowsSms { get; set; }
+
+    [Display(Name = "Voice call alerts (Twilio)")] public bool AllowsVoiceCall { get; set; }
 
     [Display(Name = "Self-service sign-up and billing")] public bool AllowsSelfSignup { get; set; }
 
@@ -41,6 +43,9 @@ public class PlanInput
 
     [StringLength(100, ErrorMessage = "At most {1} characters."), RegularExpression(@"^[A-Za-z0-9\-_]*$", ErrorMessage = "Only letters, digits, - and _ are allowed.")]
     [Display(Name = "iyzico pricing plan reference code (monthly)")] public string? IyzicoPricingPlanReferenceCode { get; set; }
+
+    [Range(1, 100_000, ErrorMessage = "The user limit must be 1 or greater.")]
+    [Display(Name = "Users (empty = unlimited)")] public int? MaxUsers { get; set; }
 
     // ---- status pages (FEAT-4) ----
     [Range(0, 100_000, ErrorMessage = "The status page limit must be 0 or greater.")]
@@ -66,10 +71,10 @@ public class PlanInput
     {
         Name = p.Name, MinIntervalSeconds = p.MinIntervalSeconds, MaxMonitors = p.MaxMonitors,
         RetentionDays = p.RetentionDays, MonthlyPrice = p.MonthlyPrice, IsActive = p.IsActive,
-        AllowsSmsVoice = p.AllowsSmsVoice, AllowsSelfSignup = p.AllowsSelfSignup,
+        AllowsSms = p.AllowsSms, AllowsVoiceCall = p.AllowsVoiceCall, AllowsSelfSignup = p.AllowsSelfSignup,
         IyzicoProductReferenceCode = p.IyzicoProductReferenceCode, IyzicoPricingPlanReferenceCode = p.IyzicoPricingPlanReferenceCode,
         AiMonthlyCallLimit = p.AiMonthlyCallLimit, AiMonthlyTokenLimit = p.AiMonthlyTokenLimit,
-        MaxStatusPages = p.MaxStatusPages, AllowsStatusPageCustomDomain = p.AllowsStatusPageCustomDomain,
+        MaxStatusPages = p.MaxStatusPages, MaxUsers = p.MaxUsers, AllowsStatusPageCustomDomain = p.AllowsStatusPageCustomDomain,
         AiFeatures = Domain.AiFeatures.Parse(p.AiFeatures).ToList(),
         MaxRegions = p.MaxRegions
     };
@@ -82,7 +87,8 @@ public class PlanInput
         p.RetentionDays = RetentionDays!.Value;
         p.MonthlyPrice = MonthlyPrice!.Value;
         p.IsActive = IsActive;
-        p.AllowsSmsVoice = AllowsSmsVoice;
+        p.AllowsSms = AllowsSms;
+        p.AllowsVoiceCall = AllowsVoiceCall;
         p.AllowsSelfSignup = AllowsSelfSignup;
         p.IyzicoProductReferenceCode = string.IsNullOrWhiteSpace(IyzicoProductReferenceCode) ? null : IyzicoProductReferenceCode.Trim();
         p.IyzicoPricingPlanReferenceCode = string.IsNullOrWhiteSpace(IyzicoPricingPlanReferenceCode) ? null : IyzicoPricingPlanReferenceCode.Trim();
@@ -91,6 +97,7 @@ public class PlanInput
         p.AiFeatures = Domain.AiFeatures.Format(AiFeatures);
         p.MaxRegions = MaxRegions!.Value;
         p.MaxStatusPages = MaxStatusPages;
+        p.MaxUsers = MaxUsers;
         p.AllowsStatusPageCustomDomain = AllowsStatusPageCustomDomain;
     }
 

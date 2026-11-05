@@ -4,7 +4,7 @@
     ViewData: "ChannelTypes" (IEnumerable<AlertChannelType>, the types offered) and "HasStoredSecret" (bool, edit only).
 *@
 @{
-    var types = ViewData["ChannelTypes"] as IEnumerable<AlertChannelType> ?? AlertChannelInput.AvailableTypes(false, Model.Type);
+    var types = ViewData["ChannelTypes"] as IEnumerable<AlertChannelType> ?? AlertChannelInput.AvailableTypes(default, Model.Type);
     var hasStoredSecret = ViewData["HasStoredSecret"] as bool? ?? false;
     var help = new Dictionary<string, string>
     {

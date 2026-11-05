@@ -137,7 +137,7 @@ public static partial class InsightsEval
             var plan = new Plan
             {
                 Name = planName, MinIntervalSeconds = spec.MinIntervalSeconds, MaxMonitors = spec.MaxMonitors,
-                MaxStatusPages = spec.MaxStatusPages, MaxRegions = spec.MaxRegions, AllowsSmsVoice = spec.AllowsSmsVoice,
+                MaxStatusPages = spec.MaxStatusPages, MaxRegions = spec.MaxRegions, AllowsSms = spec.AllowsSmsVoice, AllowsVoiceCall = spec.AllowsSmsVoice,
                 AiFeatures = AiFeatures.Format(AiFeatures.All.Select(f => f.Name)), AiMonthlyCallLimit = spec.AiCallLimit,
             };
             var customer = new Customer { Name = spec.Name, ContactEmail = spec.ContactEmail, Plan = plan, IsActive = spec.IsActive, AiEnabled = true };

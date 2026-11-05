@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using TriggerCheck.Domain.Entities;
@@ -116,8 +118,13 @@ public class MigrationTests
         await using (var db = tdb.NewContext())
         {
             await db.Database.EnsureCreatedAsync();
-            db.Plans.Add(new Plan { Name = "Kept", MinIntervalSeconds = 60, MaxMonitors = 1 });
+            db.Plans.Add(new Plan { Name = "Kept", MinIntervalSeconds = 60, MaxMonitors = 1, AllowsVoiceCall = true });
             await db.SaveChangesAsync();
+            // An EnsureCreated database predates the migrations: it has the schema of the initial migration, i.e. the single
+            // SMS / voice flag of the plans (split by a later migration) and no user limit.
+            await db.Database.ExecuteSqlRawAsync("""ALTER TABLE "Plans" DROP COLUMN "AllowsSms" """);
+            await db.Database.ExecuteSqlRawAsync("""ALTER TABLE "Plans" DROP COLUMN "MaxUsers" """);
+            await db.Database.ExecuteSqlRawAsync("""ALTER TABLE "Plans" RENAME COLUMN "AllowsVoiceCall" TO "AllowsSmsVoice" """);
         }
 
         await using (var db = tdb.NewContext())
@@ -126,7 +133,8 @@ public class MigrationTests
             await DatabaseMigrator.MigrateAsync(db, Log);
             Assert.Equal(db.Database.GetMigrations().First(), (await db.Database.GetAppliedMigrationsAsync()).First());
             Assert.Empty(await db.Database.GetPendingMigrationsAsync());
-            Assert.True(await db.Plans.AnyAsync(p => p.Name == "Kept"));
+            var kept = await db.Plans.AsNoTracking().SingleAsync(p => p.Name == "Kept");
+            Assert.True(kept.AllowsSms && kept.AllowsVoiceCall); // later migrations ran on the baselined database
             await DatabaseMigrator.EnsureUpToDateAsync(db);
         }
     }
@@ -150,6 +158,31 @@ public class MigrationTests
             Assert.Contains("PostmortemDrafts (table)", ex.Message);
             Assert.Contains("DEPLOYMENT.md", ex.Message);
             Assert.Empty(await db.Database.GetAppliedMigrationsAsync());
+        }
+    }
+
+    [Fact]
+    public async Task Split_of_the_sms_voice_flag_keeps_what_each_plan_allowed()
+    {
+        using var tdb = TestDatabase.Create("mig", withSchema: false);
+        await using (var db = tdb.NewContext())
+        {
+            // Schema before the split: one AllowsSmsVoice flag.
+            await db.GetService<IMigrator>().MigrateAsync(db.Database.GetMigrations().First());
+            foreach (var (name, allowed) in new[] { ("WithSmsVoice", true), ("WithoutSmsVoice", false) })
+                await db.Database.ExecuteSqlAsync($"""
+                    INSERT INTO "Plans" ("Name", "MinIntervalSeconds", "MaxMonitors", "RetentionDays", "MonthlyPrice", "IsActive", "AllowsSmsVoice",
+                        "AllowsSelfSignup", "AiFeatures", "AiMonthlyCallLimit", "AiMonthlyTokenLimit", "AllowsStatusPageCustomDomain")
+                    VALUES ({name}, 60, 10, 30, 0, {true}, {allowed}, {false}, '', 0, 0, {false})
+                    """);
+        }
+
+        await using (var db = tdb.NewContext())
+        {
+            await DatabaseMigrator.MigrateAsync(db, Log);
+            var flags = await db.Plans.AsNoTracking().ToDictionaryAsync(p => p.Name, p => (p.AllowsSms, p.AllowsVoiceCall));
+            Assert.Equal((true, true), flags["WithSmsVoice"]);
+            Assert.Equal((false, false), flags["WithoutSmsVoice"]);
         }
     }
 

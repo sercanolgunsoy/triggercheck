@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Options;
+using TriggerCheck.Domain;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Domain.Security;
 using TriggerCheck.Infrastructure.Data;
@@ -50,21 +51,27 @@ public class AlertChannelInput : IValidatableObject
     };
 
     /// <summary>
-    /// Channel types offered in the form. SMS / voice need Twilio to be configured by the operator AND a plan that allows
-    /// them; <paramref name="current"/> (the type being edited) is always kept so an existing channel stays editable.
+    /// Channel types offered in the form. SMS / voice each need Twilio to be configured by the operator AND a plan that
+    /// includes that type; <paramref name="current"/> (the type being edited) is always kept so an existing channel stays
+    /// editable.
     /// </summary>
-    public static IEnumerable<AlertChannelType> AvailableTypes(bool smsVoiceAvailable, AlertChannelType? current = null) =>
-        Enum.GetValues<AlertChannelType>().Where(t => smsVoiceAvailable || !AlertDispatcher.IsSmsOrVoice(t) || t == current);
+    public static IEnumerable<AlertChannelType> AvailableTypes(SmsVoiceAccess smsVoice, AlertChannelType? current = null) =>
+        Enum.GetValues<AlertChannelType>().Where(t => smsVoice.Allows(t) || t == current);
 
-    /// <summary>SMS / voice can be offered: the operator configured Twilio and the customer's plan includes them.</summary>
-    public static async Task<bool> SmsVoiceAvailableAsync(AppDbContext db, int customerId, TwilioOptions twilio, CancellationToken ct) =>
-        twilio.IsConfigured && await db.Customers.AnyAsync(c => c.Id == customerId && c.Plan.AllowsSmsVoice, ct);
+    /// <summary>
+    /// Which of SMS / voice can be offered: the operator configured Twilio and the customer's plan includes the type
+    /// (none when Twilio is not configured).
+    /// </summary>
+    public static async Task<SmsVoiceAccess> SmsVoiceAvailableAsync(AppDbContext db, int customerId, TwilioOptions twilio, CancellationToken ct) =>
+        !twilio.IsConfigured ? default
+        : await db.Customers.Where(c => c.Id == customerId)
+            .Select(c => new SmsVoiceAccess(c.Plan.AllowsSms, c.Plan.AllowsVoiceCall)).FirstOrDefaultAsync(ct);
 
     public static bool UsesUrl(AlertChannelType t) => t is AlertChannelType.Webhook or AlertChannelType.Slack or AlertChannelType.Teams;
 
-    /// <param name="smsVoiceAvailable">Twilio configured and the customer's plan allows SMS / voice.</param>
+    /// <param name="smsVoice">Which of SMS / voice are available (Twilio configured and included in the customer's plan).</param>
     /// <param name="existing">The channel being edited (null when creating).</param>
-    public void Validate(ModelStateDictionary ms, IStringLocalizer L, bool smsVoiceAvailable = false, AlertChannel? existing = null, string prefix = "Input.")
+    public void Validate(ModelStateDictionary ms, IStringLocalizer L, SmsVoiceAccess smsVoice = default, AlertChannel? existing = null, string prefix = "Input.")
     {
         var hasStoredSecret = existing is { Type: AlertChannelType.Telegram } && !string.IsNullOrEmpty(existing.Secret);
         Name = Name?.Trim() ?? "";
@@ -100,8 +107,10 @@ public class AlertChannelInput : IValidatableObject
                 // After a plan downgrade an existing SMS / voice channel can still be renamed or disabled;
                 // only creating one or (re-)enabling it is refused.
                 var keepsExisting = existing is not null && existing.Type == Type && (!IsEnabled || existing.IsEnabled);
-                if (!smsVoiceAvailable && !keepsExisting)
-                    ms.AddModelError(prefix + nameof(Type), L["SMS and voice call alerts are not available for your plan."]);
+                if (!smsVoice.Allows(Type) && !keepsExisting)
+                    ms.AddModelError(prefix + nameof(Type), Type == AlertChannelType.Sms
+                        ? L["SMS alerts are not available for your plan."]
+                        : L["Voice call alerts are not available for your plan."]);
                 else if (!PhoneNumber.IsE164(Target))
                     ms.AddModelError(target, L["Enter the phone number in international E.164 format, e.g. +905551234567."]);
                 break;

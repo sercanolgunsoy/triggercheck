@@ -25,6 +25,11 @@
         <span asp-validation-for="MaxMonitors" class="text-danger small"></span>
     </div>
     <div class="col-md-6 mb-3">
+        <label asp-for="MaxUsers" class="form-label"></label>
+        <input asp-for="MaxUsers" class="form-control" type="number" min="1" />
+        <span asp-validation-for="MaxUsers" class="text-danger small"></span>
+    </div>
+    <div class="col-md-6 mb-3">
         <label asp-for="RetentionDays" class="form-label"></label>
         <input asp-for="RetentionDays" class="form-control" type="number" min="1" max="3650" />
         <span asp-validation-for="RetentionDays" class="text-danger small"></span>
@@ -40,9 +45,14 @@
     <label asp-for="IsActive" class="form-check-label"></label>
 </div>
 <div class="form-check mb-3">
-    <input asp-for="AllowsSmsVoice" class="form-check-input" />
-    <label asp-for="AllowsSmsVoice" class="form-check-label"></label>
-    <div class="form-text">@L["Customers on this plan can add SMS and voice call alert channels. They are only offered when Twilio is configured for this installation."]</div>
+    <input asp-for="AllowsSms" class="form-check-input" />
+    <label asp-for="AllowsSms" class="form-check-label"></label>
+    <div class="form-text">@L["Customers on this plan can add SMS alert channels. They are only offered when Twilio is configured for this installation."]</div>
+</div>
+<div class="form-check mb-3">
+    <input asp-for="AllowsVoiceCall" class="form-check-input" />
+    <label asp-for="AllowsVoiceCall" class="form-check-label"></label>
+    <div class="form-text">@L["Customers on this plan can add voice call alert channels. They are only offered when Twilio is configured for this installation."]</div>
 </div>
 <div class="form-check mb-3">
     <input asp-for="AllowsSelfSignup" class="form-check-input" />

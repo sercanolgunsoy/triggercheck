@@ -538,6 +538,7 @@ dl.row dd { margin-bottom: .6rem; }
 .compare .table thead th small { display: block; font-weight: 500; color: var(--tc-muted); }
 .compare .group td { background: var(--tc-surface-2); font-size: .72rem; font-weight: 650; text-transform: uppercase; letter-spacing: .07em; color: var(--tc-muted); }
 .compare .yes { color: var(--tc-up); }
+.compare .no { color: var(--tc-muted); opacity: .6; }
 .compare .col-featured { background: rgba(var(--tc-brand-rgb), .045); }
 .faq details { border-bottom: 1px solid var(--tc-border); padding: 1.1rem 0; }
 .faq summary { cursor: pointer; font-weight: 600; list-style: none; display: flex; justify-content: space-between; gap: 1rem; align-items: center; }

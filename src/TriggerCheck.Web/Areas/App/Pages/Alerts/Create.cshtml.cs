@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Options;
+using TriggerCheck.Domain;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Monitoring.Alerting;
@@ -33,7 +34,7 @@ public class CreateModel(AppDbContext db, ICurrentCustomer current, IOptionsMoni
         return RedirectToPage("Index");
     }
 
-    private async Task<bool> LoadTypesAsync(CancellationToken ct)
+    private async Task<SmsVoiceAccess> LoadTypesAsync(CancellationToken ct)
     {
         var smsVoice = await AlertChannelInput.SmsVoiceAvailableAsync(db, current.RequiredCustomerId, twilio.CurrentValue, ct);
         Types = AlertChannelInput.AvailableTypes(smsVoice).ToList();

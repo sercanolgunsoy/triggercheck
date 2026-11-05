@@ -8,12 +8,16 @@ public class Plan
     /// <summary>Fastest allowed check interval for monitors of customers on this plan (300, 60, 30, 15...).</summary>
     public int MinIntervalSeconds { get; set; }
     public int MaxMonitors { get; set; }
+    /// <summary>Users (team members, including the first admin) a customer on this plan may have; null = unlimited.</summary>
+    public int? MaxUsers { get; set; }
     /// <summary>How many days of CheckResult history are retained.</summary>
     public int RetentionDays { get; set; } = 30;
     public decimal MonthlyPrice { get; set; }
     public bool IsActive { get; set; } = true;
-    /// <summary>Customers on this plan may use SMS and voice call alert channels (Twilio).</summary>
-    public bool AllowsSmsVoice { get; set; }
+    /// <summary>Customers on this plan may use SMS alert channels (Twilio). Default plans: Standard and up.</summary>
+    public bool AllowsSms { get; set; }
+    /// <summary>Customers on this plan may use voice call alert channels (Twilio). Default plans: Pro and up.</summary>
+    public bool AllowsVoiceCall { get; set; }
     /// <summary>Offered on the self-service sign-up and billing pages (false = sales-led, e.g. Enterprise).</summary>
     public bool AllowsSelfSignup { get; set; }
     /// <summary>iyzico subscription product reference code (informational; the pricing plan code is what checkout uses).</summary>

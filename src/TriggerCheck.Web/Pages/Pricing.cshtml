@@ -9,21 +9,39 @@
     var mailto = $"mailto:{Model.ContactEmail}?subject={Uri.EscapeDataString("TriggerCheck")}";
     string Col(int i) => i == featured ? "col-featured" : "";
 
-    // Capabilities every plan includes (the limits are the only difference between plans).
-    var groups = new (string Group, string[] Rows)[]
+    // Rows of the comparison: a capability is either included in every plan (null) or decided by the plan.
+    (string Label, Func<Plan, bool>? Has) Row(string label, Func<Plan, bool>? has = null) => (label, has);
+    var groups = new (string Group, (string Label, Func<Plan, bool>? Has)[] Rows)[]
     {
-        (L["Checks"].Value, [L["HTTP(S) status checks"].Value, L["Keyword checks"].Value, L["TCP port checks"].Value, L["Ping checks"].Value, L["Custom timeout and failure threshold"].Value, L["Pause and resume"].Value]),
-        (L["Alerts and incidents"].Value, [L["E-mail alerts"].Value, L["Webhook alerts"].Value, L["Recovery notifications"].Value, L["Automatic incident log"].Value]),
-        (L["Reports"].Value, [L["24 h, 7 day and 30 day uptime"].Value, L["Response-time chart"].Value]),
-        (L["Team"].Value, [L["Team members"].Value, L["Admin and viewer roles"].Value, L["English and Turkish interface"].Value]),
+        (L["Checks"].Value, [Row(L["HTTP(S) status checks"].Value), Row(L["Keyword checks"].Value), Row(L["TCP port checks"].Value), Row(L["Ping checks"].Value),
+            Row(L["Custom timeout and failure threshold"].Value), Row(L["Pause and resume"].Value)]),
+        (L["Alerts and incidents"].Value, [Row(L["E-mail alerts"].Value), Row(L["Webhook alerts"].Value), Row(L["Slack, Microsoft Teams and Telegram alerts"].Value),
+            Row(L["SMS alerts"].Value, p => p.AllowsSms), Row(L["Voice call alerts"].Value, p => p.AllowsVoiceCall),
+            Row(L["Recovery notifications"].Value), Row(L["Automatic incident log"].Value)]),
+        (L["AI features"].Value, [.. AiFeatures.All.Select(f => Row(AiFeatureName(f.Name), p => AiFeatures.PlanAllows(p, f.Name)))]),
+        (L["Reports"].Value, [Row(L["24 h, 7 day and 30 day uptime"].Value), Row(L["Response-time chart"].Value)]),
+        (L["Team"].Value, [Row(L["Team members"].Value), Row(L["Admin and viewer roles"].Value, p => p.MaxUsers is not 1), Row(L["English and Turkish interface"].Value)]),
+    };
+
+    string AiFeatureName(string feature) => feature switch
+    {
+        AiFeatures.IncidentInterpretation => L["Incident summaries and likely causes"].Value,
+        AiFeatures.SlowdownExplanation => L["Slowdown explanations"].Value,
+        AiFeatures.SettingsSuggestions => L["Monitor setting suggestions"].Value,
+        AiFeatures.MonitorSetupAssistant => L["Monitor setup assistant"].Value,
+        AiFeatures.CorrelationGrouping => L["Grouping of related incidents"].Value,
+        AiFeatures.NarrativeReport => L["Weekly and monthly reports"].Value,
+        AiFeatures.QuestionAnswer => L["Questions in natural language"].Value,
+        AiFeatures.PostmortemDraft => L["Postmortem and status page drafts"].Value,
+        _ => feature,
     };
 }
 
 <section class="hero pb-5">
     <div class="container text-center">
-        <span class="eyebrow"><span class="pill">@L["Pricing"]</span> @L["Every check type and alert channel on every plan"]</span>
+        <span class="eyebrow"><span class="pill">@L["Pricing"]</span> @L["Every check type on every plan"]</span>
         <h1 class="display-title mt-4 mb-3">@L["Pricing that is"] <span class="gradient-text">@L["simple and transparent."]</span></h1>
-        <p class="lead-lg mx-auto mb-5">@L["Every plan includes every check type and alert channel. Pick the one that matches how fast and how much you need to monitor."]</p>
+        <p class="lead-lg mx-auto mb-5">@L["Every plan includes every check type and e-mail, webhook and chat alerts. Plans differ in how fast and how much you can monitor, SMS and voice call alerts, and AI features."]</p>
         <h2 class="visually-hidden">@L["Plans"]</h2>
         <div class="text-start">
             <partial name="_PlanCards" model="new PlanCardsModel(plans, Model.ContactEmail)" />
@@ -58,16 +76,19 @@
                         <tr><td>@L["Monitors"]</td>@for (var i = 0; i < plans.Count; i++) { <td class="@Col(i)">@Fmt.Number(plans[i].MaxMonitors)</td> }</tr>
                         <tr><td>@L["Fastest check interval"]</td>@for (var i = 0; i < plans.Count; i++) { <td class="@Col(i) fw-semibold">@Fmt.Interval(plans[i].MinIntervalSeconds)</td> }</tr>
                         <tr><td>@L["Check history"]</td>@for (var i = 0; i < plans.Count; i++) { <td class="@Col(i)">@L["{0} days", plans[i].RetentionDays]</td> }</tr>
+                        <tr><td>@L["AI requests per month"]</td>@for (var i = 0; i < plans.Count; i++) { <td class="@Col(i)">@(plans[i].AiMonthlyCallLimit > 0 && AiFeatures.Parse(plans[i].AiFeatures).Count > 0 ? Fmt.Number(plans[i].AiMonthlyCallLimit) : "–")</td> }</tr>
                         @foreach (var (group, rows) in groups)
                         {
                             <tr class="group"><td colspan="@(plans.Count + 1)">@group</td></tr>
-                            @foreach (var row in rows)
+                            @foreach (var (label, has) in rows)
                             {
                                 <tr>
-                                    <td>@row</td>
+                                    <td>@label</td>
                                     @for (var i = 0; i < plans.Count; i++)
                                     {
-                                        <td class="@Col(i)">@if (row == L["Team members"].Value) { <span>@L["Unlimited"]</span> } else { <span class="yes" title="@L["Included"]">@Icons.Get("check", 18)<span class="visually-hidden">@L["Included"]</span></span> }</td>
+                                        <td class="@Col(i)">@if (label == L["Team members"].Value) { <span>@(plans[i].MaxUsers is int mu ? Fmt.Number(mu) : L["Unlimited"].Value)</span> }
+                                            else if (has is null || has(plans[i])) { <span class="yes" title="@L["Included"]">@Icons.Get("check", 18)<span class="visually-hidden">@L["Included"]</span></span> }
+                                            else { <span class="no" title="@L["Not included"]">@Icons.Get("x", 16)<span class="visually-hidden">@L["Not included"]</span></span> }</td>
                                     }
                                 </tr>
                             }
