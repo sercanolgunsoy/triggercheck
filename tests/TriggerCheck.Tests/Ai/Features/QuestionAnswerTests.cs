@@ -559,7 +559,8 @@ public class QuestionAnswerTests
         await using var c = await CreateAsync(new() { ["Ai:Qa:MaxToolResultChars"] = "2500" });
         var cust = await c.H.AddCustomerAsync();
         var m = await c.H.AddMonitorAsync(cust.Id);
-        var longError = "HTTP 503 " + string.Concat(Enumerable.Repeat("upstream connect error or disconnect/reset before headers ", 40));
+        // Below CheckResults.Error's 1000 characters (the app truncates there; Postgres enforces the column length).
+        var longError = "HTTP 503 " + string.Concat(Enumerable.Repeat("upstream connect error or disconnect/reset before headers ", 16));
         for (var i = 0; i < 20; i++) await c.AddCheckAsync(m.Id, c.Now.AddMinutes(-i), false, 50, longError + i, 503);
         var inc = await c.AddIncidentAsync(m.Id, c.Now.AddMinutes(-15), null, longError);
         await c.H.WithDbAsync(async db =>

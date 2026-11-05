@@ -43,16 +43,20 @@ public static class DatabaseMigrator
     public static async Task<bool> BaselineAsync(AppDbContext db, ILogger logger, CancellationToken ct = default)
     {
         if (!await db.GetService<IRelationalDatabaseCreator>().ExistsAsync(ct)) return false;
-        var history = db.GetService<IHistoryRepository>();
-        if (await history.ExistsAsync(ct)) return false;
+        // The history table is looked up in the schema read below, not with IHistoryRepository.ExistsAsync: Npgsql 9.0.4
+        // reports true there for a database without the table.
+        var actual = await ReadSchemaAsync(db, ct);
+        var historyTable = db.GetService<IDbContextOptions>().Extensions.OfType<RelationalOptionsExtension>().FirstOrDefault()?.MigrationsHistoryTableName
+                           ?? HistoryRepository.DefaultTableName;
+        if (actual.ContainsKey(historyTable)) return false;
 
         var migrations = db.GetService<IMigrationsAssembly>();
         var (initialId, initialType) = migrations.Migrations.First();
         var initial = migrations.CreateMigration(initialType, db.Database.ProviderName!);
         var expected = ExpectedSchema(db, initial);
-
-        var actual = await ReadSchemaAsync(db, ct);
         if (!expected.Keys.Any(actual.ContainsKey)) return false; // no TriggerCheck table: a normal (first) migration
+
+        var history = db.GetService<IHistoryRepository>();
 
         var missing = new List<string>();
         foreach (var (table, columns) in expected)
@@ -96,7 +100,9 @@ public static class DatabaseMigrator
     {
         var sql = db.Database.IsSqlite()
             ? "SELECT m.name, p.name FROM sqlite_master AS m JOIN pragma_table_info(m.name) AS p WHERE m.type = 'table'"
-            : throw new NotSupportedException($"Baselining is not implemented for {db.Database.ProviderName}.");
+            : db.Database.IsNpgsql()
+                ? "SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = current_schema()"
+                : throw new NotSupportedException($"Baselining is not implemented for {db.Database.ProviderName}.");
         var result = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
         var connection = db.Database.GetDbConnection();
         await db.Database.OpenConnectionAsync(ct);

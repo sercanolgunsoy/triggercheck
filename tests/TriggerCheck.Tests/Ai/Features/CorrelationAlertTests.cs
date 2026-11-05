@@ -8,14 +8,17 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using Npgsql;
 using TriggerCheck.Ai;
 using TriggerCheck.Ai.Client;
 using TriggerCheck.Ai.Features.Correlation;
 using TriggerCheck.Domain;
 using TriggerCheck.Domain.Entities;
+using TriggerCheck.Infrastructure;
 using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Monitoring.Alerting;
 using TriggerCheck.Monitoring.Checks;
+using TriggerCheck.Tests.Infrastructure;
 using TriggerCheck.Tests.Monitoring;
 using MonitorEntity = TriggerCheck.Domain.Entities.Monitor;
 
@@ -486,12 +489,14 @@ public class CorrelationAlertTests
         });
         var cs = await t.Host.WithDbAsync(db => Task.FromResult(db.Database.GetConnectionString()!));
 
-        // Another writer holds the write lock.
-        await using var other = new SqliteConnection(cs);
+        // Another writer holds the write lock (Postgres: the transaction lock of PostgresWriteLockInterceptor).
+        await using DbConnection other = TestDatabase.UsePostgres ? new NpgsqlConnection(cs) : new SqliteConnection(cs);
         await other.OpenAsync();
         await using (var cmd = other.CreateCommand())
         {
-            cmd.CommandText = "BEGIN IMMEDIATE;";
+            cmd.CommandText = TestDatabase.UsePostgres
+                ? $"BEGIN; SELECT pg_advisory_xact_lock({PostgresWriteLockInterceptor.LockKey});"
+                : "BEGIN IMMEDIATE;";
             await cmd.ExecuteNonQueryAsync();
         }
         var sw = System.Diagnostics.Stopwatch.StartNew();
@@ -535,7 +540,9 @@ public class CorrelationAlertTests
 
         var counter = new CountingInterceptor();
         var cs = await t.Host.WithDbAsync(db => Task.FromResult(db.Database.GetConnectionString()!));
-        await using var counted = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>().UseSqlite(cs).AddInterceptors(counter).Options);
+        var countedOptions = new DbContextOptionsBuilder<AppDbContext>();
+        DatabaseOptions.Configure(countedOptions, TestDatabase.UsePostgres ? DatabaseProvider.Postgres : DatabaseProvider.Sqlite, cs);
+        await using var counted = new AppDbContext(countedOptions.AddInterceptors(counter).Options);
         var incident = await t.IncidentAsync(a.Id);
         counter.Commands = 0;
 

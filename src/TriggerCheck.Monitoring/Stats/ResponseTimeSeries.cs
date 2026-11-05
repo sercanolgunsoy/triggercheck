@@ -143,45 +143,48 @@ public sealed class BucketP95Row
 }
 
 /// <summary>
-/// The only provider-specific SQL of the chart. Everything is standard SQL except <see cref="BucketIndexSql"/>
-/// (SQLite <c>julianday</c>); a PostgreSQL port replaces it with
-/// <c>FLOOR(EXTRACT(EPOCH FROM (c."CheckedAtUtc" - @from)) / @bucketSeconds)</c>.
+/// The only provider-specific SQL of the chart. Everything is standard SQL except the bucket index expression
+/// (SQLite <c>julianday</c>, PostgreSQL <c>EXTRACT(EPOCH ...)</c>), see <see cref="BucketIndexSql"/>.
 /// </summary>
 internal static class SeriesSql
 {
-    // julianday() is a double with ~40 µs resolution at today's dates: + 1 ms keeps a check exactly on a bucket boundary
-    // in the bucket that starts there (as in ResponseTimeSeries.BucketIndexOf) instead of the one before.
-    private const string BucketIndexSql = "CAST(((julianday(c.\"CheckedAtUtc\") - julianday({2})) * 86400.0 + 0.001) / {4} AS INTEGER)";
+    // SQLite: julianday() is a double with ~40 µs resolution at today's dates: + 1 ms keeps a check exactly on a bucket
+    // boundary in the bucket that starts there (as in ResponseTimeSeries.BucketIndexOf) instead of the one before.
+    // Postgres: EXTRACT(EPOCH FROM interval) is exact (numeric, µs); the same + 1 ms keeps both providers identical.
+    private static string BucketIndexSql(bool postgres) => postgres
+        ? "CAST(FLOOR((EXTRACT(EPOCH FROM (c.\"CheckedAtUtc\" - {2})) + 0.001) / {4}) AS BIGINT)"
+        : "CAST(((julianday(c.\"CheckedAtUtc\") - julianday({2})) * 86400.0 + 0.001) / {4} AS INTEGER)";
 
     private const string Up = "c.\"IsUp\"";
     private const string Timed = "c.\"IsUp\" AND c.\"TtfbMs\" IS NOT NULL";
     private const string Phases = "COALESCE(c.\"DnsMs\", 0) + COALESCE(c.\"ConnectMs\", 0) + COALESCE(c.\"TlsMs\", 0)";
 
-    private static readonly string Sql = $"""
-        SELECT {BucketIndexSql} AS "Bucket",
+    // AVG of integers is numeric on Postgres: cast to double precision, which both providers read as double.
+    private static string Sql(bool postgres) => $"""
+        SELECT {BucketIndexSql(postgres)} AS "Bucket",
                COUNT(*) AS "Checks",
                SUM(CASE WHEN COALESCE(c."VotedUp", c."IsUp") THEN 0 ELSE 1 END) AS "Failures",
-               AVG(CASE WHEN {Up} THEN c."ResponseTimeMs" END) AS "AvgMs",
+               CAST(AVG(CASE WHEN {Up} THEN c."ResponseTimeMs" END) AS {Real(postgres)}) AS "AvgMs",
                SUM(CASE WHEN {Timed} THEN 1 ELSE 0 END) AS "Timed",
-               AVG(CASE WHEN {Timed} THEN COALESCE(c."DnsMs", 0) END) AS "DnsMs",
-               AVG(CASE WHEN {Timed} THEN COALESCE(c."ConnectMs", 0) END) AS "ConnectMs",
-               AVG(CASE WHEN {Timed} THEN COALESCE(c."TlsMs", 0) END) AS "TlsMs",
-               AVG(CASE WHEN {Timed} THEN CASE WHEN c."TtfbMs" > {Phases} THEN c."TtfbMs" - ({Phases}) ELSE 0 END END) AS "WaitMs",
-               AVG(CASE WHEN {Timed} THEN CASE WHEN c."ResponseTimeMs" > c."TtfbMs" THEN c."ResponseTimeMs" - c."TtfbMs" ELSE 0 END END) AS "TransferMs"
+               CAST(AVG(CASE WHEN {Timed} THEN COALESCE(c."DnsMs", 0) END) AS {Real(postgres)}) AS "DnsMs",
+               CAST(AVG(CASE WHEN {Timed} THEN COALESCE(c."ConnectMs", 0) END) AS {Real(postgres)}) AS "ConnectMs",
+               CAST(AVG(CASE WHEN {Timed} THEN COALESCE(c."TlsMs", 0) END) AS {Real(postgres)}) AS "TlsMs",
+               CAST(AVG(CASE WHEN {Timed} THEN CASE WHEN c."TtfbMs" > {Phases} THEN c."TtfbMs" - ({Phases}) ELSE 0 END END) AS {Real(postgres)}) AS "WaitMs",
+               CAST(AVG(CASE WHEN {Timed} THEN CASE WHEN c."ResponseTimeMs" > c."TtfbMs" THEN c."ResponseTimeMs" - c."TtfbMs" ELSE 0 END END) AS {Real(postgres)}) AS "TransferMs"
         FROM "CheckResults" AS c
         INNER JOIN "Monitors" AS m ON m."Id" = c."MonitorId"
         WHERE c."MonitorId" = {"{0}"} AND m."CustomerId" = {"{1}"} AND c."CheckedAtUtc" >= {"{2}"} AND c."CheckedAtUtc" <= {"{3}"}
               AND NOT c."IsConfirmation" AND NOT c."InMaintenance" AND c."RegionId" IS NULL
-        GROUP BY {BucketIndexSql}
+        GROUP BY 1
         """;
 
     // Nearest-rank p95 per bucket: the smallest value whose rank (ascending) is >= 0.95 * count, in integer math.
-    private static readonly string P95Sql = $"""
+    private static string P95Sql(bool postgres) => $"""
         SELECT t."Bucket" AS "Bucket", MIN(t."Ms") AS "P95Ms"
         FROM (
-            SELECT {BucketIndexSql} AS "Bucket", c."ResponseTimeMs" AS "Ms",
-                   ROW_NUMBER() OVER (PARTITION BY {BucketIndexSql} ORDER BY c."ResponseTimeMs") AS "Rank",
-                   COUNT(*) OVER (PARTITION BY {BucketIndexSql}) AS "Total"
+            SELECT {BucketIndexSql(postgres)} AS "Bucket", c."ResponseTimeMs" AS "Ms",
+                   ROW_NUMBER() OVER (PARTITION BY {BucketIndexSql(postgres)} ORDER BY c."ResponseTimeMs") AS "Rank",
+                   COUNT(*) OVER (PARTITION BY {BucketIndexSql(postgres)}) AS "Total"
             FROM "CheckResults" AS c
             INNER JOIN "Monitors" AS m ON m."Id" = c."MonitorId"
             WHERE c."MonitorId" = {"{0}"} AND m."CustomerId" = {"{1}"} AND c."CheckedAtUtc" >= {"{2}"} AND c."CheckedAtUtc" <= {"{3}"}
@@ -191,9 +194,18 @@ internal static class SeriesSql
         GROUP BY t."Bucket"
         """;
 
+    private static string Real(bool postgres) => postgres ? "DOUBLE PRECISION" : "REAL";
+
+    private static readonly string SqliteSql = Sql(false), PostgresSql = Sql(true), SqliteP95Sql = P95Sql(false), PostgresP95Sql = P95Sql(true);
+
+    // DateTime parameters are passed as UTC (Postgres timestamptz requires Kind=Utc).
     public static Task<List<BucketP95Row>> P95Async(AppDbContext db, int monitorId, int customerId, DateTime fromUtc, DateTime toUtc, long bucketSeconds, CancellationToken ct) =>
-        db.Database.SqlQueryRaw<BucketP95Row>(P95Sql, monitorId, customerId, fromUtc, toUtc, (double)bucketSeconds).ToListAsync(ct);
+        db.Database.SqlQueryRaw<BucketP95Row>(db.Database.IsNpgsql() ? PostgresP95Sql : SqliteP95Sql,
+            monitorId, customerId, AsUtc(fromUtc), AsUtc(toUtc), (double)bucketSeconds).ToListAsync(ct);
 
     public static Task<List<BucketRow>> AggregateAsync(AppDbContext db, int monitorId, int customerId, DateTime fromUtc, DateTime toUtc, long bucketSeconds, CancellationToken ct) =>
-        db.Database.SqlQueryRaw<BucketRow>(Sql, monitorId, customerId, fromUtc, toUtc, (double)bucketSeconds).ToListAsync(ct);
+        db.Database.SqlQueryRaw<BucketRow>(db.Database.IsNpgsql() ? PostgresSql : SqliteSql,
+            monitorId, customerId, AsUtc(fromUtc), AsUtc(toUtc), (double)bucketSeconds).ToListAsync(ct);
+
+    private static DateTime AsUtc(DateTime value) => value.Kind == DateTimeKind.Utc ? value : DateTime.SpecifyKind(value, DateTimeKind.Utc);
 }

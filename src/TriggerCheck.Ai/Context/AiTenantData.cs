@@ -34,7 +34,7 @@ public sealed class AiTenantData(AppDbContext db)
         var host = HostOf(monitor);
         if (host is null) return [];
         var candidates = await db.Monitors.AsNoTracking()
-            .Where(m => m.CustomerId == customerId && m.Id != monitor.Id && EF.Functions.Like(m.Target, "%" + host + "%"))
+            .Where(m => m.CustomerId == customerId && m.Id != monitor.Id && m.Target.ToLower().Contains(host.ToLowerInvariant()))
             .ToListAsync(ct);
         return candidates.Where(m => string.Equals(HostOf(m), host, StringComparison.OrdinalIgnoreCase)).ToList();
     }

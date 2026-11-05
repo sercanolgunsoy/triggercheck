@@ -4,8 +4,9 @@
     <ProjectReference Include="..\TriggerCheck.Monitoring\TriggerCheck.Monitoring.csproj" />
     <ProjectReference Include="..\TriggerCheck.Infrastructure\TriggerCheck.Infrastructure.csproj" />
     <ProjectReference Include="..\TriggerCheck.Ai\TriggerCheck.Ai.csproj" />
-    <!-- OPS-1: loaded by name by EF (DatabaseOptions); referenced so it is deployed with the app. -->
+    <!-- OPS-1 / OPS-2: loaded by name by EF (DatabaseOptions); referenced so they are deployed with the app. -->
     <ProjectReference Include="..\TriggerCheck.Migrations.Sqlite\TriggerCheck.Migrations.Sqlite.csproj" />
+    <ProjectReference Include="..\TriggerCheck.Migrations.Postgres\TriggerCheck.Migrations.Postgres.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -12,6 +12,7 @@ COPY src/TriggerCheck.Infrastructure/TriggerCheck.Infrastructure.csproj src/Trig
 COPY src/TriggerCheck.Monitoring/TriggerCheck.Monitoring.csproj src/TriggerCheck.Monitoring/
 COPY src/TriggerCheck.Ai/TriggerCheck.Ai.csproj src/TriggerCheck.Ai/
 COPY src/TriggerCheck.Migrations.Sqlite/TriggerCheck.Migrations.Sqlite.csproj src/TriggerCheck.Migrations.Sqlite/
+COPY src/TriggerCheck.Migrations.Postgres/TriggerCheck.Migrations.Postgres.csproj src/TriggerCheck.Migrations.Postgres/
 COPY src/TriggerCheck.Web/TriggerCheck.Web.csproj src/TriggerCheck.Web/
 RUN dotnet restore src/TriggerCheck.Web/TriggerCheck.Web.csproj
 

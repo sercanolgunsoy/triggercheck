@@ -41,8 +41,9 @@ public class IndexModel(AppDbContext db, MonitorLifecycle lifecycle, Text<AdminR
         if (Type is MonitorType t) q = q.Where(m => m.Type == t);
         if (!string.IsNullOrWhiteSpace(Q))
         {
-            var like = $"%{Q.Trim()}%";
-            q = q.Where(m => EF.Functions.Like(m.Target, like) || EF.Functions.Like(m.Name, like));
+            // Case-insensitive on both providers (Postgres LIKE is case-sensitive, SQLite's is not).
+            var term = Q.Trim().ToLowerInvariant();
+            q = q.Where(m => m.Target.ToLower().Contains(term) || m.Name.ToLower().Contains(term));
         }
 
         Total = await q.CountAsync();

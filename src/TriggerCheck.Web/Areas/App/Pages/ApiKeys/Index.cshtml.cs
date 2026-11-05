@@ -1,7 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.Data;
 using System.Security.Claims;
-using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -133,7 +132,7 @@ public class IndexModel(AppDbContext db, ICurrentCustomer current, TimeProvider 
                 await tx.CommitAsync(ct);
                 return (generated.Token, null);
             }
-            catch (DbUpdateException ex) when (attempt < 3 && ex.InnerException is SqliteException { SqliteErrorCode: 19 })
+            catch (DbUpdateException ex) when (attempt < 3 && DbErrors.IsUniqueViolation(ex))
             {
                 db.ChangeTracker.Clear(); // unique constraint (prefix): try again with a new token
             }

@@ -10,7 +10,7 @@ public static class DependencyInjection
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration config)
     {
         var provider = DatabaseOptions.GetProvider(config);
-        var cs = DatabaseOptions.GetConnectionString(config);
+        var cs = DatabaseOptions.GetConnectionString(config, provider);
         services.AddDbContext<AppDbContext>(o => DatabaseOptions.Configure(o, provider, cs));
         // Monitoring engine runs many short-lived, parallel units of work -> factory.
         services.AddDbContextFactory<AppDbContext>(o => DatabaseOptions.Configure(o, provider, cs), ServiceLifetime.Scoped);

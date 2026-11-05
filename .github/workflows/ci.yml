@@ -53,7 +53,8 @@ jobs:
         run: dotnet build --no-restore --configuration Release -warnaserror
 
       # No secrets are needed: tests use local fakes (SMTP/webhook notifiers, loopback probe targets) and the
-      # upcoming AI features use a fake client in CI.
+      # upcoming AI features use a fake client in CI. This job runs on SQLite (temp file per test host); the
+      # test-postgres job runs the same suite on PostgreSQL.
       - name: Test
         run: >
           dotnet test --no-build --configuration Release
@@ -70,12 +71,78 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+  # OPS-2: the same test suite against PostgreSQL. TRIGGERCHECK_TEST_DB=postgres switches the test hosts
+  # (tests/TriggerCheck.Tests/Infrastructure/TestDatabase.cs): each host gets its own database, copied from a template
+  # that is migrated once per run with the Postgres migrations. SQLite-only tests ([SqliteFact]) are skipped.
+  test-postgres:
+    name: Test (PostgreSQL)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      TRIGGERCHECK_TEST_DB: postgres
+      TRIGGERCHECK_TEST_PG: Host=localhost;Port=5432;Username=postgres;Password=postgres
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+        with:
+          global-json-file: global.json
+
+      # Throwaway server: durability off for speed, and more connections for the test hosts running in parallel
+      # (max_connections needs a restart; service containers take no command-line arguments).
+      - name: Tune PostgreSQL for tests
+        run: |
+          docker exec ${{ job.services.postgres.id }} psql -U postgres \
+            -c "ALTER SYSTEM SET max_connections = 500" \
+            -c "ALTER SYSTEM SET fsync = off" \
+            -c "ALTER SYSTEM SET synchronous_commit = off" \
+            -c "ALTER SYSTEM SET full_page_writes = off"
+          docker restart ${{ job.services.postgres.id }}
+          for i in $(seq 1 30); do
+            docker exec ${{ job.services.postgres.id }} pg_isready -U postgres && exit 0
+            sleep 1
+          done
+          exit 1
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Test
+        run: >
+          dotnet test --no-build --configuration Release
+          --logger "trx;LogFileName=test-results-postgres.trx"
+          --results-directory TestResults
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: test-results-postgres
+          path: TestResults/
+          if-no-files-found: warn
+          retention-days: 14
+
   # Pull requests and branches: verify that the image builds. Read-only token, nothing is pushed.
   docker-build:
     name: Container image (build only)
     if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/main') }}
     runs-on: ubuntu-latest
-    needs: build-test
+    needs: [build-test, test-postgres]
     timeout-minutes: 30
     permissions:
       contents: read
@@ -107,7 +174,7 @@ jobs:
     name: Container image (publish)
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
-    needs: build-test
+    needs: [build-test, test-postgres]
     timeout-minutes: 30
     # Publishes run one at a time in commit order (a newer pending run replaces an older pending one), so :latest
     # can never be overwritten by an older commit that finished later.

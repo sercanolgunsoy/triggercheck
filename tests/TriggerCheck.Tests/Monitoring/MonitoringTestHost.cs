@@ -26,7 +26,7 @@ public sealed class MonitoringTestHost : IAsyncDisposable
 {
     public static readonly DateTimeOffset Start = new(2026, 1, 1, 12, 0, 0, TimeSpan.Zero);
 
-    private readonly string _dbPath;
+    private readonly TestDatabase _db;
     public FakeTimeProvider Time { get; }
 
     /// <summary>
@@ -36,9 +36,9 @@ public sealed class MonitoringTestHost : IAsyncDisposable
     public IReadOnlyList<TimeSpan> TimerDueTimes => ((RecordingFakeTimeProvider)Time).DueTimes.ToList();
     public ServiceProvider Services { get; }
 
-    private MonitoringTestHost(string dbPath, FakeTimeProvider time, ServiceProvider services)
+    private MonitoringTestHost(TestDatabase db, FakeTimeProvider time, ServiceProvider services)
     {
-        _dbPath = dbPath;
+        _db = db;
         Time = time;
         Services = services;
     }
@@ -47,10 +47,9 @@ public sealed class MonitoringTestHost : IAsyncDisposable
 
     public static async Task<MonitoringTestHost> CreateAsync(Action<IServiceCollection>? configure = null, Dictionary<string, string?>? settings = null)
     {
-        var dbPath = Path.Combine(Path.GetTempPath(), $"triggercheck-mon-{Guid.NewGuid():N}.db");
-        var all = new Dictionary<string, string?>
+        var tdb = TestDatabase.Create("mon");
+        var all = new Dictionary<string, string?>(tdb.Settings)
         {
-            ["ConnectionStrings:Default"] = $"Data Source={dbPath}",
             ["Monitoring:Enabled"] = "false",
             ["Monitoring:MaxConcurrency"] = "4",
             // Tests probe local servers; SSRF blocking itself is covered in Security/ with the flag off.
@@ -79,7 +78,7 @@ public sealed class MonitoringTestHost : IAsyncDisposable
         }
         // Alerts are delivered by the hosted sender in production; run it here too (the scheduler is not started).
         await sp.GetRequiredService<AlertSenderService>().StartAsync(CancellationToken.None);
-        return new MonitoringTestHost(dbPath, time, sp);
+        return new MonitoringTestHost(tdb, time, sp);
     }
 
     public AlertQueue Alerts => Services.GetRequiredService<AlertQueue>();
@@ -156,7 +155,7 @@ public sealed class MonitoringTestHost : IAsyncDisposable
         using (var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5)))
             await Services.GetRequiredService<AlertSenderService>().StopAsync(stop.Token);
         await Services.DisposeAsync();
-        SqliteTestFiles.Delete(_dbPath);
+        _db.Dispose();
     }
 }
 

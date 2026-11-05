@@ -29,7 +29,8 @@ public static class DueMonitorQuery
         db.Monitors.AsNoTracking()
             .WhereDue(nowUtc)
             .Where(m => m.LeasedUntilUtc == null || m.LeasedUntilUtc <= nowUtc)
-            .OrderBy(m => m.NextCheckAtUtc) // NULLs (never checked) first in SQLite
+            .OrderBy(m => m.NextCheckAtUtc == null ? 0 : 1) // never checked first (Postgres sorts NULLs last, SQLite first)
+            .ThenBy(m => m.NextCheckAtUtc)
             .Select(m => new Candidate(m.Id, m.TimeoutSeconds))
             .Take(limit)
             .ToListAsync(ct);
