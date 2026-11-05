@@ -541,6 +541,9 @@
   <data name="The webhook address points to a private or internal network and is not allowed." xml:space="preserve">
     <value>Webhook adresi özel veya dahili bir ağı gösteriyor ve kullanılamaz.</value>
   </data>
+  <data name="This monitor is being checked right now. Try again in a few seconds." xml:space="preserve">
+    <value>Bu monitör şu anda kontrol ediliyor. Birkaç saniye sonra tekrar deneyin.</value>
+  </data>
   <data name="This monitor was checked moments ago. Try again in {0} seconds." xml:space="preserve">
     <value>Bu monitör az önce kontrol edildi. {0} saniye sonra tekrar deneyin.</value>
   </data>

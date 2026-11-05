@@ -27,10 +27,12 @@ public class MonitorSchedulerTests
         await host.AddMonitorAsync(active.Id, m => { m.NextCheckAtUtc = null; m.Status = MonitorStatus.Paused; }); // paused
         await host.AddMonitorAsync(active.Id, m => { m.NextCheckAtUtc = null; m.IsEnabled = false; });            // disabled
         await host.AddMonitorAsync(suspended.Id, m => m.NextCheckAtUtc = null);                                    // suspended customer
+        await host.AddMonitorAsync(active.Id, m => { m.NextCheckAtUtc = now; m.LeaseOwner = "other"; m.LeasedUntilUtc = now.AddSeconds(1); }); // leased
+        var expiredLease = await host.AddMonitorAsync(active.Id, m => { m.NextCheckAtUtc = now; m.LeaseOwner = "crashed"; m.LeasedUntilUtc = now; });
 
-        var due = await host.WithDbAsync(db => DueMonitorQuery.SelectDueIdsAsync(db, now, 100, CancellationToken.None));
+        var due = (await host.WithDbAsync(db => DueMonitorQuery.SelectUnleasedDueAsync(db, now, 100, CancellationToken.None))).Select(c => c.Id).ToList();
 
-        Assert.Equal(new[] { neverChecked.Id, overdue.Id, exactlyNow.Id }.Order(), due.Order());
+        Assert.Equal(new[] { neverChecked.Id, overdue.Id, exactlyNow.Id, expiredLease.Id }.Order(), due.Order());
         Assert.Equal(neverChecked.Id, due[0]); // never-checked monitors first
     }
 
