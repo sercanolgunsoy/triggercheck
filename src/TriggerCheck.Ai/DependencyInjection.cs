@@ -9,7 +9,9 @@ using TriggerCheck.Ai.Client;
 using TriggerCheck.Ai.Context;
 using TriggerCheck.Ai.Execution;
 using TriggerCheck.Ai.Features;
+using TriggerCheck.Ai.Features.Correlation;
 using TriggerCheck.Ai.Interpretation;
+using TriggerCheck.Monitoring.Alerting;
 
 namespace TriggerCheck.Ai;
 
@@ -53,6 +55,15 @@ public static class DependencyInjection
         services.AddScoped<IAiContextProvider, SlowdownExplanationProvider>();
         services.AddScoped<AiEventScanner>();
         services.AddHostedService<AiEventWatcher>();
+
+        // AI-4: incident correlation. L1 rules + proposals (A1); the alert-path hook groups notifications only at A3.
+        services.AddOptions<AiCorrelationOptions>().Bind(config.GetSection(AiCorrelationOptions.Section));
+        services.TryAddSingleton<CorrelationAutonomy>();
+        services.AddScoped<IncidentCorrelationService>();
+        services.AddScoped<IAiContextProvider, CorrelationGroupingProvider>();
+        services.AddScoped<IAlertGrouping, CorrelationAlertGrouping>();
+        services.AddScoped<CorrelationScanner>();
+        services.AddHostedService<CorrelationWatcher>();
 
         services.AddScoped<BaselineJob>();
         services.AddHostedService<BaselineHostedService>();

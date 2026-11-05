@@ -30,6 +30,8 @@ public class DetailsModel(AppDbContext db, ICurrentCustomer current, IncidentAck
     public AiPanelModel Ai { get; private set; } = null!;
     /// <summary>Correlated outage: the interpreted incident on the same host whose summary is shown instead.</summary>
     public int? RelatedIncidentId { get; private set; }
+    /// <summary>AI-4: the accepted / automatic group this incident belongs to (primary incident id and whether it is the primary).</summary>
+    public (int PrimaryIncidentId, bool IsPrimary)? Group { get; private set; }
 
     public async Task<IActionResult> OnGetAsync(int id, CancellationToken ct)
     {
@@ -42,6 +44,12 @@ public class DetailsModel(AppDbContext db, ICurrentCustomer current, IncidentAck
         Incident = row.Incident;
         MonitorName = row.Name;
         AcknowledgedBy = await AcknowledgedByAsync(db, cid, Incident.AcknowledgedByUserId, L, ct);
+        var group = await db.IncidentGroupMembers.AsNoTracking()
+            .Where(m => m.IncidentId == id && m.CustomerId == cid && m.Included
+                        && (m.Group.Status == IncidentGroupStatus.Accepted || m.Group.Status == IncidentGroupStatus.Auto))
+            .Select(m => new { m.Group.PrimaryIncidentId, IsPrimary = m.Role == IncidentGroupRole.Primary })
+            .FirstOrDefaultAsync(ct);
+        if (group is not null) Group = (group.PrimaryIncidentId, group.IsPrimary);
         Ai = await ai.LoadAsync(await current.GetCustomerAsync(ct), AiFeatures.IncidentInterpretation, AiSubjects.Incident,
             id.ToString(System.Globalization.CultureInfo.InvariantCulture), Incident.ResolvedAtUtc ?? Incident.StartedAtUtc,
             Url.Page("Details", new { id }) ?? "/App/Incidents", User.FindFirstValue(ClaimTypes.NameIdentifier), User.IsInRole(Roles.CustomerAdmin), ct);

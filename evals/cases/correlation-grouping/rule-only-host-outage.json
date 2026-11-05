@@ -1,0 +1,43 @@
+{
+  "id": "rule-only-host-outage",
+  "feature": "CorrelationGrouping",
+  "language": "en",
+  "description": "Three endpoints of one host refuse connections; nothing ambiguous to decide.",
+  "expect": {
+    "primaryCause": "candidate_verdicts",
+    "keep": [],
+    "leaveOut": []
+  },
+  "group": {
+    "incidents": [
+      {
+        "name": "Orders API",
+        "type": "Http",
+        "target": "https://api.example.test/orders",
+        "startedMinutesAgo": 3,
+        "cause": "Connection refused"
+      },
+      {
+        "name": "Users API",
+        "type": "Http",
+        "target": "https://api.example.test/users",
+        "startedMinutesAgo": 2.9,
+        "cause": "Connection refused"
+      },
+      {
+        "name": "Health check",
+        "type": "Http",
+        "target": "https://api.example.test/health",
+        "startedMinutesAgo": 2.8,
+        "cause": "Connection refused"
+      }
+    ]
+  },
+  "secrets": [],
+  "canned": {
+    "summary": "All three monitors on api.example.test started refusing connections within 12 seconds: the host or its web server is down.",
+    "hypotheses": [],
+    "suggested_actions": [],
+    "unknowns": []
+  }
+}

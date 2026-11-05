@@ -1,0 +1,57 @@
+{
+  "id": "unrelated-host-same-timeout-tr",
+  "feature": "CorrelationGrouping",
+  "language": "tr",
+  "description": "Turkish summary: an unrelated partner times out at the same time.",
+  "expect": {
+    "primaryCause": "candidate_verdicts",
+    "keep": [],
+    "leaveOut": [
+      "Partner status"
+    ]
+  },
+  "group": {
+    "incidents": [
+      {
+        "name": "Cart service",
+        "type": "Http",
+        "target": "https://api.shop.test/cart",
+        "startedMinutesAgo": 6,
+        "cause": "Timeout after 10s"
+      },
+      {
+        "name": "Checkout service",
+        "type": "Http",
+        "target": "https://api.shop.test/checkout",
+        "startedMinutesAgo": 5.5,
+        "cause": "Timeout after 10s"
+      },
+      {
+        "name": "Partner status",
+        "type": "Http",
+        "target": "https://status.partner.test/",
+        "startedMinutesAgo": 5,
+        "cause": "Timeout after 10s"
+      }
+    ]
+  },
+  "secrets": [],
+  "canned": {
+    "summary": "api.shop.test üzerindeki iki uç nokta birlikte zaman aşımına uğradı; iş ortağının durum sayfası ayrı bir sorun.",
+    "hypotheses": [
+      {
+        "cause": "Farklı alan adı ve sağlayıcı; yalnızca hata türü aynı.",
+        "confidence": "medium",
+        "evidence": [
+          "incident C: status.partner.test"
+        ],
+        "category": "independent",
+        "evidence_refs": [
+          "incident C"
+        ]
+      }
+    ],
+    "suggested_actions": [],
+    "unknowns": []
+  }
+}

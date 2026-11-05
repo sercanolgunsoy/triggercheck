@@ -56,6 +56,8 @@ public interface IAlertDispatcher
 /// escalation alerts get the signed acknowledge link (<see cref="IncidentAckLinks"/>) when it is configured.
 /// Every final per-channel delivery outcome is counted in <see cref="MonitoringMetrics.RecordAlert"/> (not channel
 /// tests and not alerts superseded before they were sent).
+/// AI-4 (A3): before delivery, a DOWN / UP alert may be folded into its incident group's primary notification by
+/// <see cref="IAlertGrouping"/> (deterministic, fails open); it is then recorded per channel with the reason, not sent.
 /// </summary>
 public sealed class AlertDispatcher(
     IDbContextFactory<AppDbContext> dbFactory,
@@ -66,7 +68,8 @@ public sealed class AlertDispatcher(
     TimeProvider time,
     MonitoringMetrics metrics,
     IncidentAckLinks ackLinks,
-    ILogger<AlertDispatcher> logger) : IAlertDispatcher
+    ILogger<AlertDispatcher> logger,
+    IAlertGrouping? grouping = null) : IAlertDispatcher
 {
     public const string NotInPlanError = "SMS and voice call alerts are not included in the plan";
     public const string AbortedError = "Delivery aborted (shutdown)";
@@ -85,6 +88,12 @@ public sealed class AlertDispatcher(
                 message.IncidentId, message.MonitorId);
             return [];
         }
+        // AI-4 (A3): a DOWN / UP covered by its group's primary notification is recorded, not sent. Fails open.
+        if (await TryFoldAsync(message, ct) is { } folded)
+        {
+            await RecordUnsentAsync(db, message, folded, ct);
+            return [];
+        }
         if (message is { IsDownLike: true, IncidentId: int incidentId, AckUrl: null })
             message = message with { AckUrl = ackLinks.CreateUrl(incidentId, message.CustomerId) };
         var deliveries = await ResolveAsync(db, message, ct);
@@ -98,6 +107,13 @@ public sealed class AlertDispatcher(
     public async Task RecordSupersededAsync(AlertMessage message, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
+        logger.LogInformation("Alert '{Subject}' for monitor {MonitorId} superseded by a newer alert before it was sent", message.Subject, message.MonitorId);
+        await RecordUnsentAsync(db, message, SupersededError, ct);
+    }
+
+    /// <summary>One failed Notification (0 attempts) with <paramref name="error"/> per channel the alert would have gone to.</summary>
+    private async Task RecordUnsentAsync(AppDbContext db, AlertMessage message, string error, CancellationToken ct)
+    {
         var deliveries = await ResolveAsync(db, message, ct);
         var now = time.GetUtcNow().UtcDateTime;
         var notifications = deliveries.Select(d => new Notification
@@ -107,11 +123,28 @@ public sealed class AlertDispatcher(
             SentAtUtc = now,
             Subject = message.Subject,
             Success = false,
-            Error = SupersededError,
+            Error = ProbeErrors.Truncate(error),
             Attempts = 0
         }).ToArray();
-        logger.LogInformation("Alert '{Subject}' for monitor {MonitorId} superseded by a newer alert before it was sent", message.Subject, message.MonitorId);
         await SaveAsync(db, message, notifications);
+    }
+
+    /// <summary>AI-4: asks the notification grouping (DOWN / UP only). Any error delivers the alert normally.</summary>
+    private async Task<string?> TryFoldAsync(AlertMessage message, CancellationToken ct)
+    {
+        if (grouping is null || message.Kind is not (AlertKind.Down or AlertKind.Up) || message.MonitorId == 0) return null;
+        try
+        {
+            var reason = await grouping.TryFoldAsync(message, ct);
+            if (reason is not null)
+                logger.LogInformation("Alert '{Subject}' for monitor {MonitorId} grouped: {Reason}", message.Subject, message.MonitorId, reason);
+            return reason;
+        }
+        catch (Exception ex) when (!ct.IsCancellationRequested)
+        {
+            logger.LogError(ex, "Alert grouping failed for monitor {MonitorId}; sending the alert on its own", message.MonitorId);
+            return null;
+        }
     }
 
     private async Task<bool> IsStillUnacknowledgedAsync(AlertMessage message, CancellationToken ct)

@@ -84,6 +84,7 @@ public static partial class EvalGrader
         ["slow_tls"] = ["slow_tls"],
         ["slow_connect"] = ["slow_connect"],
         ["slow_ttfb"] = ["slow_ttfb"],
+        [EvalCorrelation.Label] = ["shared_cause", "independent", "unclear"], // AI-4: graded from expect.keep / leaveOut
     };
 
     /// <summary>Categories that only make sense for slowdowns are not counted for incident causes (and vice versa).</summary>

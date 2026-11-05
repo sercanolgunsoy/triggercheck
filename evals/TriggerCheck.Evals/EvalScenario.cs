@@ -27,6 +27,8 @@ public sealed class EvalScenario
     public EvalAnomaly? Anomaly { get; set; }
     public List<EvalPeriod> Maintenance { get; set; } = [];
     public double? BaselineMedianMs { get; set; }
+    /// <summary>AI-4 (CorrelationGrouping): the incidents around the outage. Required for that feature.</summary>
+    public EvalGroup? Group { get; set; }
     /// <summary>Planted strings (credentials, URL paths, e-mail addresses) that must never reach the model.</summary>
     public List<string> Secrets { get; set; } = [];
     /// <summary>Model answer used in fake mode (CI): a well-formed, correct interpretation for the case.</summary>
@@ -53,6 +55,7 @@ public sealed class EvalScenario
             if (AiFeatures.Find(s.Feature) is null) throw new InvalidDataException($"{file}: unknown feature '{s.Feature}'");
             if (s.Feature == AiFeatures.IncidentInterpretation && s.Incident is null) throw new InvalidDataException($"{file}: incident missing");
             if (s.Feature == AiFeatures.SlowdownExplanation && s.Anomaly is null) throw new InvalidDataException($"{file}: anomaly missing");
+            if (s.Feature == AiFeatures.CorrelationGrouping && s.Group is null) throw new InvalidDataException($"{file}: group missing");
             if (!EvalGrader.Labels.ContainsKey(s.Expect.PrimaryCause)) throw new InvalidDataException($"{file}: unknown label '{s.Expect.PrimaryCause}'");
             result.Add(s);
         }
@@ -78,6 +81,10 @@ public sealed class EvalExpectation
     public string PrimaryCause { get; set; } = "";
     /// <summary>AI-3: the summary must say that there is no outage yet.</summary>
     public bool NoOutageStatement { get; set; }
+    /// <summary>AI-4: monitor names of the candidates that belong to the group (the model must recommend exactly these).</summary>
+    public List<string> Keep { get; set; } = [];
+    /// <summary>AI-4: monitor names of the candidates that must be left out (they keep their own notifications).</summary>
+    public List<string> LeaveOut { get; set; } = [];
 }
 
 public sealed class EvalMonitor

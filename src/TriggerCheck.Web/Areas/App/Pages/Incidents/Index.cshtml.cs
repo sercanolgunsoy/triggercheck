@@ -25,12 +25,15 @@ public class IndexModel(AppDbContext db, ICurrentCustomer current, AiPanels ai) 
     /// <summary>AI-2 summary per incident id (latest succeeded; empty when AI is off or the customer opted out).</summary>
     public Dictionary<string, string> AiSummaries { get; private set; } = [];
     public int TotalPages => Math.Max(1, (int)Math.Ceiling(TotalCount / (double)PageSize));
+    /// <summary>AI-4: undecided grouping suggestions (link to the related incidents page).</summary>
+    public int GroupSuggestionCount { get; private set; }
 
     public async Task OnGetAsync(CancellationToken ct)
     {
         var cid = current.RequiredCustomerId;
         var q = db.Incidents.AsNoTracking().Where(i => i.Monitor.CustomerId == cid);
         OpenCount = await q.CountAsync(i => i.ResolvedAtUtc == null, ct);
+        GroupSuggestionCount = await db.IncidentGroups.CountAsync(g => g.CustomerId == cid && g.Status == Domain.Entities.IncidentGroupStatus.Proposed, ct);
 
         q = Filter switch
         {

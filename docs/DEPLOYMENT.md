@@ -428,6 +428,29 @@ error texts (as untrusted data, grouped after removing numbers and ids), the cer
 periods, all masked as described below. Changing these prompts, a model or an effort level needs a passing eval run
 (`evals/README.md`); the effort of both features is `low` by default.
 
+**Related incidents (AI-4, alert noise reduction):** incidents of one customer that start within
+`Ai__Correlation__WindowMinutes` (5) of the first one and share a signal are grouped as "primary incident +
+affected", for notifications only (no incident is ever closed, hidden or changed). Deterministic L1 rules decide:
+the same host or IP with errors of the same family (network: DNS / timeout / refused / unreachable / TLS; application:
+HTTP 5xx / 4xx / content) is grouped by the rule; weaker signals (same host with unrelated errors, same parent domain
+and error type, or the same network / 5xx error on another host) only make a candidate. The model (feature
+`CorrelationGrouping`, same masking and budget as above) is asked only to judge the candidates and write the
+explanation; it never runs on the alert path.
+
+- **A1 (today, decision K3):** the watcher (`Ai__Correlation__PollSeconds`, 30) proposes groups on *Incidents →
+  Related incidents*; a CustomerAdmin keeps the members they want ("Group the selected incidents") or rejects them.
+  Notifications are not changed. The page shows the acceptance rate over `Ai__Correlation__AcceptanceWindowDays` (28);
+  undecided proposals expire after `Ai__Correlation__ProposalExpiryHours` (24) and are not counted.
+- **A3 (off until `MaxAutonomy` of `CorrelationGrouping` in `AiFeatures.All` is raised after > 90 % acceptance):**
+  the DOWN alert of a rule-linked incident is folded into the primary's notification, only when the primary's own
+  DOWN was delivered; folded alerts are recorded per channel ("Grouped with incident #…"). When the primary recovers
+  (or the group is undone, or grouping is switched off), members still down get their own DOWN at once. The decision
+  is a few indexed queries, never waits for the model, and fails open (any doubt or error sends the alert).
+  Escalations (FEAT-5), maintenance (FEAT-3) and region quorum (FEAT-6) are unchanged. `Ai__Correlation__MaxAutonomy`
+  (`A3`) can only lower the level (`A0` switches the feature off).
+- Customers switch grouping off on the same page; it needs `Ai__Enabled`, the AI opt-in and a plan with
+  `CorrelationGrouping`. A used-up budget keeps the free rule-based proposals, skips the model and turns A3 off.
+
 **Who gets AI:** a call is made only when all of these hold:
 
 - `Ai__Enabled=true` and a key is set;

@@ -1,0 +1,58 @@
+{
+  "id": "dns-failure-other-domain-unclear",
+  "feature": "CorrelationGrouping",
+  "language": "en",
+  "description": "Two monitors of app.example.test fail DNS; a CDN on another domain fails DNS too.",
+  "expect": {
+    "primaryCause": "candidate_verdicts",
+    "keep": [],
+    "leaveOut": [
+      "Image CDN"
+    ]
+  },
+  "group": {
+    "incidents": [
+      {
+        "name": "App login",
+        "type": "Http",
+        "target": "https://app.example.test/login",
+        "startedMinutesAgo": 10,
+        "cause": "DNS resolution failed: No such host is known"
+      },
+      {
+        "name": "App home",
+        "type": "Http",
+        "target": "https://app.example.test/",
+        "startedMinutesAgo": 9.5,
+        "cause": "DNS resolution failed: No such host is known"
+      },
+      {
+        "name": "Image CDN",
+        "type": "Http",
+        "target": "https://img.cdnprovider.test/",
+        "startedMinutesAgo": 9,
+        "cause": "DNS resolution failed: Name or service not known"
+      }
+    ]
+  },
+  "secrets": [],
+  "canned": {
+    "summary": "app.example.test cannot be resolved for both of its monitors. Whether the CDN failure on another domain is related cannot be told from the data.",
+    "hypotheses": [
+      {
+        "cause": "A shared resolver problem is possible, but the domains and name servers differ.",
+        "confidence": "medium",
+        "evidence": [
+          "incident C: different domain, DNS error"
+        ],
+        "category": "unclear",
+        "evidence_refs": [
+          "incident C",
+          "error C"
+        ]
+      }
+    ],
+    "suggested_actions": [],
+    "unknowns": []
+  }
+}
