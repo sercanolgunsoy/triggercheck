@@ -101,6 +101,7 @@ public static class DependencyInjection
         // ---- background jobs ----
         services.AddScoped<RetentionCleaner>();
         services.AddClusterLeases(); // OPS-3: instance id + per-job leases
+        services.AddScoped<ManualCheckRunner>(); // OPS-3: "check now" under the monitor lease
         services.AddSingleton<MonitorScheduler>();
         services.AddHostedService(sp => sp.GetRequiredService<MonitorScheduler>());
         services.AddHostedService<RetentionCleanupService>();

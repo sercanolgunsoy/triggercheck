@@ -21,14 +21,6 @@ public static class DueMonitorQuery
                             && m.Customer.IsActive
                             && (m.NextCheckAtUtc == null || m.NextCheckAtUtc <= nowUtc));
 
-    public static Task<List<int>> SelectDueIdsAsync(AppDbContext db, DateTime nowUtc, int limit, CancellationToken ct) =>
-        db.Monitors.AsNoTracking()
-            .WhereDue(nowUtc)
-            .OrderBy(m => m.NextCheckAtUtc) // NULLs (never checked) first in SQLite
-            .Select(m => m.Id)
-            .Take(limit)
-            .ToListAsync(ct);
-
     /// <summary>A due monitor the scheduler may try to claim, with the timeout its lease length is based on.</summary>
     public sealed record Candidate(int Id, int TimeoutSeconds);
 
@@ -37,7 +29,7 @@ public static class DueMonitorQuery
         db.Monitors.AsNoTracking()
             .WhereDue(nowUtc)
             .Where(m => m.LeasedUntilUtc == null || m.LeasedUntilUtc <= nowUtc)
-            .OrderBy(m => m.NextCheckAtUtc)
+            .OrderBy(m => m.NextCheckAtUtc) // NULLs (never checked) first in SQLite
             .Select(m => new Candidate(m.Id, m.TimeoutSeconds))
             .Take(limit)
             .ToListAsync(ct);
@@ -53,8 +45,7 @@ public static class DueMonitorQuery
 /// concurrency slot and only then claims the monitor's lease (<see cref="MonitorLease.TryClaimAsync"/>), so a check queued
 /// on a busy instance holds no lease and an idle instance can take the slot. Only the instance whose claim succeeds
 /// runs the check; the lease is released when the run ends (also on failure or shutdown).
-/// "Check now" bypasses the lease (it is an explicit extra probe); its interleaving with a scheduled run on another
-/// instance is guarded by <see cref="MonitorEntity.Version"/>, as for user edits.
+/// "Check now" takes the same lease (<see cref="ManualCheckRunner"/>), so no two runs of a monitor overlap on any instance.
 /// </para>
 /// </summary>
 public sealed class MonitorScheduler : BackgroundService
@@ -72,12 +63,14 @@ public sealed class MonitorScheduler : BackgroundService
 
     private readonly MonitoringMetrics _metrics;
     private readonly string _instanceId;
+    private readonly bool _instanceIdConfigured;
 
     public MonitorScheduler(IServiceScopeFactory scopes, IOptions<MonitoringOptions> options, TimeProvider time, ILogger<MonitorScheduler> logger,
         MonitoringMetrics metrics, InstanceIdentity identity)
     {
         _metrics = metrics;
         _instanceId = identity.Id;
+        _instanceIdConfigured = identity.IsConfigured;
         _scopes = scopes;
         _options = options.Value;
         _time = time;
@@ -93,6 +86,7 @@ public sealed class MonitorScheduler : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        if (_instanceIdConfigured) await ReleaseOwnLeasesAsync(stoppingToken);
         if (!_options.Enabled)
         {
             _logger.LogInformation("Monitoring scheduler disabled (Monitoring:Enabled=false)");
@@ -211,6 +205,25 @@ public sealed class MonitorScheduler : BackgroundService
             if (leased) await ReleaseLeaseAsync(factory, monitorId, completed);
             if (acquired) _slots.Release();
             _inFlight.TryRemove(monitorId, out _);
+        }
+    }
+
+    /// <summary>
+    /// OPS-3: with a configured (stable) instance id, leases left by a crashed predecessor with the same id are freed at
+    /// startup (also when this scheduler is disabled: "check now" and the job leases use the same id).
+    /// </summary>
+    private async Task ReleaseOwnLeasesAsync(CancellationToken ct)
+    {
+        try
+        {
+            using var scope = _scopes.CreateScope();
+            var (monitors, jobs) = await scope.ServiceProvider.GetRequiredService<ClusterLeases>().ReleaseOwnedAsync(ct);
+            if (monitors + jobs > 0)
+                _logger.LogInformation("Released {Monitors} monitor lease(s) and {Jobs} job lease(s) left by a previous run of instance {InstanceId}", monitors, jobs, _instanceId);
+        }
+        catch (Exception ex) when (!ct.IsCancellationRequested)
+        {
+            _logger.LogWarning(ex, "Could not release the leases of a previous run; they expire on their own");
         }
     }
 

@@ -34,7 +34,11 @@ public sealed class BaselineJob(AppDbContext db, IOptions<AiOptions> options, Ti
 
     public sealed record RunSummary(int Monitors, int BaselinesRebuilt, int SignalsOpened, int SignalsClosed);
 
-    public async Task<RunSummary> RunAsync(CancellationToken ct = default)
+    /// <param name="holdsLease">
+    /// OPS-3 fencing: asked before each batch's signals are saved; when it returns false the batch is dropped and the
+    /// run stops, since another instance may be running the job by then (two could open duplicate signals).
+    /// </param>
+    public async Task<RunSummary> RunAsync(CancellationToken ct = default, Func<CancellationToken, Task<bool>>? holdsLease = null)
     {
         var o = options.Value.Baseline;
         var now = time.GetUtcNow().UtcDateTime;
@@ -53,6 +57,7 @@ public sealed class BaselineJob(AppDbContext db, IOptions<AiOptions> options, Ti
                 .ToListAsync(ct);
             if (batch.Count == 0) break;
             lastId = batch[^1].Id;
+            var (savedOpened, savedClosed) = (opened, closed);
 
             var ids = batch.Select(m => m.Id).ToList();
             var baselines = (await db.MonitorBaselines.Where(b => ids.Contains(b.MonitorId)).ToListAsync(ct))
@@ -116,6 +121,12 @@ public sealed class BaselineJob(AppDbContext db, IOptions<AiOptions> options, Ti
                     open.DetailsJson = Details(eval);
                     open.UpdatedAtUtc = now;
                 }
+            }
+            if (holdsLease is not null && !await holdsLease(ct))
+            {
+                db.ChangeTracker.Clear();
+                logger.LogWarning("Baseline job lost its cluster lease; the rest of this pass is skipped");
+                return new RunSummary(monitors, rebuilt, savedOpened, savedClosed);
             }
             await db.SaveChangesAsync(ct);
             db.ChangeTracker.Clear();
@@ -201,9 +212,11 @@ public sealed class BaselineHostedService(
                 {
                     using var scope = scopes.CreateScope();
                     // OPS-3: one instance at a time (two could open duplicate anomaly signals, each a paid AI-3 job).
-                    if (!await scope.ServiceProvider.GetRequiredService<ClusterLeases>().TryAcquireAsync(ClusterLeases.AiBaseline, lease, stoppingToken))
+                    var leases = scope.ServiceProvider.GetRequiredService<ClusterLeases>();
+                    if (!await leases.TryAcquireAsync(ClusterLeases.AiBaseline, lease, stoppingToken))
                         continue;
-                    await scope.ServiceProvider.GetRequiredService<BaselineJob>().RunAsync(stoppingToken);
+                    await scope.ServiceProvider.GetRequiredService<BaselineJob>()
+                        .RunAsync(stoppingToken, ct => leases.RenewAsync(ClusterLeases.AiBaseline, lease, ct));
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
                 {

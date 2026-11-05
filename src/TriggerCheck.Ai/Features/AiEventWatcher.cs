@@ -371,8 +371,9 @@ public sealed class AiEventScanner(AppDbContext db, IAiJobQueue queue, IOptions<
 /// Runs <see cref="AiEventScanner"/> every <see cref="AiEventOptions.PollSeconds"/>. Does nothing when AI is off or no
 /// key is configured (Ai:Enabled needs a restart, so this is decided once at start).
 /// OPS-3: scans only on the instance holding the <see cref="ClusterLeases.AiEventWatcher"/> lease (its in-memory
-/// watermarks assume a single scanner); an instance without it drops its state, so after a takeover it starts with the
-/// initial scan, which skips events that already have a decision.
+/// watermarks assume a single scanner). Unless the lease was renewed without interruption (<see cref="LeaseGrant.Renewed"/>)
+/// the state is dropped, so after any gap or takeover the scan starts over with the initial scan, which skips events that
+/// already have a decision.
 /// </summary>
 public sealed class AiEventWatcher(IServiceScopeFactory scopes, IAiClient client, IOptions<AiOptions> options, TimeProvider time, ILogger<AiEventWatcher> logger)
     : BackgroundService
@@ -393,11 +394,10 @@ public sealed class AiEventWatcher(IServiceScopeFactory scopes, IAiClient client
                 try
                 {
                     using var scope = scopes.CreateScope();
-                    if (!await scope.ServiceProvider.GetRequiredService<ClusterLeases>().TryAcquireAsync(ClusterLeases.AiEventWatcher, lease, stoppingToken))
-                    {
-                        state = new AiEventScanner.State();
-                        continue;
-                    }
+                    var grant = await scope.ServiceProvider.GetRequiredService<ClusterLeases>().AcquireAsync(ClusterLeases.AiEventWatcher, lease, stoppingToken);
+                    // Only an uninterrupted hold keeps the watermarks: after a gap another instance may have queued events.
+                    if (grant != LeaseGrant.Renewed) state = new AiEventScanner.State();
+                    if (grant == LeaseGrant.Denied) continue;
                     await scope.ServiceProvider.GetRequiredService<AiEventScanner>().ScanAsync(state, stoppingToken);
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)

@@ -15,10 +15,17 @@ namespace TriggerCheck.Monitoring.Scheduling;
 /// wasted claim attempts; the CAS stays the correctness guarantee.
 /// </para>
 /// <para>
+/// Every run of the central runner holds the lease: scheduled checks and "check now" (<see cref="ManualCheckRunner"/>), so
+/// runs of one monitor never overlap across instances (in one process <see cref="Engine.MonitorRunGate"/> serializes as
+/// well). The runner's read-modify-write of runtime state (failure streak, pending confirmation, certificate warning)
+/// relies on that: <see cref="Domain.Entities.Monitor.Version"/> only guards status transitions and user edits.
+/// </para>
+/// <para>
 /// The lease is written with ExecuteUpdate outside <see cref="Domain.Entities.Monitor.Version"/>: it never conflicts with
 /// user edits or the runner's own save (which only writes the columns it changed). A crashed instance's lease is
-/// reclaimed once it expires. A run that outlives its lease (e.g. a database stall) may overlap with the reclaiming
-/// instance; the Version token still prevents duplicate incidents / alerts in that case.
+/// reclaimed once it expires. A run that outlives its lease (e.g. a database stall longer than the margin) may overlap
+/// with the reclaiming instance: Version still prevents a duplicate incident or status alert, but a failure count can
+/// be lost and a certificate warning sent twice; this is logged as a warning.
 /// </para>
 /// </summary>
 public static class MonitorLease
@@ -31,13 +38,21 @@ public static class MonitorLease
         TimeSpan.FromSeconds(2 * Math.Clamp(timeoutSeconds <= 0 ? 10 : timeoutSeconds, 1, 120) + Math.Max(5, marginSeconds));
 
     /// <summary>Claims the monitor's current slot for <paramref name="owner"/>; false when another instance has it or it is no longer due.</summary>
-    public static async Task<bool> TryClaimAsync(AppDbContext db, int monitorId, string owner, DateTime nowUtc, TimeSpan length, CancellationToken ct)
+    public static Task<bool> TryClaimAsync(AppDbContext db, int monitorId, string owner, DateTime nowUtc, TimeSpan length, CancellationToken ct) =>
+        ClaimAsync(db.Monitors.Where(m => m.Id == monitorId && (m.NextCheckAtUtc == null || m.NextCheckAtUtc <= nowUtc)), owner, nowUtc, length, ct);
+
+    /// <summary>
+    /// Claims the monitor for an unscheduled run ("check now", see <see cref="ManualCheckRunner"/>): due or not, only
+    /// unleased. NextCheckAtUtc is left to the runner, exactly as without a lease.
+    /// </summary>
+    public static Task<bool> TryClaimUnscheduledAsync(AppDbContext db, int monitorId, string owner, DateTime nowUtc, TimeSpan length, CancellationToken ct) =>
+        ClaimAsync(db.Monitors.Where(m => m.Id == monitorId), owner, nowUtc, length, ct);
+
+    private static async Task<bool> ClaimAsync(IQueryable<Domain.Entities.Monitor> monitor, string owner, DateTime nowUtc, TimeSpan length, CancellationToken ct)
     {
         var until = nowUtc + length;
-        var claimed = await db.Monitors
-            .Where(m => m.Id == monitorId
-                        && (m.NextCheckAtUtc == null || m.NextCheckAtUtc <= nowUtc)
-                        && (m.LeasedUntilUtc == null || m.LeasedUntilUtc <= nowUtc))
+        var claimed = await monitor
+            .Where(m => m.LeasedUntilUtc == null || m.LeasedUntilUtc <= nowUtc)
             .ExecuteUpdateAsync(u => u
                 .SetProperty(m => m.LeasedUntilUtc, until)
                 .SetProperty(m => m.LeaseOwner, owner), ct);
