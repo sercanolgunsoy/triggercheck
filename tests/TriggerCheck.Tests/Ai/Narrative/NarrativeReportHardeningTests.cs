@@ -66,7 +66,7 @@ public class NarrativeReportHardeningTests(NarrativeReportsTestFactory f) : ICla
 
         // The nested instance may take rows the holder had not claimed yet, but never one in progress: every period
         // was sent to the model exactly once.
-        Assert.True(nestedCalls >= 0);
+        Assert.NotEqual(-1, nestedCalls); // the second instance really ran while the holder was busy
         var perPeriod = await f.WithDbAsync(db => db.AiDecisions.Where(d => d.Feature == AiFeatures.NarrativeReport && d.CreatedAtUtc >= since)
             .GroupBy(d => new { d.CustomerId, d.SubjectId }).Select(g => g.Count()).ToListAsync());
         Assert.All(perPeriod, n => Assert.Equal(1, n));
@@ -127,6 +127,30 @@ public class NarrativeReportHardeningTests(NarrativeReportsTestFactory f) : ICla
         html = await admin.GetHtmlAsync("/App/Reports?month=2026-03");
         Assert.Contains("data-narrative-state=\"budget\"", html);
         Assert.Contains("Prepare AI narrative", html); // can be requested again once there is budget
+    }
+
+    /// <summary>
+    /// The mailer's own window arithmetic: a customer in Pacific/Fiji (UTC+12) at 2026-04-02 10:00Z = 22:00 local on the
+    /// 2nd. With CatchUpDays 2 the window ends at 00:00 local on the 3rd; minus two runs (2 h) that is exactly now, so
+    /// the e-mail goes out although the narrative is still expected. With CatchUpDays 3 it keeps waiting.
+    /// </summary>
+    [Fact]
+    public async Task The_mailer_clamps_the_wait_to_its_catch_up_window()
+    {
+        var (cid, admin, _) = await f.AddTenantAsync("fiji", "Pro");
+        await f.AddMonitorAsync(cid, "Svc fiji", x => x.CreatedAtUtc = Utc(2026, 1, 1));
+        await f.WithDbAsync(db => db.Customers.Where(c => c.Id == cid).ExecuteUpdateAsync(u => u
+            .SetProperty(c => c.AiEnabled, true).SetProperty(c => c.MonthlyReportEmail, true).SetProperty(c => c.ReportTimeZoneId, "Pacific/Fiji")));
+        using var scope = f.Services.CreateScope();
+        TriggerCheck.Web.Reporting.MonthlyReportMailer Mailer(int days) => ActivatorUtilities.CreateInstance<TriggerCheck.Web.Reporting.MonthlyReportMailer>(
+            scope.ServiceProvider, new StaticOptionsMonitor<TriggerCheck.Web.Reporting.ReportOptions>(new() { CatchUpDays = days, JobIntervalMinutes = 60 }));
+        Task<bool> Sent() => f.WithDbAsync(db => db.MonthlyReportDeliveries.AnyAsync(d => d.CustomerId == cid));
+
+        await Mailer(3).RunAsync(default); // deadline min(end + 3000 min, window end - 2 h) is still ahead
+        Assert.False(await Sent());
+        await Mailer(2).RunAsync(default); // the window end minus two runs is now: sent without the narrative
+        Assert.True(await Sent());
+        Assert.DoesNotContain("AI summary", (await f.WithDbAsync(db => db.EmailOutbox.FirstAsync(m => m.To == admin))).Body);
     }
 
     [Fact]

@@ -165,7 +165,7 @@ public class SettingsSuggestionTests
             .Fact("brief_incidents", "14").Fact("incidents", "15").Fact("p99_ms", "4500").Fact("share", "9.1").Fact("last_match_at", "2026-03-09T19:20:00Z");
         var facts = b.Facts;
         var strict = TriggerCheck.Ai.Grounding.GroundingPolicy.Strict;
-        Assert.True(TriggerCheck.Ai.Grounding.NumberGrounding.IsGrounded("14 of 15 incidents; p99 4500 ms (4,500 / 4.500), 9,1 %, at 2026-03-09 19:20", facts, strict));
+        Assert.True(TriggerCheck.Ai.Grounding.NumberGrounding.IsGrounded("14 of 15 incidents; p99 4500 ms (4,500 ms), 9.1 %, at 2026-03-09 19:20", facts, strict));
         Assert.Equal(["16"], TriggerCheck.Ai.Grounding.NumberGrounding.Ungrounded("16 of 15 incidents", facts, strict));
         Assert.NotEmpty(TriggerCheck.Ai.Grounding.NumberGrounding.Ungrounded("about 4.5 seconds", facts, strict)); // unit conversion = a new number
         Assert.NotEmpty(TriggerCheck.Ai.Grounding.NumberGrounding.Ungrounded("since 2026-03-08", facts, strict));

@@ -42,10 +42,10 @@
     ]
   },
   "canned": {
-    "headline": "Şubat ayında monitor A SLA hedefinin altında kaldı.",
+    "headline": "{{period.name}} döneminde monitor A için SLA sonucu: {{A.sla_status}}.",
     "what_happened": [
       {
-        "text": "monitor A 2026-02-18 tarihinde 95 dakika boyunca erişilemedi ve %99,95 hedefini kaçırdı.",
+        "text": "monitor A {{A.longest_outage_start}} tarihinde {{A.longest_outage_duration}} erişilemedi; hedef {{A.sla_target}}, erişilebilirlik {{A.uptime}} oldu.",
         "monitors": [
           "monitor A"
         ]
@@ -53,10 +53,8 @@
     ],
     "what_changed": [
       {
-        "text": "Ocak ayında hiç olay yoktu; kesinti süresi bu ay arttı.",
-        "monitors": [
-          "monitor A"
-        ]
+        "text": "Önceki döneme göre olay sayısı: {{change.incidents}}.",
+        "monitors": []
       }
     ],
     "what_to_watch": [

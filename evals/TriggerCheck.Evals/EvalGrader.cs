@@ -280,12 +280,12 @@ public static partial class EvalGrader
 
         // ---- numbers: none invented (raw output, before the contract strips anything; the production rules) ----
         var contract = prompt?.Output as NarrativeOutputContract;
-        var invented = contract is null ? texts : items.SelectMany(i => contract.Problems(i.Text, i.Monitors)).Distinct().ToList();
+        var invented = contract is null ? texts : items.SelectMany(i => contract.Problems(i.Text)).Distinct().ToList();
         var validated = decision?.Status == AiDecisionStatus.Succeeded ? NarrativeOutput.TryParse(decision.OutputJson) : null;
         // ---- claims: checked independently of the production engine against the case's expected per-monitor facts ----
-        var wrongClaims = WrongClaims(s, items, contract?.Labels);
+        var wrongClaims = WrongClaims(s, items, contract?.Labels, contract?.Values);
         r.EvidenceOk = invented.Count == 0 && wrongClaims.Count == 0 && validated is not null;
-        if (invented.Count > 0) r.Notes.Add("numbers not in the input: " + string.Join(", ", invented));
+        if (invented.Count > 0) r.Notes.Add("contract problems: " + string.Join(", ", invented));
         if (wrongClaims.Count > 0) r.Notes.Add("claims contradict the expected facts: " + string.Join(", ", wrongClaims));
         if (validated is null) r.Notes.Add("narrative rejected (" + (decision?.ErrorCode ?? decision?.Status.ToString() ?? "none") + ")");
 
@@ -307,60 +307,46 @@ public static partial class EvalGrader
     [GeneratedRegex(@"\b[Mm]onit(?:o|ö)r\s+([A-Z])\b")]
     private static partial Regex LabelRef();
 
-    [GeneratedRegex(@"(?<![0-9.,])%?\s?([0-9]{1,3}(?:[.,][0-9]+)?)\s?%")]
-    private static partial Regex PercentClaim();
-
-    [GeneratedRegex(@"(?<![0-9.,])%\s?([0-9]{1,3}(?:[.,][0-9]+)?)(?![0-9])")]
-    private static partial Regex PrefixPercentClaim();
-
-    [GeneratedRegex(@"(?i)(?<![0-9.,])([0-9]+)\s+(?:incidents?|outages?|olay|kesinti)\b")]
-    private static partial Regex IncidentClaim();
-
-    [GeneratedRegex(@"(?i)\b(?:met|meets|achieved|within (?:its |the )?(?:sla|target))\b|karşıladı|tutturdu|hedefini tuttu|hedefine ulaştı")]
-    private static partial Regex MetClaim();
-
-    [GeneratedRegex(@"(?i)\b(?:missed|not met|below)\b|kaçırd|altında")]
-    private static partial Regex MissedClaim();
-
-    [GeneratedRegex(@"(?i)january|previous|prior|last month|ocak|önceki|geçen ay")]
-    private static partial Regex PreviousCue();
+    [GeneratedRegex(@"\{\{\s*([A-Za-z0-9_.]+)\s*\}\}")]
+    private static partial Regex PlaceholderRef();
 
     /// <summary>
-    /// Independent claim check (AI-6 grader; deliberately not the production <c>NumberGrounding</c>): for every text that
-    /// is about exactly one monitor with expected facts (<see cref="EvalExpectation.MonitorFacts"/>), a percentage next to
-    /// "uptime" must be its uptime (or SLA target) rounded as written, an SLA "met / missed" claim must agree, and an
-    /// incident count must be its count (previous-period sentences excepted).
+    /// Independent claim check (AI-6 grader; deliberately not the production contract):
+    /// <list type="bullet">
+    /// <item>the model's text has no digit outside {{placeholders}} (numbers come only from the server);</item>
+    /// <item>a text naming exactly one monitor uses only that monitor's placeholders;</item>
+    /// <item>the values the provider computed for the case's monitors (uptime, SLA target, SLA result, incidents) equal
+    /// the case's hand-computed <see cref="EvalExpectation.MonitorFacts"/>.</item>
+    /// </list>
     /// </summary>
-    public static List<string> WrongClaims(EvalScenario s, IReadOnlyList<NarrativeItem> items, IReadOnlyDictionary<string, int>? labels)
+    public static List<string> WrongClaims(EvalScenario s, IReadOnlyList<NarrativeItem> items, IReadOnlyDictionary<string, int>? labels,
+        IReadOnlyDictionary<string, NarrativeValue>? values)
     {
         var wrong = new List<string>();
-        if (labels is null || s.Expect.MonitorFacts.Count == 0) return wrong;
-        var expectedByLabel = new Dictionary<string, EvalMonitorFacts>();
-        foreach (var f in s.Expect.MonitorFacts)
-            if (s.SeededMonitorIds.TryGetValue(f.Name, out var id) && labels.FirstOrDefault(kv => kv.Value == id).Key is { } label)
-                expectedByLabel[label] = f;
         foreach (var item in items)
         {
-            var subjects = LabelRef().Matches(item.Text).Select(m => "monitor " + m.Groups[1].Value)
-                .Concat(item.Monitors.Select(x => x.StartsWith("monitor ", StringComparison.OrdinalIgnoreCase) ? "monitor " + x[^1..].ToUpperInvariant() : "monitor " + x.ToUpperInvariant()))
-                .Distinct().ToList();
-            if (subjects.Count != 1 || !expectedByLabel.TryGetValue(subjects[0], out var e)) continue;
-            var t = item.Text;
-            var previous = PreviousCue().IsMatch(t);
-            if (e.SlaMet is bool met && (met ? MissedClaim().IsMatch(t) && !MetClaim().IsMatch(t) : MetClaim().IsMatch(t) && !MissedClaim().IsMatch(t)))
-                wrong.Add($"{subjects[0]} SLA {(met ? "missed" : "met")}");
-            if (!previous && (t.Contains("uptime", StringComparison.OrdinalIgnoreCase) || t.Contains("erişilebilir", StringComparison.OrdinalIgnoreCase)))
-                foreach (var m in PercentClaim().Matches(t).Concat(PrefixPercentClaim().Matches(t)))
+            var free = PlaceholderRef().Replace(item.Text, " ");
+            if (free.Any(char.IsDigit)) wrong.Add("digit in text: " + item.Text);
+            var named = LabelRef().Matches(item.Text).Select(m => m.Groups[1].Value).Distinct().ToList();
+            if (named.Count == 1)
+                foreach (Match ph in PlaceholderRef().Matches(item.Text))
                 {
-                    var text = m.Groups[1].Value.Replace(',', '.');
-                    if (!decimal.TryParse(text, System.Globalization.NumberStyles.AllowDecimalPoint, System.Globalization.CultureInfo.InvariantCulture, out var v)) continue;
-                    var decimals = text.Contains('.') ? text.Length - text.IndexOf('.') - 1 : 0;
-                    bool Is(double? x) => x is double d && Math.Round((decimal)d, decimals, MidpointRounding.AwayFromZero) == v && !(v == 100 && (decimal)d != 100);
-                    if (!Is(e.UptimePercent) && !Is(e.SlaTarget)) wrong.Add($"{subjects[0]} uptime {m.Value.Trim()}");
+                    var scope = ph.Groups[1].Value.Split('.')[0];
+                    if (scope.Length == 1 && scope != named[0]) wrong.Add($"monitor {named[0]} uses {ph.Groups[1].Value}");
                 }
-            if (!previous && e.Incidents is int n)
-                foreach (Match m in IncidentClaim().Matches(t))
-                    if (int.Parse(m.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture) != n) wrong.Add($"{subjects[0]} incidents {m.Groups[1].Value}");
+        }
+        if (labels is null || values is null) return wrong;
+        foreach (var f in s.Expect.MonitorFacts)
+        {
+            if (!s.SeededMonitorIds.TryGetValue(f.Name, out var id) || labels.FirstOrDefault(kv => kv.Value == id).Key is not { } label) continue;
+            var x = label[^1..];
+            double? Num(string key) => values.TryGetValue(x + "." + key, out var v) ? v.Number : null;
+            if (f.UptimePercent is double up && (Num("uptime") is not double got || Math.Round(got, 4) != Math.Round(up, 4)))
+                wrong.Add($"{label} uptime {Num("uptime")} != {up}");
+            if (f.SlaTarget is double t && Num("sla_target") != t) wrong.Add($"{label} SLA target {Num("sla_target")} != {t}");
+            if (f.SlaMet is bool met && (values.TryGetValue(x + ".sla_status", out var st) ? st.Text : null) != (met ? "met" : "missed"))
+                wrong.Add($"{label} SLA {(met ? "met" : "missed")} expected");
+            if (f.Incidents is int n && Num("incidents") != n) wrong.Add($"{label} incidents {Num("incidents")} != {n}");
         }
         return wrong;
     }

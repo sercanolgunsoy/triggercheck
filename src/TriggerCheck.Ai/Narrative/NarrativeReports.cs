@@ -203,11 +203,26 @@ public sealed partial class NarrativeReports(AppDbContext db, IAiClient client, 
         return (decision!.Id, output, byLabel);
     }
 
-    [GeneratedRegex(@"\b[Mm]onit(?:o|ö)r\s+([A-Z])\b")]
-    private static partial Regex LabelInText();
+    [GeneratedRegex(@"(?i:\bmonit(?:o|ö)r(?:s|ler|lerden)?)[\s-]+([A-Z](?:\s*(?:,|and|ve|or|veya|&)\s*[A-Z])*)(?![\p{L}\p{N}])")]
+    private static partial Regex LabelList();
 
-    /// <summary>Replaces the neutral labels in a narrative text with the monitors' names (unknown labels stay).</summary>
-    public static string WithNames(string text, IReadOnlyDictionary<string, string>? names) =>
-        names is null || names.Count == 0 ? text
-        : LabelInText().Replace(text, m => names.TryGetValue("monitor " + m.Groups[1].Value, out var name) ? name : m.Value);
+    [GeneratedRegex(@"(?<![\p{L}\p{N}])([A-Z])(\s+(?i:monit(?:ö|o)r)\p{L}*)")]
+    private static partial Regex LabelBefore();
+
+    [GeneratedRegex(@"(?<![\p{L}\p{N}])[A-Z](?![\p{L}\p{N}])")]
+    private static partial Regex Letter();
+
+    /// <summary>
+    /// Replaces the neutral labels in a narrative text with the monitors' names (unknown labels stay): "monitor A" /
+    /// "MONITOR A" / "monitor-A" → the name, "monitors A and B" → "name1 and name2", "A monitörü" → "name monitörü".
+    /// </summary>
+    public static string WithNames(string text, IReadOnlyDictionary<string, string>? names)
+    {
+        if (names is null || names.Count == 0) return text;
+        string Name(string letter) => names.TryGetValue("monitor " + letter, out var n) ? n : "monitor " + letter;
+        var s = LabelList().Replace(text, m => m.Groups[1].Value.Split(' ').Length == 1 && m.Groups[1].Value.Length == 1 && !names.ContainsKey("monitor " + m.Groups[1].Value)
+            ? m.Value
+            : Letter().Replace(m.Groups[1].Value, l => Name(l.Value)));
+        return LabelBefore().Replace(s, m => names.TryGetValue("monitor " + m.Groups[1].Value, out var n) ? n + m.Groups[2].Value : m.Value);
+    }
 }

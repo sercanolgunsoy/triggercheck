@@ -53,12 +53,12 @@ public sealed class NarrativeReportsTestFactory : ReportsTestFactory
 /// </summary>
 public class NarrativeReportTests(NarrativeReportsTestFactory f) : IClassFixture<NarrativeReportsTestFactory>
 {
-    /// <summary>Narrative without numbers about "monitor A" (always grounded).</summary>
-    public static string GoodJson(string headline = "monitor A had the most downtime of the month.") => JsonSerializer.Serialize(new
+    /// <summary>A valid narrative about "monitor A": no numbers in the text, facts only through placeholders.</summary>
+    public static string GoodJson(string headline = "SLA result of monitor A for {{period.name}}: {{A.sla_status}}.") => JsonSerializer.Serialize(new
     {
         headline,
-        what_happened = new[] { new { text = "monitor A missed its SLA target.", monitors = new[] { "monitor A" } } },
-        what_changed = new[] { new { text = "Downtime grew compared with the previous month.", monitors = Array.Empty<string>() } },
+        what_happened = new[] { new { text = "monitor A was down for {{A.downtime}} in {{A.incidents}} incidents.", monitors = new[] { "monitor A" } } },
+        what_changed = new[] { new { text = "Overall downtime compared with {{period.previous_name}}: {{change.downtime}}.", monitors = Array.Empty<string>() } },
         what_to_watch = new[] { new { text = "Keep an eye on monitor A.", monitors = new[] { "monitor A" } } },
     });
 
@@ -119,7 +119,10 @@ public class NarrativeReportTests(NarrativeReportsTestFactory f) : IClassFixture
         await MailAsync();
         var mail = Assert.Single(await MailsAsync(admin));
         Assert.Contains("What happened:", mail.Body);
-        Assert.Contains("Checkout wait missed its SLA target.", mail.Body); // label replaced by the name, locally
+        // Placeholders rendered by the server (en), the label replaced by the name, locally.
+        Assert.Contains("SLA result of Checkout wait for March 2026: missed.", mail.Body);
+        Assert.Contains("Checkout wait was down for 2 h in 1 incidents.", mail.Body);
+        Assert.Contains("Overall downtime compared with February 2026: 2 h more.", mail.Body);
         Assert.Contains("Incidents: 1", mail.Body);
 
         // Idempotent: further runs neither call the model again nor send again.
@@ -140,7 +143,7 @@ public class NarrativeReportTests(NarrativeReportsTestFactory f) : IClassFixture
         string? content = null;
         f.Fake.Responder = r =>
         {
-            if (r.UserContent.Contains("period: 2026-03") && content is null) content = r.UserContent;
+            if (r.UserContent.Contains("period.name: March 2026") && content is null) content = r.UserContent;
             return FakeAiClient.Success(GoodJson());
         };
         using (var scope = f.Services.CreateScope())
@@ -152,11 +155,12 @@ public class NarrativeReportTests(NarrativeReportsTestFactory f) : IClassFixture
         Assert.DoesNotContain("Other tenant", content);            // only this tenant's data
         Assert.DoesNotContain("secret-path", content);             // targets are not sent at all
         Assert.DoesNotContain("abc123", content);
-        Assert.Contains("## monitor A (name not shared)\ntype: Http\nsla_target: 99.9\n", content);
-        Assert.Contains("sla: missed", content);
-        Assert.Contains("incidents: 1", content);
-        Assert.Contains("incident a duration_minutes: 120", content);
-        Assert.Contains("incident a error_class: http_status", content);
+        Assert.Contains("## monitor A (A.*; name not shared)\ntype: Http\nA.uptime: ", content);
+        Assert.Contains("A.sla_target: 99.9%", content);
+        Assert.Contains("A.sla_status: missed", content);
+        Assert.Contains("A.incidents: 1", content);
+        Assert.Contains("A.longest_outage_duration: 2 h", content);
+        Assert.Contains("A.longest_outage_error: unexpected HTTP status codes", content);
         // The free-text cause is never sent (prompt injection, host names that would identify "monitor A").
         Assert.DoesNotContain("upstream", content);
         Assert.DoesNotContain("IGNORE", content);
@@ -267,7 +271,7 @@ public class NarrativeReportTests(NarrativeReportsTestFactory f) : IClassFixture
     {
         var (cid, _, _, _) = await ArrangeAsync("lang");
         await f.WithDbAsync(db => db.Customers.Where(c => c.Id == cid).ExecuteUpdateAsync(u => u.SetProperty(c => c.AiLanguage, "tr")));
-        Answer(GoodJson("monitor A ayın en uzun kesintisini yaşadı."));
+        Answer(GoodJson("{{period.name}} döneminde monitor A için SLA sonucu: {{A.sla_status}}."));
         await JobAsync();
         var row = await RowAsync(cid);
         Assert.Equal(("tr", ReportNarrativeStatus.Ready), (row!.Language, row.Status));
@@ -327,14 +331,14 @@ public class NarrativeReportTests(NarrativeReportsTestFactory f) : IClassFixture
         var browser = await f.LoginAsync(admin, Password);
         var html = await browser.GetHtmlAsync("/App/Reports?month=2026-03");
         Assert.Contains("data-narrative-state=\"ready\"", html);
-        Assert.Contains("Checkout page missed its SLA target.", html);
+        Assert.Contains("Checkout page was down for 2 h in 1 incidents.", html);
         Assert.Contains("What to watch", html);
         Assert.DoesNotContain("Checkout page-other", html);
 
         // The other tenant sees its own narrative, never this one's.
         var otherHtml = await (await f.LoginAsync(otherAdmin, Password)).GetHtmlAsync("/App/Reports?month=2026-03");
-        Assert.Contains("Checkout page-other missed its SLA target.", otherHtml);
-        Assert.DoesNotContain("Checkout page missed", otherHtml);
+        Assert.Contains("Checkout page-other was down for 2 h in 1 incidents.", otherHtml);
+        Assert.DoesNotContain("Checkout page was down", otherHtml);
 
         // Weekly view (panel only): requestable by an admin, not by a viewer.
         var week = SlaReportServiceWeek(Utc(2026, 3, 23));

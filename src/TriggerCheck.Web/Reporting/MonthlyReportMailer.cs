@@ -175,10 +175,10 @@ public sealed class MonthlyReportMailer(AppDbContext db, SlaReportService report
     /// <summary>The AI-6 narrative as plain text (in the customer's AI language; monitor labels replaced by names).</summary>
     private string NarrativeText(NarrativeOutput n, IReadOnlyDictionary<string, string>? names)
     {
-        var parts = new List<string> { L["AI summary (AI-generated, may be wrong; all figures are from the report):"] + "\n" + NarrativeReports.WithNames(n.Headline, names) };
+        var parts = new List<string> { L["AI summary (AI-generated, may be wrong; all figures are from the report):"] + "\n" + n.Render(n.Headline, names) };
         void Section(string title, IReadOnlyList<NarrativeItem> items)
         {
-            if (items.Count > 0) parts.Add(title + "\n" + string.Join("\n", items.Select(i => "- " + NarrativeReports.WithNames(i.Text, names))));
+            if (items.Count > 0) parts.Add(title + "\n" + string.Join("\n", items.Select(i => "- " + n.Render(i.Text, names))));
         }
         Section(L["What happened:"], n.WhatHappened);
         Section(L["What changed:"], n.WhatChanged);

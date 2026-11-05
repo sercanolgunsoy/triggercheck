@@ -28,7 +28,7 @@ public static class DependencyInjection
     {
         services.AddOptions<AiOptions>().Bind(config.GetSection(AiOptions.Section))
             .Validate(o => !o.InvalidEfforts().Any(), "Ai:Effort / Ai:Features:*:Effort must be one of: low, medium, high, xhigh, max.")
-            .Validate(o => o.Narrative.RunningTimeoutMinutes * 60L > 2L * o.TimeoutSeconds,
+            .Validate(o => !o.Enabled || !o.Narrative.Enabled || o.Narrative.RunningTimeoutMinutes * 60L > 2L * o.TimeoutSeconds,
                 "Ai:Narrative:RunningTimeoutMinutes must be longer than two AI calls (Ai:TimeoutSeconds), or a slow call is taken over and paid twice.")
             .ValidateOnStart();
         services.TryAddSingleton(TimeProvider.System);

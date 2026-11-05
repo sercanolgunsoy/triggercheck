@@ -29,7 +29,7 @@
     "/helth"
   ],
   "canned": {
-    "summary": "None of the 288 checks in 71 hours succeeded; every one returned status 404, so the server answers but the address does not exist. Check the path of the target URL.",
+    "summary": "None of the 288 checks in 71 hours succeeded; each returned status 404, so the server answers but the address does not exist. Check the path of the target URL.",
     "hypotheses": [
       {
         "cause": "The URL path is wrong: the host answers with 404 Not Found.",

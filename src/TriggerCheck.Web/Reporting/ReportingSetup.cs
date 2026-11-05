@@ -14,7 +14,8 @@ public static class ReportingSetup
     {
         // AI-6: the e-mail's wait for the narrative must end well inside the catch-up window, or the e-mail is lost.
         services.AddOptions<ReportOptions>().Bind(config.GetSection(ReportOptions.Section))
-            .Validate<IOptions<AiOptions>>((r, ai) => ai.Value.Narrative.EmailWaitMinutes < (long)Math.Max(1, r.CatchUpDays) * 1440 - MonthlyReportMailer.RunSpacingMinutes(r),
+            .Validate<IOptions<AiOptions>>((r, ai) => !ai.Value.Enabled || !ai.Value.Narrative.Enabled
+                || ai.Value.Narrative.EmailWaitMinutes < (long)Math.Max(1, r.CatchUpDays) * 1440 - MonthlyReportMailer.RunSpacingMinutes(r),
                 "Ai:Narrative:EmailWaitMinutes must be shorter than Reports:CatchUpDays minus two runs of Reports:JobIntervalMinutes.")
             .ValidateOnStart();
         services.AddScoped<SlaReportService>();

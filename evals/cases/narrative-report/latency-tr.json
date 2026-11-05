@@ -20,10 +20,10 @@
     ]
   },
   "canned": {
-    "headline": "Şubat ayında kesinti olmadı ancak monitor A yavaşladı.",
+    "headline": "{{period.name}} döneminde monitor A yavaşladı ancak erişilebilirliği {{A.uptime}} oldu.",
     "what_happened": [
       {
-        "text": "monitor A için yavaşlama sinyalleri oluştu, ancak olay yaşanmadı.",
+        "text": "monitor A için {{A.slowdowns}} yavaşlama sinyali oluştu.",
         "monitors": [
           "monitor A"
         ]
@@ -31,7 +31,7 @@
     ],
     "what_changed": [
       {
-        "text": "monitor A için p95 yanıt süresi 300 ms değerinden 600 ms değerine çıktı.",
+        "text": "monitor A için en yavaş yanıtlar önceki dönemde {{A.prev.p95_response}} iken bu dönemde {{A.p95_response}} oldu.",
         "monitors": [
           "monitor A"
         ]

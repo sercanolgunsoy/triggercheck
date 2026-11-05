@@ -37,10 +37,10 @@
     ]
   },
   "canned": {
-    "headline": "monitor A missed its SLA target in February.",
+    "headline": "SLA result of monitor A for {{period.name}}: {{A.sla_status}}.",
     "what_happened": [
       {
-        "text": "monitor A was down for 75 minutes on 2026-02-07.",
+        "text": "monitor A was down for {{A.downtime}}; the longest outage started on {{A.longest_outage_start}}.",
         "monitors": [
           "monitor A"
         ]
@@ -48,15 +48,13 @@
     ],
     "what_changed": [
       {
-        "text": "January had no incidents.",
-        "monitors": [
-          "monitor A"
-        ]
+        "text": "Overall incidents compared with {{period.previous_name}}: {{change.incidents}}.",
+        "monitors": []
       }
     ],
     "what_to_watch": [
       {
-        "text": "Check what caused the outage of monitor A.",
+        "text": "For monitor A, check what caused the {{A.longest_outage_error}}.",
         "monitors": [
           "monitor A"
         ]

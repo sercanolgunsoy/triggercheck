@@ -23,16 +23,16 @@
     ]
   },
   "canned": {
-    "headline": "A quiet month: no incidents and all SLA targets met.",
+    "headline": "A quiet month: overall downtime was {{total.downtime}} across {{total.incidents}} incidents.",
     "what_happened": [
       {
-        "text": "No monitor had an incident in February.",
+        "text": "Overall uptime for {{period.name}} was {{total.uptime}}.",
         "monitors": []
       }
     ],
     "what_changed": [
       {
-        "text": "Response times stayed about the same as in January.",
+        "text": "Overall incidents compared with {{period.previous_name}}: {{change.incidents}}.",
         "monitors": []
       }
     ],

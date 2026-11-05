@@ -27,17 +27,17 @@
     ]
   },
   "canned": {
-    "headline": "A stable month without incidents.",
+    "headline": "A stable month for the monitored services.",
     "what_happened": [
       {
-        "text": "All monitors stayed up in February.",
+        "text": "Overall uptime was {{total.uptime}}.",
         "monitors": []
       }
     ],
     "what_changed": [],
     "what_to_watch": [
       {
-        "text": "The certificate of monitor A expires on 2026-03-10; renew it soon.",
+        "text": "The certificate of monitor A {{A.cert_expiry}} ({{A.cert_expiry_date}}); renew it soon.",
         "monitors": [
           "monitor A"
         ]

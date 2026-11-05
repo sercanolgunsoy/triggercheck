@@ -41,6 +41,7 @@ public sealed partial class AiContextBuilder
     {
         var name = language.StartsWith("tr", StringComparison.OrdinalIgnoreCase) ? "Turkish" : "English";
         _sb.Append("response_language: ").AppendLine(name);
+        Facts.Language = name == "Turkish" ? "tr" : "en";
     }
 
     public AiContextBuilder Section(string title)

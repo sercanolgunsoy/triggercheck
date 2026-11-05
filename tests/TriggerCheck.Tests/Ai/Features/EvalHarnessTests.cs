@@ -105,7 +105,7 @@ public class EvalHarnessTests
         Assert.Equal(0, f.EvidenceRate);
         Assert.False(report.GatePassed);
         Assert.All(report.Cases, c => Assert.Equal(nameof(AiDecisionStatus.Failed), c.Status)); // production rejected them too
-        Assert.Contains(report.Cases, c => c.Notes.Any(n => n.Contains("numbers not in the input: 99.123", StringComparison.Ordinal)));
+        Assert.Contains(report.Cases, c => c.Notes.Any(n => n.Contains("contract problems: digits", StringComparison.Ordinal)));
     }
 
     [Fact]
@@ -126,12 +126,14 @@ public class EvalHarnessTests
         Assert.Equal(nameof(AiDecisionStatus.Failed), r.Status);         // production rejected it
         Assert.False(r.EvidenceOk);
         Assert.False(report.GatePassed);
-        // The grader's own check (not the production engine) finds the false claims against the case's expected facts.
+        // Production contract: digits, number words, an SLA verdict in words and a link.
+        var problems = Assert.Single(r.Notes, n => n.StartsWith("contract problems", StringComparison.Ordinal));
+        Assert.Contains("digits", problems);
+        Assert.Contains("sla verdict met", problems);
+        Assert.Contains("link or contact", problems);
+        // The grader's own check (not the production contract): digits outside placeholders.
         var claims = Assert.Single(r.Notes, n => n.StartsWith("claims contradict", StringComparison.Ordinal));
-        Assert.Contains("monitor A SLA met", claims);
-        Assert.Contains("monitor A uptime 100%", claims);
-        Assert.Contains("monitor A incidents 7", claims);
-        Assert.Contains(r.Notes, n => n.Contains("link or contact", StringComparison.Ordinal));
+        Assert.Contains("digit in text: monitor A had 100% uptime", claims);
     }
 
     [Fact]

@@ -41,10 +41,10 @@
     ]
   },
   "canned": {
-    "headline": "February was clean after a rough January.",
+    "headline": "{{period.name}} was calmer than {{period.previous_name}}.",
     "what_happened": [
       {
-        "text": "monitor A had no incidents in February.",
+        "text": "monitor A had {{A.incidents}} incidents and {{A.uptime}} uptime.",
         "monitors": [
           "monitor A"
         ]
@@ -52,16 +52,12 @@
     ],
     "what_changed": [
       {
-        "text": "Incidents fell from 3 in January to none.",
-        "monitors": [
-          "monitor A"
-        ]
+        "text": "Incidents compared with {{period.previous_name}}: {{change.incidents}}.",
+        "monitors": []
       },
       {
-        "text": "Response times improved compared with January.",
-        "monitors": [
-          "monitor A"
-        ]
+        "text": "Slowest response times compared with {{period.previous_name}}: {{change.p95_response}}.",
+        "monitors": []
       }
     ],
     "what_to_watch": []

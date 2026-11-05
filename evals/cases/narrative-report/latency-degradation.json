@@ -26,10 +26,10 @@
     ]
   },
   "canned": {
-    "headline": "No downtime in February, but monitor A became much slower.",
+    "headline": "monitor A stayed up but became slower in {{period.name}}.",
     "what_happened": [
       {
-        "text": "monitor A had slowdown signals but no incidents.",
+        "text": "monitor A had {{A.slowdowns}} slowdown signals and {{A.incidents}} incidents.",
         "monitors": [
           "monitor A"
         ]
@@ -37,7 +37,7 @@
     ],
     "what_changed": [
       {
-        "text": "The p95 response time of monitor A rose to 450 ms from 200 ms.",
+        "text": "monitor A's slowest responses reached {{A.p95_response}}, against {{A.prev.p95_response}} in the previous period.",
         "monitors": [
           "monitor A"
         ]
@@ -45,7 +45,7 @@
     ],
     "what_to_watch": [
       {
-        "text": "Watch monitor A's response times: the slowdown may turn into timeouts.",
+        "text": "Watch the response times of monitor A.",
         "monitors": [
           "monitor A"
         ]

@@ -100,8 +100,9 @@ AI-6 cases use `"feature": "NarrativeReport"`, a `narrative` block with the cust
 response time `ms` / `previousMs`, `incidents` by day of the month, `previous: true` for the month before,
 `certExpiresDaysAfterPeriod`, `slowdowns`) and `"expect": { "focusMonitors": ["Checkout API"] }`. The report month is
 February 2026 (the month before the fixed clock), compared with January. The harness seeds the data and the production
-`NarrativeReportProvider` computes every figure through the FEAT-10 report service; the `canned` answer may only use
-numbers that appear in the resulting facts (see `reports/prompts/<case>.txt`).
+`NarrativeReportProvider` computes every figure through the FEAT-10 report service and offers it as a placeholder key
+(`A.uptime`, `total.incidents`, `change.downtime`, ... see `reports/prompts/<case>.txt`). The `canned` answer, like the
+model's, contains **no numbers at all**: it writes `{{A.downtime}}` and the server renders the value.
 
 ```json
 {
@@ -109,7 +110,7 @@ numbers that appear in the resulting facts (see `reports/prompts/<case>.txt`).
   "expect": { "focusMonitors": ["Checkout API"] },
   "narrative": { "monitors": [ { "name": "Checkout API", "target": "https://shop.example.test/api/checkout", "slaTarget": 99.9,
                  "ms": 210, "previousMs": 200, "incidents": [ { "day": 10, "hour": 14, "minutes": 120, "cause": "HTTP 503" } ] } ] },
-  "canned": { "headline": "...", "what_happened": [ { "text": "monitor A was down for 120 minutes ...", "monitors": ["monitor A"] } ],
+  "canned": { "headline": "...", "what_happened": [ { "text": "monitor A was down for {{A.downtime}} ...", "monitors": ["monitor A"] } ],
               "what_changed": [], "what_to_watch": [] }
 }
 ```
@@ -152,13 +153,13 @@ AI-6 (`EvalGrader.GradeNarrative`) reuses the columns:
 
 - **Primary cause** = focus: every `focusMonitors` entry is referenced by its label in `monitors` of a "what happened"
   or "what to watch" item of the validated narrative (labels, not text matching).
-- **Evidence** = numbers and claims: the raw model output passes the production narrative contract (shared
-  `NumberGrounding` engine on the provider's typed `GroundingFacts`: units, the monitor a statement is about,
-  previous-period values, change directions, the 0 / 100 guard, no links or contacts, no SLA "met" for a missed target)
-  **and** an independent grader check (`EvalGrader.WrongClaims`, not the production engine) against the case's
-  `expect.monitorFacts` (uptime and SLA target per monitor computed by hand, SLA met / missed, incident count), and
-  production accepted the narrative. A test feeds the review's hostile prompt-injection answer through this and
-  expects it to fail both.
+- **Evidence** = no numbers and correct facts: the raw model output passes the production narrative contract
+  (`NarrativeOutputContract`: no digits or number words, only known placeholders bound to the monitor named before
+  them, no SLA verdict or quantity in words, no links or contacts) **and** an independent grader check
+  (`EvalGrader.WrongClaims`, not the production contract): no digit outside placeholders, a text about one monitor uses
+  only its placeholders, and the values the provider computed equal the case's hand-computed `expect.monitorFacts`
+  (uptime, SLA target, SLA result, incidents). A test feeds the review's hostile prompt-injection answer through this
+  and expects it to fail both.
 - **Masking**: no monitor name, URL path, planted secret or e-mail address in the request (monitors are sent as
   "monitor A", "monitor B", ...).
 - **Language**: as for AI-2.

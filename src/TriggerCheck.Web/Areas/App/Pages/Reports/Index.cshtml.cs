@@ -159,5 +159,6 @@ public class IndexModel(AppDbContext db, ICurrentCustomer current, SlaReportCach
 /// <param name="MyFeedback">The current user's vote on the narrative (+1 / -1 / null).</param>
 public sealed record ReportNarrativeModel(NarrativeView View, string Month, string? Week, bool CanRequest, int? MyFeedback, string ReturnUrl)
 {
-    public string Text(string text) => NarrativeReports.WithNames(text, View.Names);
+    /// <summary>A narrative text ready to show: placeholders rendered from the stored values, labels replaced with names.</summary>
+    public string Text(string text) => View.Output?.Render(text, View.Names) ?? text;
 }

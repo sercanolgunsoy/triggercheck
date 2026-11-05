@@ -78,16 +78,16 @@
     ]
   },
   "canned": {
-    "headline": "Two monitors had incidents in February; monitor A missed its SLA target.",
+    "headline": "SLA result of monitor A for {{period.name}}: {{A.sla_status}}; overall incidents: {{total.incidents}}.",
     "what_happened": [
       {
-        "text": "monitor A had 2 incidents and missed its target.",
+        "text": "monitor A had {{A.incidents}} incidents and {{A.uptime}} uptime against a {{A.sla_target}} target.",
         "monitors": [
           "monitor A"
         ]
       },
       {
-        "text": "monitor B had one short incident.",
+        "text": "monitor B had {{B.incidents}} incidents lasting {{B.downtime}} in total.",
         "monitors": [
           "monitor B"
         ]
@@ -95,13 +95,13 @@
     ],
     "what_changed": [
       {
-        "text": "January had no incidents.",
+        "text": "Overall incidents compared with {{period.previous_name}}: {{change.incidents}}.",
         "monitors": []
       }
     ],
     "what_to_watch": [
       {
-        "text": "monitor A is the main risk for next month.",
+        "text": "monitor A is the main risk for the next period.",
         "monitors": [
           "monitor A"
         ]

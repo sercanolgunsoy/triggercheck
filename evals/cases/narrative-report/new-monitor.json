@@ -23,10 +23,10 @@
     ]
   },
   "canned": {
-    "headline": "A calm month with one new monitor.",
+    "headline": "A calm month with a newly added monitor.",
     "what_happened": [
       {
-        "text": "monitor A was added during February and stayed up.",
+        "text": "monitor A was added during {{period.name}} and had {{A.incidents}} incidents.",
         "monitors": [
           "monitor A"
         ]
@@ -34,7 +34,7 @@
     ],
     "what_changed": [
       {
-        "text": "One monitor more than in January.",
+        "text": "Monitor count compared with {{period.previous_name}}: {{change.monitors}}.",
         "monitors": []
       }
     ],
