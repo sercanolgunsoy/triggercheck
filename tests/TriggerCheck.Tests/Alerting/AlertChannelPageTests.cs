@@ -220,19 +220,35 @@ public class SmsVoiceChannelTests(TwilioWebAppFactory f) : IClassFixture<TwilioW
     {
         var cid = await f.DemoCustomerIdAsync();
         var c = await f.LoginAsync(TestWebAppFactory.DemoAdminEmail, TestWebAppFactory.DemoAdminPassword);
+        async Task MoveToAsync(string plan)
+        {
+            var id = await f.PlanIdAsync(plan);
+            await f.WithDbAsync(db => db.Customers.Where(x => x.Id == cid).ExecuteUpdateAsync(s => s.SetProperty(x => x.PlanId, id)));
+        }
 
-        // Demo customer is on Standard: Twilio configured, but the plan does not include SMS / voice.
-        Assert.DoesNotContain("value=\"Sms\"", await c.GetHtmlAsync("/App/Alerts/Create"));
-        var r = await c.PostFormAsync("/App/Alerts/Create", Form("Pager", "Sms", "+905551234567"));
-        Assert.Equal(HttpStatusCode.OK, r.StatusCode);
-        Assert.Contains("SMS and voice call alerts are not available for your plan.", await r.ReadHtmlAsync());
-
-        var enterprise = await f.PlanIdAsync("Enterprise");
-        Assert.True(await f.WithDbAsync(db => db.Plans.Where(p => p.Id == enterprise).Select(p => p.AllowsSmsVoice).SingleAsync()));
-        await f.WithDbAsync(db => db.Customers.Where(x => x.Id == cid).ExecuteUpdateAsync(s => s.SetProperty(x => x.PlanId, enterprise)));
         try
         {
+            // Basic: Twilio configured, but the plan includes neither SMS nor voice.
+            await MoveToAsync("Basic");
             var html = await c.GetHtmlAsync("/App/Alerts/Create");
+            Assert.DoesNotContain("value=\"Sms\"", html);
+            Assert.DoesNotContain("value=\"VoiceCall\"", html);
+            var r = await c.PostFormAsync("/App/Alerts/Create", Form("Pager", "Sms", "+905551234567"));
+            Assert.Equal(HttpStatusCode.OK, r.StatusCode);
+            Assert.Contains("SMS alerts are not available for your plan.", await r.ReadHtmlAsync());
+
+            // Standard: SMS only.
+            await MoveToAsync("Standard");
+            html = await c.GetHtmlAsync("/App/Alerts/Create");
+            Assert.Contains("value=\"Sms\"", html);
+            Assert.DoesNotContain("value=\"VoiceCall\"", html);
+            r = await c.PostFormAsync("/App/Alerts/Create", Form("Caller", "VoiceCall", "+15551234567"));
+            Assert.Equal(HttpStatusCode.OK, r.StatusCode);
+            Assert.Contains("Voice call alerts are not available for your plan.", await r.ReadHtmlAsync());
+
+            // Pro: SMS and voice.
+            await MoveToAsync("Pro");
+            html = await c.GetHtmlAsync("/App/Alerts/Create");
             Assert.Contains("value=\"Sms\"", html);
             Assert.Contains("value=\"VoiceCall\"", html);
 
@@ -247,8 +263,7 @@ public class SmsVoiceChannelTests(TwilioWebAppFactory f) : IClassFixture<TwilioW
         }
         finally
         {
-            var standard = await f.PlanIdAsync("Standard");
-            await f.WithDbAsync(db => db.Customers.Where(x => x.Id == cid).ExecuteUpdateAsync(s => s.SetProperty(x => x.PlanId, standard)));
+            await MoveToAsync("Standard");
         }
     }
 
@@ -279,8 +294,8 @@ public class SmsVoiceChannelTests(TwilioWebAppFactory f) : IClassFixture<TwilioW
         Assert.Contains("Too many test notifications. Try again in", await c.FollowAsync(r));
 
         // Downgrade: channels are flagged, can be renamed and disabled, but not (re-)enabled.
-        var standard = await f.PlanIdAsync("Standard");
-        await f.WithDbAsync(db => db.Customers.Where(x => x.Id == cid).ExecuteUpdateAsync(s => s.SetProperty(x => x.PlanId, standard)));
+        var basic = await f.PlanIdAsync("Basic"); // no SMS / voice
+        await f.WithDbAsync(db => db.Customers.Where(x => x.Id == cid).ExecuteUpdateAsync(s => s.SetProperty(x => x.PlanId, basic)));
         Assert.Contains("Some enabled channels cannot deliver", await c.GetHtmlAsync("/App/Alerts/Index"));
 
         AssertRedirect(await c.PostFormAsync($"/App/Alerts/Edit/{ids[0]}", Form("Pager renamed", "Sms", "+905551234567")), "/App/Alerts");
@@ -290,9 +305,9 @@ public class SmsVoiceChannelTests(TwilioWebAppFactory f) : IClassFixture<TwilioW
         Assert.False(await f.WithDbAsync(db => db.AlertChannels.Where(x => x.Id == ids[0]).Select(x => x.IsEnabled).SingleAsync()));
 
         r = await c.PostFormAsync($"/App/Alerts/Edit/{ids[0]}", Form("Pager renamed", "Sms", "+905551234567"));
-        Assert.Contains("SMS and voice call alerts are not available for your plan.", await r.ReadHtmlAsync());
+        Assert.Contains("SMS alerts are not available for your plan.", await r.ReadHtmlAsync());
         r = await c.PostFormAsync($"/App/Alerts/Index?handler=Toggle&id={ids[0]}", new(), "/App/Alerts/Index");
-        Assert.Contains("SMS and voice call alerts are not available for your plan.", await c.FollowAsync(r));
+        Assert.Contains("SMS alerts are not available for your plan.", await c.FollowAsync(r));
         Assert.False(await f.WithDbAsync(db => db.AlertChannels.Where(x => x.Id == ids[0]).Select(x => x.IsEnabled).SingleAsync()));
 
         // The no-channel setting must be posted explicitly.
@@ -301,20 +316,21 @@ public class SmsVoiceChannelTests(TwilioWebAppFactory f) : IClassFixture<TwilioW
     }
 
     [Fact]
-    public async Task Seeded_plans_allow_sms_only_on_enterprise_and_superadmin_can_toggle_it()
+    public async Task Seeded_plans_have_sms_from_standard_and_voice_from_pro_and_superadmin_can_toggle_them()
     {
-        var flags = await f.WithDbAsync(db => db.Plans.ToDictionaryAsync(p => p.Name, p => p.AllowsSmsVoice));
-        Assert.True(flags["Enterprise"]);
-        Assert.False(flags["Basic"]);
-        Assert.False(flags["Standard"]);
-        Assert.False(flags["Pro"]);
+        var flags = await f.WithDbAsync(db => db.Plans.ToDictionaryAsync(p => p.Name, p => (p.AllowsSms, p.AllowsVoiceCall)));
+        Assert.Equal((false, false), flags["Basic"]);
+        Assert.Equal((true, false), flags["Standard"]);
+        Assert.Equal((true, true), flags["Pro"]);
+        Assert.Equal((true, true), flags["Enterprise"]);
 
         var sa = await f.LoginSuperAdminAsync();
-        var pro = await f.PlanIdAsync("Pro");
-        var edit = await sa.GetStringAsync($"/SuperAdmin/Plans/Edit/{pro}");
-        Assert.Contains("Input.AllowsSmsVoice", edit);
-        var plan = await f.WithDbAsync(db => db.Plans.AsNoTracking().SingleAsync(p => p.Id == pro));
-        var r = await sa.PostFormAsync($"/SuperAdmin/Plans/Edit/{pro}", new()
+        var basic = await f.PlanIdAsync("Basic");
+        var edit = await sa.GetStringAsync($"/SuperAdmin/Plans/Edit/{basic}");
+        Assert.Contains("Input.AllowsSms", edit);
+        Assert.Contains("Input.AllowsVoiceCall", edit);
+        var plan = await f.WithDbAsync(db => db.Plans.AsNoTracking().SingleAsync(p => p.Id == basic));
+        var r = await sa.PostFormAsync($"/SuperAdmin/Plans/Edit/{basic}", new()
         {
             ["Input.Name"] = plan.Name,
             ["Input.MinIntervalSeconds"] = plan.MinIntervalSeconds.ToString(),
@@ -322,9 +338,19 @@ public class SmsVoiceChannelTests(TwilioWebAppFactory f) : IClassFixture<TwilioW
             ["Input.RetentionDays"] = plan.RetentionDays.ToString(),
             ["Input.MonthlyPrice"] = plan.MonthlyPrice.ToString(System.Globalization.CultureInfo.InvariantCulture),
             ["Input.IsActive"] = "true",
-            ["Input.AllowsSmsVoice"] = "true"
+            ["Input.AllowsVoiceCall"] = "true"
         });
         Assert.Equal(HttpStatusCode.Redirect, r.StatusCode);
-        Assert.True(await f.WithDbAsync(db => db.Plans.Where(p => p.Id == pro).Select(p => p.AllowsSmsVoice).SingleAsync()));
+        var saved = await f.WithDbAsync(db => db.Plans.AsNoTracking().SingleAsync(p => p.Id == basic));
+        try
+        {
+            Assert.False(saved.AllowsSms);
+            Assert.True(saved.AllowsVoiceCall);
+        }
+        finally
+        {
+            await f.WithDbAsync(db => db.Plans.Where(p => p.Id == basic)
+                .ExecuteUpdateAsync(s => s.SetProperty(p => p.AllowsSms, false).SetProperty(p => p.AllowsVoiceCall, false)));
+        }
     }
 }

@@ -63,7 +63,7 @@ else
         <p class="text-muted small mb-3">@L["TLS certificate expiry warnings are never sent as voice calls; if voice calls are your only channel, they follow this setting as well."]</p>
         @if (Model.HasUndeliverable)
         {
-            <div class="alert alert-warning small py-2">@L["Some enabled channels cannot deliver: SMS and voice call alerts are not available for your plan or not set up for this service. They are skipped, and if no other channel is enabled the setting below applies."]</div>
+            <div class="alert alert-warning small py-2">@L["Some enabled channels cannot deliver: SMS or voice call alerts are not available for your plan or not set up for this service. They are skipped, and if no other channel is enabled the setting below applies."]</div>
         }
         @if (!Model.AnyDeliverable)
         {

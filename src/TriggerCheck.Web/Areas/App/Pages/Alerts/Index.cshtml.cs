@@ -20,11 +20,11 @@ public class IndexModel(AppDbContext db, ICurrentCustomer current, IOptionsMonit
     /// <summary>Customer setting: e-mail the contact address when no channel is enabled.</summary>
     public bool FallbackToContactEmail { get; private set; } = true;
     /// <summary>Twilio configured and the plan includes SMS / voice.</summary>
-    public bool SmsVoiceAvailable { get; private set; }
+    public SmsVoiceAccess SmsVoiceAvailable { get; private set; }
     /// <summary>Enabled channels that can actually deliver (SMS / voice only when available).</summary>
-    public bool AnyDeliverable => Channels.Any(c => c.IsEnabled && (SmsVoiceAvailable || !AlertDispatcher.IsSmsOrVoice(c.Type)));
+    public bool AnyDeliverable => Channels.Any(c => c.IsEnabled && SmsVoiceAvailable.Allows(c.Type));
     /// <summary>Enabled SMS / voice channels that are skipped because SMS / voice is not available.</summary>
-    public bool HasUndeliverable => !SmsVoiceAvailable && Channels.Any(c => c.IsEnabled && AlertDispatcher.IsSmsOrVoice(c.Type));
+    public bool HasUndeliverable => Channels.Any(c => c.IsEnabled && !SmsVoiceAvailable.Allows(c.Type));
 
     public async Task OnGetAsync(CancellationToken ct)
     {
@@ -43,9 +43,11 @@ public class IndexModel(AppDbContext db, ICurrentCustomer current, IOptionsMonit
         var cid = current.RequiredCustomerId;
         var c = await db.AlertChannels.FirstOrDefaultAsync(x => x.Id == id && x.CustomerId == cid, ct);
         if (c is null) return NotFound();
-        if (!c.IsEnabled && AlertDispatcher.IsSmsOrVoice(c.Type) && !await AlertChannelInput.SmsVoiceAvailableAsync(db, cid, twilio.CurrentValue, ct))
+        if (!c.IsEnabled && AlertDispatcher.IsSmsOrVoice(c.Type) && !(await AlertChannelInput.SmsVoiceAvailableAsync(db, cid, twilio.CurrentValue, ct)).Allows(c.Type))
         {
-            TempData["Error"] = L["SMS and voice call alerts are not available for your plan."].Value;
+            TempData["Error"] = (c.Type == AlertChannelType.Sms
+                ? L["SMS alerts are not available for your plan."]
+                : L["Voice call alerts are not available for your plan."]).Value;
             return RedirectToPage("Index");
         }
         c.IsEnabled = !c.IsEnabled;

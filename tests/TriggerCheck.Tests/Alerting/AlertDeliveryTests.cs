@@ -224,7 +224,7 @@ public class AlertDeliveryTests
         Assert.Equal(0, smsRow.Attempts);
 
         // Plan allows SMS: delivered, no fallback.
-        await host.WithDbAsync(db => db.Plans.ExecuteUpdateAsync(s => s.SetProperty(p => p.AllowsSmsVoice, true)));
+        await host.WithDbAsync(db => db.Plans.ExecuteUpdateAsync(s => s.SetProperty(p => p.AllowsSms, true).SetProperty(p => p.AllowsVoiceCall, true)));
         await host.InScopeAsync(sp => sp.GetRequiredService<IAlertDispatcher>().DispatchAsync(Down(monitor.Id, customer.Id)));
         Assert.Equal("+905551234567", Assert.Single(sms.Sent).Target);
         Assert.Single(email.Sent);
@@ -237,13 +237,35 @@ public class AlertDeliveryTests
         await using var host = await MonitoringTestHost.CreateAsync(s => s.ReplaceNotifiers(new RecordingNotifier(AlertChannelType.VoiceCall), email));
         var customer = await host.AddCustomerAsync(contactEmail: "boss@example.test");
         var monitor = await host.AddMonitorAsync(customer.Id);
-        await host.WithDbAsync(db => db.Plans.ExecuteUpdateAsync(s => s.SetProperty(p => p.AllowsSmsVoice, true)));
+        await host.WithDbAsync(db => db.Plans.ExecuteUpdateAsync(s => s.SetProperty(p => p.AllowsSms, true).SetProperty(p => p.AllowsVoiceCall, true)));
         await AddChannelAsync(host, customer.Id, AlertChannelType.VoiceCall, "+905551234567");
 
         await host.InScopeAsync(sp => sp.GetRequiredService<IAlertDispatcher>().DispatchAsync(Down(monitor.Id, customer.Id)));
 
         Assert.Single(email.Sent);
         Assert.Contains(await host.WithDbAsync(db => db.Notifications.Select(n => n.Error).ToListAsync()), e => e == TwilioNotifier.NotConfiguredError);
+    }
+
+    [Fact]
+    public async Task Sms_only_plan_delivers_sms_but_not_voice_calls()
+    {
+        var sms = new RecordingNotifier(AlertChannelType.Sms);
+        var voice = new RecordingNotifier(AlertChannelType.VoiceCall);
+        await using var host = await MonitoringTestHost.CreateAsync(s => s.ReplaceNotifiers(sms, voice), Twilio);
+        var customer = await host.AddCustomerAsync(contactEmail: "boss@example.test");
+        var monitor = await host.AddMonitorAsync(customer.Id);
+        await host.WithDbAsync(db => db.Plans.ExecuteUpdateAsync(s => s.SetProperty(p => p.AllowsSms, true).SetProperty(p => p.AllowsVoiceCall, false)));
+        await AddChannelAsync(host, customer.Id, AlertChannelType.Sms, "+905551234567");
+        await AddChannelAsync(host, customer.Id, AlertChannelType.VoiceCall, "+905551234568");
+
+        await host.InScopeAsync(sp => sp.GetRequiredService<IAlertDispatcher>().DispatchAsync(Down(monitor.Id, customer.Id)));
+
+        Assert.Equal("+905551234567", Assert.Single(sms.Sent).Target);
+        Assert.Empty(voice.Sent);
+        var voiceRow = await host.WithDbAsync(db => db.Notifications
+            .Where(n => db.AlertChannels.Any(c => c.Id == n.AlertChannelId && c.Type == AlertChannelType.VoiceCall)).SingleAsync());
+        Assert.False(voiceRow.Success);
+        Assert.Equal(AlertDispatcher.NotInPlanError, voiceRow.Error);
     }
 
     [Fact]
@@ -254,7 +276,7 @@ public class AlertDeliveryTests
             new(Twilio) { ["Alerting:SmsVoiceDailyLimitPerCustomer"] = "2" });
         var customer = await host.AddCustomerAsync();
         var monitor = await host.AddMonitorAsync(customer.Id);
-        await host.WithDbAsync(db => db.Plans.ExecuteUpdateAsync(s => s.SetProperty(p => p.AllowsSmsVoice, true)));
+        await host.WithDbAsync(db => db.Plans.ExecuteUpdateAsync(s => s.SetProperty(p => p.AllowsSms, true).SetProperty(p => p.AllowsVoiceCall, true)));
         await AddChannelAsync(host, customer.Id, AlertChannelType.Sms, "+905551234567");
 
         for (var i = 0; i < 3; i++)
@@ -279,7 +301,7 @@ public class AlertDeliveryTests
             new(Twilio) { ["Alerting:SmsVoiceDailyLimitPerCustomer"] = "3" });
         var customer = await host.AddCustomerAsync();
         var monitor = await host.AddMonitorAsync(customer.Id);
-        await host.WithDbAsync(db => db.Plans.ExecuteUpdateAsync(s => s.SetProperty(p => p.AllowsSmsVoice, true)));
+        await host.WithDbAsync(db => db.Plans.ExecuteUpdateAsync(s => s.SetProperty(p => p.AllowsSms, true).SetProperty(p => p.AllowsVoiceCall, true)));
         await AddChannelAsync(host, customer.Id, AlertChannelType.Sms, "+905551234567");
 
         await Task.WhenAll(Enumerable.Range(0, 10).Select(_ =>
@@ -306,7 +328,7 @@ public class AlertDeliveryTests
         await using var host = await MonitoringTestHost.CreateAsync(s => s.ReplaceNotifiers(sms), Twilio);
         var customer = await host.AddCustomerAsync();
         var monitor = await host.AddMonitorAsync(customer.Id);
-        await host.WithDbAsync(db => db.Plans.ExecuteUpdateAsync(s => s.SetProperty(p => p.AllowsSmsVoice, true)));
+        await host.WithDbAsync(db => db.Plans.ExecuteUpdateAsync(s => s.SetProperty(p => p.AllowsSms, true).SetProperty(p => p.AllowsVoiceCall, true)));
         await AddChannelAsync(host, customer.Id, AlertChannelType.Sms, "+905551234567");
 
         // stopRetrying already set: one attempt, then the failure is recorded.

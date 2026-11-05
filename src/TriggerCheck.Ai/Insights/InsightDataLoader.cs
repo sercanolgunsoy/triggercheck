@@ -24,7 +24,7 @@ public sealed class InsightDataLoader(AppDbContext db, IAiUsage usage, IOptions<
         var customers = await db.Customers.AsNoTracking().Where(c => c.IsActive)
             .OrderBy(c => c.Id)
             .Select(c => new InsightCustomer(c.Id, c.Name, c.Plan.Name, c.Plan.MaxMonitors, c.Plan.MinIntervalSeconds, c.Plan.MaxStatusPages,
-                c.Plan.MaxRegions, c.Plan.AllowsSmsVoice))
+                c.Plan.MaxRegions, c.Plan.AllowsSms || c.Plan.AllowsVoiceCall))
             .ToListAsync(ct);
         var ids = customers.Select(c => c.Id).ToList();
 

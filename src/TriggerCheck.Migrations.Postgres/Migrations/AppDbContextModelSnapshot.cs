@@ -1348,10 +1348,13 @@ namespace TriggerCheck.Migrations.Postgres.Migrations
                     b.Property<bool>("AllowsSelfSignup")
                         .HasColumnType("boolean");
 
-                    b.Property<bool>("AllowsSmsVoice")
+                    b.Property<bool>("AllowsSms")
                         .HasColumnType("boolean");
 
                     b.Property<bool>("AllowsStatusPageCustomDomain")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("AllowsVoiceCall")
                         .HasColumnType("boolean");
 
                     b.Property<bool>("IsActive")

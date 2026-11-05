@@ -44,6 +44,14 @@ else
                     <li>@Icons.Get("check", 16) <span>@L["Checks every {0}", Fmt.Interval(p.MinIntervalSeconds)]</span></li>
                     <li>@Icons.Get("check", 16) <span>@L["{0} days of check history", Fmt.Number(p.RetentionDays)]</span></li>
                     <li>@Icons.Get("check", 16) <span>@L["E-mail and webhook alerts"]</span></li>
+                    @if (p.AllowsSms || p.AllowsVoiceCall)
+                    {
+                        <li>@Icons.Get("check", 16) <span>@(p.AllowsSms && p.AllowsVoiceCall ? L["SMS and voice call alerts"] : p.AllowsSms ? L["SMS alerts"] : L["Voice call alerts"])</span></li>
+                    }
+                    @if (p.AiMonthlyCallLimit > 0 && AiFeatures.Parse(p.AiFeatures).Count is var aiCount and > 0)
+                    {
+                        <li>@Icons.Get("check", 16) <span>@(aiCount == 1 ? L["1 AI feature"] : L["{0} AI features", aiCount])</span></li>
+                    }
                     <li>@Icons.Get("check", 16) <span>@L["HTTP, keyword, TCP and ping checks"]</span></li>
                 </ul>
             </div>

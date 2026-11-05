@@ -475,17 +475,11 @@
   <data name="Error" xml:space="preserve">
     <value>Hata</value>
   </data>
-  <data name="Every check type and alert channel on every plan" xml:space="preserve">
-    <value>Her planda tüm kontrol türleri ve bildirim kanalları</value>
-  </data>
   <data name="Every outage becomes an incident with its start, end, duration and cause, so post-mortems take minutes, not hours." xml:space="preserve">
     <value>Her kesinti başlangıcı, bitişi, süresi ve nedeniyle bir olay olarak kaydedilir; kesinti analizleri saatler değil dakikalar sürer.</value>
   </data>
   <data name="Every outage is recorded as an incident automatically. Uptime and response times are always one click away." xml:space="preserve">
     <value>Her kesinti otomatik olarak olay kaydına dönüşür. Erişilebilirlik ve yanıt süreleri her zaman bir tık uzağınızda.</value>
-  </data>
-  <data name="Every plan includes every check type and alert channel. Pick the one that matches how fast and how much you need to monitor." xml:space="preserve">
-    <value>Her plan tüm kontrol türlerini ve bildirim kanallarını içerir. Ne kadar sık ve ne kadar çok izlemeniz gerektiğine göre seçin.</value>
   </data>
   <data name="Everything you need" xml:space="preserve">
     <value>İhtiyacınız olan her şey</value>
@@ -1605,5 +1599,59 @@
   </data>
   <data name="Database" xml:space="preserve">
     <value>Veritabanı</value>
+  </data>
+  <data name="Every check type on every plan" xml:space="preserve">
+    <value>Her planda tüm kontrol türleri</value>
+  </data>
+  <data name="Every plan includes every check type and e-mail, webhook and chat alerts. Plans differ in how fast and how much you can monitor, SMS and voice call alerts, and AI features." xml:space="preserve">
+    <value>Her plan tüm kontrol türlerini ve e-posta, webhook ve sohbet bildirimlerini içerir. Planlar; ne kadar sık ve ne kadar çok izleyebildiğiniz, SMS ve sesli arama bildirimleri ve yapay zekâ özellikleriyle ayrılır.</value>
+  </data>
+  <data name="Slack, Microsoft Teams and Telegram alerts" xml:space="preserve">
+    <value>Slack, Microsoft Teams ve Telegram bildirimleri</value>
+  </data>
+  <data name="SMS alerts" xml:space="preserve">
+    <value>SMS bildirimleri</value>
+  </data>
+  <data name="Voice call alerts" xml:space="preserve">
+    <value>Sesli arama bildirimleri</value>
+  </data>
+  <data name="SMS and voice call alerts" xml:space="preserve">
+    <value>SMS ve sesli arama bildirimleri</value>
+  </data>
+  <data name="AI requests per month" xml:space="preserve">
+    <value>Aylık yapay zekâ isteği</value>
+  </data>
+  <data name="{0} AI features" xml:space="preserve">
+    <value>{0} yapay zekâ özelliği</value>
+  </data>
+  <data name="Not included" xml:space="preserve">
+    <value>Dahil değil</value>
+  </data>
+  <data name="Incident summaries and likely causes" xml:space="preserve">
+    <value>Kesinti özetleri ve olası nedenler</value>
+  </data>
+  <data name="Slowdown explanations" xml:space="preserve">
+    <value>Yavaşlama açıklamaları</value>
+  </data>
+  <data name="Monitor setting suggestions" xml:space="preserve">
+    <value>Monitör ayarı önerileri</value>
+  </data>
+  <data name="Monitor setup assistant" xml:space="preserve">
+    <value>Monitör kurulum asistanı</value>
+  </data>
+  <data name="Grouping of related incidents" xml:space="preserve">
+    <value>İlişkili kesintilerin gruplanması</value>
+  </data>
+  <data name="Weekly and monthly reports" xml:space="preserve">
+    <value>Haftalık ve aylık raporlar</value>
+  </data>
+  <data name="Questions in natural language" xml:space="preserve">
+    <value>Doğal dilde sorular</value>
+  </data>
+  <data name="Postmortem and status page drafts" xml:space="preserve">
+    <value>Postmortem ve durum sayfası taslakları</value>
+  </data>
+  <data name="1 AI feature" xml:space="preserve">
+    <value>1 yapay zekâ özelliği</value>
   </data>
 </root>

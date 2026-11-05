@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using TriggerCheck.Domain;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Monitoring.Alerting;
@@ -49,7 +50,7 @@ public class EditModel(AppDbContext db, ICurrentCustomer current, IOptionsMonito
         return RedirectToPage("Index");
     }
 
-    private async Task<bool> LoadAsync(AlertChannel c, CancellationToken ct)
+    private async Task<SmsVoiceAccess> LoadAsync(AlertChannel c, CancellationToken ct)
     {
         HasStoredSecret = c.Type == AlertChannelType.Telegram && !string.IsNullOrEmpty(c.Secret);
         var smsVoice = await AlertChannelInput.SmsVoiceAvailableAsync(db, current.RequiredCustomerId, twilio.CurrentValue, ct);

@@ -46,9 +46,9 @@ public static class DbSeeder
         {
             db.Plans.AddRange(
                 new Plan { Name = "Basic",      MinIntervalSeconds = 300, MaxMonitors = 10,  RetentionDays = 30,  MonthlyPrice = 0m, AllowsSelfSignup = true },
-                new Plan { Name = "Standard",   MinIntervalSeconds = 60,  MaxMonitors = 50,  RetentionDays = 90,  MonthlyPrice = 15m, AllowsSelfSignup = true },
-                new Plan { Name = "Pro",        MinIntervalSeconds = 30,  MaxMonitors = 200, RetentionDays = 180, MonthlyPrice = 49m, AllowsSelfSignup = true },
-                new Plan { Name = "Enterprise", MinIntervalSeconds = 15,  MaxMonitors = 1000, RetentionDays = 365, MonthlyPrice = 199m, AllowsSmsVoice = true });
+                new Plan { Name = "Standard",   MinIntervalSeconds = 60,  MaxMonitors = 50,  RetentionDays = 90,  MonthlyPrice = 15m, AllowsSelfSignup = true, AllowsSms = true },
+                new Plan { Name = "Pro",        MinIntervalSeconds = 30,  MaxMonitors = 200, RetentionDays = 180, MonthlyPrice = 49m, AllowsSelfSignup = true, AllowsSms = true, AllowsVoiceCall = true },
+                new Plan { Name = "Enterprise", MinIntervalSeconds = 15,  MaxMonitors = 1000, RetentionDays = 365, MonthlyPrice = 199m, AllowsSms = true, AllowsVoiceCall = true });
             foreach (var p in db.Plans.Local)
             {
                 ApplyDefaultAiQuota(p);

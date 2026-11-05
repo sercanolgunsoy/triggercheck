@@ -12,3 +12,7 @@ TestResults/
 # AI eval run outputs (evals/README.md); the sample report is kept.
 evals/reports/*
 !evals/reports/sample-report.md
+
+# Local SQLite backups (e.g. kept before a migration)
+triggercheck.db*.bak-*
+triggercheck.db*.pre-migrations

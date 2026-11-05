@@ -159,6 +159,40 @@ public class RegistrationTests(BillingTestFactory f) : IClassFixture<BillingTest
     }
 
     [Fact]
+    public async Task Pricing_compares_sms_voice_and_ai_features_per_plan()
+    {
+        var pricing = await f.CreateBrowser().GetHtmlAsync("/Pricing");
+        string Card(string plan)
+        {
+            var start = pricing.IndexOf($"data-plan=\"{plan}\"", StringComparison.Ordinal);
+            Assert.True(start >= 0, $"no card for {plan}");
+            var end = pricing.IndexOf("</ul>", start, StringComparison.Ordinal);
+            return pricing[start..end];
+        }
+
+        // Default plans: SMS from Standard, SMS and voice from Pro; AI features grow with the plan.
+        Assert.DoesNotContain("SMS", Card("Basic"));
+        Assert.Contains("SMS alerts", Card("Standard"));
+        Assert.DoesNotContain("voice", Card("Standard"));
+        Assert.Contains("SMS and voice call alerts", Card("Pro"));
+        Assert.Contains("SMS and voice call alerts", Card("Enterprise"));
+        Assert.Contains("1 AI feature<", Card("Basic"));
+        Assert.Contains("8 AI features", Card("Enterprise"));
+
+        // Comparison table: plan-dependent rows show included / not included marks, every AI feature has a row.
+        foreach (var row in new[] { "SMS alerts", "Voice call alerts", "Incident summaries and likely causes", "Postmortem and status page drafts" })
+        {
+            var start = pricing.IndexOf($"<td>{row}</td>", StringComparison.Ordinal);
+            Assert.True(start >= 0, $"no comparison row '{row}'");
+            var tr = pricing[start..pricing.IndexOf("</tr>", start, StringComparison.Ordinal)];
+            Assert.Contains("class=\"yes\"", tr);
+            if (row != "Incident summaries and likely causes") Assert.Contains("class=\"no\"", tr);
+        }
+        Assert.Contains("AI requests per month", pricing);
+        Assert.DoesNotContain("Every check type and alert channel on every plan", pricing);
+    }
+
+    [Fact]
     public async Task Sign_up_page_is_translated()
     {
         var c = f.CreateBrowser();

@@ -493,12 +493,6 @@
   <data name="The customer could not be created because of an unexpected error. Reference: {0}" xml:space="preserve">
     <value>Beklenmeyen bir hata nedeniyle müşteri oluşturulamadı. Referans: {0}</value>
   </data>
-  <data name="SMS and voice call alerts (Twilio)" xml:space="preserve">
-    <value>SMS ve sesli arama bildirimleri (Twilio)</value>
-  </data>
-  <data name="Customers on this plan can add SMS and voice call alert channels. They are only offered when Twilio is configured for this installation." xml:space="preserve">
-    <value>Bu plandaki müşteriler SMS ve sesli arama bildirim kanalları ekleyebilir. Bu kanallar yalnızca bu kurulumda Twilio yapılandırılmışsa sunulur.</value>
-  </data>
   <data name="Access" xml:space="preserve">
     <value>Erişim</value>
   </data>
@@ -1017,5 +1011,17 @@
   </data>
   <data name="{0} days, since {1}" xml:space="preserve">
     <value>{0} gün, {1} tarihinden beri</value>
+  </data>
+  <data name="SMS alerts (Twilio)" xml:space="preserve">
+    <value>SMS bildirimleri (Twilio)</value>
+  </data>
+  <data name="Voice call alerts (Twilio)" xml:space="preserve">
+    <value>Sesli arama bildirimleri (Twilio)</value>
+  </data>
+  <data name="Customers on this plan can add SMS alert channels. They are only offered when Twilio is configured for this installation." xml:space="preserve">
+    <value>Bu plandaki müşteriler SMS bildirim kanalları ekleyebilir. Bu kanallar yalnızca bu kurulumda Twilio yapılandırılmışsa sunulur.</value>
+  </data>
+  <data name="Customers on this plan can add voice call alert channels. They are only offered when Twilio is configured for this installation." xml:space="preserve">
+    <value>Bu plandaki müşteriler sesli arama bildirim kanalları ekleyebilir. Bu kanallar yalnızca bu kurulumda Twilio yapılandırılmışsa sunulur.</value>
   </data>
 </root>

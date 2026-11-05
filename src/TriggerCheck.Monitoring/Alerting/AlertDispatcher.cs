@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using TriggerCheck.Domain;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Domain.Security;
 using TriggerCheck.Infrastructure.Data;
@@ -191,7 +192,7 @@ public sealed class AlertDispatcher(
     {
         var customer = await db.Customers.AsNoTracking()
             .Where(c => c.Id == message.CustomerId)
-            .Select(c => new { c.ContactEmail, c.AlertContactEmailWhenNoChannel, c.Plan.AllowsSmsVoice })
+            .Select(c => new { c.ContactEmail, c.AlertContactEmailWhenNoChannel, c.Plan.AllowsSms, c.Plan.AllowsVoiceCall })
             .FirstOrDefaultAsync(ct);
         if (customer is null)
         {
@@ -212,7 +213,7 @@ public sealed class AlertDispatcher(
             .Select(c => new Target((int?)c.Id, c.Type, c.Target, c.Secret))
             .ToListAsync(ct);
 
-        var deliveries = channels.Select(t => (Target: t, Blocked: Undeliverable(t.Type, customer.AllowsSmsVoice, twilio.CurrentValue))).ToList();
+        var deliveries = channels.Select(t => (Target: t, Blocked: Undeliverable(t.Type, new SmsVoiceAccess(customer.AllowsSms, customer.AllowsVoiceCall), twilio.CurrentValue))).ToList();
         if (deliveries.All(d => d.Blocked is not null))
         {
             if (!customer.AlertContactEmailWhenNoChannel)
@@ -245,12 +246,12 @@ public sealed class AlertDispatcher(
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var channel = await db.AlertChannels.AsNoTracking()
             .Where(c => c.Id == channelId && c.CustomerId == customerId)
-            .Select(c => new { Target = new Target((int?)c.Id, c.Type, c.Target, c.Secret), c.Customer.Plan.AllowsSmsVoice })
+            .Select(c => new { Target = new Target((int?)c.Id, c.Type, c.Target, c.Secret), c.Customer.Plan.AllowsSms, c.Customer.Plan.AllowsVoiceCall })
             .FirstOrDefaultAsync(ct);
         if (channel is null) return null;
 
         var message = AlertMessage.TestFor(customerId, time.GetUtcNow().UtcDateTime);
-        var blocked = Undeliverable(channel.Target.Type, channel.AllowsSmsVoice, twilio.CurrentValue);
+        var blocked = Undeliverable(channel.Target.Type, new SmsVoiceAccess(channel.AllowsSms, channel.AllowsVoiceCall), twilio.CurrentValue);
         var result = blocked is not null ? NotifyResult.Fail(blocked) : await AttemptAsync(channel.Target, message, ct, throttled: false);
         Log(channel.Target, message, result, 1);
         return result;
@@ -259,9 +260,9 @@ public sealed class AlertDispatcher(
     public static bool IsSmsOrVoice(AlertChannelType type) => type is AlertChannelType.Sms or AlertChannelType.VoiceCall;
 
     /// <summary>Why a channel of this type can never deliver for this customer, or null when it can.</summary>
-    public static string? Undeliverable(AlertChannelType type, bool planAllowsSmsVoice, TwilioOptions twilio) =>
+    public static string? Undeliverable(AlertChannelType type, SmsVoiceAccess plan, TwilioOptions twilio) =>
         !IsSmsOrVoice(type) ? null
-        : !planAllowsSmsVoice ? NotInPlanError
+        : !plan.Allows(type) ? NotInPlanError
         : !twilio.IsConfigured ? TwilioNotifier.NotConfiguredError
         : null;
 

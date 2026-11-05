@@ -32,7 +32,9 @@ public class PlanInput
 
     [Display(Name = "Active (offered to new customers)")] public bool IsActive { get; set; } = true;
 
-    [Display(Name = "SMS and voice call alerts (Twilio)")] public bool AllowsSmsVoice { get; set; }
+    [Display(Name = "SMS alerts (Twilio)")] public bool AllowsSms { get; set; }
+
+    [Display(Name = "Voice call alerts (Twilio)")] public bool AllowsVoiceCall { get; set; }
 
     [Display(Name = "Self-service sign-up and billing")] public bool AllowsSelfSignup { get; set; }
 
@@ -66,7 +68,7 @@ public class PlanInput
     {
         Name = p.Name, MinIntervalSeconds = p.MinIntervalSeconds, MaxMonitors = p.MaxMonitors,
         RetentionDays = p.RetentionDays, MonthlyPrice = p.MonthlyPrice, IsActive = p.IsActive,
-        AllowsSmsVoice = p.AllowsSmsVoice, AllowsSelfSignup = p.AllowsSelfSignup,
+        AllowsSms = p.AllowsSms, AllowsVoiceCall = p.AllowsVoiceCall, AllowsSelfSignup = p.AllowsSelfSignup,
         IyzicoProductReferenceCode = p.IyzicoProductReferenceCode, IyzicoPricingPlanReferenceCode = p.IyzicoPricingPlanReferenceCode,
         AiMonthlyCallLimit = p.AiMonthlyCallLimit, AiMonthlyTokenLimit = p.AiMonthlyTokenLimit,
         MaxStatusPages = p.MaxStatusPages, AllowsStatusPageCustomDomain = p.AllowsStatusPageCustomDomain,
@@ -82,7 +84,8 @@ public class PlanInput
         p.RetentionDays = RetentionDays!.Value;
         p.MonthlyPrice = MonthlyPrice!.Value;
         p.IsActive = IsActive;
-        p.AllowsSmsVoice = AllowsSmsVoice;
+        p.AllowsSms = AllowsSms;
+        p.AllowsVoiceCall = AllowsVoiceCall;
         p.AllowsSelfSignup = AllowsSelfSignup;
         p.IyzicoProductReferenceCode = string.IsNullOrWhiteSpace(IyzicoProductReferenceCode) ? null : IyzicoProductReferenceCode.Trim();
         p.IyzicoPricingPlanReferenceCode = string.IsNullOrWhiteSpace(IyzicoPricingPlanReferenceCode) ? null : IyzicoPricingPlanReferenceCode.Trim();

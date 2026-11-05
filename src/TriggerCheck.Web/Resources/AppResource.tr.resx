@@ -688,9 +688,6 @@
   <data name="Enter the bot token from @BotFather (e.g. 123456789:AA...)." xml:space="preserve">
     <value>@BotFather'dan aldığınız bot token'ını girin (ör. 123456789:AA...).</value>
   </data>
-  <data name="SMS and voice call alerts are not available for your plan." xml:space="preserve">
-    <value>SMS ve sesli arama bildirimleri planınızda bulunmuyor.</value>
-  </data>
   <data name="Enter the phone number in international E.164 format, e.g. +905551234567." xml:space="preserve">
     <value>Telefon numarasını uluslararası E.164 biçiminde girin, ör. +905551234567.</value>
   </data>
@@ -750,9 +747,6 @@
   </data>
   <data name="Test notification to &quot;{0}&quot; failed: {1}" xml:space="preserve">
     <value>"{0}" kanalına test bildirimi başarısız oldu: {1}</value>
-  </data>
-  <data name="Some enabled channels cannot deliver: SMS and voice call alerts are not available for your plan or not set up for this service. They are skipped, and if no other channel is enabled the setting below applies." xml:space="preserve">
-    <value>Bazı etkin kanallar bildirim iletemez: SMS ve sesli arama bildirimleri planınızda bulunmuyor veya bu hizmette yapılandırılmamış. Bu kanallar atlanır; başka etkin kanal yoksa aşağıdaki ayar uygulanır.</value>
   </data>
   <data name="TLS certificate expiry warnings are never sent as voice calls; if voice calls are your only channel, they follow this setting as well." xml:space="preserve">
     <value>TLS sertifikası süre uyarıları hiçbir zaman sesli arama olarak gönderilmez; tek kanalınız sesli arama ise bu uyarılar da bu ayara göre gönderilir.</value>
@@ -2433,5 +2427,14 @@
   </data>
   <data name="{0} of {1}" xml:space="preserve">
     <value>{0} / {1}</value>
+  </data>
+  <data name="SMS alerts are not available for your plan." xml:space="preserve">
+    <value>SMS bildirimleri planınızda bulunmuyor.</value>
+  </data>
+  <data name="Voice call alerts are not available for your plan." xml:space="preserve">
+    <value>Sesli arama bildirimleri planınızda bulunmuyor.</value>
+  </data>
+  <data name="Some enabled channels cannot deliver: SMS or voice call alerts are not available for your plan or not set up for this service. They are skipped, and if no other channel is enabled the setting below applies." xml:space="preserve">
+    <value>Bazı etkin kanallar bildirim iletemez: SMS veya sesli arama bildirimleri planınızda bulunmuyor ya da bu hizmette yapılandırılmamış. Bu kanallar atlanır; başka etkin kanal yoksa aşağıdaki ayar uygulanır.</value>
   </data>
 </root>

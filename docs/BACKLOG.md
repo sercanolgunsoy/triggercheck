@@ -85,7 +85,7 @@ ID formatı: `<EPIC>-<no>`. Bağımlılıklar "→" ile gösterilir.
 | FEAT-4 | **Public status page.** Müşteri başına seçili monitörler, incident geçmişi, abonelik. | P2 | L | Özel alan adı (CNAME) desteği. | PLAN |
 | FEAT-5 | **Eskalasyon politikaları.** X dk içinde onaylanmazsa ikinci kanala; incident "onaylandı" (ack) durumu. | P2 | M | Ack edilen incident tekrar bildirim üretmez. | n/a |
 | FEAT-6 | **Çok bölgeli kontrol.** Hafif probe ajanları; çoğunluk oylaması ile DOWN kararı. | P3 | XL | 3 bölgeden 2'si hata derse DOWN. | PLAN |
-| FEAT-7 | **SMS / sesli arama.** Enterprise planına özel. | P3 | M | n/a | PLAN |
+| FEAT-7 | **SMS / sesli arama.** Plan bazlı (`Plan.AllowsSms`, `Plan.AllowsVoiceCall`): varsayılan planlarda SMS Standard ve üstü, sesli arama Pro ve üstü; SuperAdmin plan formunda ayrı ayrı açılır. Eski tek bayraklı planlar migration'da iki yetkiyi de korur. | P3 | M | n/a | PLAN |
 | FEAT-8 | **REST API + API anahtarı.** Monitör CRUD, durum, incident listesi (tenant kapsamlı). | P2 | L | OpenAPI dokümanı; anahtar başına rate limit. | n/a |
 | FEAT-9 | **Yeni monitör tipleri.** DNS kaydı, heartbeat/cron (push tabanlı), JSON yanıt doğrulama. | P2 | M/tip | n/a | n/a |
 | FEAT-10 | **Raporlar.** Aylık SLA raporu (PDF/e-posta). AI-6 ile birleşebilir. | P2 | M | n/a | n/a |
