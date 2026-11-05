@@ -49,8 +49,8 @@
         @foreach (var m in p.Monitors)
         {
             <div class="mb-3 status-monitor">
-                <div class="d-flex justify-content-between">
-                    <strong>@m.Name</strong>
+                <div class="d-flex flex-wrap justify-content-between column-gap-3">
+                    <strong class="text-break">@m.Name</strong>
                     <span class="state-@(m.Status == PublicStatus.Operational || m.Status == PublicStatus.MajorOutage || m.Status == PublicStatus.Maintenance ? m.Status : "unknown")">@State(m.Status)</span>
                 </div>
                 <div class="uptime-bars" role="img" aria-label="@L["Uptime of the last {0} days", PublicStatusService.UptimeDays]">

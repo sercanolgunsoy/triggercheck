@@ -33,7 +33,7 @@
         <div class="sidebar-inner">
             <div class="d-flex align-items-center justify-content-between">
                 <a class="sidebar-brand" href="@(isSuper ? "/SuperAdmin" : "/App")">@Icons.Logo(28) TriggerCheck
-                    @if (isSuper) { <span class="tag">Admin</span> }
+                    @if (isSuper) { <span class="tag">@L["Admin"]</span> }
                 </a>
                 <button type="button" class="btn btn-sm text-white d-lg-none" data-bs-dismiss="offcanvas" data-bs-target="#sidebar" aria-label="@L["Close"]">@Icons.Get("x")</button>
             </div>

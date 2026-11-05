@@ -3,7 +3,7 @@
 @using TriggerCheck.Web.StatusPages
 @{ ViewData["Title"] = L["Incident notes"].Value; }
 
-<nav aria-label="breadcrumb"><ol class="breadcrumb">
+<nav aria-label="@L["Breadcrumb"]"><ol class="breadcrumb">
     <li class="breadcrumb-item"><a asp-page="Index">@L["Status pages"]</a></li>
     <li class="breadcrumb-item active">@Model.StatusPage.Title</li>
 </ol></nav>

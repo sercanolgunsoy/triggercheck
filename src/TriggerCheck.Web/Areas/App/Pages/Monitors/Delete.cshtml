@@ -2,7 +2,7 @@
 @model TriggerCheck.Web.Areas.App.Pages.Monitors.DeleteModel
 @{ ViewData["Title"] = L["Delete monitor"].Value; }
 
-<nav aria-label="breadcrumb"><ol class="breadcrumb">
+<nav aria-label="@L["Breadcrumb"]"><ol class="breadcrumb">
     <li class="breadcrumb-item"><a asp-page="Index">@L["Monitors"]</a></li>
     <li class="breadcrumb-item"><a asp-page="Details" asp-route-id="@Model.Monitor.Id">@Model.Monitor.Name</a></li>
     <li class="breadcrumb-item active">@L["Delete"]</li>

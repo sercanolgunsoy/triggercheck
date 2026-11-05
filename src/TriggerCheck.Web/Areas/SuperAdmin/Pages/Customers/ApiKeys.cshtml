@@ -8,7 +8,7 @@
     var active = Model.Keys.Count(k => k.RevokedAtUtc is null && !k.IsExpired(Model.Now));
 }
 
-<nav aria-label="breadcrumb"><ol class="breadcrumb">
+<nav aria-label="@L["Breadcrumb"]"><ol class="breadcrumb">
     <li class="breadcrumb-item"><a asp-page="Index">@L["Customers"]</a></li>
     <li class="breadcrumb-item"><a asp-page="Details" asp-route-id="@c.Id">@c.Name</a></li>
     <li class="breadcrumb-item active">@L["API keys"]</li>
