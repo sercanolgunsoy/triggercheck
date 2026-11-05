@@ -193,7 +193,7 @@ public class TurkishCoverageTests(StatusPageTestFactory f) : IClassFixture<Statu
         await SweepAsync(await TurkishAsync(() => f.LoginAsync(t.Admin, Password)), [
             "/App", "/App/Monitors", "/App/Monitors/Create", $"/App/Monitors/Details/{t.UpId}", $"/App/Monitors/Details/{t.DownId}",
             $"/App/Monitors/Edit/{t.UpId}", $"/App/Monitors/Delete/{t.UpId}", $"/App/Monitors/Regions/{t.UpId}",
-            "/App/Incidents", $"/App/Incidents/Details/{t.IncidentId}", "/App/Incidents/Groups",
+            "/App/Incidents", $"/App/Incidents/Details/{t.IncidentId}", $"/App/Incidents/Postmortem/{t.IncidentId}", "/App/Incidents/Groups",
             "/App/Alerts", "/App/Alerts/Create", "/App/Maintenance", "/App/Maintenance/Create",
             $"/App/Maintenance/Edit/{t.MaintenanceId}", $"/App/Maintenance/Delete/{t.MaintenanceId}", "/App/Escalation",
             "/App/StatusPages", "/App/StatusPages/Create", $"/App/StatusPages/Edit/{t.StatusPageId}",
@@ -211,7 +211,8 @@ public class TurkishCoverageTests(StatusPageTestFactory f) : IClassFixture<Statu
             "/SuperAdmin", "/SuperAdmin/Customers", "/SuperAdmin/Customers/Create", $"/SuperAdmin/Customers/Details/{t.CustomerId}",
             $"/SuperAdmin/Customers/Edit/{t.CustomerId}", "/SuperAdmin/Plans", "/SuperAdmin/Plans/Create", "/SuperAdmin/Monitors",
             $"/SuperAdmin/Customers/AddUser/{t.CustomerId}", $"/SuperAdmin/Customers/ApiKeys/{t.CustomerId}",
-            $"/SuperAdmin/Plans/Edit/{await f.PlanIdAsync("Pro")}", "/SuperAdmin/Regions", "/SuperAdmin/Refunds", "/SuperAdmin/Ai"
+            $"/SuperAdmin/Plans/Edit/{await f.PlanIdAsync("Pro")}", "/SuperAdmin/Regions", "/SuperAdmin/Refunds", "/SuperAdmin/Ai",
+            "/SuperAdmin/Insights"
         ]);
     }
 }
@@ -234,11 +235,13 @@ public class TurkishAiCoverageTests(AiEnabledWebAppFactory f) : IClassFixture<Ai
         });
         var up = await f.AddMonitorAsync(cid, "Trai web", m => m.Status = MonitorStatus.Up);
         var incident = await f.AddIncidentAsync(up, DateTime.UtcNow.AddMinutes(-30), null, cause: "HTTP 503");
+        var resolved = await f.AddIncidentAsync(up, DateTime.UtcNow.AddHours(-3), DateTime.UtcNow.AddHours(-2), cause: "HTTP 502");
 
         var c = await f.LoginAsync(admin, Password);
         await c.SetLanguageAsync("tr");
         await TurkishCoverageTests.SweepAsync(c, [
             "/App", "/App/Ai", "/App/Ask", "/App/Incidents", "/App/Incidents/Groups", $"/App/Incidents/Details/{incident}",
+            $"/App/Incidents/Details/{resolved}", $"/App/Incidents/Postmortem/{resolved}",
             "/App/Monitors/Create", $"/App/Monitors/Details/{up}", "/App/Reports"
         ]);
     }

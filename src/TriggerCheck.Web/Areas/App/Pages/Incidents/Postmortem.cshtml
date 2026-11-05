@@ -9,7 +9,7 @@
     var editable = Model.CanManage && f is not null && !Model.IsPublished;
 }
 
-<nav aria-label="breadcrumb"><ol class="breadcrumb">
+<nav aria-label="@L["Breadcrumb"]"><ol class="breadcrumb">
     <li class="breadcrumb-item"><a asp-page="Index">@L["Incidents"]</a></li>
     <li class="breadcrumb-item"><a asp-page="Details" asp-route-id="@i.Id">#@i.Id</a></li>
     <li class="breadcrumb-item active">@L["Postmortem"]</li>
