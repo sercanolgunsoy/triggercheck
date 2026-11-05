@@ -1,0 +1,59 @@
+{
+  "id": "same-host-plus-related-domain",
+  "feature": "CorrelationGrouping",
+  "language": "en",
+  "description": "Two endpoints on api.example.test time out; www.example.test times out 60 s later.",
+  "expect": {
+    "primaryCause": "candidate_verdicts",
+    "keep": [
+      "Storefront"
+    ],
+    "leaveOut": []
+  },
+  "group": {
+    "incidents": [
+      {
+        "name": "Orders API",
+        "type": "Http",
+        "target": "https://api.example.test/orders",
+        "startedMinutesAgo": 5,
+        "cause": "Timeout after 10s"
+      },
+      {
+        "name": "Users API",
+        "type": "Http",
+        "target": "https://api.example.test/users",
+        "startedMinutesAgo": 4.5,
+        "cause": "Timeout after 10s"
+      },
+      {
+        "name": "Storefront",
+        "type": "Http",
+        "target": "https://www.example.test/",
+        "startedMinutesAgo": 4,
+        "cause": "Timeout after 10s"
+      }
+    ]
+  },
+  "secrets": [],
+  "canned": {
+    "summary": "Three monitors of example.test stopped answering within a minute, all with a 10 s timeout.",
+    "hypotheses": [
+      {
+        "cause": "The frontend on www.example.test fails like the API: same domain, same timeout, starting together.",
+        "confidence": "high",
+        "evidence": [
+          "incident C: error_type=timeout, same_domain",
+          "incident A and B time out on api.example.test"
+        ],
+        "category": "shared_cause",
+        "evidence_refs": [
+          "incident C",
+          "incident A"
+        ]
+      }
+    ],
+    "suggested_actions": [],
+    "unknowns": []
+  }
+}

@@ -37,6 +37,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
     public DbSet<StatusPageEvent> StatusPageEvents => Set<StatusPageEvent>();
     public DbSet<MonthlyReportDelivery> MonthlyReportDeliveries => Set<MonthlyReportDelivery>();
     public DbSet<ReportNarrative> ReportNarratives => Set<ReportNarrative>();
+    public DbSet<IncidentGroup> IncidentGroups => Set<IncidentGroup>();
+    public DbSet<IncidentGroupMember> IncidentGroupMembers => Set<IncidentGroupMember>();
     public DbSet<ClusterLease> ClusterLeases => Set<ClusterLease>();
 
     protected override void OnModelCreating(ModelBuilder b)
@@ -355,6 +357,25 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
         });
 
         b.Entity<Incident>(e => e.Property(x => x.FailedRegions).HasMaxLength(500));
+
+        // AI-4: incident groups (notification grouping). Deleting a group never touches incidents.
+        b.Entity<IncidentGroup>(e =>
+        {
+            e.HasOne<Customer>().WithMany().HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Cascade);
+            e.Property(x => x.Signals).HasMaxLength(200);
+            e.Property(x => x.Host).HasMaxLength(255);
+            e.Property(x => x.DecidedByUserId).HasMaxLength(450);
+            e.HasIndex(x => new { x.CustomerId, x.Status, x.CreatedAtUtc });
+        });
+
+        b.Entity<IncidentGroupMember>(e =>
+        {
+            e.HasOne(x => x.Group).WithMany(g => g.Members).HasForeignKey(x => x.GroupId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Incident).WithMany().HasForeignKey(x => x.IncidentId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => x.IncidentId).IsUnique();
+            e.HasIndex(x => x.CustomerId);
+            e.HasIndex(x => new { x.FoldedAtUtc, x.NotifiedAtUtc });
+        });
 
         // OPS-3: scheduler lease per monitor and cluster-wide job leases.
         b.Entity<MonitorEntity>(e => e.Property(x => x.LeaseOwner).HasMaxLength(100));

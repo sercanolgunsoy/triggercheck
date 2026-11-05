@@ -1588,4 +1588,7 @@
   <data name="What to watch:" xml:space="preserve">
     <value>Neye dikkat edilmeli:</value>
   </data>
+  <data name="Ask AI" xml:space="preserve">
+    <value>Yapay zekâya sor</value>
+  </data>
 </root>

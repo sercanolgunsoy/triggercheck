@@ -8,7 +8,7 @@ validation) and the grader scores the exact request and the raw model output.
 ## The gate
 
 - A change to a **prompt** (`src/TriggerCheck.Ai/Execution/AiPrompts.cs`, `src/TriggerCheck.Ai/Features/AiFeaturePrompts.cs`,
-  `src/TriggerCheck.Ai/Narrative/NarrativeOutput.cs` for AI-6),
+  `src/TriggerCheck.Ai/Features/Correlation/CorrelationPrompts.cs`, `src/TriggerCheck.Ai/Narrative/NarrativeOutput.cs` for AI-6),
   a context provider, the output schema, a **model** (`Ai:Model`, `Ai:Features:<Name>:Model`) or an **effort** level
   is merged only after a real run (below) passes for the affected feature: primary-cause accuracy, evidence rate and
   language rate each **≥ 80 %**, **zero** masking failures, and for AI-3 the "no outage yet" statement in ≥ 80 % of
@@ -41,16 +41,18 @@ ANTHROPIC_API_KEY=... dotnet run --project evals/TriggerCheck.Evals -- --real
 ANTHROPIC_API_KEY=... dotnet run --project evals/TriggerCheck.Evals -- --real --yes
 
 # options
---feature IncidentInterpretation | SlowdownExplanation | NarrativeReport    only one feature
+--feature IncidentInterpretation | SlowdownExplanation | CorrelationGrouping | QuestionAnswer | MonitorSetupAssistant | NarrativeReport | ...   only one feature
 --case tls                                                only cases whose id contains "tls"
 --model claude-haiku-5-5  --effort medium                 override Ai:Model / Ai:Effort for the run
 --threshold 0.8                                           gate threshold
 --cases <dir>  --out <dir>                                defaults: evals/cases, evals/reports
 ```
 
-The exit code is 0 when the gate passes, 1 when it fails, 2 for usage errors. A real run of all 47 cases costs
-roughly 47 × (4k input + 1.5k output tokens) ≈ 0.19M input + 0.07M output tokens, i.e. about **$2.20 with
-`claude-opus-5-5`** at list prices (less with prompt caching); the report shows the measured tokens and cost per case.
+The exit code is 0 when the gate passes, 1 when it fails, 2 for usage errors. A real run of the 28 AI-2 / AI-3 cases costs
+roughly 28 × (4k input + 1.5k output tokens) ≈ 0.11M input + 0.04M output tokens, i.e. about **$1.30 with
+`claude-opus-5-5`** at list prices (less with prompt caching); the 13 AI-4 cases add roughly 13 × (2k input + 1k
+output tokens), about $0.35. The report shows the measured tokens and cost per case.
+The 11 AI-6 cases add roughly 11 × (3k input + 1k output tokens), about $0.35.
 
 ## Layout
 
@@ -62,7 +64,10 @@ evals/
     incident-interpretation/       AI-2: 23 labelled scenarios (en + tr)
     slowdown-explanation/          AI-3: 5 labelled scenarios
     narrative-report/              AI-6: 11 monthly report scenarios (en + tr)
+    correlation-grouping/          AI-4: 13 labelled scenarios (candidate verdicts, en + tr)
     settings-suggestions/          AI-5: 8 labelled scenarios (one per suggestion kind, en + tr)
+    question-answer/               AI-7: 8 Q&A scenarios (tool loop; en + tr, tenant isolation, injection, write request)
+    monitor-setup/                 AI-9: 14 labelled requests (every monitor type, clarification, clamping, masking; en + tr)
   reports/                         gitignored, except sample-report.md
     last-report.md / .json         last run (per feature and per case, tokens, cost)
     prompts/<case>.txt             the user turn actually sent for each case
@@ -115,6 +120,12 @@ model's, contains **no numbers at all**: it writes `{{A.downtime}}` and the serv
 }
 ```
 
+AI-4 cases use `"feature": "CorrelationGrouping"`, a `group` with the customer's incidents around the outage
+(`name`, `type`, `target`, `startedMinutesAgo`, `cause`, optional `resolvedMinutesAgo` / `port`) and
+`"expect": { "primaryCause": "candidate_verdicts", "keep": [names], "leaveOut": [names] }`. The production rules
+(`IncidentCorrelationService.ProposeAsync`) form the group, so the labels the model sees follow from the data:
+`incident A` is the earliest incident, then the rule members, then the candidates, each ordered by start time.
+
 ## Grading
 
 Code-graded, no LLM judge and no keyword matching in pass / fail (`EvalGrader`). AI-2 and AI-3 hypotheses carry a
@@ -147,6 +158,13 @@ the production `SettingsSuggestionJob` rules on it and explains the suggestion t
 code (`raise_failure_threshold`, `raise_timeout`, `target_may_be_wrong`, `review_keyword`); a case whose history makes
 the rules suggest nothing fails. Negative rule cases (normal noise) are unit tests, not eval cases.
 
+- **AI-4** (`EvalCorrelation`): "primary cause" is the candidate verdicts: the candidates the validated output
+  recommends (`CorrelationPrompts.Recommended`, the same rule that pre-selects them in the UI: a `shared_cause`
+  hypothesis of at least medium confidence citing `incident X`, not outweighed by an `independent` / `unclear` one)
+  must be exactly `keep`, and none of `leaveOut`. Evidence: every hypothesis cites an `incident X` / `error X` key that
+  was sent. Masking: no monitor name, URL path / query, planted secret or e-mail address in the request. The A3
+  promotion of AI-4 additionally needs > 90 % acceptance of the A1 proposals over four weeks (K3).
+
 The report also shows, as a diagnostic only, which cause categories the free text mentions ("text mentions").
 
 AI-6 (`EvalGrader.GradeNarrative`) reuses the columns:
@@ -164,12 +182,40 @@ AI-6 (`EvalGrader.GradeNarrative`) reuses the columns:
   "monitor A", "monitor B", ...).
 - **Language**: as for AI-2.
 
+AI-9 cases (`"feature": "MonitorSetupAssistant"`) have a `request` (the text typed into the assistant box), an
+optional `planMinIntervalSeconds` (default 15) and `"expect": { "primaryCause": "setup_form" | "setup_clarify",
+"fields": { "type": "Keyword", "target": "...", "intervalSeconds": 60, ... }, "notes": ["IntervalRaisedToPlanMinimum"] }`.
+The harness sends the request through the production `MonitorSetupAssistant` and grades the **final form** (after the
+server restored the user's links / quoted text and clamped the values), so "primary cause" in the report means
+"outcome and every labelled field match". Masking fails when a planted secret, a link path / query or an e-mail address
+reaches the model; language checks the explanation (or the clarification question). Evidence is not graded (no
+hypotheses). `canned` is the model's JSON answer using the placeholders `[U1]` / `[T1]` as the model sees them.
+
 Labels that need judgement (for example `maintenance_aftermath`) are kept few; when a real run disagrees with a label,
 look at `reports/prompts/<case>.txt` and the model's answer before changing either.
+
+## AI-7 (questions in natural language)
+
+Q&A cases (`"feature": "QuestionAnswer"`, label `qa_grounded_answer`) describe the customer's monitors with their
+checks and incidents (`qaMonitors`), optionally another tenant's monitors (`otherTenant`), the `question`, and in fake
+mode the scripted model turns (`cannedTurns`: `{"tools": [{"name": ..., "input": {...}}]}` or `{"answer": "..."}`;
+placeholders `"{{monitor_id:Name}}"`, `"{{incident_id:Name#1}}"` become ids, `{{monitor:Name}}` /
+`{{incident:Name#1}}` reference tokens). The question runs through the production `QuestionAnswerService` (prompt,
+tools, caps, budget); a real run lets the model choose its own tool calls. The report columns mean:
+
+- **Primary cause**: the answer cites every record in `expect.references` and used every tool in `expect.tools`.
+- **Evidence**: every record the answer cites was returned by a tool in that conversation.
+- **Masking**: no monitor name (own or the other tenant's), URL path / query, planted secret, e-mail address or other
+  tenant's host appears in what was sent, and the answer contains none of `secrets` / `expect.notInAnswer`
+  (e.g. a link planted in an error text).
+- **Language** and **Numbers** (every number of the answer is in the tool results or the question) as above.
+
+A real run of the 8 cases makes 2-4 calls each with a larger prompt (tools + results), roughly 8 × 3 × 4k input +
+8 × 3 × 0.5k output tokens, about **$0.65 with `claude-opus-5-5`** at list prices (less with caching).
 
 ## Later
 
 - Cases recorded from the local UAT test servers (ports 8765 / 8767 / 8799, docs/UAT-REPORT.md) and from 👎 feedback in
   `AiDecisions` (exported without customer data).
-- Cases for AI-4, AI-5, AI-7 and AI-8 as those features land, each with its own folder and threshold.
+- Cases for AI-8 as it lands, with its own folder and threshold.
 - AI-6 weekly narratives use the same provider and contract; add weekly cases when the weekly view gets real use.

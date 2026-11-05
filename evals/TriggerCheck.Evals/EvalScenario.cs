@@ -36,8 +36,19 @@ public sealed class EvalScenario
     /// <summary>Filled by the harness (AI-6): monitor name → id of the seeded monitors.</summary>
     [JsonIgnore]
     public Dictionary<string, int> SeededMonitorIds { get; } = new();
+    /// <summary>AI-4 (CorrelationGrouping): the incidents around the outage. Required for that feature.</summary>
+    public EvalGroup? Group { get; set; }
+    /// <summary>AI-9: the text the customer types into the monitor setup assistant. Required for MonitorSetupAssistant.</summary>
+    public string? Request { get; set; }
+    /// <summary>AI-9: the plan's minimum check interval (default 15 s), to label the clamping.</summary>
+    public int? PlanMinIntervalSeconds { get; set; }
     /// <summary>Model answer used in fake mode (CI): a well-formed, correct interpretation for the case.</summary>
     public JsonNode? Canned { get; set; }
+    /// <summary>AI-7 (QuestionAnswer): the question, the customer's monitors, another tenant's monitors and the scripted turns (see <see cref="EvalQa"/>).</summary>
+    public string? Question { get; set; }
+    public List<EvalQaMonitor> QaMonitors { get; set; } = [];
+    public List<EvalQaMonitor> OtherTenant { get; set; } = [];
+    public JsonArray? CannedTurns { get; set; }
 
     public static readonly JsonSerializerOptions Json = new()
     {
@@ -60,6 +71,9 @@ public sealed class EvalScenario
             if (AiFeatures.Find(s.Feature) is null) throw new InvalidDataException($"{file}: unknown feature '{s.Feature}'");
             if (s.Feature == AiFeatures.IncidentInterpretation && s.Incident is null) throw new InvalidDataException($"{file}: incident missing");
             if (s.Feature == AiFeatures.SlowdownExplanation && s.Anomaly is null) throw new InvalidDataException($"{file}: anomaly missing");
+            if (s.Feature == AiFeatures.QuestionAnswer && (string.IsNullOrWhiteSpace(s.Question) || s.QaMonitors.Count == 0)) throw new InvalidDataException($"{file}: question or qaMonitors missing");
+            if (s.Feature == AiFeatures.MonitorSetupAssistant && string.IsNullOrWhiteSpace(s.Request)) throw new InvalidDataException($"{file}: request missing");
+            if (s.Feature == AiFeatures.CorrelationGrouping && s.Group is null) throw new InvalidDataException($"{file}: group missing");
             if (s.Feature == AiFeatures.NarrativeReport)
             {
                 if (s.Narrative is not { Monitors.Count: > 0 }) throw new InvalidDataException($"{file}: narrative monitors missing");
@@ -95,6 +109,22 @@ public sealed class EvalExpectation
     public List<string> FocusMonitors { get; set; } = [];
     /// <summary>AI-6: the true figures of monitors, for the grader's independent claim check (not the production engine).</summary>
     public List<EvalMonitorFacts> MonitorFacts { get; set; } = [];
+    /// <summary>AI-7: records the answer must cite ("monitor:Name", "incident:Name#1") and tools it must have used.</summary>
+    public List<string> References { get; set; } = [];
+    public List<string> Tools { get; set; } = [];
+    /// <summary>AI-7: text the answer must not contain (e.g. a link planted in an error text).</summary>
+    public List<string> NotInAnswer { get; set; } = [];
+    /// <summary>
+    /// AI-9: expected values of the pre-filled form (property names of MonitorSetupFields in camelCase, enums as names,
+    /// e.g. "type": "Keyword", "intervalSeconds": 60). Fields not listed are not graded.
+    /// </summary>
+    public Dictionary<string, JsonElement>? Fields { get; set; }
+    /// <summary>AI-9: server-side adjustments that must be reported (MonitorSetupNoteKind names).</summary>
+    public List<string> Notes { get; set; } = [];
+    /// <summary>AI-4: monitor names of the candidates that belong to the group (the model must recommend exactly these).</summary>
+    public List<string> Keep { get; set; } = [];
+    /// <summary>AI-4: monitor names of the candidates that must be left out (they keep their own notifications).</summary>
+    public List<string> LeaveOut { get; set; } = [];
 }
 
 /// <summary>Expected figures of one monitor in the report period (computed by hand from the case data).</summary>

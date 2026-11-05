@@ -1,0 +1,84 @@
+@page
+@model TriggerCheck.Web.Areas.App.Pages.Ask.IndexModel
+@using TriggerCheck.Ai.Qa
+@{
+    ViewData["Title"] = L["Ask AI"].Value;
+}
+
+<h2 class="mb-1">@L["Ask AI"]</h2>
+<p class="text-muted mb-3">@L["Ask about your monitors and incidents, for example \"Which service was slowest last week?\". The assistant only reads your monitoring data; it cannot change anything."]</p>
+
+@if (Model.Unavailable is not null)
+{
+    <div class="alert alert-secondary" id="ask-unavailable">
+        @Model.Unavailable
+        @if (Model.IsAdmin) { <a asp-page="/Ai/Index">@L["AI settings"]</a> }
+    </div>
+}
+
+<form method="post" id="ask-form">
+    <section class="mb-3" id="ask-conversation" aria-live="polite" aria-label="@L["Conversation"]">
+        @for (var n = 0; n < Model.Entries.Count; n++)
+        {
+            var e = Model.Entries[n];
+            <input type="hidden" name="History[@n].Question" value="@e.Exchange.Question" />
+            <input type="hidden" name="History[@n].Answer" value="@e.Exchange.Answer" />
+            <input type="hidden" name="History[@n].DecisionId" value="@e.Exchange.DecisionId" />
+            @if (e.Exchange.Unverified is not null) { <input type="hidden" name="History[@n].Unverified" value="@e.Exchange.Unverified" /> }
+
+            <div class="mb-2 d-flex justify-content-end"><div class="card card-body py-2 px-3 ask-question" style="max-width: 48rem">
+                <span class="visually-hidden">@L["You"]:</span>@e.Exchange.Question
+            </div></div>
+            <section class="card ai-content mb-3 ask-answer" data-ai-decision="@e.Exchange.DecisionId" aria-label="@L["AI-generated"]">
+                <div class="card-header d-flex align-items-center gap-2">
+                    <span class="badge text-bg-info ai-badge">@Icons.Get("sparkles", 12) @L["AI-generated"]</span>
+                    <span class="small text-muted">@L["AI output may be wrong. Check the linked records."]</span>
+                </div>
+                <div class="card-body">
+                    <p class="mb-2 ask-answer-text" style="white-space: pre-line">@foreach (var s in e.Segments)
+                        {
+                            if (s.Url is not null) { <a href="@s.Url" class="ask-ref" data-ref-kind="@s.Kind.ToString().ToLowerInvariant()">@s.Text</a> }
+                            else { @s.Text }
+                        }</p>
+                    @if (e.Exchange.Unverified is not null)
+                    {
+                        <div class="alert alert-warning small py-1 px-2 mb-2 ask-unverified">@L["Some numbers in this answer could not be verified against your data: {0}", e.Exchange.Unverified]</div>
+                    }
+                    @if (e.Sources.Count > 0)
+                    {
+                        <div class="small text-muted">@L["Sources"]:</div>
+                        <ul class="small mb-0 ask-sources">@foreach (var s in e.Sources) { <li><a href="@s.Url">@s.Text</a></li> }</ul>
+                    }
+                </div>
+                <div class="card-footer d-flex align-items-center gap-2 small">
+                    <span class="text-muted">@L["Was this helpful?"]</span>
+                    @foreach (var (value, emoji, label) in new[] { (1, "👍", L["Helpful"].Value), (-1, "👎", L["Not helpful"].Value) })
+                    {
+                        <button type="submit" formaction="?handler=Feedback" formnovalidate name="vote" value="@($"{e.Exchange.DecisionId}:{value}")"
+                                class="btn btn-sm @(e.MyVote == value ? "btn-primary" : "btn-outline-secondary")"
+                                title="@label" aria-label="@label" aria-pressed="@(e.MyVote == value ? "true" : "false")">@emoji</button>
+                    }
+                </div>
+            </section>
+        }
+    </section>
+
+    @if (Model.Error is not null)
+    {
+        <div class="alert alert-warning" id="ask-error" role="alert">@Model.Error</div>
+    }
+
+    @if (Model.Unavailable is null)
+    {
+        <div class="mb-2">
+            <label class="form-label" for="ask-question">@L["Your question"]</label>
+            <textarea class="form-control" id="ask-question" name="Question" rows="2" maxlength="@Model.MaxQuestionChars" required
+                      aria-describedby="ask-question-help">@Model.Question</textarea>
+            <div class="form-text" id="ask-question-help">@L["At most {0} characters. Answers use your account's AI language. Earlier questions on this page are sent along for context and are not stored.", Model.MaxQuestionChars]</div>
+        </div>
+        <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary">@L["Ask"]</button>
+            @if (Model.Entries.Count > 0) { <a class="btn btn-outline-secondary" asp-page="/Ask/Index">@L["New conversation"]</a> }
+        </div>
+    }
+</form>

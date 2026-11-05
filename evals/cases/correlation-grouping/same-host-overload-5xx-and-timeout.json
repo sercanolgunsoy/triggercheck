@@ -1,0 +1,59 @@
+{
+  "id": "same-host-overload-5xx-and-timeout",
+  "feature": "CorrelationGrouping",
+  "language": "en",
+  "description": "An overloaded host returns 503 on some endpoints and times out on another.",
+  "expect": {
+    "primaryCause": "candidate_verdicts",
+    "keep": [
+      "Reports API"
+    ],
+    "leaveOut": []
+  },
+  "group": {
+    "incidents": [
+      {
+        "name": "Search API",
+        "type": "Http",
+        "target": "https://api.example.test/search",
+        "startedMinutesAgo": 8,
+        "cause": "Unexpected status code 503 (expected 200-299)"
+      },
+      {
+        "name": "Catalog API",
+        "type": "Http",
+        "target": "https://api.example.test/catalog",
+        "startedMinutesAgo": 7.5,
+        "cause": "Unexpected status code 502 (expected 200-299)"
+      },
+      {
+        "name": "Reports API",
+        "type": "Http",
+        "target": "https://api.example.test/reports",
+        "startedMinutesAgo": 7,
+        "cause": "Timeout after 10s"
+      }
+    ]
+  },
+  "secrets": [],
+  "canned": {
+    "summary": "All three monitors on api.example.test failed within a minute: two with HTTP 5xx and one with a timeout, a typical overloaded server.",
+    "hypotheses": [
+      {
+        "cause": "Same host failing with 5xx and timeouts at the same moment: overload.",
+        "confidence": "high",
+        "evidence": [
+          "incident C: same_host, timeout 60 s after the 503 of incident A"
+        ],
+        "category": "shared_cause",
+        "evidence_refs": [
+          "incident C",
+          "incident A",
+          "incident B"
+        ]
+      }
+    ],
+    "suggested_actions": [],
+    "unknowns": []
+  }
+}

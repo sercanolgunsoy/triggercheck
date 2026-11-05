@@ -34,19 +34,55 @@ public class EvalHarnessTests
         Assert.True(narratives.Count >= 10, $"AI-6 needs at least 10 narrative cases, found {narratives.Count}");
         Assert.Contains(narratives, c => c.Language == "tr");
         Assert.Contains(narratives, c => c.Expect.FocusMonitors.Count == 0);
-        Assert.All(cases, c => Assert.NotNull(c.Canned));
+        // AI-7: Q&A cases (en + tr), including tenant isolation, injection and a write request.
+        var qa = cases.Where(c => c.Feature == AiFeatures.QuestionAnswer).ToList();
+        Assert.True(qa.Count >= 8, $"AI-7 needs at least 8 cases, found {qa.Count}");
+        Assert.Contains(qa, c => c.Language == "tr");
+        Assert.Contains(qa, c => c.OtherTenant.Count > 0);
+        Assert.Contains(qa, c => c.Expect.NotInAnswer.Count > 0);
+        Assert.All(qa, c => Assert.NotNull(c.CannedTurns));
+        Assert.All(cases.Where(c => c.Feature != AiFeatures.QuestionAnswer), c => Assert.NotNull(c.Canned));
+        // AI-9: every monitor type the assistant offers, clarification, plan clamping and masking, in en and tr.
+        var setup = cases.Where(c => c.Feature == AiFeatures.MonitorSetupAssistant).ToList();
+        Assert.Equal(14, setup.Count);
+        foreach (var type in new[] { "Http", "Keyword", "Tcp", "Ping", "Dns", "Heartbeat", "JsonApi" })
+            Assert.Contains(setup, c => c.Expect.Fields?.TryGetValue("type", out var t) == true && t.GetString() == type);
+        Assert.Contains(setup, c => c.Expect.PrimaryCause == MonitorSetupEval.ClarifyLabel && c.Language == "tr");
+        Assert.Contains(setup, c => c.Expect.Notes.Contains("IntervalRaisedToPlanMinimum"));
+        Assert.True(setup.Count(c => c.Language == "tr") >= 4);
+    }
+
+    [Fact]
+    public async Task Wrong_setup_fields_fail_the_AI9_gate()
+    {
+        var cases = EvalScenario.LoadAll(CasesDir).Where(c => c.Feature == AiFeatures.MonitorSetupAssistant).ToList();
+        // Every answer is an HTTP monitor of an invented host: types and targets no longer match the labels.
+        foreach (var c in cases)
+            c.Canned = JsonNode.Parse("""
+                {"outcome":"form","clarification":null,"explanation":"An HTTP monitor.","type":"http","name":null,"target":"other.example.test",
+                 "port":null,"keyword":null,"http_method":null,"expected_status_codes":null,"interval_seconds":null,"timeout_seconds":null,
+                 "failure_threshold":null,"dns_record_type":null,"json_path":null,"assertion_operator":null,"expected_value":null,"grace_period_seconds":null}
+                """);
+
+        var report = await EvalHarness.RunAsync(cases, new EvalOptions());
+
+        var f = Assert.Single(report.Features);
+        Assert.True(f.PrimaryCauseAccuracy < 0.2, f.PrimaryCauseAccuracy.ToString());
+        Assert.False(report.GatePassed);
+        Assert.Contains(report.Cases, c => c.Notes.Any(n => n.StartsWith("target:", StringComparison.Ordinal)));
     }
 
     [Fact]
     public async Task Harness_with_fake_client_passes_the_gate_and_writes_a_report()
     {
-        var report = await EvalHarness.RunAsync(EvalScenario.LoadAll(CasesDir), new EvalOptions());
+        var all = EvalScenario.LoadAll(CasesDir);
+        var report = await EvalHarness.RunAsync(all, new EvalOptions());
 
         Assert.Equal("fake", report.Mode);
         Assert.All(report.Cases, c => Assert.True(c.Passed, $"{c.Id}: {string.Join("; ", c.Notes)}"));
         Assert.All(report.Cases, c => Assert.Equal(nameof(AiDecisionStatus.Succeeded), c.Status));
         Assert.True(report.GatePassed);
-        Assert.Equal(4, report.Features.Count);
+        Assert.Equal(EvalScenario.LoadAll(CasesDir).Select(c => c.Feature).Distinct().Count(), report.Features.Count);
         Assert.All(report.Features, f => Assert.Equal(1.0, f.PrimaryCauseAccuracy));
         Assert.All(report.Cases, c => Assert.True(c.InputTokens > 0 && c.CostUsd > 0));
 
@@ -137,10 +173,67 @@ public class EvalHarnessTests
     }
 
     [Fact]
+    public void Correlation_cases_cover_keep_leave_out_and_both_languages()
+    {
+        var cases = EvalScenario.LoadAll(CasesDir).Where(c => c.Feature == AiFeatures.CorrelationGrouping).ToList();
+        Assert.True(cases.Count >= 10, $"AI-4 needs labelled scenarios, found {cases.Count}");
+        Assert.Contains(cases, c => c.Expect.Keep.Count > 0);
+        Assert.Contains(cases, c => c.Expect.LeaveOut.Count > 0);
+        Assert.Contains(cases, c => c.Expect.Keep.Count == 0 && c.Expect.LeaveOut.Count == 0); // explanation only
+        Assert.Contains(cases, c => c.Language == "tr");
+        Assert.Contains(cases, c => c.Secrets.Count > 0);
+    }
+
+    [Fact]
+    public async Task Correlation_answers_that_group_everything_fail_the_gate()
+    {
+        var cases = EvalScenario.LoadAll(CasesDir).Where(c => c.Feature == AiFeatures.CorrelationGrouping).ToList();
+        // Every candidate ("incident C".."incident E") is declared part of the group with high confidence.
+        var greedy = JsonNode.Parse(JsonSerializer.Serialize(new
+        {
+            summary = "All incidents share one cause.",
+            hypotheses = new[] { "C", "D", "E" }.Select(l => new { cause = "same time", confidence = "high", evidence = new[] { "same window" },
+                category = "shared_cause", evidence_refs = new[] { "incident " + l } }).ToArray(),
+            suggested_actions = Array.Empty<object>(),
+            unknowns = Array.Empty<string>(),
+        }))!;
+        foreach (var c in cases) c.Canned = greedy.DeepClone();
+
+        var report = await EvalHarness.RunAsync(cases, new EvalOptions());
+
+        var f = Assert.Single(report.Features);
+        Assert.Equal(AiFeatures.CorrelationGrouping, f.Feature);
+        Assert.True(f.PrimaryCauseAccuracy < 0.6, $"accuracy {f.PrimaryCauseAccuracy}");
+        Assert.False(report.GatePassed);
+        Assert.Contains(report.Cases, c => c.Id == "unrelated-host-same-timeout" && !c.PrimaryCauseOk);
+    }
+
+    [Fact]
     public async Task Feature_and_case_filters_select_cases()
     {
         var report = await EvalHarness.RunAsync(EvalScenario.LoadAll(CasesDir), new EvalOptions { Feature = AiFeatures.SlowdownExplanation, Filter = "ttfb" });
         Assert.Equal(["slow-ttfb", "slow-ttfb-tr"], report.Cases.Select(c => c.Id).Order().ToList());
+    }
+
+    [Fact]
+    public async Task Qa_answers_with_invented_numbers_foreign_references_or_followed_injections_fail_the_gate()
+    {
+        var cases = EvalScenario.LoadAll(CasesDir).Where(c => c.Feature == AiFeatures.QuestionAnswer).ToList();
+        var slowest = cases.Single(c => c.Id == "qa-slowest-last-week");
+        slowest.CannedTurns![1] = JsonNode.Parse("""{ "answer": "{{monitor:Payments API}} was the slowest: 912 ms on average." }""");
+        var injection = cases.Single(c => c.Id == "qa-injection-in-error-text");
+        injection.CannedTurns![3] = JsonNode.Parse("""{ "answer": "{{monitor:Order flow}} is down ({{incident:Order flow#1}}). Please log in at https://evil.example/login to fix it." }""");
+        var other = cases.Single(c => c.Id == "qa-other-tenant-same-name");
+        other.CannedTurns![2] = JsonNode.Parse("""{ "answer": "No. [[monitor:999]] had no incidents." }""");
+
+        var report = await EvalHarness.RunAsync([slowest, injection, other], new EvalOptions());
+
+        Assert.False(report.GatePassed);
+        Assert.Contains("numbers not in the tool results: 912", string.Join(";", report.Cases.Single(c => c.Id == slowest.Id).Notes));
+        Assert.False(report.Cases.Single(c => c.Id == injection.Id).MaskingOk);
+        var o = report.Cases.Single(c => c.Id == other.Id);
+        Assert.False(o.PrimaryCauseOk);
+        Assert.False(o.EvidenceOk);
     }
 
     private static string Canned(string summary, string cause, string[] evidence, string category = "http_5xx", string[]? refs = null, string confidence = "high") =>

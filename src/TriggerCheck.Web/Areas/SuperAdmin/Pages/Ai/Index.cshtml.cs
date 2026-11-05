@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using TriggerCheck.Ai;
 using TriggerCheck.Ai.Budget;
 using TriggerCheck.Ai.Client;
+using TriggerCheck.Ai.Features.Correlation;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Web.Infrastructure;
@@ -17,7 +18,8 @@ namespace TriggerCheck.Web.Areas.SuperAdmin.Pages.Ai;
 /// cost this month (AI-10). The API key itself is never shown.
 /// </summary>
 [Authorize(Policy = Policies.SuperAdmin)]
-public class IndexModel(AppDbContext db, IAiUsage usage, IAiClient client, IOptions<AiOptions> options, TimeProvider time, Text<AdminResource> L) : PageModel
+public class IndexModel(AppDbContext db, IAiUsage usage, IAiClient client, IOptions<AiOptions> options, TimeProvider time, Text<AdminResource> L,
+    IncidentCorrelationService correlation) : PageModel
 {
     public AiOptions Options => options.Value;
     public bool KeyConfigured { get; private set; }
@@ -28,6 +30,8 @@ public class IndexModel(AppDbContext db, IAiUsage usage, IAiClient client, IOpti
     public int Helpful { get; private set; }
     public int NotHelpful { get; private set; }
     public Dictionary<AiDecisionStatus, int> ByStatus { get; private set; } = new();
+    /// <summary>AI-4: platform-wide acceptance of grouping suggestions (decision K3: A3 only above 90 % over four weeks).</summary>
+    public CorrelationAcceptance GroupingAcceptance { get; private set; } = null!;
 
     public async Task OnGetAsync(CancellationToken ct)
     {
@@ -41,6 +45,7 @@ public class IndexModel(AppDbContext db, IAiUsage usage, IAiClient client, IOpti
         NotHelpful = await votes.CountAsync(f => f.Value == -1, ct);
         ByStatus = (await month.GroupBy(d => d.Status).Select(g => new { g.Key, Count = g.Count() }).ToListAsync(ct))
             .ToDictionary(x => x.Key, x => x.Count);
+        GroupingAcceptance = await correlation.AcceptanceAsync(null, ct);
     }
 
     public string StatusName(AiDecisionStatus s) => s switch

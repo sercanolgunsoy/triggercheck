@@ -1990,4 +1990,271 @@
   <data name="The AI budget of this month is used up." xml:space="preserve">
     <value>Bu ayın yapay zekâ bütçesi tükendi.</value>
   </data>
+  <data name="Ask about your monitors and incidents, for example &quot;Which service was slowest last week?&quot;. The assistant only reads your monitoring data; it cannot change anything." xml:space="preserve">
+    <value>Monitörleriniz ve olaylarınız hakkında soru sorun, örneğin "Geçen hafta en yavaş servisim hangisiydi?". Asistan yalnızca izleme verilerinizi okur; hiçbir şeyi değiştiremez.</value>
+  </data>
+  <data name="Conversation" xml:space="preserve">
+    <value>Konuşma</value>
+  </data>
+  <data name="AI output may be wrong. Check the linked records." xml:space="preserve">
+    <value>Yapay zekâ çıktısı hatalı olabilir. Bağlantılı kayıtları kontrol edin.</value>
+  </data>
+  <data name="Some numbers in this answer could not be verified against your data: {0}" xml:space="preserve">
+    <value>Bu yanıttaki bazı sayılar verilerinizle doğrulanamadı: {0}</value>
+  </data>
+  <data name="Sources" xml:space="preserve">
+    <value>Kaynaklar</value>
+  </data>
+  <data name="Your question" xml:space="preserve">
+    <value>Sorunuz</value>
+  </data>
+  <data name="At most {0} characters. Answers use your account's AI language. Earlier questions on this page are sent along for context and are not stored." xml:space="preserve">
+    <value>En fazla {0} karakter. Yanıtlar hesabınızın yapay zekâ dilinde verilir. Bu sayfadaki önceki sorular bağlam için birlikte gönderilir ve saklanmaz.</value>
+  </data>
+  <data name="Ask" xml:space="preserve">
+    <value>Sor</value>
+  </data>
+  <data name="New conversation" xml:space="preserve">
+    <value>Yeni konuşma</value>
+  </data>
+  <data name="AI features are disabled for your account. A customer admin can enable them on the AI features page." xml:space="preserve">
+    <value>Hesabınızda yapay zekâ özellikleri kapalı. Bir müşteri yöneticisi bunları Yapay zekâ özellikleri sayfasından açabilir.</value>
+  </data>
+  <data name="Questions in natural language are not included in your plan." xml:space="preserve">
+    <value>Doğal dilde sorular planınıza dahil değil.</value>
+  </data>
+  <data name="The AI quota of your plan is used up. Questions can be asked again next month." xml:space="preserve">
+    <value>Planınızın yapay zekâ kotası doldu. Sorular gelecek ay yeniden sorulabilir.</value>
+  </data>
+  <data name="You are asking questions too quickly. Try again in {0} seconds." xml:space="preserve">
+    <value>Çok hızlı soru soruyorsunuz. {0} saniye sonra yeniden deneyin.</value>
+  </data>
+  <data name="The assistant is busy. Try again in a moment." xml:space="preserve">
+    <value>Asistan şu anda meşgul. Birazdan yeniden deneyin.</value>
+  </data>
+  <data name="Enter a question of at most {0} characters." xml:space="preserve">
+    <value>En fazla {0} karakterlik bir soru girin.</value>
+  </data>
+  <data name="This question could not be answered." xml:space="preserve">
+    <value>Bu soru yanıtlanamadı.</value>
+  </data>
+  <data name="The answer could not be generated. Try again later." xml:space="preserve">
+    <value>Yanıt oluşturulamadı. Daha sonra yeniden deneyin.</value>
+  </data>
+  <data name="Incident of {0} ({1})" xml:space="preserve">
+    <value>{0} olayı ({1})</value>
+  </data>
+  <data name="(unknown record)" xml:space="preserve">
+    <value>(bilinmeyen kayıt)</value>
+  </data>
+  <data name="Describe what to monitor" xml:space="preserve">
+    <value>Neyi izlemek istediğinizi yazın</value>
+  </data>
+  <data name="e.g. Check example.com/checkout every minute and alert if the text 'Pay now' is missing" xml:space="preserve">
+    <value>ör. example.com/odeme sayfasını dakikada bir kontrol et, 'Şimdi öde' yazısı yoksa alarm ver</value>
+  </data>
+  <data name="The assistant only fills in the form below; nothing is saved until you click Create. Links are shared with the AI as host name only, and text in quotes is not shared at all." xml:space="preserve">
+    <value>Asistan yalnızca aşağıdaki formu doldurur; Oluştur'a tıklayana kadar hiçbir şey kaydedilmez. Bağlantılar yapay zekâyla yalnızca sunucu adı olarak paylaşılır, tırnak içindeki metin hiç paylaşılmaz.</value>
+  </data>
+  <data name="Fill in the form" xml:space="preserve">
+    <value>Formu doldur</value>
+  </data>
+  <data name="Monitor setup assistant" xml:space="preserve">
+    <value>Monitör kurulum asistanı</value>
+  </data>
+  <data name="You asked for a check every {0}. Your plan ({1}) allows {2} at the fastest, so {2} was set." xml:space="preserve">
+    <value>{0} aralıkla kontrol istediniz. Planınız ({1}) en sık {2} aralığa izin veriyor, bu yüzden {2} ayarlandı.</value>
+  </data>
+  <data name="A check every {0} is not offered; {1} was set." xml:space="preserve">
+    <value>{0} kontrol aralığı sunulmuyor; {1} ayarlandı.</value>
+  </data>
+  <data name="The timeout was changed from {0} s to {1} s (it must be 1-60 s and shorter than the check interval)." xml:space="preserve">
+    <value>Zaman aşımı {0} sn yerine {1} sn yapıldı (1-60 sn arasında ve kontrol aralığından kısa olmalı).</value>
+  </data>
+  <data name="The failure threshold was changed from {0} to {1} (allowed: 1-5)." xml:space="preserve">
+    <value>Hata eşiği {0} yerine {1} yapıldı (izin verilen: 1-5).</value>
+  </data>
+  <data name="The grace period was changed from {0} s to {1} s (allowed: {2}-{3} s)." xml:space="preserve">
+    <value>Tolerans süresi {0} sn yerine {1} sn yapıldı (izin verilen: {2}-{3} sn).</value>
+  </data>
+  <data name="The suggested port is not valid; enter a port between 1 and 65535." xml:space="preserve">
+    <value>Önerilen port geçerli değil; 1 ile 65535 arasında bir port girin.</value>
+  </data>
+  <data name="The user name and password were removed from the address; credentials in the URL are not supported." xml:space="preserve">
+    <value>Kullanıcı adı ve parola adresten çıkarıldı; URL içinde kimlik bilgisi desteklenmez.</value>
+  </data>
+  <data name="GET is used instead of HEAD because keyword and JSON monitors need the response body." xml:space="preserve">
+    <value>Anahtar kelime ve JSON monitörleri yanıt gövdesine ihtiyaç duyduğu için HEAD yerine GET kullanıldı.</value>
+  </data>
+  <data name="The suggested status codes were not valid; the default 200-299 is used." xml:space="preserve">
+    <value>Önerilen durum kodları geçerli değildi; varsayılan 200-299 kullanıldı.</value>
+  </data>
+  <data name="The assistant referred to text that is not in your request; that value was left empty." xml:space="preserve">
+    <value>Asistan isteğinizde olmayan bir metne başvurdu; bu değer boş bırakıldı.</value>
+  </data>
+  <data name="Your description was too long and was shortened." xml:space="preserve">
+    <value>Açıklamanız çok uzundu ve kısaltıldı.</value>
+  </data>
+  <data name="Describe the monitor you need first." xml:space="preserve">
+    <value>Önce ihtiyacınız olan monitörü tarif edin.</value>
+  </data>
+  <data name="The AI budget of your plan is used up this month. Please fill in the form yourself." xml:space="preserve">
+    <value>Planınızın bu ayki yapay zekâ bütçesi doldu. Lütfen formu kendiniz doldurun.</value>
+  </data>
+  <data name="You have used the assistant often in the last hour. Please try again later or fill in the form yourself." xml:space="preserve">
+    <value>Asistanı son bir saatte çok sık kullandınız. Lütfen daha sonra tekrar deneyin veya formu kendiniz doldurun.</value>
+  </data>
+  <data name="The assistant could not fill in the form this time. Please try again or fill it in yourself." xml:space="preserve">
+    <value>Asistan bu sefer formu dolduramadı. Lütfen tekrar deneyin veya formu kendiniz doldurun.</value>
+  </data>
+  <data name="The assistant is not available for your account." xml:space="preserve">
+    <value>Asistan hesabınız için kullanılamıyor.</value>
+  </data>
+  <data name="The assistant could not tell which kind of monitor you need. Please name the address or host and what to check." xml:space="preserve">
+    <value>Asistan hangi tür monitöre ihtiyacınız olduğunu anlayamadı. Lütfen adresi veya sunucuyu ve neyin kontrol edileceğini belirtin.</value>
+  </data>
+  <data name="Some suggested values need your attention; see the highlighted fields." xml:space="preserve">
+    <value>Önerilen bazı değerler kontrol etmenizi gerektiriyor; işaretli alanlara bakın.</value>
+  </data>
+  <data name="Review the values and click Create to save. Nothing has been saved yet." xml:space="preserve">
+    <value>Değerleri gözden geçirin ve kaydetmek için Oluştur'a tıklayın. Henüz hiçbir şey kaydedilmedi.</value>
+  </data>
+  <data name="AI: likely separate" xml:space="preserve">
+    <value>YZ: muhtemelen ayrı</value>
+  </data>
+  <data name="AI: likely the same cause" xml:space="preserve">
+    <value>YZ: muhtemelen aynı neden</value>
+  </data>
+  <data name="Accepted" xml:space="preserve">
+    <value>Kabul edildi</value>
+  </data>
+  <data name="Accepted suggestions (last {0} days)" xml:space="preserve">
+    <value>Kabul edilen öneriler (son {0} gün)</value>
+  </data>
+  <data name="Group the selected incidents" xml:space="preserve">
+    <value>Seçili olayları grupla</value>
+  </data>
+  <data name="Group these {0} incidents?" xml:space="preserve">
+    <value>Bu {0} olay gruplansın mı?</value>
+  </data>
+  <data name="Grouped automatically" xml:space="preserve">
+    <value>Otomatik gruplandı</value>
+  </data>
+  <data name="Grouped incidents" xml:space="preserve">
+    <value>Gruplanan olaylar</value>
+  </data>
+  <data name="Grouped under" xml:space="preserve">
+    <value>Şu olayın altında gruplandı:</value>
+  </data>
+  <data name="Grouping of related incidents is currently unavailable. Every incident is notified on its own." xml:space="preserve">
+    <value>İlişkili olayların gruplanması şu anda kullanılamıyor. Her olay için ayrı bildirim gönderilir.</value>
+  </data>
+  <data name="Grouping of related incidents is not included in your plan." xml:space="preserve">
+    <value>İlişkili olayların gruplanması planınıza dahil değil.</value>
+  </data>
+  <data name="Grouping of related incidents is part of the AI features, which are turned off for your account." xml:space="preserve">
+    <value>İlişkili olayların gruplanması, hesabınızda kapalı olan yapay zekâ özelliklerinin bir parçasıdır.</value>
+  </data>
+  <data name="Grouping of related incidents is switched off. Every incident is notified on its own." xml:space="preserve">
+    <value>İlişkili olayların gruplanması kapalı. Her olay için ayrı bildirim gönderilir.</value>
+  </data>
+  <data name="Grouping of related incidents was switched off. Every incident is notified on its own." xml:space="preserve">
+    <value>İlişkili olayların gruplanması kapatıldı. Her olay için ayrı bildirim gönderilir.</value>
+  </data>
+  <data name="Grouping of related incidents was switched on." xml:space="preserve">
+    <value>İlişkili olayların gruplanması açıldı.</value>
+  </data>
+  <data name="Keep in group" xml:space="preserve">
+    <value>Grupta tut</value>
+  </data>
+  <data name="Keep separate" xml:space="preserve">
+    <value>Ayrı tut</value>
+  </data>
+  <data name="Monitors that go down within a few minutes of each other with the same signals (same host or IP, same error type) can be grouped into one primary incident and the affected ones. Grouping only combines notifications: no incident is closed or hidden, and monitors left out of a group are notified on their own." xml:space="preserve">
+    <value>Birkaç dakika içinde aynı sinyallerle (aynı sunucu veya IP, aynı hata türü) çöken monitörler tek bir ana olay ve etkilenenler olarak gruplanabilir. Gruplama yalnızca bildirimleri birleştirir: hiçbir olay kapatılmaz veya gizlenmez, grup dışında kalan monitörler ayrı bildirim alır.</value>
+  </data>
+  <data name="No groups yet." xml:space="preserve">
+    <value>Henüz grup yok.</value>
+  </data>
+  <data name="No suggestions right now." xml:space="preserve">
+    <value>Şu anda öneri yok.</value>
+  </data>
+  <data name="Notifications of related incidents are combined: the first incident is notified at once, related ones that follow are listed in one short follow-up instead of separate alerts. When it recovers, or after {0} minutes, monitors still down are notified on their own." xml:space="preserve">
+    <value>İlişkili olayların bildirimleri birleştirilir: ilk olay hemen bildirilir, ardından gelen ilişkili olaylar ayrı uyarılar yerine tek bir kısa takip mesajında listelenir. İlk olay düzeldiğinde veya {0} dakika sonra, hâlâ çalışmayan monitörler ayrı ayrı bildirilir.</value>
+  </data>
+  <data name="Possibly related" xml:space="preserve">
+    <value>Muhtemelen ilişkili</value>
+  </data>
+  <data name="Primary" xml:space="preserve">
+    <value>Ana olay</value>
+  </data>
+  <data name="Primary incident" xml:space="preserve">
+    <value>Ana olay (grup)</value>
+  </data>
+  <data name="Primary incident of a group" xml:space="preserve">
+    <value>Bir grubun ana olayı</value>
+  </data>
+  <data name="Recent groups" xml:space="preserve">
+    <value>Son gruplar</value>
+  </data>
+  <data name="Rejected" xml:space="preserve">
+    <value>Reddedildi</value>
+  </data>
+  <data name="Related incidents" xml:space="preserve">
+    <value>İlişkili olaylar</value>
+  </data>
+  <data name="Same signals" xml:space="preserve">
+    <value>Aynı sinyaller</value>
+  </data>
+  <data name="Suggested" xml:space="preserve">
+    <value>Önerildi</value>
+  </data>
+  <data name="Suggestions" xml:space="preserve">
+    <value>Öneriler</value>
+  </data>
+  <data name="Switch grouping off" xml:space="preserve">
+    <value>Gruplamayı kapat</value>
+  </data>
+  <data name="Switch grouping on" xml:space="preserve">
+    <value>Gruplamayı aç</value>
+  </data>
+  <data name="The group was undone. Monitors that are still down are notified on their own." xml:space="preserve">
+    <value>Gruplama geri alındı. Hâlâ çalışmayan monitörler ayrı ayrı bildirilir.</value>
+  </data>
+  <data name="The incidents were grouped." xml:space="preserve">
+    <value>Olaylar gruplandı.</value>
+  </data>
+  <data name="The suggestion was rejected. The incidents stay separate." xml:space="preserve">
+    <value>Öneri reddedildi. Olaylar ayrı kalır.</value>
+  </data>
+  <data name="This suggestion was already decided." xml:space="preserve">
+    <value>Bu öneri için zaten karar verilmiş.</value>
+  </data>
+  <data name="TriggerCheck suggests groups of related incidents for you to accept or reject. Notifications are not changed." xml:space="preserve">
+    <value>TriggerCheck, kabul etmeniz veya reddetmeniz için ilişkili olay grupları önerir. Bildirimler değişmez.</value>
+  </data>
+  <data name="Undo grouping" xml:space="preserve">
+    <value>Gruplamayı geri al</value>
+  </data>
+  <data name="Undone" xml:space="preserve">
+    <value>Geri alındı</value>
+  </data>
+  <data name="same IP address" xml:space="preserve">
+    <value>aynı IP adresi</value>
+  </data>
+  <data name="same domain" xml:space="preserve">
+    <value>aynı alan adı</value>
+  </data>
+  <data name="same error type" xml:space="preserve">
+    <value>aynı hata türü</value>
+  </data>
+  <data name="same host" xml:space="preserve">
+    <value>aynı sunucu</value>
+  </data>
+  <data name="started within a few minutes" xml:space="preserve">
+    <value>birkaç dakika içinde başladı</value>
+  </data>
+  <data name="{0} accepted, {1} rejected" xml:space="preserve">
+    <value>{0} kabul, {1} ret</value>
+  </data>
 </root>

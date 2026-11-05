@@ -11,6 +11,7 @@ using TriggerCheck.Ai;
 using TriggerCheck.Ai.Client;
 using TriggerCheck.Ai.Execution;
 using TriggerCheck.Ai.Features;
+using TriggerCheck.Ai.Features.Correlation;
 using TriggerCheck.Ai.Interpretation;
 using TriggerCheck.Ai.Narrative;
 using TriggerCheck.Domain;
@@ -56,6 +57,7 @@ public static class EvalHarness
             ["ConnectionStrings:Default"] = $"Data Source={dbPath};Pooling=False",
             ["Ai:Enabled"] = "true",
             ["Ai:RetryCooldownMinutes"] = "0",
+            ["Ai:Qa:PerUserPerMinute"] = "1000",
             ["Ai:ApiKey"] = options.Real ? options.ApiKey : "",
         };
         if (options.Model is not null) settings["Ai:Model"] = options.Model;
@@ -79,11 +81,19 @@ public static class EvalHarness
             ? ActivatorUtilities.CreateInstance<AnthropicAiClient>(sp)
             : fake));
         services.AddSingleton<IAiClient>(sp => sp.GetRequiredService<RecordingAiClient>());
+        // AI-7: the tool-use client, scripted by the case's cannedTurns in fake mode.
+        var fakeTools = new FakeAiToolClient();
+        services.RemoveAll<IAiToolClient>();
+        services.AddSingleton<RecordingAiToolClient>(sp => new RecordingAiToolClient(options.Real
+            ? new AnthropicAiToolClient(sp.GetRequiredService<IOptions<AiOptions>>(), sp.GetRequiredService<ILogger<AnthropicAiToolClient>>())
+            : fakeTools));
+        services.AddSingleton<IAiToolClient>(sp => sp.GetRequiredService<RecordingAiToolClient>());
         // The production providers, wrapped so the grader sees their AiPrompt (evidence keys, ref rule). Registered last: they win.
         var prompts = new PromptRecorder();
         services.AddScoped<IAiContextProvider>(sp => new RecordingContextProvider(ActivatorUtilities.CreateInstance<IncidentInterpretationProvider>(sp), prompts));
         services.AddScoped<IAiContextProvider>(sp => new RecordingContextProvider(ActivatorUtilities.CreateInstance<SlowdownExplanationProvider>(sp), prompts));
         services.AddScoped<IAiContextProvider>(sp => new RecordingContextProvider(ActivatorUtilities.CreateInstance<NarrativeReportProvider>(sp), prompts));
+        services.AddScoped<IAiContextProvider>(sp => new RecordingContextProvider(ActivatorUtilities.CreateInstance<CorrelationGroupingProvider>(sp), prompts));
         services.AddScoped<IAiContextProvider>(sp => new RecordingContextProvider(ActivatorUtilities.CreateInstance<SettingsSuggestionProvider>(sp), prompts));
 
         var report = new EvalReport
@@ -101,17 +111,45 @@ public static class EvalHarness
 
             foreach (var scenario in cases)
             {
+                if (scenario.Feature == AiFeatures.QuestionAnswer)
+                {
+                    var qa = await EvalQa.RunAsync(sp, scenario, fakeTools, sp.GetRequiredService<RecordingAiToolClient>(), ct);
+                    qa.Model = o.ModelFor(scenario.Feature);
+                    qa.Effort = o.Features.TryGetValue(scenario.Feature, out var qf) && qf.Effort is { } e ? e : o.Qa.Effort;
+                    qa.CostUsd = decimal.Round(o.PriceFor(qa.Model).Estimate(qa.InputTokens, qa.OutputTokens, qa.CacheReadTokens, qa.CacheWriteTokens), 6);
+                    report.Cases.Add(qa);
+                    continue;
+                }
                 current = scenario;
                 recorder.Reset();
                 prompts.Last = null;
+                if (scenario.Feature == AiFeatures.MonitorSetupAssistant)
+                {
+                    // AI-9 is interactive (no job / provider): the production assistant answers the case's request.
+                    using var setupScope = sp.CreateScope();
+                    var (setup, setupDecision) = await MonitorSetupEval.RunAsync(setupScope.ServiceProvider, scenario, ct);
+                    var graded = MonitorSetupEval.Grade(scenario, recorder.LastRequest, recorder.LastResult, setup, setupDecision);
+                    graded.Model = o.ModelFor(scenario.Feature);
+                    graded.Effort = o.EffortFor(scenario.Feature);
+                    graded.CostUsd = setupDecision?.CostEstimate ?? 0;
+                    report.Cases.Add(graded);
+                    continue;
+                }
                 AiDecision? decision = null;
+                EvalCorrelationSeed? correlation = null;
                 using (var scope = sp.CreateScope())
                 {
                     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-                    var job = await SeedAsync(db, scenario, ct);
+                    AiJob? job;
+                    if (scenario.Feature == AiFeatures.CorrelationGrouping)
+                        job = (correlation = await EvalCorrelation.SeedAsync(scope.ServiceProvider, scenario, ct)).Job;
+                    else
+                        job = await SeedAsync(db, scenario, ct);
                     if (job is not null) decision = await scope.ServiceProvider.GetRequiredService<IAiInterpreter>().RunAsync(job, ct);
                 }
-                var result = EvalGrader.Grade(scenario, recorder.LastRequest, recorder.LastResult, decision, prompts.Last);
+                var result = correlation is not null
+                    ? EvalCorrelation.Grade(scenario, correlation, recorder.LastRequest, recorder.LastResult, decision, prompts.Last)
+                    : EvalGrader.Grade(scenario, recorder.LastRequest, recorder.LastResult, decision, prompts.Last);
                 result.Model = o.ModelFor(scenario.Feature);
                 result.Effort = o.EffortFor(scenario.Feature);
                 result.CostUsd = decision?.CostEstimate ?? 0;

@@ -1,0 +1,58 @@
+{
+  "id": "resolved-blip-elsewhere",
+  "feature": "CorrelationGrouping",
+  "language": "en",
+  "description": "A one-minute timeout blip on another domain during an API outage.",
+  "expect": {
+    "primaryCause": "candidate_verdicts",
+    "keep": [],
+    "leaveOut": [
+      "Docs site"
+    ]
+  },
+  "group": {
+    "incidents": [
+      {
+        "name": "Orders API",
+        "type": "Http",
+        "target": "https://api.example.test/orders",
+        "startedMinutesAgo": 10,
+        "cause": "Timeout after 10s"
+      },
+      {
+        "name": "Users API",
+        "type": "Http",
+        "target": "https://api.example.test/users",
+        "startedMinutesAgo": 9.7,
+        "cause": "Timeout after 10s"
+      },
+      {
+        "name": "Docs site",
+        "type": "Http",
+        "target": "https://docs.othersite.test/",
+        "startedMinutesAgo": 9.5,
+        "cause": "Timeout after 10s",
+        "resolvedMinutesAgo": 8.5
+      }
+    ]
+  },
+  "secrets": [],
+  "canned": {
+    "summary": "api.example.test is timing out on both monitors. The docs site on another domain had a one-minute timeout and recovered on its own.",
+    "hypotheses": [
+      {
+        "cause": "Another domain with a short, self-healing timeout; nothing ties it to the API host.",
+        "confidence": "medium",
+        "evidence": [
+          "incident C: resolved after 60 s, different domain"
+        ],
+        "category": "independent",
+        "evidence_refs": [
+          "incident C"
+        ]
+      }
+    ],
+    "suggested_actions": [],
+    "unknowns": []
+  }
+}

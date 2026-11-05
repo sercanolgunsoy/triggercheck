@@ -26,6 +26,7 @@ public sealed partial class SlackNotifier(IHttpClientFactory httpClientFactory) 
             AlertKind.Up => ":large_green_circle:",
             AlertKind.CertificateExpiring => ":warning:",
             AlertKind.Escalation => ":rotating_light:",
+            AlertKind.GroupUpdate => ":link:",
             _ => ":white_check_mark:"
         };
         var blocks = new JsonArray
@@ -110,7 +111,7 @@ public sealed class TeamsNotifier(IHttpClientFactory httpClientFactory) : INotif
                     ["size"] = "Medium",
                     ["color"] = m.Kind switch
                     {
-                        AlertKind.Down or AlertKind.Escalation => "Attention",
+                        AlertKind.Down or AlertKind.Escalation or AlertKind.GroupUpdate => "Attention",
                         AlertKind.Up => "Good",
                         AlertKind.CertificateExpiring => "Warning",
                         _ => "Accent"

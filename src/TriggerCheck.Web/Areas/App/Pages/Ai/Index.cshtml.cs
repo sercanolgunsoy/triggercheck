@@ -31,7 +31,9 @@ public class IndexModel(AppDbContext db, ICurrentCustomer current, IAiUsage usag
         Usage = await usage.GetMonthlyUsageAsync(Customer.Id, ct);
         var returnUrl = Url.Page("/Ai/Index", new { area = "App" }) ?? "/App/Ai";
         var decisions = await db.AiDecisions.AsNoTracking()
-            .Where(d => d.CustomerId == Customer.Id && d.Status == AiDecisionStatus.Succeeded)
+            // AI-7 answers are not stored; AI-9 answers are form drafts shown on the create page, not interpretations.
+            .Where(d => d.CustomerId == Customer.Id && d.Status == AiDecisionStatus.Succeeded
+                        && d.Feature != AiFeatures.QuestionAnswer && d.Feature != AiFeatures.MonitorSetupAssistant)
             .OrderByDescending(d => d.Id)
             .Take(RecentCount)
             .ToListAsync(ct);
@@ -75,6 +77,7 @@ public class IndexModel(AppDbContext db, ICurrentCustomer current, IAiUsage usag
         AiFeatures.IncidentInterpretation => L["Incident summaries and likely causes"],
         AiFeatures.SlowdownExplanation => L["Slowdown explanations"],
         AiFeatures.SettingsSuggestions => L["Monitor setting suggestions"],
+        AiFeatures.MonitorSetupAssistant => L["Monitor setup assistant"],
         AiFeatures.CorrelationGrouping => L["Grouping of related incidents"],
         AiFeatures.NarrativeReport => L["Weekly and monthly reports"],
         AiFeatures.QuestionAnswer => L["Questions in natural language"],

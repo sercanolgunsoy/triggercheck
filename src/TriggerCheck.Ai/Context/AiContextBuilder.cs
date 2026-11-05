@@ -106,6 +106,16 @@ public sealed partial class AiContextBuilder
     public string Build() => _sb.ToString();
 
     /// <summary>
+    /// External text prepared like an <see cref="Untrusted"/> block body (masked, truncated, brackets neutralized, control
+    /// characters removed) for callers that send it in another envelope, e.g. a JSON tool result (AI-7).
+    /// </summary>
+    public static string UntrustedText(string? text, int maxChars = DefaultUntrustedChars) =>
+        Neutralize(Truncate(AiMasker.MaskText(text), maxChars));
+
+    /// <summary>A system-generated or trusted value prepared like a <see cref="Fact"/> value (masked, single line).</summary>
+    public static string FactText(string? text, bool identifier = false) => Clean(AiMasker.MaskText(text, longTokens: !identifier));
+
+    /// <summary>
     /// UTC timestamp text. Values read from the database have Kind Unspecified but are UTC (the app stores UTC only), so
     /// only Local values are converted; otherwise the text would depend on the server's time zone.
     /// </summary>

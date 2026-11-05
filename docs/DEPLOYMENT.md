@@ -452,13 +452,15 @@ product works fully without it: status, incidents and alerts are always decided 
 | `Ai__MaxTokens` | 16000 | Output cap per call (thinking + JSON). Calls that hit it are recorded as `Truncated` (visible on the SuperAdmin page); raise the feature's `MaxTokens` if that happens. |
 | `Ai__TimeoutSeconds` (60), `Ai__MaxRetries` (2) | | `TimeoutSeconds` is the overall cap per call. The SDK retries 429/5xx/network errors, and each attempt gets `TimeoutSeconds / (MaxRetries + 1)` (at least 5 s). |
 | `Ai__RetryCooldownMinutes` | 60 | An identical input that was refused or failed is not sent again within this time. |
-| `Ai__QueueCapacity` (200), `Ai__MaxConcurrency` (2) | | Background AI queue. AI calls never run on a request or check path; a full queue drops the job (logged). |
+| `Ai__QueueCapacity` (200), `Ai__MaxConcurrency` (2) | | Background AI queue. AI calls never run on a check path and, except for the AI-9 assistant the user explicitly asks, never on a request path; a full queue drops the job (logged). |
 | `Ai__Pricing__<model>__InputPerMTok`, `__OutputPerMTok`, `__CacheReadPerMTok`, `__CacheWritePerMTok` | list prices | USD prices for cost estimates (SuperAdmin *AI usage*). |
 | `Ai__Baseline__Enabled` (true), `__IntervalSeconds` (60), `__RefreshMinutes` (60), `__WindowDays` (7), `__ZThreshold` (4), `__K` / `__N` (3 of 5), `__CloseAtMost` (1) | | L1 baseline / anomaly job (no LLM, no key needed). Runs only when `Monitoring__Enabled` is true. |
 | `Ai__Events__PollSeconds` (10), `Ai__Events__LookbackMinutes` (15) | | Event watcher of AI-2 / AI-3: how often new / resolved incidents and new slowdown signals are looked up, and how old an event without an AI decision may be to still be picked up after a restart. Runs only when AI is on and a key is set. |
 | `Ai__Events__MonitorCooldownMinutes` (30), `__HostWindowMinutes` (10), `__MaxJobsPerCustomerPerScan` (5) | | Cost damping of AI-2: a monitor whose incident was interpreted within the cool-down gets no new summary for the same (normalised) cause (flapping; a different cause is interpreted, at most once per cool-down); of incidents of one customer on the same host within the window only the first is interpreted (its page is linked from the others); per scan at most this many jobs per customer, round-robin across customers. Events over the cap or refused by a full queue are retried on the next scan. |
 | `Ai__Narrative__Enabled` (true), `__IntervalMinutes` (15, 0 = off), `__MaxPerRun` (20), `__AutoMonthlyDays` (7), `__MaxAttempts` (3), `__RetryMinutes` (60), `__RunningTimeoutMinutes` (15, must exceed two `Ai__TimeoutSeconds`), `__RequestCooldownMinutes` (60), `__EmailWaitMinutes` (180, must be shorter than `Reports__CatchUpDays` minus two mailer runs; checked at startup) | | AI-6 narrative report batch job: creates the previous month's narrative for eligible customers (AI opted in, `NarrativeReport` in the plan) in the first days of a month and generates requested ones (weekly / older months, from the Reports page); runs on one instance at a time (cluster lease `ai-narrative-report`, renewed before every claim) and stays correct without it (row claims stamped with the claim time). Throughput: at most `MaxPerRun` narratives per `IntervalMinutes` (default 20 per 15 minutes, monthly ones first), so with the default wait about 240 customers get the narrative in their e-mail; the rest are sent without it. The monthly SLA e-mail waits for a narrative that is still expected at most `EmailWaitMinutes` after the month ended, then goes without it; it never waits when AI is off, the customer is not eligible, the budget is used up or all attempts failed. The model writes no numbers at all: its text may only refer to the computed report values through placeholders (`{{A.uptime}}`), which the server renders (units, Turkish decimal comma, durations, change directions, SLA result); digits, number words, SLA verdicts in words, links, domains, e-mail addresses and phone numbers make a statement (or, in the headline, the whole narrative) be dropped. The free-text incident cause is never sent to the model. |
 | `Ai__Suggestions__Enabled` (true), `__IntervalMinutes` (360), `__WindowDays` (7), `__DismissDays` (30), `__MaxChecksPerMonitor` (30000), `__BatchSize` (50) | | AI-5 settings suggestion job (rules, no key needed for detection). Runs only when `Monitoring__Enabled` is true, on the cluster leader. `WindowDays` is the history the rules read (never before the monitor's last settings change) and how often the evidence of an open suggestion is refreshed; `DismissDays` is how long a dismissed kind stays hidden (closed suggestions are kept at least `DismissDays + 1` days regardless of plan retention). |
+| `Ai__Qa__MaxQuestionChars` (500), `__MaxIterations` (6), `__MaxToolCalls` (12), `__MaxToolResultChars` (6000), `__MaxTotalToolResultChars` (40000), `__MaxRows` (50), `__MaxRangeDays` (90), `__MaxAllMonitorsRangeDays` (7), `__MaxStatsIncidents` (20000), `__MaxHistoryTurns` (3), `__MaxHistoryAnswerChars` (1500), `__MaxTokensPerCall` (4000), `__TimeoutSeconds` (90), `__CallTimeoutSeconds` (60), `__MaxRetries` (1), `__PerUserPerMinute` (4), `__PerUserPerHour` (30), `__MaxConcurrent` (4), `__Effort` (`medium`) | | AI-7 questions (*Ask AI* page). Caps per question: model calls of the tool loop (the last one must answer without tools), tool calls, characters per tool result and in total, rows per list, time range of a query (statistics over all monitors at most `MaxAllMonitorsRangeDays`; incident rows read for their downtime, newest first, flagged when cut), earlier exchanges sent along. `MaxTokensPerCall` bounds a turn (tool turns and the ~120-word answer need far less; worst case per question is `MaxIterations × MaxTokensPerCall` output tokens). `CallTimeoutSeconds` is per HTTP attempt of one model call and `MaxRetries` (0 or 1) the SDK retries: the Q&A client does **not** use the interpreter's `Ai__TimeoutSeconds / (Ai__MaxRetries + 1)`, which is sized for short low-effort calls. `TimeoutSeconds` is the server-side deadline of the whole question; it is kept below `2 × Ai__TimeoutSeconds` so the Pending sweep never closes a running question. Rate limit per user and questions in parallel per instance (in memory). `Effort` applies unless `Ai__Features__QuestionAnswer__Effort` is set; `Ai__Features__QuestionAnswer__MaxTokens` overrides `MaxTokensPerCall`. |
+| `Ai__SetupAssistant__RequestsPerUserPerHour` (20), `__MaxRequestChars` (1000) | | AI-9 monitor setup assistant: requests one user may make per rolling hour (model calls, reused answers and over-budget skips all count; an identical request of the same customer reuses the earlier answer without a call and is recorded as a `Succeeded` row with `ErrorCode` `reused` and no tokens), and the length a description is cut to before masking. Model / effort / tokens per feature as usual (`Ai__Features__MonitorSetupAssistant__…`). |
 
 **Slowdown detection latency (AI-1):** a slowdown is flagged when 3 of the last 5 successful checks are anomalous.
 The first job run after the third slow check flags it, so the latency is 3 check intervals plus up to
@@ -480,6 +482,63 @@ error texts (as untrusted data, grouped after removing numbers and ids), the cer
 periods, all masked as described below. Changing these prompts, a model or an effort level needs a passing eval run
 (`evals/README.md`); the effort of both features is `low` by default.
 
+**Related incidents (AI-4, alert noise reduction):** incidents of one customer that start within
+`Ai__Correlation__WindowMinutes` (5) of the first one and share a signal are grouped as "primary incident +
+affected", for notifications only (no incident is ever closed, hidden or changed). Deterministic L1 rules decide:
+the same host or IP with errors of the same family (network: DNS / timeout / refused / unreachable / TLS; application:
+HTTP 5xx / 4xx / content) is grouped by the rule; weaker signals (same host with unrelated errors, same parent domain
+and error type, or the same network / 5xx error on another host) only make a candidate. The model (feature
+`CorrelationGrouping`, same masking and budget as above) is asked only to judge the candidates and write the
+explanation; it never runs on the alert path.
+
+- **A1 (today, decision K3):** the watcher (`Ai__Correlation__PollSeconds`, 30) proposes groups on *Incidents →
+  Related incidents*; a CustomerAdmin keeps the members they want ("Group the selected incidents") or rejects them.
+  Notifications are not changed. The page shows the acceptance rate over `Ai__Correlation__AcceptanceWindowDays` (28);
+  undecided proposals expire after `Ai__Correlation__ProposalExpiryHours` (24) and are not counted.
+- **A3 (off until `MaxAutonomy` of `CorrelationGrouping` in `AiFeatures.All` is raised after > 90 % acceptance):**
+  the DOWN alert of a rule-linked incident is folded into the primary's notification, only when the primary's own
+  DOWN was delivered; folded alerts are recorded per channel ("Grouped with incident #…"). The decision is a few
+  indexed queries plus one short write transaction: it never waits for the model, waits at most
+  `Ai__Correlation__AlertPathLockTimeoutSeconds` (2) for the database write lock, and fails open (any doubt, error
+  or busy database sends the alert on its own). Eligibility is re-checked under the lock, so a switch-off in the same
+  moment wins.
+  - **Follow-up:** one short "Also affected (likely same cause as incident #N): "B", "C"" message per group goes to
+    the customer's channels (not voice calls) once the first unreported fold is `Ai__Correlation__FollowUpDelaySeconds`
+    (60) old; monitors folded after it go into a later, again debounced, follow-up. Webhooks get status
+    `also_affected`, `incidentId` (the primary incident) and `alsoAffected` (`monitorId`, `name`).
+  - **Fold cap:** a folded monitor still down `Ai__Correlation__MaxFoldMinutes` (15) after its fold gets its own DOWN.
+  - **Undo:** when the primary recovers (after its UP was sent), an admin undoes the group, the customer switches
+    grouping off, or the customer is no longer eligible for automatic grouping (AI opt-out, `Ai__Enabled=false`,
+    `Ai__Correlation__MaxAutonomy` lowered, plan without `CorrelationGrouping`, budget used up), every folded monitor
+    still down gets its own DOWN. The watcher checks all of this every poll, so any of these switches takes effect
+    within one `PollSeconds`.
+  - **Durable, once:** a held-back DOWN is claimed first (`IncidentGroupMembers.NotifiedAtUtc`, a conditional update
+    that only succeeds while it is unmarked and the incident still open) and then queued; if the queue refuses it (full,
+    shutting down) the claim is released and the watcher tries again on its next poll, also after a restart. Two
+    callers never both send it. A crash between claim and delivery loses it like any alert still in the in-memory
+    queue. Follow-ups claim their members (`ReportedAtUtc`) the same way.
+  - A held-back DOWN whose incident has recovered by the time it is delivered is dropped, and it never supersedes or
+    cancels another alert of the monitor (a waiting UP wins); it does not cancel the monitor's pending escalations
+    either. Escalations (FEAT-5), maintenance (FEAT-3) and region quorum (FEAT-6) are otherwise unchanged.
+  - A folded monitor that recovers before anybody was told about it (no follow-up, no own DOWN) while the primary is
+    still down has its UP folded too; once reported, its UP is sent normally.
+  - `Ai__Correlation__MaxAutonomy` (`A3`) can only lower the level (`A0` switches the feature off).
+- Customers switch grouping off on the same page; it needs `Ai__Enabled`, the AI opt-in and a plan with
+  `CorrelationGrouping`. A used-up budget keeps the free rule-based proposals, skips the model and turns A3 off.
+- **Multi-instance (OPS-3):** the watcher scans, sends follow-ups / held-back DOWNs and queues explanations only on
+  the holder of the `ai-correlation` cluster lease, renewing it before each step. Each group's explanation is queued
+  once per membership (`IncidentGroups.ExplanationQueuedAtUtc`; a member joining an automatic group resets it), also
+  when the model cannot explain it. Every instance refreshes an in-memory hint each poll so that, at A1, UP alerts
+  run no extra database query. **Rolling changes:** while instances run with different autonomy (e.g. during a rolling
+  deploy that lowers `Ai__Correlation__MaxAutonomy` or changes the catalog level), an A1 instance may not see automatic
+  groups made by an A3 instance for up to one poll; a folded member's UP is then sent instead of folded. Nothing is
+  lost: the group is still undone by the watcher and its held-back DOWNs are sent.
+
+**Upgrading an existing installation (AI-4):** adds the tables `IncidentGroups` and `IncidentGroupMembers` and the
+column `Customers.AlertGroupingEnabled`. Until the EF migrations (OPS-1) exist, the schema is created by
+`EnsureCreated` only on an empty database: back up and recreate the database, or apply the migration once OPS-1 lands
+(`Customers.AlertGroupingEnabled` must default to **true**; the new tables start empty).
+
 **Settings suggestions (AI-5, autonomy A1):** every `Ai__Suggestions__IntervalMinutes` the job reads each monitor's
 central checks (outside maintenance, confirmation probes excluded) and incidents of the last `WindowDays` days, but only
 those recorded since its last settings change, and suggests: a higher failure threshold when most incidents recovered
@@ -492,6 +551,44 @@ A CustomerAdmin applies a suggestion with one click on the monitor page (the sam
 concurrency handling as the edit form) or dismisses it for `DismissDays` days; an applied kind is not suggested again
 within `WindowDays`. Failed or budget-skipped explanations are retried after `Ai__RetryCooldownMinutes`. Response
 bodies are never stored, so no new keyword is ever proposed (only the current one without stray whitespace).
+
+**Questions in natural language (AI-7, autonomy A0, Enterprise plans):** the *Ask AI* page (`/App/Ask`, every
+customer role including viewers) answers questions such as "Which service was slowest last week?" with a tool loop over
+five **read-only** tools: list monitors, monitor details, statistics over a time range, incidents over a time range, and
+incident details. There is no write tool. The customer id comes from the signed-in session and is not a tool argument,
+so an id of another customer gives the same "not found" as a missing one. The model sees what K5 allows (ids, monitor
+type, host, status, counts, timings, times, status codes, masked error texts in fields named `*_untrusted`), but **not
+monitor names**: it cites records as `[[monitor:12]]` / `[[incident:34]]`, which the page turns into links with the
+name only after loading the record for the signed-in customer. A name in the question is matched on the server
+("name_contains"); the model only learns which monitors matched. The question and earlier answers of the page are
+masked like any other input. Answers are plain text (HTML-encoded) with a list of linked sources; numbers that do not
+appear in the tool results are shown with a warning (`IQaAnswerGrounding`, replaceable). Each question is one
+`AiDecisions` row (feature `QuestionAnswer`, subject = user id) with the summed tokens and cost and `ModelCalls`; the
+question and answer text are not stored (the conversation lives in the page's form only). Every model call of the
+loop is reserved against the budget before it is made, so a budget that runs out mid-question stops the loop
+(`Failed` / `budget_exhausted`, the calls made still count). The request waits for the answer (async, at most
+`Ai__Qa__TimeoutSeconds`); more than `Ai__Qa__MaxConcurrent` questions at once get "busy". A model call is not
+aborted when the user closes the tab or a proxy times out: it finishes under the server-side deadline, its usage is
+recorded and the loop stops (`cancelled`). A question stopped by the deadline (`timeout`) or the user (`cancelled`)
+counts its reserved calls even when no usage came back. Opt-out, plan and budget are checked before the per-user rate
+limit (they do not use it up) and are recorded as a skipped decision at most once per user per
+`Ai__RetryCooldownMinutes`.
+
+**Monitor setup assistant (AI-9, autonomy A1):** the create-monitor page shows a "Describe what to monitor" box to
+CustomerAdmins. The description is sent to the model while the user waits (bounded by `Ai__TimeoutSeconds`); the answer
+is a fixed JSON schema of form fields. The server rejects unknown monitor types, ignores any other field, restores the
+user's own links and quoted text, normalizes the target and clamps every value (an interval below the plan minimum is
+raised to it, with an explanation). The pre-filled form is then validated like a normal post (plan rules, SSRF
+pre-check), so a private or internal target shows the usual error. The assistant never saves: the user reviews the form
+and clicks Create. Links in the description (with any scheme, or scheme-less: host names incl. Unicode, IPv4, `[v6]`,
+`localhost:port`, `user@host/...`, a host followed by a path, query or fragment) reach the model as scheme + host only,
+and quoted text ("Pay now"; an unclosed quote runs to the end) not at all; credentials written in plain words
+("user admin password x", "şifre x", "token is x") are masked, and the rest of the description is masked like other
+free text (secrets, tokens, e-mail, phone). The raw description is capped at twice `MaxRequestChars` on the server
+before anything else, and cut to `MaxRequestChars` only after links and quotes were extracted. The default plans
+include it from Standard up (the AI-10 tiers did not list it); existing databases get it when a SuperAdmin ticks
+`MonitorSetupAssistant` on the *Plans* page. When AI is off, the customer opted out or the plan lacks the feature, the
+box is hidden and the form works as before.
 
 **Who gets AI:** a call is made only when all of these hold:
 
@@ -509,7 +606,7 @@ The budget is reserved before each call: a `Pending` row is written in the same 
 parallel calls cannot overshoot the call limit. A reservation is always completed, also on shutdown or an unexpected error (`shutdown` / `error`); rows left `Pending` by a crash become `abandoned` after twice `Ai__TimeoutSeconds` (swept at startup and by the baseline job). The token limit can be exceeded by the calls in flight, at most
 `MaxConcurrency × MaxTokens`. These count towards the budget:
 
-- **Calls:** calls that returned token usage, plus pending calls. Calls that failed before the model answered (network, rate limit) are free.
+- **Calls:** calls that returned token usage, plus pending calls. Calls that failed before the model answered (network, rate limit) are free. A Q&A question counts each model call of its tool loop (`AiDecisions.ModelCalls`).
 - **Tokens:** input + cache writes + output, with cache reads counted at 1/10.
 
 **Privacy (decision K5):** only masked technical data is sent: monitor type, **host name** (URLs are reduced to scheme
@@ -540,6 +637,11 @@ after the plan's `RetentionDays`:
 - AI decisions, except the current month's, which the budget needs;
 - their feedback;
 - closed anomaly signals.
+
+**Upgrading an existing installation (AI-7):** AI-7 adds the column `AiDecisions.ModelCalls` (int, not null, default
+0). Until the EF migrations (OPS-1) exist, `EnsureCreated` does not add it to an existing database and AI pages fail
+with "no such column". Back up and recreate the database, or apply the migration once OPS-1 lands (DB default 0;
+existing rows count as one call each).
 
 ## Probe agents (multi-region checks)
 

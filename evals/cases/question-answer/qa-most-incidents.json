@@ -1,0 +1,88 @@
+{
+  "id": "qa-most-incidents",
+  "feature": "QuestionAnswer",
+  "language": "en",
+  "description": "Ranking by number of incidents in the last 7 days.",
+  "expect": {
+    "primaryCause": "qa_grounded_answer",
+    "references": [
+      "monitor:Mail relay"
+    ],
+    "tools": [
+      "monitor_stats"
+    ],
+    "notInAnswer": []
+  },
+  "question": "Which monitor had the most incidents in the last 7 days?",
+  "qaMonitors": [
+    {
+      "name": "Mail relay",
+      "type": "Tcp",
+      "target": "mail.example.test",
+      "status": "Up",
+      "checks": [
+        {
+          "minutesAgo": 5,
+          "repeat": 5,
+          "everyMinutes": 1,
+          "up": true,
+          "ms": 25,
+          "status": null
+        }
+      ],
+      "incidents": [
+        {
+          "startedMinutesAgo": 2000,
+          "resolvedMinutesAgo": 1990,
+          "repeat": 3,
+          "everyMinutes": 600,
+          "cause": "Connection refused"
+        }
+      ]
+    },
+    {
+      "name": "Health endpoint",
+      "type": "Http",
+      "target": "https://api.example.test/health",
+      "status": "Up",
+      "checks": [
+        {
+          "minutesAgo": 5,
+          "repeat": 5,
+          "everyMinutes": 1,
+          "up": true,
+          "ms": 90,
+          "status": 200
+        }
+      ],
+      "incidents": [
+        {
+          "startedMinutesAgo": 3000,
+          "resolvedMinutesAgo": 2995,
+          "cause": "Timeout"
+        }
+      ]
+    }
+  ],
+  "otherTenant": [],
+  "secrets": [
+    "/health"
+  ],
+  "cannedTurns": [
+    {
+      "tools": [
+        {
+          "name": "monitor_stats",
+          "input": {
+            "from": "2026-03-03T12:00:00Z",
+            "to": "2026-03-10T12:00:00Z",
+            "sort_by": "most_incidents"
+          }
+        }
+      ]
+    },
+    {
+      "answer": "{{monitor:Mail relay}} had the most incidents in the last 7 days: 3, with 30 minutes of downtime in total. {{monitor:Health endpoint}} had 1."
+    }
+  ]
+}

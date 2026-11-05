@@ -41,6 +41,10 @@ public sealed class AiOptions
     public global::TriggerCheck.Ai.Narrative.AiNarrativeOptions Narrative { get; set; } = new();
     public AiSuggestionOptions Suggestions { get; set; } = new();
 
+    /// <summary>"Ai:Qa": natural-language questions (AI-7), see <see cref="Qa.AiQaOptions"/>.</summary>
+    public Qa.AiQaOptions Qa { get; set; } = new();
+    public AiSetupAssistantOptions SetupAssistant { get; set; } = new();
+
     public static readonly IReadOnlySet<string> Efforts = new HashSet<string> { "low", "medium", "high", "xhigh", "max" };
 
     /// <summary>Unknown effort values (default and per feature); checked at startup.</summary>
@@ -159,4 +163,13 @@ public sealed class AiSuggestionOptions
     public int MaxChecksPerMonitor { get; set; } = 30_000;
     /// <summary>Monitors processed per batch.</summary>
     public int BatchSize { get; set; } = 50;
+}
+
+/// <summary>"Ai:SetupAssistant": the AI-9 monitor setup assistant on the create-monitor page (<see cref="Features.MonitorSetup.MonitorSetupAssistant"/>).</summary>
+public sealed class AiSetupAssistantOptions
+{
+    /// <summary>Requests one user may send to the model per rolling hour (answers reused for an identical request are free).</summary>
+    public int RequestsPerUserPerHour { get; set; } = 20;
+    /// <summary>Longer requests are cut to this many characters before masking.</summary>
+    public int MaxRequestChars { get; set; } = 1000;
 }

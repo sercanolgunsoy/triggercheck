@@ -166,4 +166,37 @@ public class NumberGroundingTests
     [InlineData("Version 1.2.3 is affected.")]
     [InlineData("monitor A ½ of the time.")]
     public void Unparseable_numbers_are_ungrounded_and_never_throw(string text) => Assert.NotEmpty(Bad(text));
+
+    // ---------------- AI-7 (Q&A, warn-only) on the shared engine ----------------
+
+    private static readonly string StatsJson = """
+        {"from":"2026-03-03T12:00:00Z","to":"2026-03-10T12:00:00Z","monitors_total":2,"returned":2,"rows":[
+          {"monitor_id":4711,"ref":"[[monitor:4711]]","checks":5,"up":5,"availability_percent":99.95,"avg_response_ms":850,"incidents_started":2,"downtime_minutes":45.5},
+          {"monitor_id":12,"port":8443,"interval_seconds":60,"checks":10,"up":10,"availability_percent":100,"avg_response_ms":100}]}
+        """;
+
+    private static IReadOnlyList<string> Qa(string answer, params string[] earlier) =>
+        new TriggerCheck.Ai.Qa.QaNumberGrounding().Ungrounded(answer, new([StatsJson], ["question: Which service was slowest?"], earlier));
+
+    [Theory]
+    [InlineData("It was the slowest with 850 ms on average over 5 checks.")]
+    [InlineData("Its availability was 99.95% with 2 incidents and 45.5 minutes of downtime.")]
+    [InlineData("It answered in about 0.85 s on average.")]
+    public void Qa_answers_from_tool_results_pass(string answer) => Assert.Empty(Qa(answer));
+
+    [Theory]
+    [InlineData("It had 4711 incidents.", "4711")]          // an id
+    [InlineData("It was down for 8443 minutes.", "8443")]   // a port
+    [InlineData("It had 60 incidents.", "60")]              // an interval in seconds is no count
+    [InlineData("It was 60% available.", "60")]
+    [InlineData("It was 37 % faster than last month.", "37")]
+    public void Qa_ids_ports_and_intervals_do_not_ground_counts_durations_or_percentages(string answer, string expected) =>
+        Assert.Contains(expected, Qa(answer));
+
+    [Fact]
+    public void Qa_follow_ups_may_repeat_earlier_figures()
+    {
+        Assert.Contains("37", Qa("As said, 37 % faster."));
+        Assert.Empty(Qa("As said, 37 % faster.", "It was 37 % faster than in February."));
+    }
 }

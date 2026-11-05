@@ -43,11 +43,11 @@ public class AiWebTests(TestWebAppFactory f) : IClassFixture<TestWebAppFactory>
     {
         var plans = await f.WithDbAsync(db => db.Plans.AsNoTracking().ToDictionaryAsync(p => p.Name));
         Assert.Equal([AiFeatures.IncidentInterpretation], AiFeatures.Parse(plans["Basic"].AiFeatures));
-        Assert.Equal([AiFeatures.IncidentInterpretation, AiFeatures.SlowdownExplanation, AiFeatures.SettingsSuggestions], AiFeatures.Parse(plans["Standard"].AiFeatures));
+        Assert.Equal([AiFeatures.IncidentInterpretation, AiFeatures.SlowdownExplanation, AiFeatures.SettingsSuggestions, AiFeatures.MonitorSetupAssistant], AiFeatures.Parse(plans["Standard"].AiFeatures));
         Assert.Contains(AiFeatures.CorrelationGrouping, AiFeatures.Parse(plans["Pro"].AiFeatures));
         Assert.Contains(AiFeatures.NarrativeReport, AiFeatures.Parse(plans["Pro"].AiFeatures));
         Assert.DoesNotContain(AiFeatures.QuestionAnswer, AiFeatures.Parse(plans["Pro"].AiFeatures));
-        Assert.Equal(7, AiFeatures.Parse(plans["Enterprise"].AiFeatures).Count);
+        Assert.Equal(8, AiFeatures.Parse(plans["Enterprise"].AiFeatures).Count);
         Assert.True(plans["Basic"].AiMonthlyCallLimit > 0 && plans["Basic"].AiMonthlyCallLimit < plans["Standard"].AiMonthlyCallLimit);
     }
 

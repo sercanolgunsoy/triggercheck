@@ -201,6 +201,34 @@ public static partial class NumberGrounding
         return bad;
     }
 
+    /// <summary>
+    /// Adds the numbers, dates, times and months written in an earlier text of the same conversation (a question, an
+    /// earlier answer) as facts with the unit they were written with, so a follow-up that repeats them is not flagged.
+    /// Only for conversational context (AI-7); model input facts are recorded by the context builder.
+    /// </summary>
+    public const string ConversationKey = "conversation";
+
+    public static void AddFactsFromText(GroundingFacts facts, string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return;
+        var s = NonQuantity().Replace(TextRules.Normalize(text), m => new string(' ', m.Length));
+        foreach (Match m in IsoDate().Matches(s))
+            if (Int(m, 2) is >= 1 and <= 12 && Int(m, 3) is >= 1 and <= 31 && Int(m, 3) <= DateTime.DaysInMonth(Math.Max(1, Int(m, 1)), Int(m, 2)))
+                facts.AddDate(new DateTime(Int(m, 1), Int(m, 2), Int(m, 3), m.Groups[4].Success ? Int(m, 4) : 0, m.Groups[5].Success ? Int(m, 5) : 0, 0), m.Groups[4].Success);
+        foreach (Match m in Time().Matches(s))
+            if (Int(m, 1) is >= 0 and < 24 && Int(m, 2) is >= 0 and < 60) facts.AddTime(Int(m, 1), Int(m, 2));
+        foreach (Match m in MonthYear().Matches(s))
+            if (MonthOf(m.Groups[1].Value) > 0) facts.AddMonth(Int(m, 2), MonthOf(m.Groups[1].Value));
+        var rest = IsoDate().Replace(s, x => new string(' ', x.Length));
+        rest = Time().Replace(rest, x => new string(' ', x.Length));
+        foreach (Match m in Quantity().Matches(rest))
+        {
+            var unitText = m.Groups[2].Success ? "%" : m.Groups[4].Value;
+            foreach (var v in Parse(m.Groups[3].Value, facts.Language))
+                facts.AddNumber(ConversationKey, v.Number, unitText.Length == 0 ? GroundingUnit.None : UnitOf(unitText));
+        }
+    }
+
     public static bool IsGrounded(string? text, GroundingFacts facts, GroundingPolicy policy, IReadOnlyCollection<string>? subjects = null) =>
         Ungrounded(text, facts, policy, subjects).Count == 0;
 
@@ -305,6 +333,7 @@ public static partial class NumberGrounding
         }
         foreach (var f in scoped)
         {
+            if (f.Key == ConversationKey) { yield return f; continue; } // a figure repeated from the conversation, in any wording
             if (f.Previous && !c.PreviousCue) continue;
             if (f.IsDelta)
             {
@@ -337,7 +366,7 @@ public static partial class NumberGrounding
         (["monitor", "monitors", "monitör", "monitörler"], ["monitor"]),
         (["miss", "misses", "missed"], ["miss"]),
         (["failure", "failures", "failed"], ["fail"]),
-        (["uptime", "erişilebilirlik", "availability", "available"], ["uptime"]),
+        (["uptime", "erişilebilirlik", "availability", "available"], ["uptime", "availab"]),
         (["downtime"], ["downtime"]),
     ];
 
@@ -350,7 +379,7 @@ public static partial class NumberGrounding
         (["timeout", "timeouts", "zaman"], ["timed_out", "timeout"]),
         (["interval", "aralık", "aralığı"], ["interval"]),
         (["threshold", "eşik", "eşiği"], ["threshold"]),
-        (["uptime", "erişilebilirlik", "availability"], ["uptime"]),
+        (["uptime", "erişilebilirlik", "availability"], ["uptime", "availab"]),
         (["downtime"], ["downtime"]),
     ];
 

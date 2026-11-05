@@ -70,6 +70,8 @@ public sealed partial class GroundingFacts
 
     public void AddMonth(int year, int month) => _months.Add((year, month));
 
+    public void AddTime(int hour, int minute) => _times.Add((hour, minute));
+
     public void AddLiteral(string literal)
     {
         if (!string.IsNullOrWhiteSpace(literal)) _literals.Add(literal.Trim());

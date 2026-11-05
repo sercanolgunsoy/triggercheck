@@ -44,6 +44,8 @@
                     <dt class="col-sm-6">@L["AI calls"]</dt><dd class="col-sm-6">@Fmt.Number(Model.TotalCalls)</dd>
                     <dt class="col-sm-6">@L["Estimated cost"]</dt><dd class="col-sm-6" id="ai-total-cost">@Usd(Model.TotalCost)</dd>
                     <dt class="col-sm-6">@L["Feedback (helpful / not helpful)"]</dt><dd class="col-sm-6">@Fmt.Number(Model.Helpful) / @Fmt.Number(Model.NotHelpful)</dd>
+                    <dt class="col-sm-6">@L["Grouping suggestions accepted (last {0} days)", Model.GroupingAcceptance.Days]</dt>
+                    <dd class="col-sm-6" id="ai-grouping-acceptance">@(Model.GroupingAcceptance.Rate is double rate ? Fmt.Percent(rate * 100) : "—") (@L["{0} accepted, {1} rejected", Model.GroupingAcceptance.Accepted, Model.GroupingAcceptance.Rejected])</dd>
                     @foreach (var s in Model.ByStatus.OrderBy(s => s.Key))
                     {
                         <dt class="col-sm-6 fw-normal text-muted">@Model.StatusName(s.Key)</dt><dd class="col-sm-6">@Fmt.Number(s.Value)</dd>
