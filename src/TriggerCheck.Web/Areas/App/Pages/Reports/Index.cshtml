@@ -19,18 +19,31 @@
             <select name="month" class="form-select form-select-sm" aria-label="@L["Month"]">
                 @foreach (var m in Model.Months)
                 {
-                    <option value="@m" selected="@(m == Model.Month)">@m</option>
+                    <option value="@m" selected="@(Model.Week is null && m == Model.Month)">@m</option>
                 }
             </select>
             <button type="submit" class="btn btn-sm btn-outline-secondary">@L["Show"]</button>
         </form>
-        <a class="btn btn-sm btn-outline-primary" asp-page-handler="Pdf" asp-route-month="@Model.Month">@L["Download PDF"]</a>
-        <a class="btn btn-sm btn-outline-primary" asp-page-handler="Csv" asp-route-month="@Model.Month">@L["Download CSV"]</a>
+        <form method="get" class="d-flex gap-2" id="report-week-form">
+            <select name="week" class="form-select form-select-sm" aria-label="@L["Week"]">
+                @foreach (var w in Model.Weeks)
+                {
+                    <option value="@w" selected="@(w == Model.Week)">@w</option>
+                }
+            </select>
+            <button type="submit" class="btn btn-sm btn-outline-secondary">@L["Show week"]</button>
+        </form>
+        @if (Model.Week is null)
+        {
+            <a class="btn btn-sm btn-outline-primary" asp-page-handler="Pdf" asp-route-month="@Model.Month">@L["Download PDF"]</a>
+            <a class="btn btn-sm btn-outline-primary" asp-page-handler="Csv" asp-route-month="@Model.Month">@L["Download CSV"]</a>
+        }
     </div>
 </div>
 
-<p class="small text-muted">@L["Period: {0} ({1})", r.MonthKey, r.TimeZoneId]
-    @if (r.IsPartial) { <span class="badge bg-secondary">@L["Month in progress"]</span> }
+<p class="small text-muted">@L["Period: {0} ({1})", r.PeriodKey, r.TimeZoneId]
+    @if (Model.Week is not null) { <span class="badge bg-light text-dark border">@L["Weekly view"]</span> <a asp-page="./Index" asp-route-month="@Model.Month">@L["Back to the monthly report"]</a> }
+    @if (r.IsPartial) { <span class="badge bg-secondary">@(Model.Week is null ? L["Month in progress"] : L["Week in progress"])</span> }
 </p>
 @if (r.HistoryIncomplete)
 {
@@ -45,6 +58,8 @@
     <div class="col-6 col-md-2"><div class="card card-body py-2"><div class="small text-muted">@L["p95 response"]</div><div class="fs-5 fw-semibold">@SlaReportPdf.Ms(s.P95ResponseMs)</div></div></div>
     <div class="col-6 col-md-2"><div class="card card-body py-2"><div class="small text-muted">@L["SLA met / missed"]</div><div class="fs-5 fw-semibold">@s.SlaMet / @s.SlaMissed</div></div></div>
 </div>
+
+<partial name="_ReportNarrative" model="Model.Narrative" />
 
 @if (r.Monitors.Count == 0)
 {

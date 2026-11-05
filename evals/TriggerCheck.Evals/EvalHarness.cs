@@ -13,6 +13,7 @@ using TriggerCheck.Ai.Execution;
 using TriggerCheck.Ai.Features;
 using TriggerCheck.Ai.Features.Correlation;
 using TriggerCheck.Ai.Interpretation;
+using TriggerCheck.Ai.Narrative;
 using TriggerCheck.Domain;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Infrastructure;
@@ -91,6 +92,7 @@ public static class EvalHarness
         var prompts = new PromptRecorder();
         services.AddScoped<IAiContextProvider>(sp => new RecordingContextProvider(ActivatorUtilities.CreateInstance<IncidentInterpretationProvider>(sp), prompts));
         services.AddScoped<IAiContextProvider>(sp => new RecordingContextProvider(ActivatorUtilities.CreateInstance<SlowdownExplanationProvider>(sp), prompts));
+        services.AddScoped<IAiContextProvider>(sp => new RecordingContextProvider(ActivatorUtilities.CreateInstance<NarrativeReportProvider>(sp), prompts));
         services.AddScoped<IAiContextProvider>(sp => new RecordingContextProvider(ActivatorUtilities.CreateInstance<CorrelationGroupingProvider>(sp), prompts));
         services.AddScoped<IAiContextProvider>(sp => new RecordingContextProvider(ActivatorUtilities.CreateInstance<SettingsSuggestionProvider>(sp), prompts));
 
@@ -159,6 +161,60 @@ public static class EvalHarness
         return report;
     }
 
+    /// <summary>AI-6 report month (the month before <see cref="Now"/>) and the month before it, UTC.</summary>
+    public static readonly DateTime NarrativeMonth = new(2026, 2, 1, 0, 0, 0, DateTimeKind.Utc);
+
+    /// <summary>
+    /// AI-6: the case's monitors with a daily successful check in both months, their incidents and slowdown signals.
+    /// Records the monitor ids by name in <see cref="EvalScenario.SeededMonitorIds"/> (focus grading).
+    /// </summary>
+    private static async Task<AiJob> SeedNarrativeAsync(AppDbContext db, EvalScenario s, Customer customer, CancellationToken ct)
+    {
+        customer.Plan.RetentionDays = 400; // both months are inside the retention
+        var start = NarrativeMonth;
+        var end = start.AddMonths(1);
+        var prev = start.AddMonths(-1);
+        var monitors = new List<(EvalNarrativeMonitor Spec, MonitorEntity Entity)>();
+        foreach (var m in s.Narrative!.Monitors)
+        {
+            var e = new MonitorEntity
+            {
+                Customer = customer, Name = m.Name, Type = m.Type, Target = m.Target, SlaTarget = m.SlaTarget, IntervalSeconds = 60,
+                Status = MonitorStatus.Up, CreatedAtUtc = start.AddDays(-m.CreatedDaysBeforePeriod),
+                CertExpiresAtUtc = m.CertExpiresDaysAfterPeriod is int days ? end.AddDays(days) : null,
+                CertCheckedAtUtc = m.CertExpiresDaysAfterPeriod is not null ? end : null,
+            };
+            db.Monitors.Add(e);
+            monitors.Add((m, e));
+            for (var d = prev; d < end; d = d.AddDays(1))
+            {
+                var ms = d < start ? m.PreviousMs : m.Ms;
+                if (ms is int value && d.AddHours(12) >= e.CreatedAtUtc)
+                    db.CheckResults.Add(new CheckResult { Monitor = e, CheckedAtUtc = d.AddHours(12), IsUp = true, StatusCode = 200, ResponseTimeMs = value });
+            }
+            foreach (var i in m.Incidents)
+            {
+                var at = (i.Previous ? prev : start).AddDays(i.Day - 1).AddHours(i.Hour);
+                db.Incidents.Add(new Incident { Monitor = e, StartedAtUtc = at, ResolvedAtUtc = at.AddMinutes(i.Minutes), Cause = i.Cause });
+                db.CheckResults.Add(new CheckResult { Monitor = e, CheckedAtUtc = at, IsUp = false, StatusCode = 503, ResponseTimeMs = 900, Error = i.Cause });
+            }
+        }
+        await db.SaveChangesAsync(ct);
+        foreach (var (m, e) in monitors)
+        {
+            for (var k = 0; k < m.Slowdowns; k++)
+                db.AnomalySignals.Add(new AnomalySignal
+                {
+                    MonitorId = e.Id, CustomerId = customer.Id, Metric = "ResponseTimeMs", StartedAtUtc = start.AddDays(3 + 5 * k),
+                    EndedAtUtc = start.AddDays(3 + 5 * k).AddHours(2), Score = 6, UpdatedAtUtc = start.AddDays(3 + 5 * k).AddHours(2), DetailsJson = "{}",
+                });
+            s.SeededMonitorIds[m.Name] = e.Id;
+        }
+        await db.SaveChangesAsync(ct);
+        var key = start.ToString("yyyy-MM", CultureInfo.InvariantCulture);
+        return new AiJob(s.Feature, customer.Id, NarrativePeriod.SubjectType, key, s.Language);
+    }
+
     /// <summary>
     /// Stores the scenario for a new customer and returns the job production would queue for it. AI-5: the production
     /// suggestion job runs the rules on the stored history; null when they find nothing (the case then fails).
@@ -173,6 +229,7 @@ public static class EvalHarness
         };
         var customer = new Customer { Name = "Eval " + s.Id, ContactEmail = "ops@example.test", Plan = plan, AiEnabled = true, AiLanguage = s.Language };
         db.Customers.Add(customer);
+        if (s.Narrative is not null) return await SeedNarrativeAsync(db, s, customer, ct);
 
         MonitorEntity NewMonitor(EvalMonitor m) => new()
         {

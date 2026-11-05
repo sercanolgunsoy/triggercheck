@@ -1,0 +1,55 @@
+{
+  "id": "narrative-latency-degradation",
+  "feature": "NarrativeReport",
+  "language": "en",
+  "description": "No outage, but responses are much slower than in January and the baseline flagged slowdowns.",
+  "expect": {
+    "focusMonitors": [
+      "Search API"
+    ]
+  },
+  "narrative": {
+    "monitors": [
+      {
+        "name": "Search API",
+        "target": "https://search.example.test/q?term=x",
+        "slaTarget": 99.9,
+        "ms": 450,
+        "previousMs": 200,
+        "slowdowns": 2
+      },
+      {
+        "name": "Landing page",
+        "ms": 100,
+        "previousMs": 100
+      }
+    ]
+  },
+  "canned": {
+    "headline": "monitor A stayed up but became slower in {{period.name}}.",
+    "what_happened": [
+      {
+        "text": "monitor A had {{A.slowdowns}} slowdown signals and {{A.incidents}} incidents.",
+        "monitors": [
+          "monitor A"
+        ]
+      }
+    ],
+    "what_changed": [
+      {
+        "text": "monitor A's slowest responses reached {{A.p95_response}}, against {{A.prev.p95_response}} in the previous period.",
+        "monitors": [
+          "monitor A"
+        ]
+      }
+    ],
+    "what_to_watch": [
+      {
+        "text": "Watch the response times of monitor A.",
+        "monitors": [
+          "monitor A"
+        ]
+      }
+    ]
+  }
+}

@@ -13,6 +13,7 @@ public sealed class SlaReportCache(IMemoryCache cache, SlaReportService reports)
 {
     public static readonly TimeSpan ClosedMonth = TimeSpan.FromHours(6);
     public static readonly TimeSpan RunningMonth = TimeSpan.FromMinutes(2);
+    public static readonly TimeSpan ClosedWeek = TimeSpan.FromMinutes(30);
 
     public async Task<SlaReport?> GetAsync(int customerId, int year, int month, string? timeZoneId, CancellationToken ct)
     {
@@ -21,6 +22,17 @@ public sealed class SlaReportCache(IMemoryCache cache, SlaReportService reports)
         var report = await reports.BuildAsync(customerId, year, month, timeZoneId, ct);
         if (report is not null)
             cache.Set(key, report, report.IsPartial ? RunningMonth : ClosedMonth);
+        return report;
+    }
+
+    /// <summary>Weekly report (AI-6 panel view): a short cache, the running week as briefly as the running month.</summary>
+    public async Task<SlaReport?> GetWeekAsync(int customerId, int isoYear, int week, string? timeZoneId, CancellationToken ct)
+    {
+        var key = ("sla-report-week", customerId, isoYear, week, timeZoneId ?? "");
+        if (cache.TryGetValue(key, out SlaReport? hit)) return hit;
+        var report = await reports.BuildWeekAsync(customerId, isoYear, week, timeZoneId, ct);
+        if (report is not null)
+            cache.Set(key, report, report.IsPartial ? RunningMonth : ClosedWeek);
         return report;
     }
 }

@@ -72,6 +72,38 @@ public sealed class AiTenantData(AppDbContext db)
     public Task<List<MaintenanceOccurrence>> MaintenanceAsync(int customerId, int monitorId, DateTime fromUtc, DateTime toUtc, CancellationToken ct = default) =>
         MaintenanceQueries.OccurrencesAsync(db, customerId, monitorId, fromUtc, toUtc, ct);
 
+    // ---- AI-6 narrative report ----
+
+    /// <summary>The customer's report time zone id (null = UTC), or "" when the customer does not exist.</summary>
+    public async Task<string?> ReportTimeZoneAsync(int customerId, CancellationToken ct = default) =>
+        await db.Customers.AsNoTracking().Where(c => c.Id == customerId).Select(c => c.ReportTimeZoneId ?? "UTC").FirstOrDefaultAsync(ct) ?? "";
+
+    public Task<ReportNarrative?> NarrativeAsync(int customerId, ReportPeriodKind kind, string periodKey, CancellationToken ct = default) =>
+        db.ReportNarratives.AsNoTracking().FirstOrDefaultAsync(n => n.CustomerId == customerId && n.Kind == kind && n.PeriodKey == periodKey, ct);
+
+    /// <summary>Incidents of the customer's monitors that started in [fromUtc, toUtc).</summary>
+    public Task<List<Incident>> IncidentsStartedAsync(int customerId, DateTime fromUtc, DateTime toUtc, CancellationToken ct = default) =>
+        db.Incidents.AsNoTracking()
+            .Where(i => i.Monitor.CustomerId == customerId && i.StartedAtUtc >= fromUtc && i.StartedAtUtc < toUtc)
+            .ToListAsync(ct);
+
+    /// <summary>Slowdown signals (AI-1) that started in [fromUtc, toUtc), per monitor.</summary>
+    public async Task<Dictionary<int, int>> AnomalyCountsAsync(int customerId, DateTime fromUtc, DateTime toUtc, CancellationToken ct = default) =>
+        (await db.AnomalySignals.AsNoTracking()
+            .Where(a => a.CustomerId == customerId && a.StartedAtUtc >= fromUtc && a.StartedAtUtc < toUtc)
+            .GroupBy(a => a.MonitorId).Select(g => new { g.Key, Count = g.Count() }).ToListAsync(ct))
+        .ToDictionary(x => x.Key, x => x.Count);
+
+    /// <summary>The customer's monitors among <paramref name="ids"/>.</summary>
+    public Task<List<MonitorEntity>> MonitorsAsync(int customerId, IReadOnlyCollection<int> ids, CancellationToken ct = default) =>
+        db.Monitors.AsNoTracking().Where(m => m.CustomerId == customerId && ids.Contains(m.Id)).ToListAsync(ct);
+
+    /// <summary>Status code of the newest failing check of a monitor in [fromUtc, toUtc), null when none had one.</summary>
+    public Task<int?> FailingStatusCodeAsync(int customerId, int monitorId, DateTime fromUtc, DateTime toUtc, CancellationToken ct = default) =>
+        db.CheckResults.AsNoTracking()
+            .Where(r => r.MonitorId == monitorId && r.Monitor.CustomerId == customerId && !r.IsUp && r.StatusCode != null
+                        && r.CheckedAtUtc >= fromUtc && r.CheckedAtUtc < toUtc)
+            .OrderByDescending(r => r.CheckedAtUtc).Select(r => r.StatusCode).FirstOrDefaultAsync(ct);
     /// <summary>An AI-5 settings suggestion of the customer.</summary>
     public Task<SettingsSuggestion?> SettingsSuggestionAsync(int customerId, long suggestionId, CancellationToken ct = default) =>
         db.SettingsSuggestions.AsNoTracking().FirstOrDefaultAsync(s => s.Id == suggestionId && s.CustomerId == customerId, ct);

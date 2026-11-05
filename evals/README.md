@@ -8,11 +8,12 @@ validation) and the grader scores the exact request and the raw model output.
 ## The gate
 
 - A change to a **prompt** (`src/TriggerCheck.Ai/Execution/AiPrompts.cs`, `src/TriggerCheck.Ai/Features/AiFeaturePrompts.cs`,
-  `src/TriggerCheck.Ai/Features/Correlation/CorrelationPrompts.cs`),
+  `src/TriggerCheck.Ai/Features/Correlation/CorrelationPrompts.cs`, `src/TriggerCheck.Ai/Narrative/NarrativeOutput.cs` for AI-6),
   a context provider, the output schema, a **model** (`Ai:Model`, `Ai:Features:<Name>:Model`) or an **effort** level
   is merged only after a real run (below) passes for the affected feature: primary-cause accuracy, evidence rate and
   language rate each **≥ 80 %**, **zero** masking failures, and for AI-3 the "no outage yet" statement in ≥ 80 % of
-  cases. Paste the summary table of `evals/reports/last-report.md` into the pull request.
+  cases; for AI-6 the focus-monitor rate and the **number grounding** rate (the "Primary cause" and "Evidence"
+  columns, see below) each ≥ 80 %. Paste the summary table of `evals/reports/last-report.md` into the pull request.
 - Decision K1 (moving a high-volume feature from `claude-opus-5-5` to `claude-haiku-5-5`) is made with the same run:
   `--model claude-haiku-5-5`.
 - **Autonomy upgrades** (raising `MaxAutonomy` in `src/TriggerCheck.Domain/AiFeatures.cs`, e.g. A0 → A1) need a real
@@ -40,7 +41,7 @@ ANTHROPIC_API_KEY=... dotnet run --project evals/TriggerCheck.Evals -- --real
 ANTHROPIC_API_KEY=... dotnet run --project evals/TriggerCheck.Evals -- --real --yes
 
 # options
---feature IncidentInterpretation | SlowdownExplanation | CorrelationGrouping | QuestionAnswer | MonitorSetupAssistant | ...   only one feature
+--feature IncidentInterpretation | SlowdownExplanation | CorrelationGrouping | QuestionAnswer | MonitorSetupAssistant | NarrativeReport | ...   only one feature
 --case tls                                                only cases whose id contains "tls"
 --model claude-haiku-5-5  --effort medium                 override Ai:Model / Ai:Effort for the run
 --threshold 0.8                                           gate threshold
@@ -51,6 +52,7 @@ The exit code is 0 when the gate passes, 1 when it fails, 2 for usage errors. A 
 roughly 28 × (4k input + 1.5k output tokens) ≈ 0.11M input + 0.04M output tokens, i.e. about **$1.30 with
 `claude-opus-5-5`** at list prices (less with prompt caching); the 13 AI-4 cases add roughly 13 × (2k input + 1k
 output tokens), about $0.35. The report shows the measured tokens and cost per case.
+The 11 AI-6 cases add roughly 11 × (3k input + 1k output tokens), about $0.35.
 
 ## Layout
 
@@ -61,6 +63,7 @@ evals/
   cases/
     incident-interpretation/       AI-2: 23 labelled scenarios (en + tr)
     slowdown-explanation/          AI-3: 5 labelled scenarios
+    narrative-report/              AI-6: 11 monthly report scenarios (en + tr)
     correlation-grouping/          AI-4: 13 labelled scenarios (candidate verdicts, en + tr)
     settings-suggestions/          AI-5: 8 labelled scenarios (one per suggestion kind, en + tr)
     question-answer/               AI-7: 8 Q&A scenarios (tool loop; en + tr, tenant isolation, injection, write request)
@@ -98,6 +101,25 @@ AI-3 cases use `"feature": "SlowdownExplanation"`, an `anomaly` (the subject) an
 "slow_ttfb", "noOutageStatement": true }`. Add a case by copying one, changing the data and the label, and writing a
 correct `canned` answer (the fake run must stay at 100 %).
 
+AI-6 cases use `"feature": "NarrativeReport"`, a `narrative` block with the customer's monitors (SLA target, daily
+response time `ms` / `previousMs`, `incidents` by day of the month, `previous: true` for the month before,
+`certExpiresDaysAfterPeriod`, `slowdowns`) and `"expect": { "focusMonitors": ["Checkout API"] }`. The report month is
+February 2026 (the month before the fixed clock), compared with January. The harness seeds the data and the production
+`NarrativeReportProvider` computes every figure through the FEAT-10 report service and offers it as a placeholder key
+(`A.uptime`, `total.incidents`, `change.downtime`, ... see `reports/prompts/<case>.txt`). The `canned` answer, like the
+model's, contains **no numbers at all**: it writes `{{A.downtime}}` and the server renders the value.
+
+```json
+{
+  "id": "narrative-sla-missed", "feature": "NarrativeReport", "language": "en",
+  "expect": { "focusMonitors": ["Checkout API"] },
+  "narrative": { "monitors": [ { "name": "Checkout API", "target": "https://shop.example.test/api/checkout", "slaTarget": 99.9,
+                 "ms": 210, "previousMs": 200, "incidents": [ { "day": 10, "hour": 14, "minutes": 120, "cause": "HTTP 503" } ] } ] },
+  "canned": { "headline": "...", "what_happened": [ { "text": "monitor A was down for {{A.downtime}} ...", "monitors": ["monitor A"] } ],
+              "what_changed": [], "what_to_watch": [] }
+}
+```
+
 AI-4 cases use `"feature": "CorrelationGrouping"`, a `group` with the customer's incidents around the outage
 (`name`, `type`, `target`, `startedMinutesAgo`, `cause`, optional `resolvedMinutesAgo` / `port`) and
 `"expect": { "primaryCause": "candidate_verdicts", "keep": [names], "leaveOut": [names] }`. The production rules
@@ -126,9 +148,10 @@ every hypothesis whose category is not in the enum or whose refs resolve to noth
   appear in the request actually sent (system prompt + user content).
 - **Language**: the request asks for the case's language and the summary is written in it.
 - **No outage statement** (AI-3): the summary says that there is no outage yet.
-- **Numbers** (AI-5): every number, date and time in the model's text appears in the input (`AiNumberGrounding`,
-  the same rule production applies: an ungrounded summary fails the call, other ungrounded text is dropped). One
-  invented number fails the feature's gate.
+- **Numbers** (AI-5): every number, date and time in the model's text is backed by the typed facts of the input
+  (the shared `NumberGrounding` engine with the strict policy, the same rule production applies: an ungrounded summary
+  fails the call, other ungrounded text is dropped; untrusted error text grounds nothing). One invented number fails
+  the feature's gate.
 
 AI-5 cases describe the monitor's history (`checks`, and `incidents` with `repeat` / `everyMinutes`); the harness runs
 the production `SettingsSuggestionJob` rules on it and explains the suggestion they make. The label is the suggestion
@@ -143,6 +166,21 @@ the rules suggest nothing fails. Negative rule cases (normal noise) are unit tes
   promotion of AI-4 additionally needs > 90 % acceptance of the A1 proposals over four weeks (K3).
 
 The report also shows, as a diagnostic only, which cause categories the free text mentions ("text mentions").
+
+AI-6 (`EvalGrader.GradeNarrative`) reuses the columns:
+
+- **Primary cause** = focus: every `focusMonitors` entry is referenced by its label in `monitors` of a "what happened"
+  or "what to watch" item of the validated narrative (labels, not text matching).
+- **Evidence** = no numbers and correct facts: the raw model output passes the production narrative contract
+  (`NarrativeOutputContract`: no digits or number words, only known placeholders bound to the monitor named before
+  them, no SLA verdict or quantity in words, no links or contacts) **and** an independent grader check
+  (`EvalGrader.WrongClaims`, not the production contract): no digit outside placeholders, a text about one monitor uses
+  only its placeholders, and the values the provider computed equal the case's hand-computed `expect.monitorFacts`
+  (uptime, SLA target, SLA result, incidents). A test feeds the review's hostile prompt-injection answer through this
+  and expects it to fail both.
+- **Masking**: no monitor name, URL path, planted secret or e-mail address in the request (monitors are sent as
+  "monitor A", "monitor B", ...).
+- **Language**: as for AI-2.
 
 AI-9 cases (`"feature": "MonitorSetupAssistant"`) have a `request` (the text typed into the assistant box), an
 optional `planMinIntervalSeconds` (default 15) and `"expect": { "primaryCause": "setup_form" | "setup_clarify",
@@ -179,4 +217,5 @@ A real run of the 8 cases makes 2-4 calls each with a larger prompt (tools + res
 
 - Cases recorded from the local UAT test servers (ports 8765 / 8767 / 8799, docs/UAT-REPORT.md) and from 👎 feedback in
   `AiDecisions` (exported without customer data).
-- Cases for AI-5 to AI-8 as those features land, each with its own folder and threshold.
+- Cases for AI-8 as it lands, with its own folder and threshold.
+- AI-6 weekly narratives use the same provider and contract; add weekly cases when the weekly view gets real use.

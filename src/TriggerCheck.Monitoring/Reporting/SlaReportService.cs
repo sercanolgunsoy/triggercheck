@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using TriggerCheck.Domain.Reporting;
 using TriggerCheck.Infrastructure.Data;
@@ -25,8 +26,47 @@ public class SlaReportService(AppDbContext db, TimeProvider time)
     /// <summary>The zone for <paramref name="id"/>, falling back to UTC for unknown / empty ids.</summary>
     public static TimeZoneInfo ResolveZone(string? id) => MaintenanceSchedule.FindTimeZone(id) ?? TimeZoneInfo.Utc;
 
+    /// <summary>UTC range of an ISO week (Monday 00:00 to the next Monday) in <paramref name="tz"/>: [start, end).</summary>
+    public static (DateTime StartUtc, DateTime EndUtc) WeekRange(int isoYear, int week, TimeZoneInfo tz)
+    {
+        var monday = ISOWeek.ToDateTime(isoYear, week, DayOfWeek.Monday);
+        return (MaintenanceSchedule.LocalToUtc(monday, tz), MaintenanceSchedule.LocalToUtc(monday.AddDays(7), tz));
+    }
+
+    /// <summary>ISO week key "yyyy-Www" of a local date.</summary>
+    public static string WeekKey(DateTime localDate) =>
+        string.Create(CultureInfo.InvariantCulture, $"{ISOWeek.GetYear(localDate):0000}-W{ISOWeek.GetWeekOfYear(localDate):00}");
+
+    /// <summary>Parses "yyyy-Www" (weeks 1..53 that exist in that ISO year).</summary>
+    public static bool TryParseWeekKey(string? key, out int isoYear, out int week)
+    {
+        isoYear = week = 0;
+        if (key is not { Length: 8 } || key[4] != '-' || key[5] != 'W'
+            || !int.TryParse(key.AsSpan(0, 4), NumberStyles.None, CultureInfo.InvariantCulture, out isoYear)
+            || !int.TryParse(key.AsSpan(6, 2), NumberStyles.None, CultureInfo.InvariantCulture, out week)
+            || isoYear < 2000 || week < 1 || week > ISOWeek.GetWeeksInYear(isoYear))
+            return false;
+        return true;
+    }
+
     /// <summary>Null when the customer does not exist.</summary>
-    public virtual async Task<SlaReport?> BuildAsync(int customerId, int year, int month, string? timeZoneId, CancellationToken ct = default)
+    public virtual Task<SlaReport?> BuildAsync(int customerId, int year, int month, string? timeZoneId, CancellationToken ct = default)
+    {
+        var (start, end) = MonthRange(year, month, ResolveZone(timeZoneId));
+        return BuildRangeAsync(customerId, start, end, year, month, timeZoneId, null, ct);
+    }
+
+    /// <summary>Weekly variant (AI-6, panel only): the same figures over one ISO week. Null when the customer does not exist.</summary>
+    public virtual Task<SlaReport?> BuildWeekAsync(int customerId, int isoYear, int week, string? timeZoneId, CancellationToken ct = default)
+    {
+        var (start, end) = WeekRange(isoYear, week, ResolveZone(timeZoneId));
+        var monday = ISOWeek.ToDateTime(isoYear, week, DayOfWeek.Monday);
+        return BuildRangeAsync(customerId, start, end, monday.Year, monday.Month, timeZoneId,
+            string.Create(CultureInfo.InvariantCulture, $"{isoYear:0000}-W{week:00}"), ct);
+    }
+
+    private async Task<SlaReport?> BuildRangeAsync(int customerId, DateTime start, DateTime monthEnd, int year, int month, string? timeZoneId,
+        string? weekKey, CancellationToken ct)
     {
         var customer = await db.Customers.AsNoTracking().Where(c => c.Id == customerId)
             .Select(c => new { c.Name, c.Plan.RetentionDays }).FirstOrDefaultAsync(ct);
@@ -35,7 +75,6 @@ public class SlaReportService(AppDbContext db, TimeProvider time)
         var tz = ResolveZone(timeZoneId);
         var zoneId = tz == TimeZoneInfo.Utc ? DefaultTimeZone : timeZoneId!.Trim();
         var now = time.GetUtcNow().UtcDateTime;
-        var (start, monthEnd) = MonthRange(year, month, tz);
         var end = monthEnd < now ? monthEnd : now;
         var isPartial = monthEnd > now;
 
@@ -91,7 +130,7 @@ public class SlaReportService(AppDbContext db, TimeProvider time)
             rows.Count(r => r.SlaMet == false));
 
         return new SlaReport(customerId, customer.Name, year, month, zoneId, start, end, now, isPartial,
-            start < now.AddDays(-customer.RetentionDays), summary, rows);
+            start < now.AddDays(-customer.RetentionDays), summary, rows, weekKey);
     }
 
     /// <summary>Nearest-rank 95th percentile of the successful checks' response times (one ordered query).</summary>

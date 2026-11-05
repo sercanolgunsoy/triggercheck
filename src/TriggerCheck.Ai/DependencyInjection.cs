@@ -11,6 +11,8 @@ using TriggerCheck.Ai.Execution;
 using TriggerCheck.Ai.Features;
 using TriggerCheck.Ai.Features.Correlation;
 using TriggerCheck.Ai.Interpretation;
+using TriggerCheck.Ai.Narrative;
+using TriggerCheck.Monitoring.Reporting;
 using TriggerCheck.Ai.Qa;
 using TriggerCheck.Monitoring.Alerting;
 using TriggerCheck.Monitoring.Cluster;
@@ -20,7 +22,7 @@ namespace TriggerCheck.Ai;
 public static class DependencyInjection
 {
     /// <summary>
-    /// Registers the AI layer (AI-0, AI-1, AI-2, AI-3, AI-5, AI-9, AI-10). The real Claude client is used only when Ai:Enabled is true AND a key
+    /// Registers the AI layer (AI-0, AI-1, AI-2, AI-3, AI-4, AI-5, AI-6, AI-7, AI-9, AI-10). The real Claude client is used only when Ai:Enabled is true AND a key
     /// is configured (Ai:ApiKey or ANTHROPIC_API_KEY); otherwise <see cref="UnavailableAiClient"/> reports "AI
     /// unavailable" and every job is recorded as skipped. Tests replace <see cref="IAiClient"/> with
     /// <see cref="FakeAiClient"/>. The monitoring layer does not depend on this project.
@@ -29,6 +31,8 @@ public static class DependencyInjection
     {
         services.AddOptions<AiOptions>().Bind(config.GetSection(AiOptions.Section))
             .Validate(o => !o.InvalidEfforts().Any(), "Ai:Effort / Ai:Features:*:Effort must be one of: low, medium, high, xhigh, max.")
+            .Validate(o => !o.Enabled || !o.Narrative.Enabled || o.Narrative.RunningTimeoutMinutes * 60L > 2L * o.TimeoutSeconds,
+                "Ai:Narrative:RunningTimeoutMinutes must be longer than two AI calls (Ai:TimeoutSeconds), or a slow call is taken over and paid twice.")
             .ValidateOnStart();
         services.TryAddSingleton(TimeProvider.System);
         services.AddClusterLeases(); // OPS-3: the watcher and the baseline job run on one instance at a time
@@ -59,6 +63,12 @@ public static class DependencyInjection
         services.AddScoped<AiEventScanner>();
         services.AddHostedService<AiEventWatcher>();
 
+        // AI-6: narrative SLA reports (batch job; the report page and the monthly e-mail only read).
+        services.TryAddScoped<SlaReportService>();
+        services.AddScoped<IAiContextProvider, NarrativeReportProvider>();
+        services.AddScoped<NarrativeReportJob>();
+        services.AddScoped<NarrativeReports>();
+        services.AddHostedService<NarrativeReportService>();
         // AI-4: incident correlation. L1 rules + proposals (A1); the alert-path hook groups notifications only at A3.
         services.AddOptions<AiCorrelationOptions>().Bind(config.GetSection(AiCorrelationOptions.Section));
         services.TryAddSingleton<CorrelationAutonomy>();

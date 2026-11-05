@@ -65,7 +65,8 @@ public static class SettingsSuggestionPrompts
 /// AI-5 context: one open settings suggestion (subject = suggestion id). The content is built from the suggestion row as
 /// the rules stored it (evidence computed from the database) and the monitor's configuration, so it is stable for an
 /// unchanged suggestion. Keywords and monitor names are never sent; the most common probe error goes as masked,
-/// untrusted data. The output must not contain numbers that are not in the input (<see cref="AiNumberGrounding"/>).
+/// untrusted data. The output must not contain numbers, dates or times that the typed facts do not back
+/// (<see cref="Grounding.NumberGrounding"/>, strict policy: as given, no unit conversion; error text adds no facts).
 /// </summary>
 public sealed class SettingsSuggestionProvider(AiTenantData data) : IAiContextProvider
 {
@@ -96,6 +97,11 @@ public sealed class SettingsSuggestionProvider(AiTenantData data) : IAiContextPr
                 break;
             case SettingsSuggestionKind.TargetMayBeWrong:
                 b.Fact("setting", "target (no concrete value is suggested)");
+                // The status codes as stored by the checker (trusted numbers; the error text itself is untrusted data and
+                // grounds nothing).
+                var codes = (await data.RecentChecksAsync(job.CustomerId, monitor.Id, 50, null, ct))
+                    .Where(c => !c.IsUp && c.StatusCode is not null).Select(c => c.StatusCode!.Value).Distinct().Order().ToList();
+                if (codes.Count > 0) b.Fact("failing_status_codes", string.Join(", ", codes));
                 break;
             default:
                 b.Fact("setting", "keyword (not shared)")
@@ -113,6 +119,6 @@ public sealed class SettingsSuggestionProvider(AiTenantData data) : IAiContextPr
         var content = b.Build();
         return new AiPrompt(SettingsSuggestionPrompts.Instructions, content, SettingsSuggestionPrompts.Actions,
             SettingsSuggestionPrompts.Categories, AiFeaturePrompts.EvidenceKeys(b), SettingsSuggestionPrompts.RefAllowed,
-            Grounding: o => AiNumberGrounding.Apply(o, content));
+            Facts: b.Facts);
     }
 }

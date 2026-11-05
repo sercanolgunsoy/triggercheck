@@ -37,6 +37,8 @@ public sealed class AiOptions
 
     public AiEventOptions Events { get; set; } = new();
 
+    /// <summary>AI-6 narrative report batch job ("Ai:Narrative", see <see cref="global::TriggerCheck.Ai.Narrative.AiNarrativeOptions"/>).</summary>
+    public global::TriggerCheck.Ai.Narrative.AiNarrativeOptions Narrative { get; set; } = new();
     public AiSuggestionOptions Suggestions { get; set; } = new();
 
     /// <summary>"Ai:Qa": natural-language questions (AI-7), see <see cref="Qa.AiQaOptions"/>.</summary>

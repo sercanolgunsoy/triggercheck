@@ -29,10 +29,15 @@ public sealed class EvalScenario
     public EvalAnomaly? Anomaly { get; set; }
     public List<EvalPeriod> Maintenance { get; set; } = [];
     public double? BaselineMedianMs { get; set; }
-    /// <summary>AI-4 (CorrelationGrouping): the incidents around the outage. Required for that feature.</summary>
-    public EvalGroup? Group { get; set; }
+    /// <summary>AI-6: the customer's monitors, incidents and checks of the report month and the month before.</summary>
+    public EvalNarrative? Narrative { get; set; }
     /// <summary>Planted strings (credentials, URL paths, e-mail addresses) that must never reach the model.</summary>
     public List<string> Secrets { get; set; } = [];
+    /// <summary>Filled by the harness (AI-6): monitor name → id of the seeded monitors.</summary>
+    [JsonIgnore]
+    public Dictionary<string, int> SeededMonitorIds { get; } = new();
+    /// <summary>AI-4 (CorrelationGrouping): the incidents around the outage. Required for that feature.</summary>
+    public EvalGroup? Group { get; set; }
     /// <summary>AI-9: the text the customer types into the monitor setup assistant. Required for MonitorSetupAssistant.</summary>
     public string? Request { get; set; }
     /// <summary>AI-9: the plan's minimum check interval (default 15 s), to label the clamping.</summary>
@@ -69,7 +74,13 @@ public sealed class EvalScenario
             if (s.Feature == AiFeatures.QuestionAnswer && (string.IsNullOrWhiteSpace(s.Question) || s.QaMonitors.Count == 0)) throw new InvalidDataException($"{file}: question or qaMonitors missing");
             if (s.Feature == AiFeatures.MonitorSetupAssistant && string.IsNullOrWhiteSpace(s.Request)) throw new InvalidDataException($"{file}: request missing");
             if (s.Feature == AiFeatures.CorrelationGrouping && s.Group is null) throw new InvalidDataException($"{file}: group missing");
-            if (!EvalGrader.Labels.ContainsKey(s.Expect.PrimaryCause)) throw new InvalidDataException($"{file}: unknown label '{s.Expect.PrimaryCause}'");
+            if (s.Feature == AiFeatures.NarrativeReport)
+            {
+                if (s.Narrative is not { Monitors.Count: > 0 }) throw new InvalidDataException($"{file}: narrative monitors missing");
+                var names = s.Narrative.Monitors.Select(m => m.Name).ToHashSet();
+                if (s.Expect.FocusMonitors.FirstOrDefault(n => !names.Contains(n)) is { } unknown) throw new InvalidDataException($"{file}: unknown focus monitor '{unknown}'");
+            }
+            else if (!EvalGrader.Labels.ContainsKey(s.Expect.PrimaryCause)) throw new InvalidDataException($"{file}: unknown label '{s.Expect.PrimaryCause}'");
             result.Add(s);
         }
         if (result.Select(s => s.Id).Distinct().Count() != result.Count) throw new InvalidDataException("Duplicate case ids");
@@ -94,6 +105,10 @@ public sealed class EvalExpectation
     public string PrimaryCause { get; set; } = "";
     /// <summary>AI-3: the summary must say that there is no outage yet.</summary>
     public bool NoOutageStatement { get; set; }
+    /// <summary>AI-6: monitors (by name) that "what happened" or "what to watch" must reference by their label.</summary>
+    public List<string> FocusMonitors { get; set; } = [];
+    /// <summary>AI-6: the true figures of monitors, for the grader's independent claim check (not the production engine).</summary>
+    public List<EvalMonitorFacts> MonitorFacts { get; set; } = [];
     /// <summary>AI-7: records the answer must cite ("monitor:Name", "incident:Name#1") and tools it must have used.</summary>
     public List<string> References { get; set; } = [];
     public List<string> Tools { get; set; } = [];
@@ -110,6 +125,53 @@ public sealed class EvalExpectation
     public List<string> Keep { get; set; } = [];
     /// <summary>AI-4: monitor names of the candidates that must be left out (they keep their own notifications).</summary>
     public List<string> LeaveOut { get; set; } = [];
+}
+
+/// <summary>Expected figures of one monitor in the report period (computed by hand from the case data).</summary>
+public sealed class EvalMonitorFacts
+{
+    public string Name { get; set; } = "";
+    public double? UptimePercent { get; set; }
+    public double? SlaTarget { get; set; }
+    public bool? SlaMet { get; set; }
+    public int? Incidents { get; set; }
+}
+
+/// <summary>
+/// AI-6 case data. The report month is the month before <see cref="EvalHarness.Now"/> (February 2026, UTC); "previous"
+/// incidents fall into January. Days are 1-based days of the month.
+/// </summary>
+public sealed class EvalNarrative
+{
+    public List<EvalNarrativeMonitor> Monitors { get; set; } = [];
+}
+
+public sealed class EvalNarrativeMonitor
+{
+    public string Name { get; set; } = "";
+    public MonitorType Type { get; set; } = MonitorType.Http;
+    public string Target { get; set; } = "https://shop.example.test/health";
+    public double? SlaTarget { get; set; }
+    /// <summary>Negative: created during the report month.</summary>
+    public double CreatedDaysBeforePeriod { get; set; } = 90;
+    public List<EvalNarrativeIncident> Incidents { get; set; } = [];
+    /// <summary>Response time of the daily successful check in the report month / the month before (null: no checks).</summary>
+    public int? Ms { get; set; } = 200;
+    public int? PreviousMs { get; set; } = 200;
+    /// <summary>Certificate expiry, days after the end of the report month.</summary>
+    public int? CertExpiresDaysAfterPeriod { get; set; }
+    /// <summary>Slowdown signals (AI-1) that started in the report month.</summary>
+    public int Slowdowns { get; set; }
+}
+
+public sealed class EvalNarrativeIncident
+{
+    public int Day { get; set; } = 1;
+    public int Hour { get; set; }
+    public double Minutes { get; set; } = 30;
+    public string? Cause { get; set; }
+    /// <summary>In the month before the report month.</summary>
+    public bool Previous { get; set; }
 }
 
 public sealed class EvalMonitor

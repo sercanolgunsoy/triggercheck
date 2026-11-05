@@ -1576,6 +1576,18 @@
   <data name="{0} changed state {1} times since the last notice and is currently available." xml:space="preserve">
     <value>{0}, son bildirimden bu yana {1} kez durum değiştirdi ve şu anda erişilebilir.</value>
   </data>
+  <data name="AI summary (AI-generated, may be wrong; all figures are from the report):" xml:space="preserve">
+    <value>Yapay zekâ özeti (yapay zekâ tarafından üretildi, yanılabilir; tüm rakamlar rapordandır):</value>
+  </data>
+  <data name="What happened:" xml:space="preserve">
+    <value>Neler oldu:</value>
+  </data>
+  <data name="What changed:" xml:space="preserve">
+    <value>Ne değişti:</value>
+  </data>
+  <data name="What to watch:" xml:space="preserve">
+    <value>Neye dikkat edilmeli:</value>
+  </data>
   <data name="Ask AI" xml:space="preserve">
     <value>Yapay zekâya sor</value>
   </data>

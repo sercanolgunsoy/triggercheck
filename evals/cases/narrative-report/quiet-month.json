@@ -1,0 +1,41 @@
+{
+  "id": "narrative-quiet-month",
+  "feature": "NarrativeReport",
+  "language": "en",
+  "description": "No incidents in either month; nothing to watch.",
+  "expect": {
+    "focusMonitors": []
+  },
+  "narrative": {
+    "monitors": [
+      {
+        "name": "Website",
+        "slaTarget": 99.5,
+        "ms": 150,
+        "previousMs": 150
+      },
+      {
+        "name": "Status API",
+        "target": "https://status.example.test/v1",
+        "ms": 90,
+        "previousMs": 95
+      }
+    ]
+  },
+  "canned": {
+    "headline": "A quiet month: overall downtime was {{total.downtime}} across {{total.incidents}} incidents.",
+    "what_happened": [
+      {
+        "text": "Overall uptime for {{period.name}} was {{total.uptime}}.",
+        "monitors": []
+      }
+    ],
+    "what_changed": [
+      {
+        "text": "Overall incidents compared with {{period.previous_name}}: {{change.incidents}}.",
+        "monitors": []
+      }
+    ],
+    "what_to_watch": []
+  }
+}

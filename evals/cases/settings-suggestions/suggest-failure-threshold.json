@@ -44,7 +44,7 @@
     "Checkout API"
   ],
   "canned": {
-    "summary": "In the last 7 days 14 of 15 incidents recovered at the next check, each within 240 seconds. Raising the failure threshold from 1 to 2 avoids these alerts, but a real outage is reported one check later.",
+    "summary": "In the last 7 days 14 of 15 incidents recovered at the next check, each within 240 seconds. Raising the failure threshold from 1 to 2 avoids these alerts, but a real outage is reported a check later.",
     "hypotheses": [
       {
         "cause": "Short network or server hiccups end before the next check, so most alerts are noise.",

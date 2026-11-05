@@ -128,8 +128,10 @@ public sealed class QuestionAnswerService(
 
         // Model input: static system prompt + tools (cached prefix), earlier exchanges, then the current question.
         var messages = BuildMessages(text, q.History, decision.Language, qa);
-        var evidence = new StringBuilder();
-        foreach (var m in messages.Where(m => m.Role == AiToolRole.User)) evidence.AppendLine(m.Text);
+        // Grounding evidence (warn-only): the questions and earlier answers as sent, then the tool results of this question.
+        var questions = messages.Where(m => m.Role == AiToolRole.User).Select(m => m.Text ?? "").ToList();
+        var earlierAnswers = messages.Where(m => m.Role == AiToolRole.Assistant).Select(m => m.Text ?? "").ToList();
+        var toolResults = new List<string>();
         var maxTokens = o.Features.TryGetValue(feature, out var f2) && f2.MaxTokens is > 0 ? f2.MaxTokens.Value : Math.Max(1000, qa.MaxTokensPerCall);
         decision.InputHash = AiInterpreter.Hash(decision.Model, decision.Effort, QaPrompts.System,
             JsonSerializer.Serialize(QaToolbox.Definitions.Select(d => new { d.Name, d.Description, Schema = d.InputSchema.GetRawText() })),
@@ -219,7 +221,7 @@ public sealed class QuestionAnswerService(
                         toolChars += result.Content.Length;
                         if (!toolsUsed.Contains(tc.Name)) toolsUsed.Add(tc.Name);
                     }
-                    evidence.AppendLine(result.Content);
+                    if (!result.IsError) toolResults.Add(result.Content);
                     results.Add(result);
                 }
                 messages.Add(AiToolMessage.Results(results));
@@ -261,7 +263,8 @@ public sealed class QuestionAnswerService(
         }
 
         if (status != QaStatus.Answered || answer is null) return new QaResult(status, DecisionId: decision.Id, ErrorCode: decision.ErrorCode);
-        var ungrounded = grounding.Ungrounded(QaAnswerText.StripReferences(answer), evidence.ToString());
+        var ungrounded = grounding.Ungrounded(QaAnswerText.StripReferences(answer),
+            new QaGroundingEvidence(toolResults, questions, earlierAnswers, decision.Language));
         if (ungrounded.Count > 0)
             logger.LogWarning("Q&A answer {DecisionId} has {Count} number(s) not found in the tool results", decision.Id, ungrounded.Count);
         return new QaResult(QaStatus.Answered, new QaAnswer(answer, QaAnswerText.Parse(answer), ungrounded, toolsUsed), decision.Id);

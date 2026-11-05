@@ -1,0 +1,111 @@
+{
+  "id": "narrative-many-monitors",
+  "feature": "NarrativeReport",
+  "language": "en",
+  "description": "Five monitors: two with incidents (one misses its target), three healthy.",
+  "expect": {
+    "focusMonitors": [
+      "Payments",
+      "Inventory sync"
+    ],
+    "monitorFacts": [
+      {
+        "name": "Payments",
+        "uptimePercent": 99.876,
+        "slaTarget": 99.95,
+        "slaMet": false,
+        "incidents": 2
+      },
+      {
+        "name": "Inventory sync",
+        "uptimePercent": 99.9752,
+        "incidents": 1
+      }
+    ]
+  },
+  "narrative": {
+    "monitors": [
+      {
+        "name": "Website",
+        "ms": 150,
+        "previousMs": 150
+      },
+      {
+        "name": "Payments",
+        "target": "https://pay.example.test/",
+        "slaTarget": 99.95,
+        "ms": 240,
+        "previousMs": 230,
+        "incidents": [
+          {
+            "day": 4,
+            "hour": 10,
+            "minutes": 30,
+            "cause": "Timeout"
+          },
+          {
+            "day": 21,
+            "hour": 16,
+            "minutes": 20,
+            "cause": "Timeout"
+          }
+        ]
+      },
+      {
+        "name": "Inventory sync",
+        "target": "https://inv.example.test/",
+        "ms": 500,
+        "previousMs": 480,
+        "incidents": [
+          {
+            "day": 15,
+            "hour": 6,
+            "minutes": 10,
+            "cause": "Connection refused"
+          }
+        ]
+      },
+      {
+        "name": "Docs",
+        "ms": 80,
+        "previousMs": 80
+      },
+      {
+        "name": "Status API",
+        "ms": 90,
+        "previousMs": 90
+      }
+    ]
+  },
+  "canned": {
+    "headline": "SLA result of monitor A for {{period.name}}: {{A.sla_status}}; overall incidents: {{total.incidents}}.",
+    "what_happened": [
+      {
+        "text": "monitor A had {{A.incidents}} incidents and {{A.uptime}} uptime against a {{A.sla_target}} target.",
+        "monitors": [
+          "monitor A"
+        ]
+      },
+      {
+        "text": "monitor B had {{B.incidents}} incidents lasting {{B.downtime}} in total.",
+        "monitors": [
+          "monitor B"
+        ]
+      }
+    ],
+    "what_changed": [
+      {
+        "text": "Overall incidents compared with {{period.previous_name}}: {{change.incidents}}.",
+        "monitors": []
+      }
+    ],
+    "what_to_watch": [
+      {
+        "text": "monitor A is the main risk for the next period.",
+        "monitors": [
+          "monitor A"
+        ]
+      }
+    ]
+  }
+}

@@ -11,13 +11,17 @@ namespace TriggerCheck.Domain.Reporting;
 /// <param name="PeriodEndUtc">End of the month (exclusive), or the generation time for the running month.</param>
 /// <param name="IsPartial">The month is not over yet.</param>
 /// <param name="HistoryIncomplete">Part of the month is older than the plan's data retention; numbers may be incomplete.</param>
+/// <param name="WeekKey">ISO week "yyyy-Www" for a weekly report (AI-6); null for the monthly report. Year / Month are then those of the week's Monday.</param>
 public sealed record SlaReport(
     int CustomerId, string CustomerName, int Year, int Month, string TimeZoneId,
     DateTime PeriodStartUtc, DateTime PeriodEndUtc, DateTime GeneratedAtUtc, bool IsPartial, bool HistoryIncomplete,
-    SlaSummary Summary, IReadOnlyList<MonitorSlaReport> Monitors)
+    SlaSummary Summary, IReadOnlyList<MonitorSlaReport> Monitors, string? WeekKey = null)
 {
     /// <summary>"yyyy-MM".</summary>
     public string MonthKey => $"{Year:0000}-{Month:00}";
+
+    /// <summary>The period: <see cref="WeekKey"/> for a weekly report, otherwise <see cref="MonthKey"/>.</summary>
+    public string PeriodKey => WeekKey ?? MonthKey;
 }
 
 /// <summary>Customer-wide totals. Uptime is time weighted over all monitors; response times over all successful checks.</summary>
