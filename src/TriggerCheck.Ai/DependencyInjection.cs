@@ -81,7 +81,7 @@ public static class DependencyInjection
         {
             var o = sp.GetRequiredService<IOptions<AiOptions>>().Value;
             return o.Enabled && o.ResolveApiKey() is not null
-                ? ActivatorUtilities.CreateInstance<AnthropicAiToolClient>(sp)
+                ? new AnthropicAiToolClient(sp.GetRequiredService<IOptions<AiOptions>>(), sp.GetRequiredService<ILogger<AnthropicAiToolClient>>())
                 : new UnavailableAiToolClient();
         });
         services.AddSingleton<QaRateLimiter>();

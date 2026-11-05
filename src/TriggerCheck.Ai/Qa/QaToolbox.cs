@@ -81,7 +81,7 @@ public sealed class QaToolbox(AppDbContext db, TimeProvider time, IOptions<AiOpt
             "Statistics per monitor over a time range, computed from stored checks (maintenance excluded): number of " +
             "checks, failed checks, availability (share of successful checks, %), average and maximum response time of " +
             "successful checks (ms), incidents started and downtime (minutes). Use sort_by to rank monitors " +
-            "(e.g. the slowest). Omit monitor_id for all monitors.",
+            "(e.g. the slowest). Omit monitor_id for all monitors (then the range is limited to the last days; see range_capped).",
             "{ \"type\": \"object\", \"additionalProperties\": false, \"required\": [\"from\", \"to\"], \"properties\": {" + RangeProps + """
                 ,
                 "monitor_id": { "type": "integer", "description": "Only this monitor." },
@@ -239,9 +239,11 @@ public sealed class QaToolbox(AppDbContext db, TimeProvider time, IOptions<AiOpt
 
     private async Task<object> MonitorStatsAsync(int customerId, JsonElement input, CancellationToken ct)
     {
-        if (Range(input) is not { } range) return RangeError();
-        var (from, to) = range;
         var monitorId = Int(input, "monitor_id");
+        // Over all monitors the query reads every check of the account: a shorter range (Ai:Qa:MaxAllMonitorsRangeDays).
+        var maxDays = monitorId is null ? Math.Min(Qa.MaxAllMonitorsRangeDays, Qa.MaxRangeDays) : Qa.MaxRangeDays;
+        if (Range(input, maxDays) is not { } range) return RangeError(maxDays);
+        var (from, to, rangeCapped) = range;
         var monitors = await db.Monitors.AsNoTracking()
             .Where(m => m.CustomerId == customerId && (monitorId == null || m.Id == monitorId))
             .OrderBy(m => m.Id)
@@ -263,10 +265,14 @@ public sealed class QaToolbox(AppDbContext db, TimeProvider time, IOptions<AiOpt
             })
             .ToDictionaryAsync(x => x.MonitorId, ct);
 
+        var maxIncidents = Math.Max(1, Qa.MaxStatsIncidents);
         var incidents = await IncidentsOverlapping(customerId, from, to, monitorId)
+            .OrderByDescending(i => i.StartedAtUtc).ThenByDescending(i => i.Id)
             .Select(i => new { i.MonitorId, i.StartedAtUtc, i.ResolvedAtUtc })
-            .Take(20_000)
+            .Take(maxIncidents + 1)
             .ToListAsync(ct);
+        var incidentsTruncated = incidents.Count > maxIncidents;
+        if (incidentsTruncated) incidents.RemoveAt(incidents.Count - 1);
         var now = Now;
 
         var rows = monitors.Select(m =>
@@ -293,6 +299,8 @@ public sealed class QaToolbox(AppDbContext db, TimeProvider time, IOptions<AiOpt
         return Fit(list, r => new
         {
             from = Iso(from), to = Iso(to),
+            range_capped = rangeCapped ? $"shortened to at most {maxDays} days" : null,
+            incidents_truncated = incidentsTruncated ? "only the newest incidents were counted; narrow the range or pick a monitor" : null,
             basis = "central checks outside maintenance; availability = successful checks / checks; response times of successful checks only",
             monitors_total = monitors.Count, returned = r.Count, rows = r,
         });
@@ -303,8 +311,8 @@ public sealed class QaToolbox(AppDbContext db, TimeProvider time, IOptions<AiOpt
 
     private async Task<object> ListIncidentsAsync(int customerId, JsonElement input, CancellationToken ct)
     {
-        if (Range(input) is not { } range) return RangeError();
-        var (from, to) = range;
+        if (Range(input, Qa.MaxRangeDays) is not { } range) return RangeError(Qa.MaxRangeDays);
+        var (from, to, _) = range;
         var monitorId = Int(input, "monitor_id");
         if (monitorId is int mid && !await db.Monitors.AsNoTracking().AnyAsync(m => m.Id == mid && m.CustomerId == customerId, ct))
             return NotFound("monitor");
@@ -356,6 +364,30 @@ public sealed class QaToolbox(AppDbContext db, TimeProvider time, IOptions<AiOpt
             .OrderByDescending(d => d.Id).Select(d => d.OutputJson).FirstOrDefaultAsync(ct);
         var summary = AiInterpretation.TryParse(earlier)?.Summary;
 
+        // No narrowing arguments exist for this tool, so it must always fit Ai:Qa:MaxToolResultChars: fewer check rows and
+        // shorter untrusted texts until it does (marked "trimmed").
+        object? last = null;
+        foreach (var (rows, errorChars, summaryChars) in IncidentDetailLevels)
+        {
+            last = IncidentDetailsResult(incident, m, end, checks.Take(rows).ToList(), maintenance, summary, errorChars, summaryChars,
+                trimmed: rows < checks.Count || errorChars < UntrustedChars || (summary is not null && summaryChars < IncidentSummaryChars));
+            if (JsonSerializer.Serialize(last, Json).Length <= Qa.MaxToolResultChars) return last;
+        }
+        return last!;
+    }
+
+    public const int IncidentSummaryChars = 600;
+
+    /// <summary>(check rows, characters per error / cause text, characters of the earlier AI summary), most detailed first.</summary>
+    private static readonly (int Rows, int ErrorChars, int SummaryChars)[] IncidentDetailLevels =
+    [
+        (int.MaxValue, UntrustedChars, IncidentSummaryChars), (10, 120, 300), (6, 80, 200), (3, 60, 120), (1, 40, 0), (0, 40, 0),
+    ];
+
+    private static object IncidentDetailsResult(Incident incident, MonitorEntity m, DateTime end, List<CheckResult> checks,
+        List<MaintenanceOccurrence> maintenance, string? summary, int errorChars, int summaryChars, bool trimmed)
+    {
+        string? Text(string? t, int max) => string.IsNullOrWhiteSpace(t) || max <= 0 ? null : AiContextBuilder.UntrustedText(t, max);
         return new
         {
             incident_id = incident.Id,
@@ -366,7 +398,7 @@ public sealed class QaToolbox(AppDbContext db, TimeProvider time, IOptions<AiOpt
             duration_minutes = Math.Round((end - incident.StartedAtUtc).TotalMinutes, 1),
             acknowledged = incident.AcknowledgedAtUtc is not null,
             resolved_during_maintenance = incident.ResolvedDuringMaintenance ? true : (bool?)null,
-            cause_untrusted = string.IsNullOrWhiteSpace(incident.Cause) ? null : AiContextBuilder.UntrustedText(incident.Cause, UntrustedChars),
+            cause_untrusted = Text(incident.Cause, errorChars),
             monitor = new
             {
                 monitor_id = m.Id, @ref = QaAnswerText.MonitorRef(m.Id), type = m.Type.ToString(), host = Host(m),
@@ -382,10 +414,11 @@ public sealed class QaToolbox(AppDbContext db, TimeProvider time, IOptions<AiOpt
                 dns_ms = c.DnsMs, connect_ms = c.ConnectMs, tls_ms = c.TlsMs, ttfb_ms = c.TtfbMs,
                 in_maintenance = c.InMaintenance ? true : (bool?)null,
                 confirmation = c.IsConfirmation ? true : (bool?)null,
-                error_untrusted = string.IsNullOrWhiteSpace(c.Error) ? null : AiContextBuilder.UntrustedText(c.Error, UntrustedChars),
+                error_untrusted = Text(c.Error, errorChars),
             }).ToList(),
-            maintenance_nearby = maintenance.Select(p => new { from = Iso(p.StartUtc), to = Iso(p.EndUtc) }).ToList(),
-            earlier_ai_summary_untrusted = summary is null ? null : AiContextBuilder.UntrustedText(summary, 600),
+            maintenance_nearby = maintenance.Take(5).Select(p => new { from = Iso(p.StartUtc), to = Iso(p.EndUtc) }).ToList(),
+            earlier_ai_summary_untrusted = Text(summary, summaryChars),
+            trimmed = trimmed ? true : (bool?)null,
         };
     }
 
@@ -400,21 +433,22 @@ public sealed class QaToolbox(AppDbContext db, TimeProvider time, IOptions<AiOpt
 
     private static ToolError NotFound(string what) => Error("not_found", $"No {what} with this id in this account.");
 
-    private ToolError RangeError() =>
-        Error("invalid_range", $"from and to must be ISO 8601 UTC times with from before to, not in the future; at most {Qa.MaxRangeDays} days.");
+    private static ToolError RangeError(int maxDays) =>
+        Error("invalid_range", $"from and to must be ISO 8601 UTC times with from before to, not in the future; at most {maxDays} days.");
 
     /// <summary>
-    /// [from, to) from the input: "to" is clamped to now, "from" to at most Ai:Qa:MaxRangeDays before "to". Null when
+    /// [from, to) from the input: "to" is clamped to now, "from" to at most <paramref name="maxDays"/> before "to". Null when
     /// either does not parse or the range is empty.
     /// </summary>
-    private (DateTime From, DateTime To)? Range(JsonElement input)
+    private (DateTime From, DateTime To, bool Capped)? Range(JsonElement input, int maxDays)
     {
         if (ParseTime(Str(input, "from")) is not DateTime from || ParseTime(Str(input, "to")) is not DateTime to) return null;
         var now = Now;
         if (to > now) to = now;
-        var earliest = to.AddDays(-Math.Max(1, Qa.MaxRangeDays));
-        if (from < earliest) from = earliest;
-        return from < to ? (from, to) : null;
+        var earliest = to.AddDays(-Math.Max(1, maxDays));
+        var capped = from < earliest;
+        if (capped) from = earliest;
+        return from < to ? (from, to, capped) : null;
     }
 
     public static DateTime? ParseTime(string? s) =>

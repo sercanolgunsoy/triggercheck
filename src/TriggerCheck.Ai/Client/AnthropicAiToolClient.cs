@@ -18,20 +18,32 @@ namespace TriggerCheck.Ai.Client;
 /// </summary>
 public sealed class AnthropicAiToolClient : IAiToolClient
 {
-    private readonly AnthropicClient _client;
+    private readonly IAnthropicClient _client;
     private readonly ILogger<AnthropicAiToolClient> _logger;
 
-    public AnthropicAiToolClient(IOptions<AiOptions> options, ILogger<AnthropicAiToolClient> logger)
+    public AnthropicAiToolClient(IOptions<AiOptions> options, ILogger<AnthropicAiToolClient> logger) : this(options, logger, null) { }
+
+    /// <param name="http">Tests only: an HttpClient with a fake handler (no network).</param>
+    public AnthropicAiToolClient(IOptions<AiOptions> options, ILogger<AnthropicAiToolClient> logger, HttpClient? http)
     {
         var o = options.Value;
         _logger = logger;
-        _client = new AnthropicClient
+        var client = new AnthropicClient
         {
             ApiKey = o.ResolveApiKey() ?? throw new InvalidOperationException("No Claude API key configured."),
-            MaxRetries = Math.Max(0, o.MaxRetries),
-            Timeout = AnthropicAiClient.AttemptTimeout(o),
+            // Own budget (Ai:Qa), not the interpreter's AttemptTimeout: a medium-effort tool turn can take tens of
+            // seconds. The question deadline of QuestionAnswerService bounds the whole loop.
+            MaxRetries = MaxRetries(o),
+            Timeout = AttemptTimeout(o),
         };
+        _client = http is null ? client : client.WithOptions(opts => opts with { HttpClient = http });
     }
+
+    /// <summary>Ai:Qa:MaxRetries clamped to 0..1.</summary>
+    public static int MaxRetries(AiOptions o) => Math.Clamp(o.Qa.MaxRetries, 0, 1);
+
+    /// <summary>Ai:Qa:CallTimeoutSeconds per HTTP attempt, at least 10 seconds.</summary>
+    public static TimeSpan AttemptTimeout(AiOptions o) => TimeSpan.FromSeconds(Math.Max(10, o.Qa.CallTimeoutSeconds));
 
     public bool IsAvailable => true;
 
@@ -108,6 +120,18 @@ public sealed class AnthropicAiToolClient : IAiToolClient
         {
             _logger.LogWarning("Claude output for {Feature} hit max_tokens ({MaxTokens})", request.Feature, request.MaxTokens);
             return new AiToolTurn(AiCallOutcome.MaxTokens, null, [], null, input, output, cacheRead, cacheWrite, "max_tokens");
+        }
+        if (response.StopReason == StopReason.ModelContextWindowExceeded)
+        {
+            // Cut off like max_tokens: the turn is incomplete and is never parsed or executed.
+            _logger.LogWarning("Claude output for {Feature} stopped at the context window limit", request.Feature);
+            return new AiToolTurn(AiCallOutcome.MaxTokens, null, [], null, input, output, cacheRead, cacheWrite, "context_window_exceeded");
+        }
+        if (response.StopReason != StopReason.ToolUse && response.StopReason != StopReason.EndTurn && response.StopReason != StopReason.StopSequence)
+        {
+            // pause_turn (server tools only, none declared) or a stop reason this SDK version does not know.
+            _logger.LogWarning("Unexpected stop reason for {Feature}", request.Feature);
+            return new AiToolTurn(AiCallOutcome.Failed, null, [], null, input, output, cacheRead, cacheWrite, "stop_reason");
         }
 
         // Echo the assistant turn back exactly (thinking blocks keep their signatures); collect text and tool calls.

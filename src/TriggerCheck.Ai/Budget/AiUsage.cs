@@ -93,7 +93,11 @@ public sealed class AiUsageService(AppDbContext db, IAiClient client, IOptions<A
             {
                 g.Key.CustomerId, g.Key.Model,
                 // A tool loop (AI-7) records every model call it made or reserved in ModelCalls; other rows are one call.
-                Calls = g.Sum(x => x.Status == AiDecisionStatus.Pending || x.InputTokens + x.OutputTokens > 0 ? (x.ModelCalls > 1 ? x.ModelCalls : 1) : 0),
+                // A Q&A question stopped by its deadline or by the user leaving may have been billed without usage coming back:
+                // its reserved calls count as well.
+                Calls = g.Sum(x => x.Status == AiDecisionStatus.Pending || x.InputTokens + x.OutputTokens > 0
+                                   || (x.ModelCalls > 0 && (x.ErrorCode == Qa.QuestionAnswerService.TimeoutCode || x.ErrorCode == Qa.QuestionAnswerService.CancelledCode))
+                    ? (x.ModelCalls > 1 ? x.ModelCalls : 1) : 0),
                 Input = g.Sum(x => x.InputTokens), Output = g.Sum(x => x.OutputTokens),
                 CacheRead = g.Sum(x => x.CacheReadTokens), CacheWrite = g.Sum(x => x.CacheWriteTokens)
             })

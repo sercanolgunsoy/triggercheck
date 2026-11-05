@@ -83,7 +83,7 @@ public static class EvalHarness
         var fakeTools = new FakeAiToolClient();
         services.RemoveAll<IAiToolClient>();
         services.AddSingleton<RecordingAiToolClient>(sp => new RecordingAiToolClient(options.Real
-            ? ActivatorUtilities.CreateInstance<AnthropicAiToolClient>(sp)
+            ? new AnthropicAiToolClient(sp.GetRequiredService<IOptions<AiOptions>>(), sp.GetRequiredService<ILogger<AnthropicAiToolClient>>())
             : fakeTools));
         services.AddSingleton<IAiToolClient>(sp => sp.GetRequiredService<RecordingAiToolClient>());
         // The production providers, wrapped so the grader sees their AiPrompt (evidence keys, ref rule). Registered last: they win.

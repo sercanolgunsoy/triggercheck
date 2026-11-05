@@ -23,16 +23,28 @@ public sealed class FakeAiToolClient : IAiToolClient
     /// <summary>Used when the script is empty. Receives the request (the tool results so far are in its messages).</summary>
     public Func<AiToolRequest, AiToolTurn>? Responder { get; set; }
 
+    /// <summary>
+    /// Asynchronous behaviour (slow or hanging calls); receives the call's token. Used before <see cref="Script"/> and
+    /// <see cref="Responder"/> when it returns a turn (null: fall through).
+    /// </summary>
+    public Func<AiToolRequest, CancellationToken, Task<AiToolTurn?>>? AsyncResponder { get; set; }
+
+    /// <summary>
+    /// True (default): a tool turn while tools are not allowed becomes the default answer, as tool_choice "none" makes the
+    /// real API answer. False: such a turn is returned as is (tests of the caller's own guard).
+    /// </summary>
+    public bool EnforceToolChoice { get; set; } = true;
+
     public bool IsAvailable { get; set; } = true;
 
-    public Task<AiToolTurn> NextAsync(AiToolRequest request, CancellationToken ct)
+    public async Task<AiToolTurn> NextAsync(AiToolRequest request, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
         Requests.Enqueue(request);
-        var turn = Script.TryDequeue(out var scripted) ? scripted : Responder?.Invoke(request) ?? Answer(DefaultAnswer);
-        // A scripted tool turn while tools are not allowed would be rejected by the real API (tool_choice "none").
-        if (!request.AllowToolUse && turn.ToolCalls.Count > 0) turn = Answer(DefaultAnswer);
-        return Task.FromResult(turn);
+        var turn = AsyncResponder is null ? null : await AsyncResponder(request, ct);
+        turn ??= Script.TryDequeue(out var scripted) ? scripted : Responder?.Invoke(request) ?? Answer(DefaultAnswer);
+        if (EnforceToolChoice && !request.AllowToolUse && turn.ToolCalls.Count > 0) turn = Answer(DefaultAnswer);
+        return turn;
     }
 
     /// <summary>A final answer.</summary>

@@ -424,4 +424,181 @@ public class QuestionAnswerTests
         Assert.Equal(34, segments[3].Id);
         Assert.DoesNotContain("12", QaAnswerText.StripReferences("See [[monitor:12]]."));
     }
+
+    // ------------------------------------------------------------------ review fixes
+
+    private static async Task WaitForAsync(Func<bool> condition)
+    {
+        for (var i = 0; i < 500 && !condition(); i++) await Task.Delay(10);
+        Assert.True(condition(), "condition not reached");
+    }
+
+    [Fact]
+    public async Task A_call_hitting_the_server_deadline_still_counts_towards_the_budget()
+    {
+        await using var c = await CreateAsync(new() { ["Ai:Qa:TimeoutSeconds"] = "30" });
+        var cust = await c.H.AddCustomerAsync();
+        // The model never answers: only the server-side deadline (fake clock) ends the call.
+        c.Fake.AsyncResponder = async (_, ct) => { await Task.Delay(Timeout.Infinite, ct); return null; };
+
+        var ask = c.AskAsync(cust.Id, "Anything down?");
+        await WaitForAsync(() => c.Fake.Requests.Count == 1);
+        c.H.Time.Advance(TimeSpan.FromSeconds(31));
+        var r = await ask;
+
+        Assert.Equal(QaStatus.Failed, r.Status);
+        Assert.Equal(QuestionAnswerService.TimeoutCode, r.ErrorCode);
+        var d = Assert.Single(await c.DecisionsAsync(cust.Id));
+        Assert.Equal(AiDecisionStatus.Failed, d.Status);
+        Assert.Equal(1, d.ModelCalls);
+        Assert.Equal(0, d.InputTokens);
+        // No usage came back, but the call may have been billed: it counts.
+        Assert.Equal(1, (await c.H.InScopeAsync(sp => sp.GetRequiredService<IAiUsage>().GetMonthlyUsageAsync(cust.Id))).Calls);
+    }
+
+    [Fact]
+    public async Task Leaving_the_page_does_not_abort_the_call_in_flight_and_its_usage_is_recorded()
+    {
+        await using var c = await CreateAsync();
+        var cust = await c.H.AddCustomerAsync();
+        await c.H.AddMonitorAsync(cust.Id);
+        var release = new TaskCompletionSource();
+        var callToken = CancellationToken.None;
+        c.Fake.AsyncResponder = async (_, ct) =>
+        {
+            callToken = ct;
+            await release.Task;
+            return c.Fake.ToolUse((QaToolbox.ListMonitors, new { }));
+        };
+        using var request = new CancellationTokenSource();
+
+        var ask = c.H.InScopeAsync(sp => sp.GetRequiredService<IQuestionAnswerService>()
+            .AskAsync(new QaQuestion(cust.Id, "user-1", "Anything down?"), request.Token));
+        await WaitForAsync(() => c.Fake.Requests.Count == 1);
+        request.Cancel();                      // the user closes the tab
+        Assert.False(callToken.IsCancellationRequested);
+        release.SetResult();                   // the model call finishes anyway
+        var r = await ask;
+
+        Assert.Equal(QuestionAnswerService.CancelledCode, r.ErrorCode);
+        Assert.Single(c.Fake.Requests);        // no further call, no tool run
+        var d = Assert.Single(await c.DecisionsAsync(cust.Id));
+        Assert.Equal(AiDecisionStatus.Failed, d.Status);
+        Assert.Equal(FakeAiToolClient.TurnInputTokens, d.InputTokens);
+        Assert.Equal(FakeAiToolClient.TurnOutputTokens, d.OutputTokens);
+        Assert.Equal(1, d.ModelCalls);
+        Assert.True(d.CostEstimate > 0);
+    }
+
+    [Fact]
+    public async Task Usage_counts_reserved_calls_of_stopped_questions_without_tokens()
+    {
+        await using var c = await CreateAsync();
+        var cust = await c.H.AddCustomerAsync();
+        await c.H.WithDbAsync(async db =>
+        {
+            AiDecision Row(string feature, string code, int calls) => new()
+            {
+                CustomerId = cust.Id, Feature = feature, Model = "claude-opus-5-5", Status = AiDecisionStatus.Failed, ErrorCode = code,
+                ModelCalls = calls, CreatedAtUtc = c.Now
+            };
+            db.AiDecisions.AddRange(
+                Row(AiFeatures.QuestionAnswer, QuestionAnswerService.CancelledCode, 3),
+                Row(AiFeatures.QuestionAnswer, QuestionAnswerService.TimeoutCode, 2),
+                Row(AiFeatures.QuestionAnswer, "network", 1),                         // never reached the model: free
+                Row(AiFeatures.IncidentInterpretation, QuestionAnswerService.TimeoutCode, 0)); // interpreter rule unchanged
+            await db.SaveChangesAsync();
+        });
+        Assert.Equal(5, (await c.H.InScopeAsync(sp => sp.GetRequiredService<IAiUsage>().GetMonthlyUsageAsync(cust.Id))).Calls);
+    }
+
+    [Fact]
+    public async Task A_tool_call_while_tools_are_not_allowed_is_never_executed()
+    {
+        await using var c = await CreateAsync(new() { ["Ai:Qa:MaxIterations"] = "1" });
+        c.Fake.EnforceToolChoice = false;
+        var cust = await c.H.AddCustomerAsync();
+        var call = new AiToolCall("toolu_x", QaToolbox.ListMonitors, JsonSerializer.SerializeToElement(new { }));
+        c.Fake.Script.Enqueue(new AiToolTurn(AiCallOutcome.Succeeded, "Nothing is down.", [call],
+            new AiToolMessage(AiToolRole.Assistant, "Nothing is down.", [call]), 100, 10));
+        c.Fake.Script.Enqueue(new AiToolTurn(AiCallOutcome.Succeeded, "", [call], new AiToolMessage(AiToolRole.Assistant, "", [call]), 100, 10));
+
+        var r = await c.AskAsync(cust.Id, "Anything down?");
+        Assert.Equal(QaStatus.Answered, r.Status);
+        Assert.Equal("Nothing is down.", r.Answer!.Text);
+        Assert.Empty(r.Answer.ToolsUsed);
+        Assert.False(Assert.Single(c.Fake.Requests).AllowToolUse);
+
+        var empty = await c.AskAsync(cust.Id, "And now?");
+        Assert.Equal(QaStatus.Failed, empty.Status);
+        Assert.Equal("no_answer", empty.ErrorCode);
+        Assert.Empty(empty.Answer?.ToolsUsed ?? []);
+    }
+
+    [Fact]
+    public async Task Gated_attempts_do_not_use_the_rate_limit_and_are_recorded_once()
+    {
+        await using var c = await CreateAsync(new() { ["Ai:Qa:PerUserPerMinute"] = "1" });
+        var cust = await c.H.AddCustomerAsync(aiEnabled: false);
+        for (var i = 0; i < 3; i++) Assert.Equal(QaStatus.OptedOut, (await c.AskAsync(cust.Id, "Hi?")).Status);
+        Assert.Single(await c.DecisionsAsync(cust.Id));
+
+        await c.H.WithDbAsync(db => db.Customers.Where(x => x.Id == cust.Id).ExecuteUpdateAsync(s => s.SetProperty(x => x.AiEnabled, true)));
+        Assert.Equal(QaStatus.Answered, (await c.AskAsync(cust.Id, "Now?")).Status); // quota still unused
+        Assert.Equal(QaStatus.RateLimited, (await c.AskAsync(cust.Id, "Again?")).Status);
+
+        var full = await c.H.AddCustomerAsync(callLimit: 1);
+        await c.AskAsync(full.Id, "Use it up", user: "user-9");
+        for (var i = 0; i < 2; i++) Assert.Equal(QaStatus.OverBudget, (await c.AskAsync(full.Id, "More?", user: "user-8")).Status);
+        Assert.Single(await c.DecisionsAsync(full.Id), d => d.Status == AiDecisionStatus.SkippedBudget);
+    }
+
+    [Fact]
+    public async Task Incident_details_always_fit_the_result_cap()
+    {
+        await using var c = await CreateAsync(new() { ["Ai:Qa:MaxToolResultChars"] = "2500" });
+        var cust = await c.H.AddCustomerAsync();
+        var m = await c.H.AddMonitorAsync(cust.Id);
+        var longError = "HTTP 503 " + string.Concat(Enumerable.Repeat("upstream connect error or disconnect/reset before headers ", 40));
+        for (var i = 0; i < 20; i++) await c.AddCheckAsync(m.Id, c.Now.AddMinutes(-i), false, 50, longError + i, 503);
+        var inc = await c.AddIncidentAsync(m.Id, c.Now.AddMinutes(-15), null, longError);
+        await c.H.WithDbAsync(async db =>
+        {
+            db.AiDecisions.Add(new AiDecision
+            {
+                CustomerId = cust.Id, Feature = AiFeatures.IncidentInterpretation, SubjectType = "Incident", SubjectId = inc.ToString(),
+                Status = AiDecisionStatus.Succeeded, CreatedAtUtc = c.Now,
+                OutputJson = JsonSerializer.Serialize(new { summary = new string('s', 3000), hypotheses = Array.Empty<object>(), suggested_actions = Array.Empty<object>(), unknowns = Array.Empty<string>() }),
+            });
+            await db.SaveChangesAsync();
+        });
+
+        var r = await c.RunToolAsync(cust.Id, QaToolbox.IncidentDetails, new { incident_id = inc });
+
+        Assert.False(r.IsError, r.Content);
+        Assert.True(r.Content.Length <= 2500, r.Content.Length.ToString());
+        Assert.Contains(QaAnswerText.IncidentRef(inc), r.Content);
+        Assert.Contains("\"trimmed\":true", r.Content);
+        Assert.Contains("\"status_code\":503", r.Content);
+    }
+
+    [Fact]
+    public async Task Stats_over_all_monitors_use_a_shorter_range_and_flag_cut_incident_lists()
+    {
+        await using var c = await CreateAsync(new() { ["Ai:Qa:MaxStatsIncidents"] = "2" });
+        var cust = await c.H.AddCustomerAsync();
+        var m = await c.H.AddMonitorAsync(cust.Id);
+        for (var i = 1; i <= 3; i++) await c.AddIncidentAsync(m.Id, c.Now.AddHours(-i), c.Now.AddHours(-i).AddMinutes(10));
+        var month = new { from = Iso(c.Now.AddDays(-30)), to = Iso(c.Now) };
+
+        var all = await c.RunToolAsync(cust.Id, QaToolbox.MonitorStats, month);
+        Assert.Contains($"\"from\":\"{Iso(c.Now.AddDays(-7))}\"", all.Content);
+        Assert.Contains("\"range_capped\":", all.Content);
+        Assert.Contains("\"incidents_truncated\":", all.Content);
+        Assert.Contains("\"incidents_started\":2", all.Content);
+
+        var one = await c.RunToolAsync(cust.Id, QaToolbox.MonitorStats, new { month.from, month.to, monitor_id = m.Id });
+        Assert.Contains($"\"from\":\"{month.from}\"", one.Content);
+        Assert.DoesNotContain("range_capped", one.Content);
+    }
 }
