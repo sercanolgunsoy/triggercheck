@@ -51,7 +51,7 @@ public sealed class PostmortemDrafts(AppDbContext db, IAiInterpreter interpreter
             .FirstOrDefaultAsync(ct);
         if (incident is null) return new(PostmortemGenerateStatus.NotFound);
         if (incident.ResolvedAtUtc is null) return new(PostmortemGenerateStatus.NotResolved);
-        var existing = await db.PostmortemDrafts.FirstOrDefaultAsync(d => d.IncidentId == incidentId && d.CustomerId == customerId, ct);
+        var existing = await db.PostmortemDrafts.AsNoTracking().FirstOrDefaultAsync(d => d.IncidentId == incidentId && d.CustomerId == customerId, ct);
         if (existing?.Status == PostmortemDraftStatus.Published) return new(PostmortemGenerateStatus.AlreadyPublished);
 
         var language = AiJob.NormalizeLanguage(await db.Customers.Where(c => c.Id == customerId).Select(c => c.AiLanguage).FirstOrDefaultAsync(ct));
@@ -72,19 +72,31 @@ public sealed class PostmortemDrafts(AppDbContext db, IAiInterpreter interpreter
 
         var service = await PublicServiceNameAsync(customerId, incident.MonitorId, ct) ?? PostmortemRenderer.GenericService(output.Language);
         var now = time.GetUtcNow().UtcDateTime;
-        var draft = existing;
-        if (draft is null)
+        var cause = Fit(output.Render(output.LikelyCause, service), PostmortemDraft.MaxLikelyCauseLength);
+        var message = Fit(output.Render(output.CustomerMessage, service), PostmortemDraft.MaxCustomerMessageLength);
+        if (existing is not null)
         {
-            draft = new PostmortemDraft { CustomerId = customerId, IncidentId = incidentId, CreatedAtUtc = now, CreatedByUserId = userId };
-            db.PostmortemDrafts.Add(draft);
+            // Compare-and-set on Status: an approval that raced this call keeps the published texts unchanged.
+            var updated = await db.PostmortemDrafts
+                .Where(d => d.Id == existing.Id && d.CustomerId == customerId && d.Status == PostmortemDraftStatus.Draft)
+                .ExecuteUpdateAsync(u => u.SetProperty(d => d.Language, output.Language)
+                    .SetProperty(d => d.DecisionId, decision!.Id)
+                    .SetProperty(d => d.CauseCategory, output.Category)
+                    .SetProperty(d => d.LikelyCause, cause)
+                    .SetProperty(d => d.CustomerMessage, message)
+                    .SetProperty(d => d.UpdatedAtUtc, now)
+                    .SetProperty(d => d.UpdatedByUserId, userId), ct);
+            return updated == 0
+                ? new(PostmortemGenerateStatus.AlreadyPublished, decision!.Id)
+                : new(PostmortemGenerateStatus.Generated, decision!.Id);
         }
-        draft.Language = output.Language;
-        draft.DecisionId = decision!.Id;
-        draft.CauseCategory = output.Category;
-        draft.LikelyCause = Fit(output.Render(output.LikelyCause, service), PostmortemDraft.MaxLikelyCauseLength);
-        draft.CustomerMessage = Fit(output.Render(output.CustomerMessage, service), PostmortemDraft.MaxCustomerMessageLength);
-        draft.UpdatedAtUtc = now;
-        draft.UpdatedByUserId = userId;
+        var draft = new PostmortemDraft
+        {
+            CustomerId = customerId, IncidentId = incidentId, CreatedAtUtc = now, CreatedByUserId = userId,
+            Language = output.Language, DecisionId = decision!.Id, CauseCategory = output.Category,
+            LikelyCause = cause, CustomerMessage = message, UpdatedAtUtc = now, UpdatedByUserId = userId,
+        };
+        db.PostmortemDrafts.Add(draft);
         try
         {
             await db.SaveChangesAsync(ct);
