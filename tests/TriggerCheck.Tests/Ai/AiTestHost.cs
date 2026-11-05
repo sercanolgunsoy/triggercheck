@@ -11,6 +11,7 @@ using TriggerCheck.Domain;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Infrastructure;
 using TriggerCheck.Infrastructure.Data;
+using TriggerCheck.Tests.Infrastructure;
 using MonitorEntity = TriggerCheck.Domain.Entities.Monitor;
 
 namespace TriggerCheck.Tests.Ai;
@@ -24,15 +25,15 @@ public sealed class AiTestHost : IAsyncDisposable
 {
     public static readonly DateTimeOffset Start = new(2026, 3, 10, 12, 0, 0, TimeSpan.Zero);
 
-    private readonly string _dbPath;
+    private readonly TestDatabase _db;
     public FakeTimeProvider Time { get; }
     public ServiceProvider Services { get; }
     public FakeAiClient Client { get; }
     public TestContextProvider Provider { get; }
 
-    private AiTestHost(string dbPath, FakeTimeProvider time, ServiceProvider services, FakeAiClient client, TestContextProvider provider)
+    private AiTestHost(TestDatabase db, FakeTimeProvider time, ServiceProvider services, FakeAiClient client, TestContextProvider provider)
     {
-        _dbPath = dbPath;
+        _db = db;
         Time = time;
         Services = services;
         Client = client;
@@ -43,12 +44,11 @@ public sealed class AiTestHost : IAsyncDisposable
 
     public static async Task<AiTestHost> CreateAsync(Dictionary<string, string?>? settings = null, IAiClient? client = null, Action<IServiceCollection>? configure = null)
     {
-        var dbPath = Path.Combine(Path.GetTempPath(), $"triggercheck-ai-{Guid.NewGuid():N}.db");
-        var all = new Dictionary<string, string?>
+        // SQLite without pooling: the file can be deleted on dispose without SqliteConnection.ClearAllPools(), which
+        // would also close pooled connections of tests running in parallel.
+        var tdb = TestDatabase.Create("ai", sqliteOptions: "Pooling=False");
+        var all = new Dictionary<string, string?>(tdb.Settings)
         {
-            // No pooling: the file can be deleted on dispose without SqliteConnection.ClearAllPools(), which would also
-            // close pooled connections of tests running in parallel.
-            ["ConnectionStrings:Default"] = $"Data Source={dbPath};Pooling=False",
             ["Ai:Enabled"] = "true",
             ["Ai:ApiKey"] = "", // never a real key in tests
         };
@@ -73,7 +73,7 @@ public sealed class AiTestHost : IAsyncDisposable
         provider.Services = sp;
         using (var scope = sp.CreateScope())
             await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.EnsureCreatedAsync();
-        return new AiTestHost(dbPath, time, sp, fake, provider);
+        return new AiTestHost(tdb, time, sp, fake, provider);
     }
 
     public async Task<T> WithDbAsync<T>(Func<AppDbContext, Task<T>> action)
@@ -124,7 +124,7 @@ public sealed class AiTestHost : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         await Services.DisposeAsync();
-        try { File.Delete(_dbPath); } catch { /* ignore */ }
+        _db.Dispose();
     }
 }
 

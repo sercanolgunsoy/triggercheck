@@ -3,7 +3,6 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
@@ -110,7 +109,7 @@ public class IndexModel(AppDbContext db, TimeProvider time, IMemoryCache cache, 
                 TempData["Success"] = L["Region \"{0}\" was created. Configure its agent with the credential below.", Input.Code].Value;
                 return RedirectWithReveal(Input.Code, generated.Token);
             }
-            catch (DbUpdateException ex) when (attempt < 3 && ex.InnerException is SqliteException { SqliteErrorCode: 19 })
+            catch (DbUpdateException ex) when (attempt < 3 && DbErrors.IsUniqueViolation(ex))
             {
                 db.ChangeTracker.Clear(); // unique constraint (code raced, or prefix collision): check again
                 if (await db.Regions.AnyAsync(r => r.Code == Input.Code, ct))

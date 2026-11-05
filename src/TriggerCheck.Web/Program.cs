@@ -92,6 +92,16 @@ builder.Services.AddRazorPages(o =>
 builder.Services.Configure<MvcOptions>(o => o.Filters.Add(new MustChangePasswordFilter()));
 
 var app = builder.Build();
+
+// OPS-1: `dotnet TriggerCheck.Web.dll migrate` applies the migrations and exits (the separate deployment step used with
+// Database:MigrateOnStartup=false); otherwise startup migrates, then seeds (DbSeeder below). Runs before the app's
+// configuration checks: it only needs the database.
+if (args.Contains("migrate", StringComparer.OrdinalIgnoreCase))
+{
+    await DbSeeder.MigrateAsync(app.Services);
+    return;
+}
+
 app.ValidateBillingConfiguration();
 
 if (!app.Environment.IsDevelopment() && TriggerCheck.Monitoring.Escalation.IncidentAckLinks.ParseBaseUrl(app.Configuration["Site:PublicBaseUrl"]) is null)

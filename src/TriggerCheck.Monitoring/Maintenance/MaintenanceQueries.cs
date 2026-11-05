@@ -16,7 +16,9 @@ public static class MaintenanceQueries
     /// <summary>True when a maintenance window of the monitor's customer covers the monitor at <paramref name="atUtc"/>.</summary>
     public static async Task<bool> IsInMaintenanceAsync(AppDbContext db, int customerId, int monitorId, DateTime atUtc, CancellationToken ct = default)
     {
-        var windows = await For(db, customerId, monitorId, atUtc, atUtc.AddTicks(1)).ToListAsync(ct);
+        // The SQL range is only a prefilter (ActiveAt decides): + 1 µs, not 1 tick, because Postgres stores microseconds
+        // and would round the bound back to atUtc, losing a window that starts exactly now.
+        var windows = await For(db, customerId, monitorId, atUtc, atUtc.AddMicroseconds(1)).ToListAsync(ct);
         return windows.Any(w => MaintenanceSchedule.ActiveAt(w, atUtc) is not null);
     }
 
@@ -43,7 +45,7 @@ public static class MaintenanceQueries
     {
         var result = new HashSet<int>();
         if (monitorIds.Count == 0) return result;
-        var end = atUtc.AddTicks(1);
+        var end = atUtc.AddMicroseconds(1); // prefilter, see IsInMaintenanceAsync
         var active = (await db.MaintenanceWindows.AsNoTracking()
                 .Where(w => w.CustomerId == customerId && (w.IsRecurring || (w.StartsAtUtc < end && w.EndsAtUtc > atUtc)))
                 .ToListAsync(ct))

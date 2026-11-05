@@ -180,7 +180,7 @@ public class NarrativeReportUpgradeTests(NarrativeReportsTestFactory f) : IClass
         await f.AddCheckAsync(m, Utc(2026, 3, 5), up: true, ms: 180);
         await f.WithDbAsync(db => db.Customers.Where(c => c.Id == cid).ExecuteUpdateAsync(u => u
             .SetProperty(c => c.AiEnabled, true).SetProperty(c => c.MonthlyReportEmail, true)));
-        await f.WithDbAsync(db => db.Database.ExecuteSqlRawAsync("DROP TABLE ReportNarratives"));
+        await f.WithDbAsync(db => db.Database.ExecuteSqlRawAsync("DROP TABLE \"ReportNarratives\""));
 
         var html = await (await f.LoginAsync(admin, Password)).GetHtmlAsync("/App/Reports?month=2026-03");
         Assert.Contains("data-narrative-state=\"off\"", html);

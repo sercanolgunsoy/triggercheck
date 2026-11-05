@@ -1,5 +1,4 @@
 using System.Data;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using TriggerCheck.Domain;
 using TriggerCheck.Domain.Entities;
@@ -63,7 +62,8 @@ public sealed class MonitorCommands(AppDbContext db, HeartbeatRateLimiter? heart
         if (monitor.Type == MonitorType.Heartbeat) monitor.NextCheckAtUtc = HeartbeatSchedule.FirstDeadline(monitor, now);
 
         // Re-count and insert atomically so parallel posts cannot exceed the plan quota. On SQLite a Serializable
-        // transaction is BEGIN IMMEDIATE: it takes the write lock up front, so concurrent creates run one by one.
+        // transaction is BEGIN IMMEDIATE: it takes the write lock up front, so concurrent creates run one by one (on
+        // Postgres the same through the transaction lock, see PostgresWriteLockInterceptor).
         try
         {
             await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
@@ -218,7 +218,6 @@ public sealed class MonitorCommands(AppDbContext db, HeartbeatRateLimiter? heart
         return token;
     }
 
-    /// <summary>SQLITE_BUSY (5) / SQLITE_LOCKED (6), possibly wrapped in a DbUpdateException.</summary>
-    internal static bool IsDatabaseBusy(Exception ex) =>
-        (ex as SqliteException ?? ex.InnerException as SqliteException) is { SqliteErrorCode: 5 or 6 };
+    /// <summary>The write lock could not be obtained in time (<see cref="DbErrors.IsBusy"/>).</summary>
+    internal static bool IsDatabaseBusy(Exception ex) => DbErrors.IsBusy(ex);
 }

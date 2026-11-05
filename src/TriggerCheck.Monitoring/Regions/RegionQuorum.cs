@@ -130,7 +130,7 @@ public static class RegionQuorum
     public static async Task<DateTime?> CentralFailingSinceAsync(AppDbContext db, int monitorId, DateTime windowStartUtc, CancellationToken ct)
     {
         var central = db.CheckResults.AsNoTracking().Where(c => c.MonitorId == monitorId && c.RegionId == null && c.CheckedAtUtc >= windowStartUtc);
-        var lastUp = await central.Where(c => c.IsUp || c.InMaintenance).MaxAsync(c => (DateTime?)c.CheckedAtUtc, ct) ?? windowStartUtc.AddTicks(-1);
+        var lastUp = await central.Where(c => c.IsUp || c.InMaintenance).MaxAsync(c => (DateTime?)c.CheckedAtUtc, ct) ?? windowStartUtc.AddMicroseconds(-1); // µs: Postgres precision
         return await central.Where(c => !c.IsUp && c.CheckedAtUtc > lastUp).MinAsync(c => (DateTime?)c.CheckedAtUtc, ct);
     }
 

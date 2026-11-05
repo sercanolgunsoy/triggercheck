@@ -29,9 +29,10 @@ public class IndexModel(AppDbContext db) : PageModel
         var q = db.Customers.AsNoTracking().AsQueryable();
         if (!string.IsNullOrWhiteSpace(Q))
         {
-            var like = $"%{Q.Trim()}%";
-            q = q.Where(c => EF.Functions.Like(c.Name, like) || EF.Functions.Like(c.ContactEmail, like)
-                || db.Users.Any(u => u.CustomerId == c.Id && EF.Functions.Like(u.Email!, like)));
+            // Case-insensitive on both providers (Postgres LIKE is case-sensitive, SQLite's is not).
+            var term = Q.Trim().ToLowerInvariant();
+            q = q.Where(c => c.Name.ToLower().Contains(term) || c.ContactEmail.ToLower().Contains(term)
+                || db.Users.Any(u => u.CustomerId == c.Id && u.Email!.ToLower().Contains(term)));
         }
         if (State == "active") q = q.Where(c => c.IsActive);
         else if (State == "suspended") q = q.Where(c => !c.IsActive);

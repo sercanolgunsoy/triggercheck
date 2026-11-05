@@ -1,4 +1,3 @@
-using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -45,10 +44,7 @@ public class HostedServiceResilienceTests
         var lifetime = f.Services.GetRequiredService<IHostApplicationLifetime>();
         await Task.Delay(300); // a few scheduler ticks on the healthy database
 
-        var dataSource = new SqliteConnectionStringBuilder(f.Services.GetRequiredService<IConfiguration>().GetConnectionString("Default")).DataSource;
-        SqliteConnection.ClearPool(new SqliteConnection($"Data Source={dataSource}")); // not ClearAllPools: other tests run in parallel
-        File.Delete(dataSource);
-        File.WriteAllBytes(dataSource, [1, 2, 3]); // not even a database: every query fails
+        TestDatabase.Destroy(f.Services.GetRequiredService<IConfiguration>()); // every query fails from now on
 
         await Task.Delay(1500); // dozens of failing scheduler ticks, alert sender and retention running
         Assert.False(lifetime.ApplicationStopping.IsCancellationRequested, "a background service stopped the host");
@@ -67,9 +63,7 @@ public class HostedServiceUnitResilienceTests
             ["Monitoring:SchedulerTickMilliseconds"] = "1000",
             ["Monitoring:RetentionCleanupMinutes"] = "1"
         });
-        var dataSource = new SqliteConnectionStringBuilder(host.Services.GetRequiredService<IConfiguration>().GetConnectionString("Default")).DataSource;
-        SqliteConnection.ClearPool(new SqliteConnection($"Data Source={dataSource}")); // not ClearAllPools: other tests run in parallel
-        File.WriteAllBytes(dataSource, [1, 2, 3]); // every query fails from now on
+        TestDatabase.Destroy(host.Services.GetRequiredService<IConfiguration>()); // every query fails from now on
 
         var services = host.Services.GetServices<IHostedService>().OfType<BackgroundService>().ToList();
         Assert.Equal(4, services.Count); // alert sender, scheduler, retention, escalation (FEAT-5)

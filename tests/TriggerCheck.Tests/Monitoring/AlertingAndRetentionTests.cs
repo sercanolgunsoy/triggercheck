@@ -8,6 +8,7 @@ using TriggerCheck.Domain.Entities;
 using TriggerCheck.Monitoring.Alerting;
 using TriggerCheck.Monitoring.Engine;
 using TriggerCheck.Monitoring.Retention;
+using TriggerCheck.Tests.Infrastructure;
 
 namespace TriggerCheck.Tests.Monitoring;
 
@@ -191,7 +192,7 @@ public class AlertingAndRetentionTests
         Assert.Equal(0, host.Services.GetRequiredService<MonitorRunGate>().Count);
     }
 
-    [Fact]
+    [SqliteFact]
     public async Task Sqlite_database_uses_wal_journal_mode()
     {
         await using var host = await MonitoringTestHost.CreateAsync();

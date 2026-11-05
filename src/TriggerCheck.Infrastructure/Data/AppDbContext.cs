@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Infrastructure.Identity;
 using MonitorEntity = TriggerCheck.Domain.Entities.Monitor;
@@ -42,15 +44,48 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
     public DbSet<IncidentGroupMember> IncidentGroupMembers => Set<IncidentGroupMember>();
     public DbSet<ClusterLease> ClusterLeases => Set<ClusterLease>();
 
+    /// <summary>
+    /// Postgres (OPS-2): DateTime columns are <c>timestamp with time zone</c> and every value is UTC. Npgsql only accepts
+    /// Kind=Utc for them; the code writes UTC values, but some carry Kind=Unspecified (built from date parts such as
+    /// new DateTime(y, m, d), or read back from SQLite, which returns Unspecified). This converter treats Unspecified as
+    /// UTC (what SQLite stores) and converts Local, so both providers store the same instants. Values read back are Kind=Utc.
+    /// </summary>
+    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+    {
+        if (!Database.IsNpgsql()) return;
+        configurationBuilder.Properties<DateTime>().HaveConversion<UtcDateTimeConverter>();
+        configurationBuilder.Properties<DateTime?>().HaveConversion<UtcDateTimeConverter>();
+    }
+
+    private sealed class UtcDateTimeConverter() : ValueConverter<DateTime, DateTime>(
+        v => v.Kind == DateTimeKind.Utc ? v : v.Kind == DateTimeKind.Local ? v.ToUniversalTime() : DateTime.SpecifyKind(v, DateTimeKind.Utc),
+        v => v.Kind == DateTimeKind.Utc ? v : DateTime.SpecifyKind(v, DateTimeKind.Utc));
+
+    // DB defaults (OPS-1): a few columns, added to existing tables by later waves, carry a database default so that
+    // older rows and rows written outside the app get the right value. They are declared with
+    // HasDefaultValue(..).ValueGeneratedNever(): the default is in the schema / migrations, but EF still always sends
+    // the entity's value. Without ValueGeneratedNever EF would omit a value equal to the CLR default (false / 0) and the
+    // database would store the default instead (Plan.MaxRegions 0 = "all regions" would silently become 1), and a
+    // database baselined from EnsureCreated (no DB defaults) would reject the insert.
     protected override void OnModelCreating(ModelBuilder b)
     {
+        // Decimals: SQLite has no decimal type (it cannot compare / ORDER BY / SUM them), so they are stored as REAL
+        // there; Postgres stores them exactly as numeric(precision, scale) (OPS-2).
+        var sqlite = Database.IsSqlite();
+        void Money<T>(PropertyBuilder<T> property, int precision, int scale)
+        {
+            if (sqlite) property.HasConversion(typeof(T) == typeof(decimal?) ? typeof(double?) : typeof(double));
+            else property.HasPrecision(precision, scale);
+        }
+
         base.OnModelCreating(b);
 
         b.Entity<Plan>(e =>
         {
             e.Property(x => x.Name).HasMaxLength(100).IsRequired();
             e.HasIndex(x => x.Name).IsUnique();
-            e.Property(x => x.MonthlyPrice).HasConversion<double>();
+            Money(e.Property(x => x.MonthlyPrice), 18, 2);
+            e.Property(x => x.MaxRegions).HasDefaultValue(1).ValueGeneratedNever(); // FEAT-6
             e.Property(x => x.AiFeatures).HasMaxLength(500);
             e.Property(x => x.IyzicoProductReferenceCode).HasMaxLength(100);
             e.Property(x => x.IyzicoPricingPlanReferenceCode).HasMaxLength(100);
@@ -64,6 +99,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
             e.Property(x => x.ReportTimeZoneId).HasMaxLength(100);
             e.Property(x => x.AiLanguage).HasMaxLength(8);
             e.HasIndex(x => x.TrialKey);
+            e.Property(x => x.AlertContactEmailWhenNoChannel).HasDefaultValue(true).ValueGeneratedNever();
+            e.Property(x => x.AlertGroupingEnabled).HasDefaultValue(true).ValueGeneratedNever(); // AI-4
             e.HasOne(x => x.Plan).WithMany(p => p.Customers).HasForeignKey(x => x.PlanId).OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -185,7 +222,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
             e.Property(x => x.IgnoredReason).HasMaxLength(32);
             e.HasIndex(x => new { x.Ignored, x.IgnoredReason });
             e.Property(x => x.PlanName).HasMaxLength(100);
-            e.Property(x => x.Amount).HasConversion<double?>();
+            Money(e.Property(x => x.Amount), 18, 2);
             e.HasIndex(x => new { x.CustomerId, x.OccurredAtUtc });
         });
 
@@ -207,7 +244,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
             e.Property(x => x.Language).HasMaxLength(8);
             e.Property(x => x.ErrorCode).HasMaxLength(64);
             e.Property(x => x.FeedbackByUserId).HasMaxLength(450);
-            e.Property(x => x.CostEstimate).HasConversion<double>();
+            Money(e.Property(x => x.CostEstimate), 18, 6);
+            e.Property(x => x.ModelCalls).HasDefaultValue(0).ValueGeneratedNever(); // AI-7
             e.HasIndex(x => new { x.CustomerId, x.CreatedAtUtc });
             e.HasIndex(x => new { x.Feature, x.SubjectType, x.SubjectId, x.InputHash });
         });
