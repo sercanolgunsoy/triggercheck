@@ -446,6 +446,30 @@ public class RegionVotingTests
     }
 
     [Fact]
+    public async Task Central_failing_since_starts_after_the_last_success_or_maintenance_probe()
+    {
+        var s = await ArrangeAsync();
+        var (host, id) = (s.Host, s.MonitorId);
+        await using var _ = host;
+        var t0 = host.Now.AddMinutes(-10);
+        await host.WithDbAsync(async db =>
+        {
+            CheckResult R(int min, bool up, bool maint = false, int? region = null) =>
+                new() { MonitorId = id, CheckedAtUtc = t0.AddMinutes(min), IsUp = up, InMaintenance = maint, RegionId = region };
+            db.CheckResults.AddRange(
+                R(0, false), R(1, true), R(2, false), R(3, false, maint: true), R(4, false), R(5, false),
+                R(6, false, region: s.A.Id)); // remote results are not central
+            await db.SaveChangesAsync();
+            // Streak starts after the in-maintenance failure (which starts no streak), not at minute 2.
+            Assert.Equal(t0.AddMinutes(4), await RegionQuorum.CentralFailingSinceAsync(db, id, t0, CancellationToken.None));
+            // Looks back no further than the window.
+            Assert.Equal(t0.AddMinutes(5), await RegionQuorum.CentralFailingSinceAsync(db, id, t0.AddMinutes(5), CancellationToken.None));
+            // No central failure in the window: the current probe is the first.
+            Assert.Null(await RegionQuorum.CentralFailingSinceAsync(db, id, t0.AddMinutes(6), CancellationToken.None));
+        });
+    }
+
+    [Fact]
     public void Tally_rules()
     {
         var now = DateTime.UtcNow;

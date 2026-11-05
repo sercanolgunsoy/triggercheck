@@ -56,9 +56,9 @@ public sealed class ProbeLeaseService(
             .Where(s => s.RegionId == regionId && s.Region.IsEnabled
                         && s.Monitor.IsEnabled && s.Monitor.Status != MonitorStatus.Paused && s.Monitor.Customer.IsActive
                         && s.Monitor.Type != MonitorType.Heartbeat && s.Monitor.Customer.Plan.MaxRegions != 1
-                        // Plan limit: only the first MaxRegions - 1 assignments by region id (see RegionQuorum.WithinPlan).
+                        // Plan limit: only the first MaxRegions - 1 enabled assignments by region id (see RegionQuorum.WithinPlan).
                         && (s.Monitor.Customer.Plan.MaxRegions <= 0
-                            || db.MonitorRegionStates.Count(o => o.MonitorId == s.MonitorId && o.RegionId < s.RegionId) < s.Monitor.Customer.Plan.MaxRegions - 1)
+                            || db.MonitorRegionStates.Count(o => o.MonitorId == s.MonitorId && o.Region.IsEnabled && o.RegionId < s.RegionId) < s.Monitor.Customer.Plan.MaxRegions - 1)
                         && (s.NextCheckAtUtc == null || s.NextCheckAtUtc <= now)
                         && (s.LeasedUntilUtc == null || s.LeasedUntilUtc <= now))
             .OrderBy(s => s.NextCheckAtUtc)
@@ -216,8 +216,11 @@ public sealed class ProbeLeaseService(
         state.LastIsUp = r.IsUp;
         state.LastError = error;
         state.LastResponseTimeMs = r.ResponseTimeMs;
-        state.FailingSinceUtc = r.IsUp ? null : state.ConsecutiveFailures > 0 ? state.FailingSinceUtc ?? checkedAt : checkedAt;
-        state.ConsecutiveFailures = r.IsUp ? 0 : state.ConsecutiveFailures + 1;
+        // Same streak rule as central (MonitorStateMachine.CentralStreakAfter): in maintenance a failure starts no streak
+        // unless the monitor is already DOWN, so nothing from the window is carried into the vote afterwards.
+        var resetStreak = r.IsUp || (inMaintenance && monitor.Status != MonitorStatus.Down);
+        state.FailingSinceUtc = resetStreak ? null : state.ConsecutiveFailures > 0 ? state.FailingSinceUtc ?? checkedAt : checkedAt;
+        state.ConsecutiveFailures = resetStreak ? 0 : state.ConsecutiveFailures + 1;
         state.LastInMaintenance = inMaintenance;
         state.LastResultItemId = r.ItemId;
         state.LastResultFingerprint = fingerprint;

@@ -236,9 +236,11 @@ public sealed class MonitorCheckRunner(
                     regionStates = RegionQuorum.WithinPlan(all, await RegionQuorum.PlanMaxRegionsAsync(db, monitor.CustomerId, ct));
                     var votes = RegionQuorum.RemoteVotes(regionStates, monitor, checkedAt, ro);
                     remoteConfirms = votes.Any(v => !v.IsUp);
+                    var windowStart = checkedAt - RegionQuorum.VoteWindow(monitor, ro);
+                    var failingSince = outcome.IsUp || inMaintenance ? null : await RegionQuorum.CentralFailingSinceAsync(db, monitor.Id, windowStart, ct);
                     if (RegionQuorum.CentralVote(monitor, outcome.IsUp, MonitorStateMachine.CentralStreakAfter(monitor, outcome.IsUp, inMaintenance),
-                            checkedAt, outcome.Error, inMaintenance) is { } central) votes.Add(central);
-                    var tally = RegionQuorum.Tally(votes, checkedAt - RegionQuorum.VoteWindow(monitor, ro));
+                            checkedAt, failingSince, outcome.Error, inMaintenance) is { } central) votes.Add(central);
+                    var tally = RegionQuorum.Tally(votes, windowStart);
                     if (tally.UsesQuorum) quorum = tally;
                 }
             }

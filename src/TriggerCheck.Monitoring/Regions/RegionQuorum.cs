@@ -80,11 +80,11 @@ public static class RegionQuorum
     private static int Threshold(MonitorEntity monitor) => Math.Max(1, monitor.FailureThreshold);
 
     /// <summary>
-    /// The assignments the plan allows: the first <c>MaxRegions - 1</c> by region id (all when MaxRegions is 0). Others
-    /// are neither leased nor counted, e.g. after a downgrade.
+    /// The assignments the plan allows: the first <c>MaxRegions - 1</c> enabled ones by region id (all when MaxRegions is
+    /// 0; a disabled region takes no slot). Others are neither leased nor counted, e.g. after a downgrade.
     /// </summary>
     public static List<MonitorRegionState> WithinPlan(IEnumerable<MonitorRegionState> states, int planMaxRegions) =>
-        states.OrderBy(s => s.RegionId).Take(planMaxRegions <= 0 ? int.MaxValue : Math.Max(0, planMaxRegions - 1)).ToList();
+        states.Where(s => s.Region.IsEnabled).OrderBy(s => s.RegionId).Take(planMaxRegions <= 0 ? int.MaxValue : Math.Max(0, planMaxRegions - 1)).ToList();
 
     /// <summary>
     /// The region's last result is eligible: region enabled, agent not stale, result inside the vote window, not taken in
@@ -112,13 +112,26 @@ public static class RegionQuorum
 
     /// <summary>
     /// Central's vote for a probe taken at <paramref name="checkedAtUtc"/> with central streak <paramref name="streak"/>
-    /// (failures including this one). None in maintenance.
+    /// (failures including this one) that started at <paramref name="failingSinceUtc"/> (see
+    /// <see cref="CentralFailingSinceAsync"/>). None in maintenance.
     /// </summary>
-    public static RegionVote? CentralVote(MonitorEntity monitor, bool isUp, int streak, DateTime checkedAtUtc, string? error, bool inMaintenance)
+    public static RegionVote? CentralVote(MonitorEntity monitor, bool isUp, int streak, DateTime checkedAtUtc, DateTime? failingSinceUtc, string? error, bool inMaintenance)
     {
         if (inMaintenance) return null;
-        var since = isUp ? checkedAtUtc : checkedAtUtc.AddSeconds(-(double)Math.Max(0, streak - 1) * Math.Max(1, monitor.IntervalSeconds));
+        var since = isUp || failingSinceUtc is not { } first || first > checkedAtUtc ? checkedAtUtc : first;
         return new RegionVote(RegionRules.CentralCode, isUp, isUp || streak >= Threshold(monitor), checkedAtUtc, since, error);
+    }
+
+    /// <summary>
+    /// Probe time of the first central failure of the current streak: the oldest failing central result after the last
+    /// successful (or in-maintenance, which starts no streak) one, looking back no further than <paramref name="windowStartUtc"/> (votes are clamped to the window
+    /// anyway). Null when there is none in the window (the current, unsaved probe is then the first).
+    /// </summary>
+    public static async Task<DateTime?> CentralFailingSinceAsync(AppDbContext db, int monitorId, DateTime windowStartUtc, CancellationToken ct)
+    {
+        var central = db.CheckResults.AsNoTracking().Where(c => c.MonitorId == monitorId && c.RegionId == null && c.CheckedAtUtc >= windowStartUtc);
+        var lastUp = await central.Where(c => c.IsUp || c.InMaintenance).MaxAsync(c => (DateTime?)c.CheckedAtUtc, ct) ?? windowStartUtc.AddTicks(-1);
+        return await central.Where(c => !c.IsUp && c.CheckedAtUtc > lastUp).MinAsync(c => (DateTime?)c.CheckedAtUtc, ct);
     }
 
     /// <summary>Region states of a monitor with their regions (tracked, so callers can update them).</summary>
@@ -141,7 +154,9 @@ public static class RegionQuorum
             .OrderByDescending(c => c.CheckedAtUtc)
             .Select(c => new { c.IsUp, c.CheckedAtUtc, c.Error, c.InMaintenance })
             .FirstOrDefaultAsync(ct);
-        return last is null ? null : CentralVote(monitor, last.IsUp, last.IsUp ? 0 : monitor.ConsecutiveFailures, last.CheckedAtUtc, last.Error, last.InMaintenance);
+        if (last is null) return null;
+        var failingSince = last.IsUp ? null : await CentralFailingSinceAsync(db, monitor.Id, since, ct);
+        return CentralVote(monitor, last.IsUp, last.IsUp ? 0 : monitor.ConsecutiveFailures, last.CheckedAtUtc, failingSince, last.Error, last.InMaintenance);
     }
 
     /// <summary>
