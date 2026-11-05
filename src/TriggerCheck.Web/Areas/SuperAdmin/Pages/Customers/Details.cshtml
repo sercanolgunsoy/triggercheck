@@ -6,7 +6,7 @@
     var overLimit = Model.Monitors.Count > c.Plan.MaxMonitors;
 }
 
-<nav aria-label="breadcrumb"><ol class="breadcrumb">
+<nav aria-label="@L["Breadcrumb"]"><ol class="breadcrumb">
     <li class="breadcrumb-item"><a asp-page="Index">@L["Customers"]</a></li>
     <li class="breadcrumb-item active">@c.Name</li>
 </ol></nav>
@@ -106,16 +106,18 @@
         </dl>
         @if (Model.PaymentEvents.Count > 0)
         {
-            <table class="table table-sm mt-3 mb-0">
-                <thead><tr><th>@L["Date"]</th><th>@L["Event"]</th><th>@L["Plan"]</th><th>@L["Result"]</th></tr></thead>
-                <tbody>
-                @foreach (var e in Model.PaymentEvents)
-                {
-                    <tr><td>@Fmt.Time(e.OccurredAtUtc)</td><td class="font-monospace small">@e.EventType</td><td>@e.PlanName</td>
-                        <td>@if (e.Succeeded) { <span class="badge bg-success">@L["Paid"]</span> } else { <span class="badge bg-danger">@L["Failed"]</span> }</td></tr>
-                }
-                </tbody>
-            </table>
+            <div class="table-responsive mt-3">
+                <table class="table table-sm mb-0">
+                    <thead><tr><th>@L["Date"]</th><th>@L["Event"]</th><th>@L["Plan"]</th><th>@L["Result"]</th></tr></thead>
+                    <tbody>
+                    @foreach (var e in Model.PaymentEvents)
+                    {
+                        <tr><td>@Fmt.Time(e.OccurredAtUtc)</td><td class="font-monospace small">@e.EventType</td><td>@e.PlanName</td>
+                            <td>@if (e.Succeeded) { <span class="badge bg-success">@L["Paid"]</span> } else { <span class="badge bg-danger">@L["Failed"]</span> }</td></tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
         }
     </div>
 </div>

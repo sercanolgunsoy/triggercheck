@@ -19,7 +19,7 @@
             <p class="mb-4">@L["Uptime monitoring for websites, APIs and servers, with instant alerts and a clear incident history."]</p>
             <div class="mock" aria-hidden="true">
                 <div class="mock-body">
-                    @foreach (var (name, status, ms) in new[] { ("Website", MonitorStatus.Up, "182 ms"), ("Checkout API", MonitorStatus.Up, "96 ms"), ("Database", MonitorStatus.Down, "—") })
+                    @foreach (var (name, status, ms) in new[] { (L["Website"].Value, MonitorStatus.Up, "182 ms"), (L["Checkout API"].Value, MonitorStatus.Up, "96 ms"), (L["Database"].Value, MonitorStatus.Down, "—") })
                     {
                         <div class="mock-row"><div class="nm"><partial name="_StatusBadge" model="status" /> <span>@name</span></div><div class="meta">@ms</div></div>
                     }

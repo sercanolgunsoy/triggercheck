@@ -181,4 +181,139 @@ public class LocalizationTests(TestWebAppFactory f) : IClassFixture<TestWebAppFa
         }
         Assert.True(hits.Count == 0, "Turkish text in source (move it to a .tr.resx):\n" + string.Join("\n", hits.Take(200)));
     }
+
+    // ---- UI-2: literal text in views ----------------------------------------------------------------------
+
+    /// <summary>Words that may appear as literal text in views: brand, product and protocol names, language names.</summary>
+    private static readonly HashSet<string> LiteralAllowed = new(StringComparer.Ordinal)
+    {
+        "TriggerCheck", "HTTP", "HTTPS", "JSON", "API", "AI", "TXT", "Ping", "iyzico", "English", "Türkçe",
+        "central",                          // region id (shown in monospace next to its localized name)
+        "CustomerAdmin", "CustomerViewer",  // role names in the SuperAdmin user form
+        "acme", "eu",                       // example values in placeholders (status page slug, region id "eu-central")
+    };
+
+    /// <summary>
+    /// Every piece of user-visible text in a .cshtml (text between tags and the placeholder / title / aria-label /
+    /// alt / data-confirm attributes) goes through the localizer. Razor expressions, code blocks, comments and
+    /// script / style / svg / pre / code elements are stripped first; what is left must not contain words, apart
+    /// from <see cref="LiteralAllowed"/> and technical tokens (URLs, paths, host names).
+    /// </summary>
+    [Fact]
+    public void Views_have_no_literal_text_outside_the_localizer()
+    {
+        var hits = new List<string>();
+        foreach (var file in SourceFiles().Where(p => p.EndsWith(".cshtml")))
+        {
+            var rel = Path.GetRelativePath(Web, file);
+            if (rel.EndsWith("_ValidationScriptsPartial.cshtml")) continue;
+            hits.AddRange(LiteralText(File.ReadAllText(file)).Select(t => $"{rel}: \"{t}\""));
+        }
+        Assert.True(hits.Count == 0, "Literal text in views (use L[\"...\"]):\n" + string.Join("\n", hits.Distinct()));
+    }
+
+    [Fact]
+    public void Literal_text_scan_finds_unlocalized_text()
+    {
+        Assert.Equal(["Save changes"], LiteralText("<button class=\"btn\">Save changes</button>"));
+        Assert.Equal(["placeholder=Search"], LiteralText("<input placeholder=\"Search\" />"));
+        Assert.Empty(LiteralText("@{ var x = \"Hidden\"; }<p>@L[\"Save\"]</p><p>@L[\"e.g. $['k']\"] · @Model.Name</p>"));
+        Assert.Empty(LiteralText("@if (Model.Ok) { <b>@L[\"Yes\"]</b> } else { <b>@Html.Raw(string.Format(L[\"No {0}\"].Value, \"<i>\" + x + \"</i>\"))</b> }"));
+        Assert.Empty(LiteralText("<span class=\"tag\">TriggerCheck</span><a href=\"/x\">https://status.example.com/feed</a>"));
+    }
+
+    private static readonly Regex StrippedBlocks = new(@"@\*.*?\*@|<!--.*?-->|<(script|style|svg|pre|code)\b.*?</\1\s*>", RegexOptions.Singleline | RegexOptions.IgnoreCase);
+    private static readonly Regex Directive = new(@"(?m)^\s*@(model|page|using|inject|namespace|addTagHelper|removeTagHelper|inherits|layout|implements)\b.*$");
+    private static readonly Regex Keyword = new(@"\G@(functions|code|section|if|foreach|for|while|switch|using|else|try|catch|finally|lock|do|await)\b");
+    private static readonly Regex TextAttribute = new(@"\b(placeholder|title|aria-label|alt|data-confirm)\s*=\s*""([^""]*)""", RegexOptions.IgnoreCase);
+    private static readonly Regex TechnicalToken = new(@"\S*[/.:_@$\[\]#]\S*|&#?\w+;");
+
+    /// <summary>Literal user-visible text left in a Razor view once all Razor code is removed.</summary>
+    private static List<string> LiteralText(string razor)
+    {
+        var t = Directive.Replace(StrippedBlocks.Replace(razor, " "), " ");
+        var sb = new System.Text.StringBuilder(t.Length);
+        var i = 0;
+        while (i < t.Length)
+        {
+            if (t[i] != '@' || i + 1 >= t.Length || (i > 0 && char.IsLetterOrDigit(t[i - 1]))) { sb.Append(t[i++]); continue; }
+            var n = t[i + 1];
+            if (n == '@') { sb.Append('@'); i += 2; continue; }
+            if (n is '(' or '{') { i = SkipBalanced(t, i + 1); sb.Append(" @x "); continue; }
+            var kw = Keyword.Match(t, i);
+            if (kw.Success)
+            {
+                // Keep the markup inside control-flow bodies; drop the header and whole @functions / @code blocks.
+                var j = kw.Index + kw.Length;
+                while (j < t.Length && char.IsWhiteSpace(t[j])) j++;
+                if (j < t.Length && t[j] == '(') j = SkipBalanced(t, j);
+                if (kw.Groups[1].Value is "functions" or "code") { var b = t.IndexOf('{', j); j = b < 0 ? t.Length : SkipBalanced(t, b); }
+                i = j; sb.Append(' '); continue;
+            }
+            if (char.IsLetter(n) || n == '_')
+            {
+                // Implicit expression: identifier chain with member access, calls and indexers (string-aware).
+                var j = i + 1;
+                while (j < t.Length)
+                {
+                    if (char.IsLetterOrDigit(t[j]) || t[j] == '_') j++;
+                    else if ((t[j] == '.' || (t[j] == '?' && j + 1 < t.Length && t[j + 1] == '.')) && j + 2 < t.Length && (char.IsLetter(t[j + 1]) || char.IsLetter(t[j + 2]))) j += t[j] == '?' ? 2 : 1;
+                    else if (t[j] is '(' or '[') j = SkipBalanced(t, j);
+                    else break;
+                }
+                i = j; sb.Append(" @x "); continue;
+            }
+            sb.Append(t[i++]);
+        }
+        var markup = sb.ToString();
+
+        var found = new List<string>();
+        void Check(string text, string prefix)
+        {
+            // Text with C# punctuation is code inside a control-flow body (e.g. "} else {"), not markup text.
+            if (Regex.IsMatch(text, @"[{};=""]|&&|\|\||\w\.\w+\(")) return;
+            var words = Regex.Matches(TechnicalToken.Replace(text.Replace("@x", " "), " "), @"\p{L}{2,}").Select(m => m.Value);
+            if (words.Any(w => !LiteralAllowed.Contains(w))) found.Add(prefix + Regex.Replace(text, @"\s+", " ").Trim());
+        }
+        foreach (Match m in Regex.Matches(markup, @">([^<>]*)<")) Check(m.Groups[1].Value, "");
+        foreach (Match m in TextAttribute.Matches(markup)) Check(m.Groups[2].Value, m.Groups[1].Value + "=");
+        return found;
+    }
+
+    /// <summary>Index after the bracket that closes the one at <paramref name="start"/>, skipping C# string and char literals.</summary>
+    private static int SkipBalanced(string s, int start)
+    {
+        var depth = 0;
+        for (var j = start; j < s.Length; j++)
+        {
+            var c = s[j];
+            if (c is '"' or '\'')
+            {
+                for (j++; j < s.Length && s[j] != c; j++) if (s[j] == '\\') j++;
+            }
+            else if (c is '(' or '[' or '{') depth++;
+            else if (c is ')' or ']' or '}' && --depth == 0) return j + 1;
+        }
+        return s.Length;
+    }
+
+    /// <summary>Turkish translations do not keep English words (technical tokens such as Ai:Enabled are ignored).</summary>
+    [Theory]
+    [InlineData("SharedResource")]
+    [InlineData("AppResource")]
+    [InlineData("AdminResource")]
+    public void Translations_contain_no_English_words(string resource)
+    {
+        var english = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "the", "and", "your", "you", "with", "this", "that", "are", "have", "has", "will", "from", "please", "cannot", "for",
+            "incident", "incidents", "alert", "alerts", "dashboard", "settings", "save", "cancel", "delete", "edit", "create",
+            "billing", "report", "reports", "maintenance", "details", "enabled", "disabled", "resolved", "ongoing", "upcoming",
+            "subscribe", "password", "monitors",
+        };
+        var bad = Resx(resource)
+            .Select(kv => (kv.Key, Words: Regex.Matches(TechnicalToken.Replace(kv.Value, " "), @"\p{L}+").Select(m => m.Value).Where(english.Contains).ToList()))
+            .Where(x => x.Words.Count > 0).Select(x => $"\"{x.Key}\": {string.Join(", ", x.Words)}").ToList();
+        Assert.True(bad.Count == 0, "English words in Turkish translations:\n" + string.Join("\n", bad));
+    }
 }

@@ -392,7 +392,7 @@
     <value>Bir sunucunun ICMP ping'e yanıt verdiğini doğrulayın.</value>
   </data>
   <data name="Checkout API recovered" xml:space="preserve">
-    <value>Checkout API düzeldi</value>
+    <value>Ödeme API'si düzeldi</value>
   </data>
   <data name="Checks" xml:space="preserve">
     <value>Kontroller</value>
@@ -1593,5 +1593,17 @@
   </data>
   <data name="Ask AI" xml:space="preserve">
     <value>Yapay zekâya sor</value>
+  </data>
+  <data name="Breadcrumb" xml:space="preserve">
+    <value>Sayfa konumu</value>
+  </data>
+  <data name="Website" xml:space="preserve">
+    <value>Web sitesi</value>
+  </data>
+  <data name="Checkout API" xml:space="preserve">
+    <value>Ödeme API'si</value>
+  </data>
+  <data name="Database" xml:space="preserve">
+    <value>Veritabanı</value>
   </data>
 </root>

@@ -11,7 +11,7 @@
 
 <section class="hero">
     <div class="container">
-        <div class="row align-items-center g-5">
+        <div class="row align-items-center g-4 g-lg-5">
             <div class="col-lg-6">
                 <span class="eyebrow"><span class="pill">@L["New"]</span> @L["Checks as often as every {0}", Fmt.Interval(Model.FastestInterval)]</span>
                 <h1 class="display-title mt-4 mb-4">@L["Know it's down"]<br /><span class="gradient-text">@L["before your customers do."]</span></h1>
@@ -37,9 +37,9 @@
                                 <div class="mock-stat"><small>@L["24 h uptime"]</small><b>@Fmt.Percent(99.93)</b></div>
                             </div>
                             @foreach (var (name, target, status, ms, bars) in new[] {
-                                ("Website", "https://shop.example.com", MonitorStatus.Up, "182 ms", web),
-                                ("Checkout API", "https://api.example.com/health", MonitorStatus.Up, "96 ms", api),
-                                ("Database", "db.example.com:5432", MonitorStatus.Down, "—", db) })
+                                (L["Website"].Value, "https://shop.example.com", MonitorStatus.Up, "182 ms", web),
+                                (L["Checkout API"].Value, "https://api.example.com/health", MonitorStatus.Up, "96 ms", api),
+                                (L["Database"].Value, "db.example.com:5432", MonitorStatus.Down, "—", db) })
                             {
                                 <div class="mock-row">
                                     <div class="nm"><partial name="_StatusBadge" model="status" /> <span>@name</span> <small>@target</small></div>
@@ -105,7 +105,7 @@
             <div class="kicker">@L["How it works"]</div>
             <h2>@L["Up and running in three steps"]</h2>
         </div>
-        <div class="row g-5 steps">
+        <div class="row g-4 g-lg-5 steps">
             <div class="col-md-4 step">
                 <h3>@L["Add a monitor"]</h3>
                 <p>@L["Enter a URL, host or port, choose the check type and how often to check. No code, no agent."]</p>

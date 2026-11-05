@@ -1499,7 +1499,7 @@
     <value>Bölgeler</value>
   </data>
   <data name="The main region always checks this monitor. Additional regions check it too: with three or more regions reporting, the monitor goes down only when the majority of them fail, so a single region's network problem does not open an incident. With fewer, the main region decides and the other regions confirm its failures." xml:space="preserve">
-    <value>Ana bölge bu monitörü her zaman kontrol eder. Ek bölgeler de kontrol eder: üç veya daha fazla bölge sonuç bildirdiğinde monitör yalnızca çoğunluk hata verirse kapalı sayılır, böylece tek bir bölgenin ağ sorunu incident açmaz. Daha azında ana bölge karar verir, diğer bölgeler onun hatalarını doğrular.</value>
+    <value>Ana bölge bu monitörü her zaman kontrol eder. Ek bölgeler de kontrol eder: üç veya daha fazla bölge sonuç bildirdiğinde monitör yalnızca çoğunluk hata verirse kapalı sayılır, böylece tek bir bölgenin ağ sorunu olay açmaz. Daha azında ana bölge karar verir, diğer bölgeler onun hatalarını doğrular.</value>
   </data>
   <data name="The regions were changed in the meantime. Review them and try again." xml:space="preserve">
     <value>Bölgeler bu arada değiştirildi. Gözden geçirip tekrar deneyin.</value>

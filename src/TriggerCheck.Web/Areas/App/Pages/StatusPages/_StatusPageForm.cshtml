@@ -44,23 +44,25 @@
         <div class="form-label">@L["Monitors"]</div>
         <div class="form-text mb-2">@L["Only selected monitors are shown, under the public name you enter. Visitors never see the monitor's own name, target or error details."]</div>
         <span asp-validation-for="Input.Monitors" class="text-danger small d-block"></span>
-        <table class="table table-sm align-middle" id="status-page-monitors">
-            <thead><tr><th><span class="visually-hidden">@L["Show"]</span></th><th>@L["Monitor"]</th><th id="spm-public-name">@L["Public name"]</th></tr></thead>
-            <tbody>
-            @for (var i = 0; i < Model.Input.Monitors.Count; i++)
-            {
-                var row = Model.Input.Monitors[i];
-                <tr>
-                    <td>
-                        <input type="hidden" name="Input.Monitors[@i].MonitorId" value="@row.MonitorId" />
-                        <input type="checkbox" class="form-check-input" name="Input.Monitors[@i].Selected" value="true" id="spm-@i" checked="@row.Selected" />
-                        <input type="hidden" name="Input.Monitors[@i].Selected" value="false" />
-                    </td>
-                    <td><label for="spm-@i" id="spm-@i-name">@Model.MonitorNames.GetValueOrDefault(row.MonitorId)</label></td>
-                    <td><input type="text" class="form-control form-control-sm" aria-labelledby="spm-public-name spm-@i-name" name="Input.Monitors[@i].DisplayName" value="@row.DisplayName" maxlength="@StatusPageRules.MaxDisplayNameLength" placeholder="@L["e.g. Website"]" /></td>
-                </tr>
-            }
-            </tbody>
-        </table>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle" id="status-page-monitors">
+                <thead><tr><th><span class="visually-hidden">@L["Show"]</span></th><th>@L["Monitor"]</th><th id="spm-public-name">@L["Public name"]</th></tr></thead>
+                <tbody>
+                @for (var i = 0; i < Model.Input.Monitors.Count; i++)
+                {
+                    var row = Model.Input.Monitors[i];
+                    <tr>
+                        <td>
+                            <input type="hidden" name="Input.Monitors[@i].MonitorId" value="@row.MonitorId" />
+                            <input type="checkbox" class="form-check-input" name="Input.Monitors[@i].Selected" value="true" id="spm-@i" checked="@row.Selected" />
+                            <input type="hidden" name="Input.Monitors[@i].Selected" value="false" />
+                        </td>
+                        <td><label for="spm-@i" id="spm-@i-name">@Model.MonitorNames.GetValueOrDefault(row.MonitorId)</label></td>
+                        <td><input type="text" class="form-control form-control-sm" aria-labelledby="spm-public-name spm-@i-name" name="Input.Monitors[@i].DisplayName" value="@row.DisplayName" maxlength="@StatusPageRules.MaxDisplayNameLength" placeholder="@L["e.g. Website"]" /></td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>

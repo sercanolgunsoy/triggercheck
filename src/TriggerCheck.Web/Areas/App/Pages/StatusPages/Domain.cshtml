@@ -6,7 +6,7 @@
     var p = Model.StatusPage;
 }
 
-<nav aria-label="breadcrumb"><ol class="breadcrumb">
+<nav aria-label="@L["Breadcrumb"]"><ol class="breadcrumb">
     <li class="breadcrumb-item"><a asp-page="Index">@L["Status pages"]</a></li>
     <li class="breadcrumb-item active">@p.Title</li>
 </ol></nav>
@@ -37,7 +37,7 @@
         <ol class="small">
             <li>@L["Create a CNAME record for {0} pointing to this app's host name.", p.CustomDomain]</li>
             <li>@L["Create a TXT record to prove that you control the domain:"]
-                <div class="font-monospace border rounded p-2 my-1">@StatusPageRules.VerificationRecordName(p.CustomDomain) TXT "@StatusPageRules.VerificationRecordValue(p.CustomDomainToken)"</div>
+                <div class="font-monospace text-break border rounded p-2 my-1">@StatusPageRules.VerificationRecordName(p.CustomDomain) TXT "@StatusPageRules.VerificationRecordValue(p.CustomDomainToken)"</div>
             </li>
             <li>@L["Verify. The page is served on the domain only after a successful verification."]</li>
         </ol>
