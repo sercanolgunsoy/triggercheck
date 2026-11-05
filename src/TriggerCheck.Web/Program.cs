@@ -71,6 +71,7 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentCustomer, CurrentCustomer>();
 builder.Services.AddScoped<AiPanels>(); // AI-2 / AI-3 blocks on incident and monitor pages
 builder.Services.AddScoped<TriggerCheck.Web.Areas.App.Support.MonitorCommands>();
+builder.Services.AddScoped<TriggerCheck.Web.Areas.App.Support.SettingsSuggestionCommands>(); // AI-5 apply / dismiss
 builder.Services.AddSingleton<ManualCheckLimiter>();
 builder.Services.AddHeartbeatEndpoint(builder.Configuration); // FEAT-9: /hb/{token} ping endpoint of heartbeat monitors
 // BIZ-1/2/3: self-service sign-up, trial, iyzico subscriptions, usage meters (+ their rate limits and background job).

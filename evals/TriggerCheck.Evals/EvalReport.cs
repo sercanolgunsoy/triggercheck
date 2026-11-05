@@ -27,7 +27,8 @@ public sealed class EvalReport
         var masking = c.Count(x => !x.MaskingOk);
         var noOutage = c.Where(x => x.NoOutageOk is not null).ToList();
         var gate = accuracy >= Threshold && evidence >= Threshold && language >= Threshold && masking == 0
-                   && (noOutage.Count == 0 || Rate(noOutage, x => x.NoOutageOk == true) >= Threshold);
+                   && (noOutage.Count == 0 || Rate(noOutage, x => x.NoOutageOk == true) >= Threshold)
+                   && c.All(x => x.NumbersOk != false); // AI-5: an invented number is never acceptable
         return new FeatureScore(g.Key, c.Count, accuracy, evidence, language, masking, c.Count(x => x.Passed),
             c.Sum(x => x.InputTokens + x.CacheReadTokens + x.CacheWriteTokens), c.Sum(x => x.OutputTokens), c.Sum(x => x.CostUsd), gate);
     }).ToList();
