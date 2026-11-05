@@ -10,6 +10,7 @@ using TriggerCheck.Ai.Execution;
 using TriggerCheck.Domain;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Infrastructure.Data;
+using TriggerCheck.Monitoring.Cluster;
 
 namespace TriggerCheck.Ai.Features;
 
@@ -47,8 +48,19 @@ public sealed class SettingsSuggestionJob(AppDbContext db, IAiJobQueue queue, IA
 
     public sealed record RunSummary(int Monitors, int Created, int Closed, int Queued);
 
-    public async Task<RunSummary> RunAsync(CancellationToken ct = default)
+    /// <param name="holdsLease">
+    /// OPS-3 fencing: asked before each batch's writes and before the clean-up and queueing; when it returns false the
+    /// run stops without further side effects (another instance may be running the job by then).
+    /// </param>
+    public async Task<RunSummary> RunAsync(CancellationToken ct = default, Func<CancellationToken, Task<bool>>? holdsLease = null)
     {
+        async Task<bool> LeaseLostAsync()
+        {
+            if (holdsLease is null || await holdsLease(ct)) return false;
+            logger.LogWarning("Settings suggestion job lost its cluster lease; the rest of this pass is skipped");
+            return true;
+        }
+
         var o = options.Value.Suggestions;
         var now = time.GetUtcNow().UtcDateTime;
         var windowDays = Math.Max(1, o.WindowDays);
@@ -73,16 +85,23 @@ public sealed class SettingsSuggestionJob(AppDbContext db, IAiJobQueue queue, IA
             if (batch.Count == 0) break;
             lastId = batch[^1].Id;
 
+            // Read everything first, then write the batch only while this instance still holds the lease.
+            var found = new List<(Domain.Entities.Monitor Monitor, List<DetectedSuggestion> Detected)>();
             foreach (var m in batch)
             {
                 monitors++;
-                var detected = await DetectAsync(m, now, windowDays, o, ct);
+                found.Add((m, await DetectAsync(m, now, windowDays, o, ct)));
+            }
+            if (await LeaseLostAsync()) return new RunSummary(monitors, created, closed, 0);
+            foreach (var (m, detected) in found)
+            {
                 var (c, x) = await ReconcileAsync(m, detected, now, windowDays, o, ct);
                 created += c;
                 closed += x;
             }
             db.ChangeTracker.Clear();
         }
+        if (await LeaseLostAsync()) return new RunSummary(monitors, created, closed, 0);
 
         // Customers that are no longer eligible (opted out, plan without AI-5, no AI calls, suspended) keep nothing open.
         var openCustomers = await db.SettingsSuggestions.Where(s => s.Status == SettingsSuggestionStatus.Open)
@@ -99,6 +118,7 @@ public sealed class SettingsSuggestionJob(AppDbContext db, IAiJobQueue queue, IA
                         && !db.Monitors.Any(m => m.Id == s.MonitorId && m.IsEnabled && m.Status != MonitorStatus.Paused && m.Type != MonitorType.Heartbeat))
             .ExecuteUpdateAsync(u => u.SetProperty(s => s.Status, SettingsSuggestionStatus.Obsolete).SetProperty(s => s.ClosedAtUtc, now), ct);
 
+        if (await LeaseLostAsync()) return new RunSummary(monitors, created, closed, 0);
         var queued = await QueueExplanationsAsync(customers, now, ct);
         if (created + closed + queued > 0)
             logger.LogInformation("Settings suggestions: {Created} created, {Closed} closed, {Queued} explanation(s) queued ({Monitors} monitors)",
@@ -251,8 +271,11 @@ public sealed class SettingsSuggestionJob(AppDbContext db, IAiJobQueue queue, IA
 }
 
 /// <summary>
-/// Runs <see cref="SettingsSuggestionJob"/> shortly after start and then every <see cref="AiSuggestionOptions.IntervalMinutes"/>.
-/// Off when Ai:Suggestions:Enabled or Monitoring:Enabled is false. Detection needs no LLM, so it is independent of Ai:Enabled.
+/// Runs <see cref="SettingsSuggestionJob"/> shortly after start and then every <see cref="AiSuggestionOptions.IntervalMinutes"/>,
+/// on one instance at a time (OPS-3 cluster lease <see cref="LeaseName"/>; two instances could create duplicate
+/// suggestions, each a paid AI-5 call). The lease outlasts the interval a little, so the holder keeps it between runs
+/// and another instance takes over within one interval after it stops. Off when Ai:Suggestions:Enabled or
+/// Monitoring:Enabled is false. Detection needs no LLM, so it is independent of Ai:Enabled.
 /// </summary>
 public sealed class SettingsSuggestionHostedService(
     IServiceScopeFactory scopes,
@@ -261,31 +284,41 @@ public sealed class SettingsSuggestionHostedService(
     TimeProvider time,
     ILogger<SettingsSuggestionHostedService> logger) : BackgroundService
 {
+    public const string LeaseName = "ai-settings-suggestions";
     public static readonly TimeSpan StartDelay = TimeSpan.FromMinutes(2);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var o = options.Value.Suggestions;
         if (!o.Enabled || !config.GetValue("Monitoring:Enabled", true)) return;
+        var interval = TimeSpan.FromMinutes(Math.Max(1, o.IntervalMinutes));
+        var lease = interval + TimeSpan.FromMinutes(15);
         try
         {
             await Task.Delay(StartDelay, time, stoppingToken);
-            await RunOnceAsync(stoppingToken);
-            using var timer = new PeriodicTimer(TimeSpan.FromMinutes(Math.Max(1, o.IntervalMinutes)), time);
+            await RunOnceAsync(lease, stoppingToken);
+            using var timer = new PeriodicTimer(interval, time);
             while (await timer.WaitForNextTickAsync(stoppingToken))
-                await RunOnceAsync(stoppingToken);
+                await RunOnceAsync(lease, stoppingToken);
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
         }
+        finally
+        {
+            await ClusterLeases.ReleaseOnStopAsync(scopes, LeaseName);
+        }
     }
 
-    private async Task RunOnceAsync(CancellationToken ct)
+    private async Task RunOnceAsync(TimeSpan lease, CancellationToken ct)
     {
         try
         {
             using var scope = scopes.CreateScope();
-            await scope.ServiceProvider.GetRequiredService<SettingsSuggestionJob>().RunAsync(ct);
+            var leases = scope.ServiceProvider.GetRequiredService<ClusterLeases>();
+            if (!await leases.TryAcquireAsync(LeaseName, lease, ct)) return;
+            await scope.ServiceProvider.GetRequiredService<SettingsSuggestionJob>()
+                .RunAsync(ct, c => leases.RenewAsync(LeaseName, lease, c));
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
