@@ -25,10 +25,11 @@
     @await RenderSectionAsync("Head", required: false)
 </head>
 <body>
+<a class="skip-link" href="#main-content">@L["Skip to main content"]</a>
 @if (hasShell)
 {
 <div class="app-shell">
-    <aside class="app-sidebar offcanvas-lg offcanvas-start" tabindex="-1" id="sidebar" aria-label="@L["Main navigation"]">
+    <aside class="app-sidebar offcanvas-lg offcanvas-start" tabindex="-1" id="sidebar" aria-label="@L["Menu"]">
         <div class="sidebar-inner">
             <div class="d-flex align-items-center justify-content-between">
                 <a class="sidebar-brand" href="@(isSuper ? "/SuperAdmin" : "/App")">@Icons.Logo(28) TriggerCheck
@@ -37,6 +38,7 @@
                 <button type="button" class="btn btn-sm text-white d-lg-none" data-bs-dismiss="offcanvas" data-bs-target="#sidebar" aria-label="@L["Close"]">@Icons.Get("x")</button>
             </div>
 
+            <nav class="sidebar-navs" aria-label="@L["Main navigation"]">
             @if (isCustomer)
             {
                 <div>
@@ -78,6 +80,7 @@
                     </ul>
                 </div>
             }
+            </nav>
 
             <div class="sidebar-foot">
                 <div class="sidebar-user">
@@ -96,16 +99,16 @@
 
     <div class="app-main">
         <header class="app-topbar">
-            <button class="tool-btn d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebar" aria-controls="sidebar" aria-label="@L["Menu"]">@Icons.Get("menu", 16)</button>
+            <button class="tool-btn d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebar" aria-controls="sidebar" aria-expanded="false" aria-label="@L["Menu"]">@Icons.Get("menu", 16)</button>
             <div class="crumb">@ViewData["Title"]</div>
             <div class="ms-auto d-flex align-items-center gap-2">
                 <partial name="_Toolbar" />
             </div>
         </header>
         <div class="app-content">
-            @if (TempData["Success"] is string ok) { <div class="alert alert-success alert-dismissible fade show">@ok<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="@L["Close"]"></button></div> }
-            @if (TempData["Error"] is string err) { <div class="alert alert-danger alert-dismissible fade show">@err<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="@L["Close"]"></button></div> }
-            <main role="main">
+            <main role="main" id="main-content" tabindex="-1">
+                @if (TempData["Success"] is string ok) { <div class="alert alert-success alert-dismissible fade show">@ok<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="@L["Close"]"></button></div> }
+                @if (TempData["Error"] is string err) { <div class="alert alert-danger alert-dismissible fade show">@err<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="@L["Close"]"></button></div> }
                 @RenderBody()
             </main>
         </div>
@@ -130,9 +133,11 @@ else
         </div>
     </header>
     <div class="app-content">
-        @if (TempData["Success"] is string ok) { <div class="alert alert-success">@ok</div> }
-        @if (TempData["Error"] is string err) { <div class="alert alert-danger">@err</div> }
-        <main role="main">@RenderBody()</main>
+        <main role="main" id="main-content" tabindex="-1">
+            @if (TempData["Success"] is string ok) { <div class="alert alert-success">@ok</div> }
+            @if (TempData["Error"] is string err) { <div class="alert alert-danger">@err</div> }
+            @RenderBody()
+        </main>
     </div>
 }
 <script src="~/lib/jquery/dist/jquery.min.js"></script>

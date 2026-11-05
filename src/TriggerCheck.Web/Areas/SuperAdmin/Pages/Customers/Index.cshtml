@@ -9,17 +9,17 @@
 
 <form method="get" class="row g-2 mb-3">
     <div class="col-md-5">
-        <input asp-for="Q" class="form-control" placeholder="@L["Search by name or e-mail"]" />
+        <input asp-for="Q" class="form-control" placeholder="@L["Search by name or e-mail"]" aria-label="@L["Search"]" />
     </div>
     <div class="col-md-3">
-        <select asp-for="State" class="form-select">
+        <select asp-for="State" class="form-select" aria-label="@L["Status"]">
             <option value="">@L["All statuses"]</option>
             <option value="active">@L["Active"]</option>
             <option value="suspended">@L["Suspended"]</option>
         </select>
     </div>
     <div class="col-md-2">
-        <select asp-for="PlanId" class="form-select">
+        <select asp-for="PlanId" class="form-select" aria-label="@L["Plan"]">
             <option value="">@L["All plans"]</option>
             @foreach (var p in Model.Plans) { <option value="@p.Id">@p.Name</option> }
         </select>

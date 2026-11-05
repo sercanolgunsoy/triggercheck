@@ -4,7 +4,7 @@
 <div class="card mx-auto mt-4" style="max-width: 560px">
     <div class="card-body empty-state">
         <span class="icon-wrap" style="background: var(--tc-down-soft); color: var(--tc-down)">@Icons.Get("alert", 22)</span>
-        <h4 class="text-body">@L["Something went wrong"]</h4>
+        <h1 class="h4 text-body">@L["Something went wrong"]</h1>
         <p class="mb-3">@L["An error occurred while processing your request. Please try again."]</p>
         @if (Model.ShowRequestId) { <p class="small">@L["Request ID:"] <code>@Model.RequestId</code></p> }
         <a class="btn btn-primary" href="/">@L["Go to home page"]</a>

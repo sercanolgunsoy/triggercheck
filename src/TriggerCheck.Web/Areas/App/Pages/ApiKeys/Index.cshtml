@@ -22,7 +22,7 @@
 @if (Model.IsAdmin)
 {
     <div class="card mb-4"><div class="card-body">
-        <h5 class="card-title">@L["New API key"]</h5>
+        <h3 class="h5 card-title">@L["New API key"]</h3>
         <form method="post" asp-page-handler="Create" autocomplete="off">
             <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
             <div class="row g-3 align-items-end">
