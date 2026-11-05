@@ -78,6 +78,11 @@ public class AiDecision
     /// <summary>Estimated cost in USD from the configured per-model prices.</summary>
     public decimal CostEstimate { get; set; }
     public int LatencyMs { get; set; }
+    /// <summary>
+    /// Model calls this decision made or reserved (AI-7: one row per question, one call per tool-loop iteration). 0 for
+    /// single-call features (counted as one call); the AI budget (AI-10) counts each of them.
+    /// </summary>
+    public int ModelCalls { get; set; }
     public DateTime CreatedAtUtc { get; set; }
     /// <summary>
     /// Most recent feedback on the decision: +1 (helpful), -1 (not helpful) or null. Every user's own vote is kept in

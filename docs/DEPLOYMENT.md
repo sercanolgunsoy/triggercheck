@@ -453,6 +453,7 @@ product works fully without it: status, incidents and alerts are always decided 
 | `Ai__Events__PollSeconds` (10), `Ai__Events__LookbackMinutes` (15) | | Event watcher of AI-2 / AI-3: how often new / resolved incidents and new slowdown signals are looked up, and how old an event without an AI decision may be to still be picked up after a restart. Runs only when AI is on and a key is set. |
 | `Ai__Events__MonitorCooldownMinutes` (30), `__HostWindowMinutes` (10), `__MaxJobsPerCustomerPerScan` (5) | | Cost damping of AI-2: a monitor whose incident was interpreted within the cool-down gets no new summary for the same (normalised) cause (flapping; a different cause is interpreted, at most once per cool-down); of incidents of one customer on the same host within the window only the first is interpreted (its page is linked from the others); per scan at most this many jobs per customer, round-robin across customers. Events over the cap or refused by a full queue are retried on the next scan. |
 | `Ai__Suggestions__Enabled` (true), `__IntervalMinutes` (360), `__WindowDays` (7), `__DismissDays` (30), `__MaxChecksPerMonitor` (30000), `__BatchSize` (50) | | AI-5 settings suggestion job (rules, no key needed for detection). Runs only when `Monitoring__Enabled` is true, on the cluster leader. `WindowDays` is the history the rules read (never before the monitor's last settings change) and how often the evidence of an open suggestion is refreshed; `DismissDays` is how long a dismissed kind stays hidden (closed suggestions are kept at least `DismissDays + 1` days regardless of plan retention). |
+| `Ai__Qa__MaxQuestionChars` (500), `__MaxIterations` (6), `__MaxToolCalls` (12), `__MaxToolResultChars` (6000), `__MaxTotalToolResultChars` (40000), `__MaxRows` (50), `__MaxRangeDays` (90), `__MaxAllMonitorsRangeDays` (7), `__MaxStatsIncidents` (20000), `__MaxHistoryTurns` (3), `__MaxHistoryAnswerChars` (1500), `__MaxTokensPerCall` (4000), `__TimeoutSeconds` (90), `__CallTimeoutSeconds` (60), `__MaxRetries` (1), `__PerUserPerMinute` (4), `__PerUserPerHour` (30), `__MaxConcurrent` (4), `__Effort` (`medium`) | | AI-7 questions (*Ask AI* page). Caps per question: model calls of the tool loop (the last one must answer without tools), tool calls, characters per tool result and in total, rows per list, time range of a query (statistics over all monitors at most `MaxAllMonitorsRangeDays`; incident rows read for their downtime, newest first, flagged when cut), earlier exchanges sent along. `MaxTokensPerCall` bounds a turn (tool turns and the ~120-word answer need far less; worst case per question is `MaxIterations × MaxTokensPerCall` output tokens). `CallTimeoutSeconds` is per HTTP attempt of one model call and `MaxRetries` (0 or 1) the SDK retries: the Q&A client does **not** use the interpreter's `Ai__TimeoutSeconds / (Ai__MaxRetries + 1)`, which is sized for short low-effort calls. `TimeoutSeconds` is the server-side deadline of the whole question; it is kept below `2 × Ai__TimeoutSeconds` so the Pending sweep never closes a running question. Rate limit per user and questions in parallel per instance (in memory). `Effort` applies unless `Ai__Features__QuestionAnswer__Effort` is set; `Ai__Features__QuestionAnswer__MaxTokens` overrides `MaxTokensPerCall`. |
 
 **Slowdown detection latency (AI-1):** a slowdown is flagged when 3 of the last 5 successful checks are anomalous.
 The first job run after the third slow check flags it, so the latency is 3 check intervals plus up to
@@ -487,6 +488,28 @@ concurrency handling as the edit form) or dismisses it for `DismissDays` days; a
 within `WindowDays`. Failed or budget-skipped explanations are retried after `Ai__RetryCooldownMinutes`. Response
 bodies are never stored, so no new keyword is ever proposed (only the current one without stray whitespace).
 
+**Questions in natural language (AI-7, autonomy A0, Enterprise plans):** the *Ask AI* page (`/App/Ask`, every
+customer role including viewers) answers questions such as "Which service was slowest last week?" with a tool loop over
+five **read-only** tools: list monitors, monitor details, statistics over a time range, incidents over a time range, and
+incident details. There is no write tool. The customer id comes from the signed-in session and is not a tool argument,
+so an id of another customer gives the same "not found" as a missing one. The model sees what K5 allows (ids, monitor
+type, host, status, counts, timings, times, status codes, masked error texts in fields named `*_untrusted`), but **not
+monitor names**: it cites records as `[[monitor:12]]` / `[[incident:34]]`, which the page turns into links with the
+name only after loading the record for the signed-in customer. A name in the question is matched on the server
+("name_contains"); the model only learns which monitors matched. The question and earlier answers of the page are
+masked like any other input. Answers are plain text (HTML-encoded) with a list of linked sources; numbers that do not
+appear in the tool results are shown with a warning (`IQaAnswerGrounding`, replaceable). Each question is one
+`AiDecisions` row (feature `QuestionAnswer`, subject = user id) with the summed tokens and cost and `ModelCalls`; the
+question and answer text are not stored (the conversation lives in the page's form only). Every model call of the
+loop is reserved against the budget before it is made, so a budget that runs out mid-question stops the loop
+(`Failed` / `budget_exhausted`, the calls made still count). The request waits for the answer (async, at most
+`Ai__Qa__TimeoutSeconds`); more than `Ai__Qa__MaxConcurrent` questions at once get "busy". A model call is not
+aborted when the user closes the tab or a proxy times out: it finishes under the server-side deadline, its usage is
+recorded and the loop stops (`cancelled`). A question stopped by the deadline (`timeout`) or the user (`cancelled`)
+counts its reserved calls even when no usage came back. Opt-out, plan and budget are checked before the per-user rate
+limit (they do not use it up) and are recorded as a skipped decision at most once per user per
+`Ai__RetryCooldownMinutes`.
+
 **Who gets AI:** a call is made only when all of these hold:
 
 - `Ai__Enabled=true` and a key is set;
@@ -503,7 +526,7 @@ The budget is reserved before each call: a `Pending` row is written in the same 
 parallel calls cannot overshoot the call limit. A reservation is always completed, also on shutdown or an unexpected error (`shutdown` / `error`); rows left `Pending` by a crash become `abandoned` after twice `Ai__TimeoutSeconds` (swept at startup and by the baseline job). The token limit can be exceeded by the calls in flight, at most
 `MaxConcurrency × MaxTokens`. These count towards the budget:
 
-- **Calls:** calls that returned token usage, plus pending calls. Calls that failed before the model answered (network, rate limit) are free.
+- **Calls:** calls that returned token usage, plus pending calls. Calls that failed before the model answered (network, rate limit) are free. A Q&A question counts each model call of its tool loop (`AiDecisions.ModelCalls`).
 - **Tokens:** input + cache writes + output, with cache reads counted at 1/10.
 
 **Privacy (decision K5):** only masked technical data is sent: monitor type, **host name** (URLs are reduced to scheme
@@ -534,6 +557,11 @@ after the plan's `RetentionDays`:
 - AI decisions, except the current month's, which the budget needs;
 - their feedback;
 - closed anomaly signals.
+
+**Upgrading an existing installation (AI-7):** AI-7 adds the column `AiDecisions.ModelCalls` (int, not null, default
+0). Until the EF migrations (OPS-1) exist, `EnsureCreated` does not add it to an existing database and AI pages fail
+with "no such column". Back up and recreate the database, or apply the migration once OPS-1 lands (DB default 0;
+existing rows count as one call each).
 
 ## Probe agents (multi-region checks)
 

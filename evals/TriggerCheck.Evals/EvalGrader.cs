@@ -89,6 +89,8 @@ public static partial class EvalGrader
         ["raise_timeout"] = ["raise_timeout"],
         ["target_may_be_wrong"] = ["target_may_be_wrong"],
         ["review_keyword"] = ["review_keyword"],
+        // AI-7: graded by EvalQa (cited records, tools, grounding), not by a cause category.
+        [EvalQa.Label] = [],
     };
 
     /// <summary>Categories that only make sense for slowdowns are not counted for incident causes (and vice versa).</summary>

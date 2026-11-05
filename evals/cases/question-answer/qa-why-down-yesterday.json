@@ -1,0 +1,119 @@
+{
+  "id": "qa-why-down-yesterday",
+  "feature": "QuestionAnswer",
+  "language": "en",
+  "description": "Yesterday's 30-minute outage with HTTP 503.",
+  "expect": {
+    "primaryCause": "qa_grounded_answer",
+    "references": [
+      "monitor:Payments API",
+      "incident:Payments API#1"
+    ],
+    "tools": [
+      "list_incidents",
+      "incident_details"
+    ],
+    "notInAnswer": []
+  },
+  "question": "Why did the payments API go down yesterday?",
+  "qaMonitors": [
+    {
+      "name": "Payments API",
+      "type": "Http",
+      "target": "https://pay.example.test/v1/charge",
+      "status": "Up",
+      "checks": [
+        {
+          "minutesAgo": 1340,
+          "repeat": 1,
+          "everyMinutes": 1,
+          "up": true,
+          "ms": 180,
+          "status": 200
+        },
+        {
+          "minutesAgo": 1319,
+          "repeat": 30,
+          "everyMinutes": 1,
+          "up": false,
+          "ms": 40,
+          "status": 503,
+          "error": "HTTP 503 Service Unavailable"
+        },
+        {
+          "minutesAgo": 1285,
+          "repeat": 1,
+          "everyMinutes": 1,
+          "up": true,
+          "ms": 190,
+          "status": 200
+        }
+      ],
+      "incidents": [
+        {
+          "startedMinutesAgo": 1320,
+          "resolvedMinutesAgo": 1290,
+          "cause": "HTTP 503 Service Unavailable"
+        }
+      ]
+    },
+    {
+      "name": "Storefront",
+      "type": "Http",
+      "target": "https://shop.example.test/",
+      "status": "Up",
+      "checks": [
+        {
+          "minutesAgo": 1300,
+          "repeat": 5,
+          "everyMinutes": 10,
+          "up": true,
+          "ms": 120,
+          "status": 200
+        }
+      ],
+      "incidents": []
+    }
+  ],
+  "otherTenant": [],
+  "secrets": [
+    "/v1/charge"
+  ],
+  "cannedTurns": [
+    {
+      "tools": [
+        {
+          "name": "list_monitors",
+          "input": {
+            "name_contains": "payments"
+          }
+        }
+      ]
+    },
+    {
+      "tools": [
+        {
+          "name": "list_incidents",
+          "input": {
+            "from": "2026-03-09T00:00:00Z",
+            "to": "2026-03-10T00:00:00Z",
+            "monitor_id": "{{monitor_id:Payments API}}"
+          }
+        }
+      ]
+    },
+    {
+      "tools": [
+        {
+          "name": "incident_details",
+          "input": {
+            "incident_id": "{{incident_id:Payments API#1}}"
+          }
+        }
+      ]
+    },
+    {
+      "answer": "{{monitor:Payments API}} was down yesterday from 2026-03-09T14:00:00Z for 30 minutes ({{incident:Payments API#1}}). The checks during the outage returned HTTP 503 (Service Unavailable), so the service itself was likely overloaded or unavailable."
+    }
+  ]
+}
