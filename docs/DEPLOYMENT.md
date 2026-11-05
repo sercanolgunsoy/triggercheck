@@ -61,6 +61,7 @@ secret store, never in the image or in `appsettings.json`.
 | Variable | Required | Purpose |
 |---|---|---|
 | `ConnectionStrings__Default` | preset in image | SQLite connection string. Default: `Data Source=/data/triggercheck.db`. |
+| `Database__MigrateOnStartup` | no (true) | Applies pending EF migrations at startup. Set `false` to run them as a separate step (`dotnet TriggerCheck.Web.dll migrate`); see [Database and migrations](#database-and-migrations). |
 | `Seed__SuperAdminPassword` | **first start** | Creates the SuperAdmin (`Seed__SuperAdminEmail`, default `superadmin@triggercheck.local`). The account must change this password at first login. Remove the variable afterwards: once a SuperAdmin exists the app ignores it and logs a warning. |
 | `Seed__SuperAdminEmail` | no | SuperAdmin login. |
 | `Smtp__Host`, `Smtp__Port` (587), `Smtp__UseSsl` (true), `Smtp__User`, `Smtp__Password`, `Smtp__From`, `Smtp__TimeoutSeconds` | for email alerts | If `Smtp__Host` is empty, alert emails are only written to the log. |
@@ -163,14 +164,43 @@ scheduler included; nothing has to be switched off per instance.
   lease").
 
 **Upgrading an existing installation:** OPS-3 adds columns (`Monitors.LeasedUntilUtc`, `Monitors.LeaseOwner`) and a
-table (`ClusterLeases`). Until the EF migrations (OPS-1) exist, the schema is created by `EnsureCreated` only on an
-empty database; on an existing one it does nothing, and the scheduler then fails with "no such column". Back up and
-recreate the database, or apply the migration once OPS-1 lands (both columns nullable, no default needed).
+table (`ClusterLeases`); AI-6 adds the table `ReportNarratives`. The schema change is in the initial EF migration (see
+[Database and migrations](#database-and-migrations)); a database created by `EnsureCreated` before that schema must be
+recreated or completed by hand.
 
-**Upgrading an existing installation (AI-6):** the AI report narratives add a table (`ReportNarratives`, unique
-`CustomerId+Kind+PeriodKey`, index on `Status`). On a database created before AI-6 `EnsureCreated` does not add it:
-the Reports page and the monthly e-mail keep working without narratives (the lookup degrades to "off" and is logged),
-and the narrative job logs an error on each run. Recreate the database or apply the migration once OPS-1 lands.
+## Database and migrations
+
+The schema is managed by **EF Core migrations** (OPS-1). They live in a separate project per database provider
+(`src/TriggerCheck.Migrations.Sqlite`), because EF migrations are provider specific.
+
+- **Migrate on startup (default):** every start applies pending migrations before seeding (`Database__MigrateOnStartup`,
+  default `true`). EF takes a migration lock, so several instances starting together apply them once.
+- **Separate step:** set `Database__MigrateOnStartup=false` and run `dotnet TriggerCheck.Web.dll migrate` (same image,
+  same configuration, e.g. `docker run --rm ... ghcr.io/sercanolgunsoy/triggercheck:<tag> migrate` or a Kubernetes
+  init container / job) before rolling out the new version. The command applies the migrations and exits; it does not
+  seed or start the scheduler. With the option off, the app refuses to start while migrations are pending and says so.
+- **Back up before upgrading** (see [Backup](#backup-sqlite-safe-with-wal)). Migrations only move forward; rolling
+  back means restoring the backup.
+
+**Databases created before OPS-1 (`EnsureCreated`, no `__EFMigrationsHistory` table).** The first migrate baselines
+them: when the database already has every table and column of the initial migration, that migration is recorded as
+applied (a warning is logged) instead of being run, and later migrations run normally. Only table and column names are
+compared, not types, indexes or defaults. Such a database lacks the DB defaults that the initial migration declares
+(`Customers.AlertContactEmailWhenNoChannel` and `Customers.AlertGroupingEnabled` true, `Plans.MaxRegions` 1,
+`AiDecisions.ModelCalls` 0); the app always writes these columns explicitly, so this only matters for rows inserted by
+hand. A database from an older build that misses tables or columns (created before one of the later waves) is
+**refused, not changed**: startup fails with the list of what is missing. Back up, then either delete the database
+(a fresh one is created and seeded at the next start; e.g. the local development `triggercheck.db`) or add the
+missing tables / columns by hand (`dotnet ef migrations script -p src/TriggerCheck.Migrations.Sqlite -s
+src/TriggerCheck.Migrations.Sqlite` prints the full schema), then start again.
+
+**Changing the schema (developers):** after changing the model run
+`dotnet ef migrations add <Name> -p src/TriggerCheck.Migrations.Sqlite -s src/TriggerCheck.Migrations.Sqlite -o Migrations`
+then `dotnet format src/TriggerCheck.Migrations.Sqlite` (the generated files carry a BOM and fail the CI format check),
+and commit the generated files. `MigrationTests` fails CI when the model has changes without a migration
+(`HasPendingModelChanges`). Columns added to existing tables that need a value for old rows get a DB default
+(`HasDefaultValue(..)`, together with `ValueGeneratedNever()` so EF still writes the entity's value); seed data for
+existing rows goes into the migration (`migrationBuilder.Sql` / `UpdateData`).
 
 ## Backup (SQLite, safe with WAL)
 
@@ -536,9 +566,9 @@ explanation; it never runs on the alert path.
   lost: the group is still undone by the watcher and its held-back DOWNs are sent.
 
 **Upgrading an existing installation (AI-4):** adds the tables `IncidentGroups` and `IncidentGroupMembers` and the
-column `Customers.AlertGroupingEnabled`. Until the EF migrations (OPS-1) exist, the schema is created by
-`EnsureCreated` only on an empty database: back up and recreate the database, or apply the migration once OPS-1 lands
-(`Customers.AlertGroupingEnabled` must default to **true**; the new tables start empty).
+column `Customers.AlertGroupingEnabled` (DB default **true**). The schema change is in the initial EF migration (see
+[Database and migrations](#database-and-migrations)); a database created by `EnsureCreated` before that schema must be
+recreated or completed by hand.
 
 **Settings suggestions (AI-5, autonomy A1):** every `Ai__Suggestions__IntervalMinutes` the job reads each monitor's
 central checks (outside maintenance, confirmation probes excluded) and incidents of the last `WindowDays` days, but only
@@ -639,10 +669,10 @@ after the plan's `RetentionDays`:
 - their feedback;
 - closed anomaly signals.
 
-**Upgrading an existing installation (AI-7):** AI-7 adds the column `AiDecisions.ModelCalls` (int, not null, default
-0). Until the EF migrations (OPS-1) exist, `EnsureCreated` does not add it to an existing database and AI pages fail
-with "no such column". Back up and recreate the database, or apply the migration once OPS-1 lands (DB default 0;
-existing rows count as one call each).
+**Upgrading an existing installation (AI-7):** AI-7 adds the column `AiDecisions.ModelCalls` (int, not null, DB
+default 0). The schema change is in the initial EF migration (see [Database and
+migrations](#database-and-migrations)); a database created by `EnsureCreated` before that schema must be recreated or
+completed by hand.
 
 ## Probe agents (multi-region checks)
 
@@ -743,8 +773,8 @@ a monitor that was edited, paused or deleted after the lease is discarded.
 agent: leases are claimed conditionally in the database and results meet on the monitor's concurrency token.
 
 **Upgrading an existing installation:** FEAT-6 adds tables (`Regions`, `MonitorRegionStates`) and columns
-(`CheckResults.RegionId`/`VotedUp`, `Incidents.FailedRegions`, `Plans.MaxRegions`, `Monitors.LastProbeFingerprint`/
-`RegionsExpeditedAtUtc`). Until the EF migrations (OPS-1) exist, the schema is created by `EnsureCreated` only on an
-empty database: back up and recreate the database, or apply the migration once OPS-1 lands (`Plans.MaxRegions` must
-default to 1, so existing plans keep central-only checks). Agents are optional: without regions nothing changes.
+(`CheckResults.RegionId`/`VotedUp`, `Incidents.FailedRegions`, `Plans.MaxRegions` (DB default 1, central-only),
+`Monitors.LastProbeFingerprint`/`RegionsExpeditedAtUtc`). The schema change is in the initial EF migration (see
+[Database and migrations](#database-and-migrations)); a database created by `EnsureCreated` before that schema must be
+recreated or completed by hand. Agents are optional: without regions nothing changes.
 

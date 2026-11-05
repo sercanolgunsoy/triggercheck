@@ -12,7 +12,19 @@ namespace TriggerCheck.Infrastructure.Data;
 
 public static class DbSeeder
 {
-    /// <summary>Creates the schema (if missing), roles, default plans, the SuperAdmin user and (optionally) a demo customer.</summary>
+    /// <summary>Only applies the migrations (the <c>migrate</c> command of TriggerCheck.Web).</summary>
+    public static async Task MigrateAsync(IServiceProvider services)
+    {
+        using var scope = services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await DatabaseMigrator.MigrateAsync(db, scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("DbSeeder"));
+        await db.EnableSqliteWalAsync();
+    }
+
+    /// <summary>
+    /// Migrates the schema (OPS-1; with <c>Database:MigrateOnStartup=false</c> only checks that it is up to date), then
+    /// creates the roles, default plans, the SuperAdmin user and (optionally) a demo customer.
+    /// </summary>
     public static async Task SeedAsync(IServiceProvider services)
     {
         using var scope = services.CreateScope();
@@ -21,7 +33,8 @@ public static class DbSeeder
         var config = sp.GetRequiredService<IConfiguration>();
         var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger("DbSeeder");
 
-        await db.Database.EnsureCreatedAsync();
+        if (config.GetValue("Database:MigrateOnStartup", true)) await DatabaseMigrator.MigrateAsync(db, logger);
+        else await DatabaseMigrator.EnsureUpToDateAsync(db);
         await db.EnableSqliteWalAsync();
 
         var roleManager = sp.GetRequiredService<RoleManager<IdentityRole>>();

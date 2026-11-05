@@ -11,6 +11,7 @@ COPY src/TriggerCheck.Domain/TriggerCheck.Domain.csproj src/TriggerCheck.Domain/
 COPY src/TriggerCheck.Infrastructure/TriggerCheck.Infrastructure.csproj src/TriggerCheck.Infrastructure/
 COPY src/TriggerCheck.Monitoring/TriggerCheck.Monitoring.csproj src/TriggerCheck.Monitoring/
 COPY src/TriggerCheck.Ai/TriggerCheck.Ai.csproj src/TriggerCheck.Ai/
+COPY src/TriggerCheck.Migrations.Sqlite/TriggerCheck.Migrations.Sqlite.csproj src/TriggerCheck.Migrations.Sqlite/
 COPY src/TriggerCheck.Web/TriggerCheck.Web.csproj src/TriggerCheck.Web/
 RUN dotnet restore src/TriggerCheck.Web/TriggerCheck.Web.csproj
 
@@ -37,4 +38,5 @@ COPY --from=build /app .
 # Non-root: the "app" user (UID $APP_UID = 1654) that ships with the official .NET images.
 USER $APP_UID
 EXPOSE 8080
+# `docker run ... <image> migrate` applies the EF migrations and exits (docs/DEPLOYMENT.md "Database and migrations").
 ENTRYPOINT ["dotnet", "TriggerCheck.Web.dll"]
