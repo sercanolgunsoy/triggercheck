@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Infrastructure.Data;
+using TriggerCheck.Monitoring.Cluster;
 
 namespace TriggerCheck.Web.Billing;
 
@@ -154,7 +155,12 @@ public sealed class BillingMaintenance(AppDbContext db, BillingService billing, 
     }
 }
 
-/// <summary>Runs <see cref="BillingMaintenance"/> every <see cref="BillingOptions.MaintenanceIntervalMinutes"/> (0 = disabled).</summary>
+/// <summary>
+/// Runs <see cref="BillingMaintenance"/> every <see cref="BillingOptions.MaintenanceIntervalMinutes"/> (0 = disabled).
+/// OPS-3: only on the instance holding the <see cref="ClusterLeases.BillingMaintenance"/> lease; some steps (scheduled
+/// plan changes, refused checkouts, event reconciliation) e-mail without a claim and would send twice if two
+/// instances ran them concurrently.
+/// </summary>
 public sealed class BillingMaintenanceService(IServiceScopeFactory scopes, IOptionsMonitor<BillingOptions> options, TimeProvider time,
     ILogger<BillingMaintenanceService> logger) : BackgroundService
 {
@@ -168,17 +174,26 @@ public sealed class BillingMaintenanceService(IServiceScopeFactory scopes, IOpti
         try { await Task.Delay(TimeSpan.FromMinutes(1), time, stoppingToken); }
         catch (OperationCanceledException) { return; }
         using var timer = new PeriodicTimer(TimeSpan.FromMinutes(minutes), time);
-        do
+        var lease = TimeSpan.FromMinutes(3 * minutes);
+        try
         {
-            try
+            do
             {
-                using var scope = scopes.CreateScope();
-                await scope.ServiceProvider.GetRequiredService<BillingMaintenance>().RunAsync(stoppingToken);
-            }
-            catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
-            {
-                logger.LogError(ex, "Billing maintenance failed.");
-            }
-        } while (await timer.WaitForNextTickAsync(stoppingToken));
+                try
+                {
+                    using var scope = scopes.CreateScope();
+                    if (await scope.ServiceProvider.GetRequiredService<ClusterLeases>().TryAcquireAsync(ClusterLeases.BillingMaintenance, lease, stoppingToken))
+                        await scope.ServiceProvider.GetRequiredService<BillingMaintenance>().RunAsync(stoppingToken);
+                }
+                catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
+                {
+                    logger.LogError(ex, "Billing maintenance failed.");
+                }
+            } while (await timer.WaitForNextTickAsync(stoppingToken));
+        }
+        finally
+        {
+            await ClusterLeases.ReleaseOnStopAsync(scopes, ClusterLeases.BillingMaintenance);
+        }
     }
 }

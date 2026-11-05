@@ -21,6 +21,17 @@ public class MonitoringOptions
     /// <summary>Delay before the confirmation probe (0-300 s); the confirmation runs on the first scheduler tick after it.</summary>
     public int ConfirmationDelaySeconds { get; set; } = 5;
 
+    /// <summary>
+    /// OPS-3: identity of this instance in scheduler and job leases. Must be unique per running process; empty =
+    /// machine name + process id + a random suffix (see <see cref="Cluster.InstanceIdentity"/>).
+    /// </summary>
+    public string? InstanceId { get; set; }
+    /// <summary>
+    /// OPS-3: slack added to a monitor's scheduler lease beyond the worst-case run time (gate wait + probe timeout,
+    /// see <see cref="Scheduling.MonitorLease"/>) before another instance may reclaim it.
+    /// </summary>
+    public int SchedulerLeaseMarginSeconds { get; set; } = 30;
+
     /// <summary>Resolvers used when <see cref="DnsResolvers"/> is not configured.</summary>
     public static readonly string[] DefaultDnsResolvers = ["1.1.1.1", "8.8.8.8"];
 

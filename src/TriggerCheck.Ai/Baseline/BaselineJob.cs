@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Infrastructure.Data;
+using TriggerCheck.Monitoring.Cluster;
 
 namespace TriggerCheck.Ai.Baseline;
 
@@ -189,7 +190,9 @@ public sealed class BaselineHostedService(
         var o = options.Value.Baseline;
         if (!o.Enabled || !config.GetValue("Monitoring:Enabled", true)) return;
 
-        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(Math.Max(1, o.IntervalSeconds)), time);
+        var interval = TimeSpan.FromSeconds(Math.Max(1, o.IntervalSeconds));
+        var lease = TimeSpan.FromSeconds(Math.Max(60, 3 * interval.TotalSeconds));
+        using var timer = new PeriodicTimer(interval, time);
         try
         {
             while (await timer.WaitForNextTickAsync(stoppingToken))
@@ -197,6 +200,9 @@ public sealed class BaselineHostedService(
                 try
                 {
                     using var scope = scopes.CreateScope();
+                    // OPS-3: one instance at a time (two could open duplicate anomaly signals, each a paid AI-3 job).
+                    if (!await scope.ServiceProvider.GetRequiredService<ClusterLeases>().TryAcquireAsync(ClusterLeases.AiBaseline, lease, stoppingToken))
+                        continue;
                     await scope.ServiceProvider.GetRequiredService<BaselineJob>().RunAsync(stoppingToken);
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -211,6 +217,10 @@ public sealed class BaselineHostedService(
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
+        }
+        finally
+        {
+            await ClusterLeases.ReleaseOnStopAsync(scopes, ClusterLeases.AiBaseline);
         }
     }
 }

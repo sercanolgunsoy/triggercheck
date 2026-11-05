@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Infrastructure.Data;
+using TriggerCheck.Monitoring.Cluster;
 using TriggerCheck.Monitoring.Diagnostics;
 using MonitorEntity = TriggerCheck.Domain.Entities.Monitor;
 
@@ -27,13 +28,34 @@ public static class DueMonitorQuery
             .Select(m => m.Id)
             .Take(limit)
             .ToListAsync(ct);
+
+    /// <summary>A due monitor the scheduler may try to claim, with the timeout its lease length is based on.</summary>
+    public sealed record Candidate(int Id, int TimeoutSeconds);
+
+    /// <summary>Due monitors not currently leased by a scheduler instance (OPS-3, see <see cref="MonitorLease"/>).</summary>
+    public static Task<List<Candidate>> SelectUnleasedDueAsync(AppDbContext db, DateTime nowUtc, int limit, CancellationToken ct) =>
+        db.Monitors.AsNoTracking()
+            .WhereDue(nowUtc)
+            .Where(m => m.LeasedUntilUtc == null || m.LeasedUntilUtc <= nowUtc)
+            .OrderBy(m => m.NextCheckAtUtc)
+            .Select(m => new Candidate(m.Id, m.TimeoutSeconds))
+            .Take(limit)
+            .ToListAsync(ct);
 }
 
 /// <summary>
 /// Polls for due monitors every <see cref="MonitoringOptions.SchedulerTickMilliseconds"/> and runs them through
 /// <see cref="IMonitorCheckRunner"/> concurrently (bounded by <see cref="MonitoringOptions.MaxConcurrency"/>),
 /// each in its own DI scope / DbContext. A monitor that is still in flight is never dispatched twice.
-/// Does nothing when <see cref="MonitoringOptions.Enabled"/> is false. Assumes a single scheduler instance.
+/// Does nothing when <see cref="MonitoringOptions.Enabled"/> is false.
+/// <para>
+/// Multiple instances (OPS-3): several schedulers may share one database. A dispatched check first waits for a
+/// concurrency slot and only then claims the monitor's lease (<see cref="MonitorLease.TryClaimAsync"/>), so a check queued
+/// on a busy instance holds no lease and an idle instance can take the slot. Only the instance whose claim succeeds
+/// runs the check; the lease is released when the run ends (also on failure or shutdown).
+/// "Check now" bypasses the lease (it is an explicit extra probe); its interleaving with a scheduled run on another
+/// instance is guarded by <see cref="MonitorEntity.Version"/>, as for user edits.
+/// </para>
 /// </summary>
 public sealed class MonitorScheduler : BackgroundService
 {
@@ -49,11 +71,13 @@ public sealed class MonitorScheduler : BackgroundService
     private readonly ConcurrentDictionary<Task, byte> _running = new();
 
     private readonly MonitoringMetrics _metrics;
+    private readonly string _instanceId;
 
     public MonitorScheduler(IServiceScopeFactory scopes, IOptions<MonitoringOptions> options, TimeProvider time, ILogger<MonitorScheduler> logger,
-        MonitoringMetrics metrics)
+        MonitoringMetrics metrics, InstanceIdentity identity)
     {
         _metrics = metrics;
+        _instanceId = identity.Id;
         _scopes = scopes;
         _options = options.Value;
         _time = time;
@@ -107,27 +131,30 @@ public sealed class MonitorScheduler : BackgroundService
         _logger.LogInformation("Monitoring scheduler stopped");
     }
 
-    /// <summary>One scheduler tick: selects due monitors and starts a check for each one not already in flight. Returns the dispatched ids.</summary>
+    /// <summary>
+    /// One scheduler tick: selects due, unleased monitors and starts a check for each one not already in flight.
+    /// Returns the dispatched ids (a dispatched check still runs only if it wins the lease claim).
+    /// </summary>
     public async Task<IReadOnlyList<int>> DispatchDueAsync(CancellationToken ct)
     {
         _metrics.SchedulerTickStarted();
         var now = _time.GetUtcNow().UtcDateTime;
-        List<int> due;
+        List<DueMonitorQuery.Candidate> due;
         using (var scope = _scopes.CreateScope())
         {
             var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AppDbContext>>();
             await using var db = await factory.CreateDbContextAsync(ct);
-            due = await DueMonitorQuery.SelectDueIdsAsync(db, now, MaxDuePerTick + _inFlight.Count, ct);
+            due = await DueMonitorQuery.SelectUnleasedDueAsync(db, now, MaxDuePerTick + _inFlight.Count, ct);
         }
 
         var dispatched = new List<int>();
-        foreach (var id in due)
+        foreach (var candidate in due)
         {
-            if (!_inFlight.TryAdd(id, 0)) continue; // previous check still running
-            var task = Task.Run(() => RunOneAsync(id, ct), CancellationToken.None);
+            if (!_inFlight.TryAdd(candidate.Id, 0)) continue; // previous check still running
+            var task = Task.Run(() => RunOneAsync(candidate, ct), CancellationToken.None);
             _running.TryAdd(task, 0);
             _ = task.ContinueWith(t => _running.TryRemove(t, out _), TaskScheduler.Default);
-            dispatched.Add(id);
+            dispatched.Add(candidate.Id);
         }
 
         if (dispatched.Count > 0)
@@ -136,16 +163,30 @@ public sealed class MonitorScheduler : BackgroundService
         return dispatched;
     }
 
-    private async Task RunOneAsync(int monitorId, CancellationToken ct)
+    private async Task RunOneAsync(DueMonitorQuery.Candidate candidate, CancellationToken ct)
     {
+        var monitorId = candidate.Id;
         var acquired = false;
+        var leased = false;
+        var completed = false;
+        using var scope = _scopes.CreateScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AppDbContext>>();
         try
         {
             await _slots.WaitAsync(ct);
             acquired = true;
-            using var scope = _scopes.CreateScope();
+            // Claimed only now (not at dispatch): a check waiting for a slot holds no lease, so another instance can take it.
+            await using (var db = await factory.CreateDbContextAsync(ct))
+                leased = await MonitorLease.TryClaimAsync(db, monitorId, _instanceId, _time.GetUtcNow().UtcDateTime,
+                    MonitorLease.Length(candidate.TimeoutSeconds, _options.SchedulerLeaseMarginSeconds), ct);
+            if (!leased)
+            {
+                _logger.LogDebug("Monitor {MonitorId} was claimed by another instance or is no longer due", monitorId);
+                return;
+            }
             var runner = scope.ServiceProvider.GetRequiredService<IMonitorCheckRunner>();
             var result = await runner.RunAsync(monitorId, ct);
+            completed = true;
             _logger.LogDebug("Checked monitor {MonitorId}: {State} in {Ms} ms {Error}", monitorId, result.IsUp ? "up" : "down", result.ResponseTimeMs, result.Error);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -166,9 +207,25 @@ public sealed class MonitorScheduler : BackgroundService
         }
         finally
         {
+            // Before leaving _inFlight: this instance must not dispatch the monitor again while it still holds the lease.
+            if (leased) await ReleaseLeaseAsync(factory, monitorId, completed);
             if (acquired) _slots.Release();
             _inFlight.TryRemove(monitorId, out _);
         }
     }
 
+    /// <summary>Releases the monitor's lease (also on failure / shutdown, so another instance need not wait for expiry).</summary>
+    private async Task ReleaseLeaseAsync(IDbContextFactory<AppDbContext> factory, int monitorId, bool completed)
+    {
+        try
+        {
+            await using var db = await factory.CreateDbContextAsync(CancellationToken.None);
+            if (!await MonitorLease.ReleaseAsync(db, monitorId, _instanceId, CancellationToken.None) && completed)
+                _logger.LogWarning("Check of monitor {MonitorId} outlived its scheduler lease; another instance may have checked the same slot", monitorId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not release the scheduler lease of monitor {MonitorId}; it expires on its own", monitorId);
+        }
+    }
 }
