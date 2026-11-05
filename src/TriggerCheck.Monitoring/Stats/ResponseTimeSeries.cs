@@ -7,7 +7,9 @@ namespace TriggerCheck.Monitoring.Stats;
 /// <summary>
 /// One time bucket of the response-time chart. Response-time figures cover successful checks only (a failed probe's
 /// duration is usually its timeout); <see cref="Failures"/> counts failed checks. Confirmation probes
-/// (<see cref="Domain.Entities.CheckResult.IsConfirmation"/>) and checks in maintenance (InMaintenance) are excluded. Phase averages (ms) cover successful HTTP
+/// (<see cref="Domain.Entities.CheckResult.IsConfirmation"/>), checks in maintenance (InMaintenance) and remote-region results
+/// (FEAT-6, RegionId set; see RegionBreakdown) are excluded. For monitors decided by region quorum a failure is a check
+/// after which the voted status was DOWN (CheckResult.VotedUp), as in uptime. Phase averages (ms) cover successful HTTP
 /// checks with timing data; a phase that did not happen (reused connection, plain http) counts as 0, so the stacked
 /// phases add up to the average total. Wait = time to first byte minus DNS/connect/TLS; transfer = total minus time to
 /// first byte (body read for Keyword monitors).
@@ -158,7 +160,7 @@ internal static class SeriesSql
     private static readonly string Sql = $"""
         SELECT {BucketIndexSql} AS "Bucket",
                COUNT(*) AS "Checks",
-               SUM(CASE WHEN {Up} THEN 0 ELSE 1 END) AS "Failures",
+               SUM(CASE WHEN COALESCE(c."VotedUp", c."IsUp") THEN 0 ELSE 1 END) AS "Failures",
                AVG(CASE WHEN {Up} THEN c."ResponseTimeMs" END) AS "AvgMs",
                SUM(CASE WHEN {Timed} THEN 1 ELSE 0 END) AS "Timed",
                AVG(CASE WHEN {Timed} THEN COALESCE(c."DnsMs", 0) END) AS "DnsMs",
@@ -169,7 +171,7 @@ internal static class SeriesSql
         FROM "CheckResults" AS c
         INNER JOIN "Monitors" AS m ON m."Id" = c."MonitorId"
         WHERE c."MonitorId" = {"{0}"} AND m."CustomerId" = {"{1}"} AND c."CheckedAtUtc" >= {"{2}"} AND c."CheckedAtUtc" <= {"{3}"}
-              AND NOT c."IsConfirmation" AND NOT c."InMaintenance"
+              AND NOT c."IsConfirmation" AND NOT c."InMaintenance" AND c."RegionId" IS NULL
         GROUP BY {BucketIndexSql}
         """;
 
@@ -183,7 +185,7 @@ internal static class SeriesSql
             FROM "CheckResults" AS c
             INNER JOIN "Monitors" AS m ON m."Id" = c."MonitorId"
             WHERE c."MonitorId" = {"{0}"} AND m."CustomerId" = {"{1}"} AND c."CheckedAtUtc" >= {"{2}"} AND c."CheckedAtUtc" <= {"{3}"}
-                  AND c."IsUp" AND NOT c."IsConfirmation" AND NOT c."InMaintenance"
+                  AND c."IsUp" AND NOT c."IsConfirmation" AND NOT c."InMaintenance" AND c."RegionId" IS NULL
         ) AS t
         WHERE t."Rank" * 100 >= t."Total" * 95
         GROUP BY t."Bucket"

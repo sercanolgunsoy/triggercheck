@@ -1441,6 +1441,69 @@
   <data name="You have several unfinished checkouts. Complete one of them or try again in an hour." xml:space="preserve">
     <value>Tamamlanmamış birkaç ödeme işleminiz var. Bunlardan birini tamamlayın veya bir saat sonra tekrar deneyin.</value>
   </data>
+  <data name="&quot;{0}&quot; is checked from the main region only." xml:space="preserve">
+    <value>"{0}" yalnızca ana bölgeden kontrol ediliyor.</value>
+  </data>
+  <data name="&quot;{0}&quot; is now checked from {1} region(s); its status is decided by majority." xml:space="preserve">
+    <value>"{0}" artık {1} bölgeden kontrol ediliyor; durumu çoğunluk oyuyla belirlenir.</value>
+  </data>
+  <data name="Avg. 24 h" xml:space="preserve">
+    <value>Ort. 24 sa</value>
+  </data>
+  <data name="Check regions" xml:space="preserve">
+    <value>Kontrol bölgeleri</value>
+  </data>
+  <data name="Checked from the main region only. Add regions to decide the status by majority vote." xml:space="preserve">
+    <value>Yalnızca ana bölgeden kontrol ediliyor. Durumun çoğunluk oyuyla belirlenmesi için bölge ekleyin.</value>
+  </data>
+  <data name="Choose one of the listed regions." xml:space="preserve">
+    <value>Listelenen bölgelerden birini seçin.</value>
+  </data>
+  <data name="Failed (24 h)" xml:space="preserve">
+    <value>Başarısız (24 sa)</value>
+  </data>
+  <data name="Failing regions: {0}" xml:space="preserve">
+    <value>Hata veren bölgeler: {0}</value>
+  </data>
+  <data name="Heartbeat monitors receive pings and are not checked from regions." xml:space="preserve">
+    <value>Heartbeat monitörleri ping alır; bölgelerden kontrol edilmez.</value>
+  </data>
+  <data name="Last check ({0})" xml:space="preserve">
+    <value>Son kontrol ({0})</value>
+  </data>
+  <data name="Main region" xml:space="preserve">
+    <value>Ana bölge</value>
+  </data>
+  <data name="Manage regions" xml:space="preserve">
+    <value>Bölgeleri yönet</value>
+  </data>
+  <data name="No additional regions are available yet." xml:space="preserve">
+    <value>Henüz ek bölge yok.</value>
+  </data>
+  <data name="No recent result: not counted in the vote" xml:space="preserve">
+    <value>Yakın zamanda sonuç yok: oylamaya katılmıyor</value>
+  </data>
+  <data name="Not voting" xml:space="preserve">
+    <value>Oy vermiyor</value>
+  </data>
+  <data name="Regions" xml:space="preserve">
+    <value>Bölgeler</value>
+  </data>
+  <data name="The main region always checks this monitor. Additional regions check it too: with three or more regions reporting, the monitor goes down only when the majority of them fail, so a single region's network problem does not open an incident. With fewer, the main region decides and the other regions confirm its failures." xml:space="preserve">
+    <value>Ana bölge bu monitörü her zaman kontrol eder. Ek bölgeler de kontrol eder: üç veya daha fazla bölge sonuç bildirdiğinde monitör yalnızca çoğunluk hata verirse kapalı sayılır, böylece tek bir bölgenin ağ sorunu incident açmaz. Daha azında ana bölge karar verir, diğer bölgeler onun hatalarını doğrular.</value>
+  </data>
+  <data name="The regions were changed in the meantime. Review them and try again." xml:space="preserve">
+    <value>Bölgeler bu arada değiştirildi. Gözden geçirip tekrar deneyin.</value>
+  </data>
+  <data name="With three or more regions voting, the status is decided by majority; otherwise the main region decides. Stale regions and results from maintenance windows or older settings do not vote. Uptime follows the voted status." xml:space="preserve">
+    <value>Üç veya daha fazla bölge oy verdiğinde durum çoğunlukla belirlenir; aksi halde ana bölge karar verir. Yanıt vermeyen bölgeler ile bakım penceresinde veya eski ayarlarla alınan sonuçlar oy vermez. Çalışma süresi oylanan durumu izler.</value>
+  </data>
+  <data name="Your plan ({0}) allows at most {1} additional region(s) per monitor." xml:space="preserve">
+    <value>Planınız ({0}) monitör başına en fazla {1} ek bölgeye izin veriyor.</value>
+  </data>
+  <data name="Your plan ({0}) checks monitors from the main region only." xml:space="preserve">
+    <value>Planınızda ({0}) monitörler yalnızca ana bölgeden kontrol edilir.</value>
+  </data>
   <data name="The SLA target must be between 0 and 100." xml:space="preserve">
     <value>SLA hedefi 0 ile 100 arasında olmalıdır.</value>
   </data>

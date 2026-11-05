@@ -133,6 +133,53 @@ public static class MonitorStateMachine
         return transition;
     }
 
+    /// <summary>
+    /// FEAT-6: applies the central probe of a monitor decided by region quorum. Runtime fields and schedule are updated
+    /// as usual; ConsecutiveFailures tracks central's own streak (reset in maintenance unless DOWN, as in
+    /// <see cref="ApplyInMaintenance"/>), and the status follows <see cref="ApplyVote"/>.
+    /// </summary>
+    public static StatusTransition ApplyQuorumProbe(MonitorEntity monitor, CheckOutcome outcome, DateTime checkedAtUtc, Regions.QuorumDecision vote,
+        bool inMaintenance, TimeSpan minTransitionGap)
+    {
+        RecordProbe(monitor, outcome, checkedAtUtc);
+        monitor.NextCheckAtUtc = NextCheckAfter(monitor.NextCheckAtUtc, monitor.IntervalSeconds, checkedAtUtc);
+        monitor.ConsecutiveFailures = CentralStreakAfter(monitor, outcome.IsUp, inMaintenance);
+        return ApplyVote(monitor, vote, checkedAtUtc, inMaintenance, minTransitionGap);
+    }
+
+    /// <summary>Central's failure streak after a probe (reset in maintenance unless DOWN, as in <see cref="ApplyInMaintenance"/>).</summary>
+    public static int CentralStreakAfter(MonitorEntity monitor, bool isUp, bool inMaintenance) =>
+        isUp || (inMaintenance && monitor.Status != MonitorStatus.Down) ? 0 : monitor.ConsecutiveFailures + 1;
+
+    /// <summary>
+    /// FEAT-6: status by majority of the decisive votes (see <see cref="Regions.RegionQuorum"/>; callers apply it only when
+    /// <see cref="Regions.QuorumDecision.UsesQuorum"/>). Majority up: UP (a recovery when it was DOWN). Majority failing:
+    /// DOWN, dated from the start of the failing streaks - never in maintenance. Hysteresis: a DOWN lasts at least
+    /// <paramref name="minTransitionGap"/> before the quorum ends it (a new DOWN already needs failure streaks that reach
+    /// the threshold in a majority of regions, so the status cannot flap faster than that).
+    /// </summary>
+    public static StatusTransition ApplyVote(MonitorEntity monitor, Regions.QuorumDecision vote, DateTime nowUtc, bool inMaintenance, TimeSpan minTransitionGap)
+    {
+        if (!vote.UsesQuorum) return StatusTransition.None;
+        if (vote.UpMajority && monitor.Status == MonitorStatus.Down && monitor.StatusChangedAtUtc is { } downSince && nowUtc - downSince < minTransitionGap)
+            return StatusTransition.None;
+        if (vote.UpMajority)
+        {
+            if (monitor.Status == MonitorStatus.Up) return StatusTransition.None;
+            var wasDown = monitor.Status == MonitorStatus.Down || monitor.DownWhenPaused;
+            monitor.DownWhenPaused = false;
+            SetStatus(monitor, MonitorStatus.Up, nowUtc);
+            return wasDown ? StatusTransition.Recovered : StatusTransition.BecameUp;
+        }
+        if (vote.DownMajority && !inMaintenance && monitor.Status != MonitorStatus.Down)
+        {
+            monitor.DownWhenPaused = false;
+            SetStatus(monitor, MonitorStatus.Down, vote.FailingSinceUtc ?? nowUtc);
+            return StatusTransition.WentDown;
+        }
+        return StatusTransition.None;
+    }
+
     private static StatusTransition Transition(MonitorEntity monitor, bool isUp, DateTime checkedAtUtc)
     {
         if (isUp)

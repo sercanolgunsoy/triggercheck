@@ -16,6 +16,15 @@ public class CheckResult
     /// <summary>Taken while the monitor was in a maintenance window (FEAT-3). Excluded from uptime and chart statistics.</summary>
     public bool InMaintenance { get; set; }
 
+    // ---- FEAT-6: multi-region checks ----
+    /// <summary>Remote region that took the probe; null = the central scheduler.</summary>
+    public int? RegionId { get; set; }
+    /// <summary>
+    /// Central probes of a monitor decided by region quorum: whether the voted monitor status after this probe was not
+    /// DOWN. Uptime counts this instead of <see cref="IsUp"/> when set; null for single-region decisions.
+    /// </summary>
+    public bool? VotedUp { get; set; }
+
     // ---- HTTP/Keyword phase breakdown (ms). All null for Tcp/Ping and for probes that failed before the phase. ----
     // A probe that reused a pooled connection has no DNS/connect/TLS phase: DnsMs, ConnectMs and TlsMs are null
     // while TtfbMs is set. A new plain-http connection has DnsMs/ConnectMs but TlsMs null.

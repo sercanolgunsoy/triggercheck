@@ -92,6 +92,16 @@ jobs:
           tags: ${{ env.IMAGE }}:ci
           cache-from: type=gha
 
+      # FEAT-6 probe agent image (deployed by the operator per region; built here so the Dockerfile stays valid).
+      - name: Build probe agent
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          file: Dockerfile.probe
+          push: false
+          tags: ${{ env.IMAGE }}-probe:ci
+          cache-from: type=gha
+
   # Pushes to main only: build and publish to GHCR with the workflow's GITHUB_TOKEN.
   docker-publish:
     name: Container image (publish)

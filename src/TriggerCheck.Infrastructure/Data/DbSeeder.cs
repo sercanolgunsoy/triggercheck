@@ -41,6 +41,8 @@ public static class DbSeeder
                 ApplyDefaultAiQuota(p);
                 ApplyDefaultStatusPageQuota(p);
             }
+            // FEAT-6: multi-region checks (central + 2 remote regions on Pro, all regions on Enterprise).
+            foreach (var p in db.Plans.Local) p.MaxRegions = p.Name switch { "Pro" => 3, "Enterprise" => 0, _ => 1 };
             await db.SaveChangesAsync();
         }
 

@@ -58,6 +58,10 @@ public class PlanInput
     /// <summary>Selected <see cref="TriggerCheck.Domain.AiFeatures"/> names.</summary>
     public List<string> AiFeatures { get; set; } = [];
 
+    // ---- FEAT-6: multi-region checks ----
+    [Required(ErrorMessage = "Max regions is required."), Range(0, 100, ErrorMessage = "Max regions must be between {1} and {2}.")]
+    [Display(Name = "Max regions per monitor (incl. central, 0 = all)")] public int? MaxRegions { get; set; } = 1;
+
     public static PlanInput From(Plan p) => new()
     {
         Name = p.Name, MinIntervalSeconds = p.MinIntervalSeconds, MaxMonitors = p.MaxMonitors,
@@ -66,7 +70,8 @@ public class PlanInput
         IyzicoProductReferenceCode = p.IyzicoProductReferenceCode, IyzicoPricingPlanReferenceCode = p.IyzicoPricingPlanReferenceCode,
         AiMonthlyCallLimit = p.AiMonthlyCallLimit, AiMonthlyTokenLimit = p.AiMonthlyTokenLimit,
         MaxStatusPages = p.MaxStatusPages, AllowsStatusPageCustomDomain = p.AllowsStatusPageCustomDomain,
-        AiFeatures = Domain.AiFeatures.Parse(p.AiFeatures).ToList()
+        AiFeatures = Domain.AiFeatures.Parse(p.AiFeatures).ToList(),
+        MaxRegions = p.MaxRegions
     };
 
     public void ApplyTo(Plan p)
@@ -84,6 +89,7 @@ public class PlanInput
         p.AiMonthlyCallLimit = AiMonthlyCallLimit!.Value;
         p.AiMonthlyTokenLimit = AiMonthlyTokenLimit!.Value;
         p.AiFeatures = Domain.AiFeatures.Format(AiFeatures);
+        p.MaxRegions = MaxRegions!.Value;
         p.MaxStatusPages = MaxStatusPages;
         p.AllowsStatusPageCustomDomain = AllowsStatusPageCustomDomain;
     }

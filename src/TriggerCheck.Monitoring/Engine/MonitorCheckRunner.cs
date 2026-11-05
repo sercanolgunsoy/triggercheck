@@ -2,11 +2,13 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using TriggerCheck.Domain;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Monitoring.Alerting;
 using TriggerCheck.Monitoring.Checks;
 using TriggerCheck.Monitoring.Maintenance;
+using TriggerCheck.Monitoring.Regions;
 using TriggerCheck.Monitoring.Stats;
 using MonitorEntity = TriggerCheck.Domain.Entities.Monitor;
 
@@ -73,6 +75,14 @@ namespace TriggerCheck.Monitoring.Engine;
 /// recovered during maintenance. A pending confirmation is dropped, so a monitor still
 /// failing after the window goes through the normal flow from its first probe after the window.
 /// </para>
+/// <para>
+/// Multi-region monitors (FEAT-6, <see cref="RegionQuorum"/>): when the monitor has remote regions and at least two regions
+/// (central included) currently vote, this probe is central's vote and the status follows the majority
+/// (<see cref="MonitorStateMachine.ApplyQuorumProbe"/>); no confirmation probe is run (another region confirms), a new
+/// failure pulls the other regions' next probe forward, and the CheckResult records the voted status
+/// (<see cref="CheckResult.VotedUp"/>, used by uptime). With fewer than two voting regions everything above applies
+/// unchanged. Remote results are applied the same way by <see cref="ProbeLeaseService"/>.
+/// </para>
 /// </summary>
 public sealed class MonitorCheckRunner(
     IDbContextFactory<AppDbContext> dbFactory,
@@ -81,6 +91,7 @@ public sealed class MonitorCheckRunner(
     MonitorRunGate gate,
     TimeProvider time,
     IOptionsMonitor<MonitoringOptions> options,
+    IOptionsMonitor<RegionOptions> regionOptions,
     IMemoryCache cache,
     ILogger<MonitorCheckRunner> logger) : IMonitorCheckRunner
 {
@@ -203,6 +214,8 @@ public sealed class MonitorCheckRunner(
         AlertMessage? alert = null;
         AlertMessage? certAlert = null;
         MonitorStateMachine.RecordCertificate(monitor, outcome.Certificate, checkedAt);
+        // FEAT-6: central's vote counts only for the probe settings it was taken with.
+        if (RegionRules.SupportsRegions(monitor.Type)) monitor.LastProbeFingerprint = RegionQuorum.Fingerprint(monitor);
         var unchangedLifecycle = monitor.Status == snapshot.Status && monitor.IsEnabled == snapshot.IsEnabled;
         if (unchangedLifecycle && MonitorStateMachine.IsActivelyMonitored(snapshot) && MonitorStateMachine.IsActivelyMonitored(monitor))
         {
@@ -210,7 +223,36 @@ public sealed class MonitorCheckRunner(
             var transition = StatusTransition.None;
             var transitionAt = checkedAt;
             var delay = TimeSpan.FromSeconds(Math.Clamp(o.ConfirmationDelaySeconds, 0, 300));
-            if (inMaintenance)
+            // FEAT-6: monitors with remote regions are decided by quorum when three or more regions vote decisively.
+            var ro = regionOptions.CurrentValue;
+            QuorumDecision? quorum = null;
+            List<MonitorRegionState> regionStates = [];
+            var remoteConfirms = false;
+            if (RegionRules.SupportsRegions(monitor.Type))
+            {
+                var all = await RegionQuorum.LoadStatesAsync(db, monitor.Id, ct);
+                if (all.Count > 0)
+                {
+                    regionStates = RegionQuorum.WithinPlan(all, await RegionQuorum.PlanMaxRegionsAsync(db, monitor.CustomerId, ct));
+                    var votes = RegionQuorum.RemoteVotes(regionStates, monitor, checkedAt, ro);
+                    remoteConfirms = votes.Any(v => !v.IsUp);
+                    var windowStart = checkedAt - RegionQuorum.VoteWindow(monitor, ro);
+                    var failingSince = outcome.IsUp || inMaintenance ? null : await RegionQuorum.CentralFailingSinceAsync(db, monitor.Id, windowStart, ct);
+                    if (RegionQuorum.CentralVote(monitor, outcome.IsUp, MonitorStateMachine.CentralStreakAfter(monitor, outcome.IsUp, inMaintenance),
+                            checkedAt, failingSince, outcome.Error, inMaintenance) is { } central) votes.Add(central);
+                    var tally = RegionQuorum.Tally(votes, windowStart);
+                    if (tally.UsesQuorum) quorum = tally;
+                }
+            }
+            if (quorum is not null)
+            {
+                MonitorStateMachine.ClearPendingConfirmation(monitor);
+                transition = MonitorStateMachine.ApplyQuorumProbe(monitor, outcome, checkedAt, quorum, inMaintenance,
+                    TimeSpan.FromSeconds(Math.Max(0, ro.MinTransitionSeconds)));
+                if (transition == StatusTransition.WentDown) transitionAt = monitor.StatusChangedAtUtc ?? checkedAt;
+                result.VotedUp = monitor.Status != MonitorStatus.Down;
+            }
+            else if (inMaintenance)
             {
                 // A confirmation pending from before the window is void: after the window everything starts over.
                 MonitorStateMachine.ClearPendingConfirmation(monitor);
@@ -239,17 +281,21 @@ public sealed class MonitorCheckRunner(
             {
                 MonitorStateMachine.ClearPendingConfirmation(monitor); // monitor changed since, too old and up now, or none
                 // Heartbeats are not confirmed: the grace period already is the tolerance (see HeartbeatMonitorChecker).
-                if (o.ConfirmBeforeDown && monitor.Type != MonitorType.Heartbeat && MonitorStateMachine.NeedsConfirmation(monitor, outcome))
+                // FEAT-6: a failing remote region is the confirmation (another vantage point saw it too).
+                if (o.ConfirmBeforeDown && monitor.Type != MonitorType.Heartbeat && MonitorStateMachine.NeedsConfirmation(monitor, outcome) && !remoteConfirms)
                     MonitorStateMachine.BeginConfirmation(monitor, outcome, checkedAt, probeEndedAt + delay);
                 else
                     transition = MonitorStateMachine.Apply(monitor, outcome, checkedAt);
             }
+            // FEAT-6: a central failure asks the regions to confirm soon (at most once per interval).
+            if (regionStates.Count > 0 && !outcome.IsUp && !inMaintenance && monitor.Status != MonitorStatus.Down)
+                RegionQuorum.TryExpedite(monitor, regionStates, checkedAt, probeEndedAt + delay, checkedAt);
             // Heartbeats are scheduled by their deadlines, also inside a maintenance window (after the branches above).
             if (monitor.Type == MonitorType.Heartbeat) monitor.NextCheckAtUtc = HeartbeatSchedule.NextEvaluation(monitor, checkedAt);
             if (inMaintenance)
-                alert = await RecoverInMaintenanceAsync(db, monitor, transition, checkedAt, ct);
+                alert = await RecoverInMaintenanceAsync(db, monitor, transition, checkedAt, logger, ct);
             else
-                alert = await ApplyTransitionAsync(db, monitor, transition, transitionAt, ct);
+                alert = await ApplyTransitionAsync(db, monitor, transition, transitionAt, logger, ct, quorum);
             // Status changed (and possibly an incident opened/closed): make concurrent user writers retry.
             if (transition != StatusTransition.None) monitor.Version++;
             // In maintenance the warning stays due and is sent by the first check after the window.
@@ -263,21 +309,25 @@ public sealed class MonitorCheckRunner(
         }
 
         await db.SaveChangesAsync(ct);
-        // FEAT-5: the DOWN alert carries its incident (acknowledge link, escalation).
-        if (alert is { Kind: AlertKind.Down })
-            alert = alert with
-            {
-                IncidentId = await db.Incidents.Where(i => i.MonitorId == monitor.Id && i.ResolvedAtUtc == null)
-                    .OrderByDescending(i => i.StartedAtUtc).Select(i => (int?)i.Id).FirstOrDefaultAsync(ct)
-            };
-        return (alert, certAlert);
+        return (await WithIncidentAsync(db, alert, ct), certAlert);
+    }
+
+    /// <summary>FEAT-5: the DOWN alert carries its incident (acknowledge link, escalation). Call after saving.</summary>
+    internal static async Task<AlertMessage?> WithIncidentAsync(AppDbContext db, AlertMessage? alert, CancellationToken ct)
+    {
+        if (alert is not { Kind: AlertKind.Down }) return alert;
+        return alert with
+        {
+            IncidentId = await db.Incidents.Where(i => i.MonitorId == alert.MonitorId && i.ResolvedAtUtc == null)
+                .OrderByDescending(i => i.StartedAtUtc).Select(i => (int?)i.Id).FirstOrDefaultAsync(ct)
+        };
     }
 
     /// <summary>
     /// FEAT-3: a monitor that was DOWN recovered during maintenance: its incident is closed (flagged) and, since its DOWN
     /// alert went out before the window, the UP alert is still sent, marked as recovered during maintenance.
     /// </summary>
-    private async Task<AlertMessage?> RecoverInMaintenanceAsync(AppDbContext db, MonitorEntity monitor, StatusTransition transition, DateTime now, CancellationToken ct)
+    internal static async Task<AlertMessage?> RecoverInMaintenanceAsync(AppDbContext db, MonitorEntity monitor, StatusTransition transition, DateTime now, ILogger logger, CancellationToken ct)
     {
         if (transition != StatusTransition.Recovered) return null;
         var open = await db.Incidents.Where(i => i.MonitorId == monitor.Id && i.ResolvedAtUtc == null).ToListAsync(ct);
@@ -308,18 +358,28 @@ public sealed class MonitorCheckRunner(
         }
     }
 
-    private async Task<AlertMessage?> ApplyTransitionAsync(AppDbContext db, MonitorEntity monitor, StatusTransition transition, DateTime now, CancellationToken ct)
+    /// <summary>
+    /// Opens / closes the incident of a status transition and returns its alert. With a <paramref name="quorum"/> (FEAT-6)
+    /// the incident and the DOWN alert carry the failing regions and their errors.
+    /// </summary>
+    internal static async Task<AlertMessage?> ApplyTransitionAsync(AppDbContext db, MonitorEntity monitor, StatusTransition transition, DateTime now,
+        ILogger logger, CancellationToken ct, QuorumDecision? quorum = null)
     {
         switch (transition)
         {
             case StatusTransition.WentDown:
             {
+                var cause = quorum?.Cause ?? monitor.LastError;
                 var alreadyOpen = await db.Incidents.AnyAsync(i => i.MonitorId == monitor.Id && i.ResolvedAtUtc == null, ct);
                 if (!alreadyOpen)
-                    db.Incidents.Add(new Incident { MonitorId = monitor.Id, StartedAtUtc = now, Cause = monitor.LastError });
-                logger.LogWarning("Monitor {MonitorId} '{Name}' is DOWN after {Failures} consecutive failures: {Error}",
-                    monitor.Id, monitor.Name, monitor.ConsecutiveFailures, monitor.LastError);
-                return AlertMessage.For(monitor, AlertKind.Down, now);
+                    db.Incidents.Add(new Incident { MonitorId = monitor.Id, StartedAtUtc = now, Cause = cause, FailedRegions = quorum?.FailedRegions });
+                if (quorum is null)
+                    logger.LogWarning("Monitor {MonitorId} '{Name}' is DOWN after {Failures} consecutive failures: {Error}",
+                        monitor.Id, monitor.Name, monitor.ConsecutiveFailures, monitor.LastError);
+                else
+                    logger.LogWarning("Monitor {MonitorId} '{Name}' is DOWN: {Down} of {Active} regions failing ({Regions})",
+                        monitor.Id, monitor.Name, quorum.Down, quorum.Active, quorum.FailedRegions);
+                return AlertMessage.For(monitor, AlertKind.Down, now) with { Error = cause };
             }
             case StatusTransition.Recovered:
             {

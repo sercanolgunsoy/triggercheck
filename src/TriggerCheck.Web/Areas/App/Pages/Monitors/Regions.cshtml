@@ -1,0 +1,48 @@
+@page "{id:int}"
+@model TriggerCheck.Web.Areas.App.Pages.Monitors.RegionsModel
+@{ ViewData["Title"] = L["Check regions"].Value; }
+
+<div class="page-head">
+    <div>
+        <h2 class="mb-0">@L["Check regions"]</h2>
+        <div class="text-muted small">@Model.Monitor.Name</div>
+    </div>
+    <a asp-page="Details" asp-route-id="@Model.Monitor.Id" class="btn btn-outline-secondary">@L["Back"]</a>
+</div>
+
+<div class="card"><div class="card-body">
+    <p>@L["The main region always checks this monitor. Additional regions check it too: with three or more regions reporting, the monitor goes down only when the majority of them fail, so a single region's network problem does not open an incident. With fewer, the main region decides and the other regions confirm its failures."]</p>
+    @if (Model.MaxRemote == 0)
+    {
+        <div class="alert alert-info">@L["Your plan ({0}) checks monitors from the main region only.", Model.PlanName]</div>
+    }
+    else
+    {
+        <p class="small text-muted">@L["Your plan ({0}) allows at most {1} additional region(s) per monitor.", Model.PlanName, Model.MaxRemote]</p>
+    }
+    @if (RegionRules.SupportsRegions(Model.Monitor.Type))
+    {
+        <form method="post" asp-route-id="@Model.Monitor.Id">
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" checked disabled id="region-central" />
+                <label class="form-check-label" for="region-central"><span class="font-monospace">central</span> · @L["Main region"]</label>
+            </div>
+            @foreach (var o in Model.Options)
+            {
+                var elementId = "region-" + o.Id;
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="RegionIds" value="@o.Id" id="@elementId" checked="@o.Selected" />
+                    <label class="form-check-label" for="@elementId"><span class="font-monospace">@o.Code</span> · @o.Name
+                        @if (!o.IsEnabled) { <span class="badge bg-secondary">@L["Disabled"]</span> }
+                        else if (o.IsStale) { <span class="badge bg-warning text-dark">@L["Agent stale"]</span> }</label>
+                </div>
+            }
+            @if (Model.Options.Count == 0)
+            {
+                <div class="text-muted">@L["No additional regions are available yet."]</div>
+            }
+            <button type="submit" class="btn btn-primary mt-3">@L["Save"]</button>
+        </form>
+    }
+</div></div>

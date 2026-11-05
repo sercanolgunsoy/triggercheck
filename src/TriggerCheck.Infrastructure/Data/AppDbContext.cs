@@ -27,6 +27,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
     public DbSet<EscalationPolicy> EscalationPolicies => Set<EscalationPolicy>();
     public DbSet<EscalationStep> EscalationSteps => Set<EscalationStep>();
     public DbSet<ApiKey> ApiKeys => Set<ApiKey>();
+    public DbSet<Region> Regions => Set<Region>();
+    public DbSet<MonitorRegionState> MonitorRegionStates => Set<MonitorRegionState>();
     public DbSet<StatusPage> StatusPages => Set<StatusPage>();
     public DbSet<StatusPageMonitor> StatusPageMonitors => Set<StatusPageMonitor>();
     public DbSet<StatusPageSubscriber> StatusPageSubscribers => Set<StatusPageSubscriber>();
@@ -77,6 +79,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
             e.Property(x => x.ExpectedValue).HasMaxLength(500);
             e.Property(x => x.HeartbeatTokenHash).HasMaxLength(64);
             e.Property(x => x.HeartbeatTokenPrefix).HasMaxLength(16);
+            e.Property(x => x.LastProbeFingerprint).HasMaxLength(64);
             e.Property(x => x.LastHeartbeatMessage).HasMaxLength(200);
             e.HasIndex(x => x.HeartbeatTokenHash).IsUnique(); // ping lookup; NULLs (non-heartbeat monitors) do not collide
             e.HasOne(x => x.Customer).WithMany(c => c.Monitors).HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Cascade);
@@ -294,5 +297,38 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
             e.HasIndex(x => x.CustomerId);
             e.Ignore(x => x.IsRevoked);
         });
+
+        // FEAT-6: probe regions (agents) and the per monitor / region probe state.
+        b.Entity<Region>(e =>
+        {
+            e.Property(x => x.Code).HasMaxLength(32).IsRequired();
+            e.HasIndex(x => x.Code).IsUnique();
+            e.Property(x => x.Name).HasMaxLength(100).IsRequired();
+            e.Property(x => x.Prefix).HasMaxLength(32).IsRequired();
+            e.HasIndex(x => x.Prefix).IsUnique();
+            e.Property(x => x.SecretHash).HasMaxLength(64).IsRequired();
+        });
+
+        b.Entity<MonitorRegionState>(e =>
+        {
+            e.HasKey(x => new { x.MonitorId, x.RegionId });
+            e.HasOne(x => x.Monitor).WithMany().HasForeignKey(x => x.MonitorId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Region).WithMany().HasForeignKey(x => x.RegionId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => new { x.RegionId, x.NextCheckAtUtc });
+            e.Property(x => x.LastError).HasMaxLength(1000);
+            e.Property(x => x.LeaseItemId).HasMaxLength(64);
+            e.Property(x => x.LeaseFingerprint).HasMaxLength(64);
+            e.Property(x => x.LastResultItemId).HasMaxLength(64);
+            e.Property(x => x.LastResultFingerprint).HasMaxLength(64);
+            e.HasIndex(x => x.LeaseItemId);
+            e.HasIndex(x => new { x.RegionId, x.LastResultItemId });
+        });
+
+        b.Entity<CheckResult>(e =>
+        {
+            e.HasOne<Region>().WithMany().HasForeignKey(x => x.RegionId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<Incident>(e => e.Property(x => x.FailedRegions).HasMaxLength(500));
     }
 }

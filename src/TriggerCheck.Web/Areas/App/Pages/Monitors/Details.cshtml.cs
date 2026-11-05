@@ -10,6 +10,8 @@ using TriggerCheck.Monitoring;
 using TriggerCheck.Monitoring.Checks;
 using TriggerCheck.Monitoring.Engine;
 using TriggerCheck.Monitoring.Maintenance;
+using TriggerCheck.Monitoring.Regions;
+using Microsoft.Extensions.Options;
 using TriggerCheck.Monitoring.Stats;
 using TriggerCheck.Web.Areas.App.Support;
 using TriggerCheck.Web.Heartbeat;
@@ -21,7 +23,8 @@ namespace TriggerCheck.Web.Areas.App.Pages.Monitors;
 
 /// <summary>Readable by all customer members; the POST handlers (pause/resume/check now) are CustomerAdmin only.</summary>
 public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStatsService stats, MonitorLifecycle lifecycle, ILogger<DetailsModel> logger, Text<AppResource> L,
-    ManualCheckLimiter limiter, IResponseTimeSeriesService series, TimeProvider time, MonitorCommands commands, HeartbeatUrlReveal reveals, AiPanels ai) : PageModel
+    ManualCheckLimiter limiter, IResponseTimeSeriesService series, TimeProvider time, MonitorCommands commands, HeartbeatUrlReveal reveals, AiPanels ai,
+    IOptionsMonitor<RegionOptions> regionOptions) : PageModel
 {
     public const int MaxChartPoints = ResponseTimeSeriesService.MaxPoints;
 
@@ -61,6 +64,8 @@ public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStat
     public List<ChartPoint> Chart { get; private set; } = [];
     public List<CheckResult> RecentChecks { get; private set; } = [];
     public List<Incident> Incidents { get; private set; } = [];
+    /// <summary>FEAT-6: per-region breakdown (empty for single-region monitors) and whether regions can be managed here.</summary>
+    public RegionPanel Regions { get; private set; } = new([], false, 0);
     /// <summary>AI-1 slowdown signal that is open or ended within the last 24 hours (AI-3 explains it).</summary>
     public AnomalySignal? Slowdown { get; private set; }
     /// <summary>Highest observed / baseline ratio of <see cref="Slowdown"/> (raw L1 text).</summary>
@@ -128,8 +133,12 @@ public class DetailsModel(AppDbContext db, ICurrentCustomer current, IUptimeStat
             Label(b.StartUtc) + " – " + Label(b.EndUtc))).ToList();
         InMaintenance = (await MaintenanceQueries.MonitorsInMaintenanceAsync(db, m.CustomerId, [id], time.GetUtcNow().UtcDateTime, ct)).Count > 0;
 
+        Regions = new RegionPanel(await RegionBreakdown.LoadAsync(db, m, time.GetUtcNow().UtcDateTime, regionOptions.CurrentValue, ct),
+            IsAdmin && RegionRules.SupportsRegions(m.Type) && await RegionsModel.PlanAllowsRegionsAsync(db, m.CustomerId, ct), m.Id);
+
+        // Central checks (remote regions are summarized in the region breakdown).
         RecentChecks = await db.CheckResults.AsNoTracking()
-            .Where(c => c.MonitorId == id)
+            .Where(c => c.MonitorId == id && c.RegionId == null)
             .OrderByDescending(c => c.CheckedAtUtc)
             .Take(50)
             .ToListAsync(ct);

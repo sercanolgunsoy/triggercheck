@@ -1,0 +1,39 @@
+# syntax=docker/dockerfile:1
+# TriggerCheck probe agent (FEAT-6): runs checks in a remote region and reports them to the main app.
+# Outbound connections only (no ports). See docs/DEPLOYMENT.md, section "Probe agents".
+#   docker build -f Dockerfile.probe -t triggercheck-probe .
+#   docker run -d --restart unless-stopped \
+#     -e Agent__CentralUrl=https://triggercheck.example.com -e Agent__RegionId=eu-central \
+#     -e Agent__Credential=tcr_... triggercheck-probe
+
+# ---- build ----
+FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+WORKDIR /src
+
+COPY global.json ./
+COPY src/TriggerCheck.Domain/TriggerCheck.Domain.csproj src/TriggerCheck.Domain/
+COPY src/TriggerCheck.Infrastructure/TriggerCheck.Infrastructure.csproj src/TriggerCheck.Infrastructure/
+COPY src/TriggerCheck.Monitoring/TriggerCheck.Monitoring.csproj src/TriggerCheck.Monitoring/
+COPY src/TriggerCheck.ProbeAgent/TriggerCheck.ProbeAgent.csproj src/TriggerCheck.ProbeAgent/
+RUN dotnet restore src/TriggerCheck.ProbeAgent/TriggerCheck.ProbeAgent.csproj
+
+COPY src/TriggerCheck.Domain/ src/TriggerCheck.Domain/
+COPY src/TriggerCheck.Infrastructure/ src/TriggerCheck.Infrastructure/
+COPY src/TriggerCheck.Monitoring/ src/TriggerCheck.Monitoring/
+COPY src/TriggerCheck.ProbeAgent/ src/TriggerCheck.ProbeAgent/
+RUN dotnet publish src/TriggerCheck.ProbeAgent/TriggerCheck.ProbeAgent.csproj -c Release -o /app --no-restore /p:UseAppHost=false
+
+# ---- runtime ----
+# The shared checkers reference the ASP.NET Core shared framework, hence the aspnet runtime image.
+FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS runtime
+WORKDIR /app
+
+ENV DOTNET_ENVIRONMENT=Production \
+    DOTNET_CLI_TELEMETRY_OPTOUT=1 \
+    Monitoring__AllowPrivateTargets=false
+
+COPY --from=build /app .
+
+# Non-root: the "app" user (UID $APP_UID = 1654) of the official .NET images.
+USER $APP_UID
+ENTRYPOINT ["dotnet", "TriggerCheck.ProbeAgent.dll"]

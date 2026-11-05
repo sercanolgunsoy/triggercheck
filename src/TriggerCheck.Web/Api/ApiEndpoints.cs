@@ -71,8 +71,11 @@ public static class ApiEndpoints
         return m is null ? ApiProblems.NotFound() : Results.Ok(await ToDtoAsync(db, m, ct));
     }
 
-    /// <summary>Checks in [from, to] (default: last 24 hours), newest first, at most <c>limit</c> (default 100, max 1000).</summary>
-    private static async Task<IResult> ListChecks(int id, string? from, string? to, string? limit, AppDbContext db, ICurrentCustomer current, CancellationToken ct)
+    /// <summary>
+    /// Checks in [from, to] (default: last 24 hours), newest first, at most <c>limit</c> (default 100, max 1000). Central
+    /// checks only unless <c>region=all</c> (FEAT-6: remote probe regions' results too, labelled by <c>regionCode</c>).
+    /// </summary>
+    private static async Task<IResult> ListChecks(int id, string? from, string? to, string? limit, string? region, AppDbContext db, ICurrentCustomer current, CancellationToken ct)
     {
         var cid = current.RequiredCustomerId;
         if (!await db.Monitors.AnyAsync(m => m.Id == id && m.CustomerId == cid, ct)) return ApiProblems.NotFound();
@@ -83,12 +86,16 @@ public static class ApiEndpoints
         var start = fromUtc ?? end.AddHours(-24);
         if (start > end) return ApiProblems.Invalid("from", "'from' must not be later than 'to'.");
         if (!TryParseLimit(limit, MaxChecksLimit, out var take)) return ApiProblems.Invalid("limit", $"The limit must be between 1 and {MaxChecksLimit}.");
+        if (region is not null && region != "all" && region != RegionRules.CentralCode)
+            return ApiProblems.Invalid("region", "Use 'central' (default) or 'all'.");
+        var allRegions = region == "all";
 
         var rows = await db.CheckResults.AsNoTracking()
-            .Where(c => c.MonitorId == id && c.CheckedAtUtc >= start && c.CheckedAtUtc <= end)
+            .Where(c => c.MonitorId == id && c.CheckedAtUtc >= start && c.CheckedAtUtc <= end && (allRegions || c.RegionId == null))
             .OrderByDescending(c => c.CheckedAtUtc).ThenByDescending(c => c.Id)
             .Take(take)
-            .Select(c => new CheckDto(c.Id, c.CheckedAtUtc, c.IsUp, c.StatusCode, c.ResponseTimeMs, c.Error, c.InMaintenance))
+            .Select(c => new CheckDto(c.Id, c.CheckedAtUtc, c.IsUp, c.StatusCode, c.ResponseTimeMs, c.Error, c.InMaintenance,
+                c.RegionId == null ? RegionRules.CentralCode : db.Regions.Where(r => r.Id == c.RegionId).Select(r => r.Code).FirstOrDefault() ?? "?"))
             .ToListAsync(ct);
         return Results.Ok(rows.Select(c => c with { CheckedAtUtc = Utc.Of(c.CheckedAtUtc) }).ToList());
     }

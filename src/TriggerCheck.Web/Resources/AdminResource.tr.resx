@@ -769,6 +769,108 @@
   <data name="iyzico reference" xml:space="preserve">
     <value>iyzico referansı</value>
   </data>
+  <data name="&quot;central&quot; is reserved for the main app." xml:space="preserve">
+    <value>"central" ana uygulamaya ayrılmıştır.</value>
+  </data>
+  <data name="1 = checked by the main app only. Higher values let customers add probe regions to a monitor; its status is then decided by majority vote." xml:space="preserve">
+    <value>1 = yalnızca ana uygulama kontrol eder. Daha yüksek değerlerde müşteriler monitörlerine kontrol bölgesi ekleyebilir; durum o zaman çoğunluk oyuyla belirlenir.</value>
+  </data>
+  <data name="A region whose agent has not called in recently is stale: it is left out of the majority vote until it reports again. Customers choose regions per monitor within their plan's region limit." xml:space="preserve">
+    <value>Ajanı yakın zamanda bağlanmayan bölge yanıt vermiyor sayılır: tekrar bildirene kadar çoğunluk oylamasına katılmaz. Müşteriler bölgeleri monitör başına, planlarının bölge sınırı içinde seçer.</value>
+  </data>
+  <data name="A region with this code already exists." xml:space="preserve">
+    <value>Bu koda sahip bir bölge zaten var.</value>
+  </data>
+  <data name="Agent credential" xml:space="preserve">
+    <value>Ajan kimlik bilgisi</value>
+  </data>
+  <data name="Agent credential of region &quot;{0}&quot;. Copy it now: it will not be shown again." xml:space="preserve">
+    <value>"{0}" bölgesinin ajan kimlik bilgisi. Şimdi kopyalayın: tekrar gösterilmeyecek.</value>
+  </data>
+  <data name="Agent last seen" xml:space="preserve">
+    <value>Ajanın son görülmesi</value>
+  </data>
+  <data name="At most {0} regions can be created." xml:space="preserve">
+    <value>En fazla {0} bölge oluşturulabilir.</value>
+  </data>
+  <data name="Credential" xml:space="preserve">
+    <value>Kimlik bilgisi</value>
+  </data>
+  <data name="Disable" xml:space="preserve">
+    <value>Devre dışı bırak</value>
+  </data>
+  <data name="Disable region {0}? Its agent is rejected and its results no longer count." xml:space="preserve">
+    <value>{0} bölgesi devre dışı bırakılsın mı? Ajanı reddedilir ve sonuçları artık sayılmaz.</value>
+  </data>
+  <data name="Each region runs one probe agent (Dockerfile.probe) that checks the monitors assigned to it and reports to this app. The main app itself is the region &quot;central&quot;." xml:space="preserve">
+    <value>Her bölgede, kendisine atanan monitörleri kontrol edip bu uygulamaya bildiren bir kontrol ajanı (Dockerfile.probe) çalışır. Ana uygulamanın kendisi "central" bölgesidir.</value>
+  </data>
+  <data name="Enable" xml:space="preserve">
+    <value>Etkinleştir</value>
+  </data>
+  <data name="Enable region {0}?" xml:space="preserve">
+    <value>{0} bölgesi etkinleştirilsin mi?</value>
+  </data>
+  <data name="Max regions is required." xml:space="preserve">
+    <value>Bölge sayısı sınırı zorunludur.</value>
+  </data>
+  <data name="Max regions must be between {1} and {2}." xml:space="preserve">
+    <value>Bölge sayısı sınırı {1} ile {2} arasında olmalıdır.</value>
+  </data>
+  <data name="Max regions per monitor (incl. central, 0 = all)" xml:space="preserve">
+    <value>Monitör başına en fazla bölge (central dahil, 0 = tümü)</value>
+  </data>
+  <data name="Multi-region checks" xml:space="preserve">
+    <value>Çok bölgeli kontrol</value>
+  </data>
+  <data name="Name can be at most 100 characters." xml:space="preserve">
+    <value>Ad en fazla 100 karakter olabilir.</value>
+  </data>
+  <data name="New region" xml:space="preserve">
+    <value>Yeni bölge</value>
+  </data>
+  <data name="No probe regions yet. All monitors are checked by the main app only." xml:space="preserve">
+    <value>Henüz kontrol bölgesi yok. Tüm monitörler yalnızca ana uygulama tarafından kontrol ediliyor.</value>
+  </data>
+  <data name="Region &quot;{0}&quot; was created. Configure its agent with the credential below." xml:space="preserve">
+    <value>"{0}" bölgesi oluşturuldu. Ajanını aşağıdaki kimlik bilgisiyle yapılandırın.</value>
+  </data>
+  <data name="Region &quot;{0}&quot; was disabled. Its agent is rejected and it no longer votes." xml:space="preserve">
+    <value>"{0}" bölgesi devre dışı bırakıldı. Ajanı reddedilir ve artık oy vermez.</value>
+  </data>
+  <data name="Region &quot;{0}&quot; was enabled." xml:space="preserve">
+    <value>"{0}" bölgesi etkinleştirildi.</value>
+  </data>
+  <data name="Region code" xml:space="preserve">
+    <value>Bölge kodu</value>
+  </data>
+  <data name="Region code is required." xml:space="preserve">
+    <value>Bölge kodu zorunludur.</value>
+  </data>
+  <data name="Replace the credential of region {0}? The agent stops working until it is given the new credential." xml:space="preserve">
+    <value>{0} bölgesinin kimlik bilgisi değiştirilsin mi? Ajan yeni kimlik bilgisi verilene kadar çalışmaz.</value>
+  </data>
+  <data name="Rotate credential" xml:space="preserve">
+    <value>Kimlik bilgisini yenile</value>
+  </data>
+  <data name="Rotated {0}" xml:space="preserve">
+    <value>Yenilendi: {0}</value>
+  </data>
+  <data name="Set it as Agent__Credential and the region code as Agent__RegionId on the agent." xml:space="preserve">
+    <value>Ajanda bunu Agent__Credential, bölge kodunu da Agent__RegionId olarak ayarlayın.</value>
+  </data>
+  <data name="The credential of region &quot;{0}&quot; was replaced. The old credential no longer works; update the agent." xml:space="preserve">
+    <value>"{0}" bölgesinin kimlik bilgisi değiştirildi. Eski kimlik bilgisi artık çalışmıyor; ajanı güncelleyin.</value>
+  </data>
+  <data name="The region code must be 2 to 32 characters." xml:space="preserve">
+    <value>Bölge kodu 2 ile 32 karakter arasında olmalıdır.</value>
+  </data>
+  <data name="Use lower-case letters, digits and single dashes, e.g. eu-central." xml:space="preserve">
+    <value>Küçük harf, rakam ve tek tire kullanın, ör. eu-central.</value>
+  </data>
+  <data name="e.g. Frankfurt" xml:space="preserve">
+    <value>ör. Frankfurt</value>
+  </data>
   <data name="Status pages" xml:space="preserve">
     <value>Durum sayfaları</value>
   </data>
