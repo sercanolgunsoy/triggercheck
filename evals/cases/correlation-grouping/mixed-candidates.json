@@ -1,0 +1,98 @@
+{
+  "id": "mixed-candidates",
+  "feature": "CorrelationGrouping",
+  "language": "en",
+  "description": "API host outage: the storefront on the same domain fails too, a partner and a removed endpoint do not belong.",
+  "expect": {
+    "primaryCause": "candidate_verdicts",
+    "keep": [
+      "Storefront"
+    ],
+    "leaveOut": [
+      "Billing partner",
+      "Legacy endpoint"
+    ]
+  },
+  "group": {
+    "incidents": [
+      {
+        "name": "Orders API",
+        "type": "Http",
+        "target": "https://api.example.test/orders",
+        "startedMinutesAgo": 6,
+        "cause": "Timeout after 10s"
+      },
+      {
+        "name": "Users API",
+        "type": "Http",
+        "target": "https://api.example.test/users",
+        "startedMinutesAgo": 5.8,
+        "cause": "Timeout after 10s"
+      },
+      {
+        "name": "Storefront",
+        "type": "Http",
+        "target": "https://www.example.test/",
+        "startedMinutesAgo": 5.5,
+        "cause": "Timeout after 10s"
+      },
+      {
+        "name": "Billing partner",
+        "type": "Http",
+        "target": "https://billing.partner.test/",
+        "startedMinutesAgo": 5.2,
+        "cause": "Timeout after 10s"
+      },
+      {
+        "name": "Legacy endpoint",
+        "type": "Http",
+        "target": "https://api.example.test/legacy",
+        "startedMinutesAgo": 5,
+        "cause": "Unexpected status code 404 (expected 200-299)"
+      }
+    ]
+  },
+  "secrets": [],
+  "canned": {
+    "summary": "api.example.test and www.example.test time out together; the partner timeout and the 404 of a single endpoint look separate.",
+    "hypotheses": [
+      {
+        "cause": "Same domain and the same timeout at the same time.",
+        "confidence": "high",
+        "evidence": [
+          "incident C: same_domain, timeout"
+        ],
+        "category": "shared_cause",
+        "evidence_refs": [
+          "incident C",
+          "incident A"
+        ]
+      },
+      {
+        "cause": "Unrelated provider; only the time and error type match.",
+        "confidence": "medium",
+        "evidence": [
+          "incident D: billing.partner.test"
+        ],
+        "category": "independent",
+        "evidence_refs": [
+          "incident D"
+        ]
+      },
+      {
+        "cause": "A 404 means the endpoint is missing, not a host outage.",
+        "confidence": "high",
+        "evidence": [
+          "incident E: status 404 while the host times out"
+        ],
+        "category": "independent",
+        "evidence_refs": [
+          "incident E",
+          "error E"
+        ]
+      }
+    ],
+    "suggested_actions": [],
+    "unknowns": []
+  }
+}

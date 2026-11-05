@@ -476,6 +476,63 @@ error texts (as untrusted data, grouped after removing numbers and ids), the cer
 periods, all masked as described below. Changing these prompts, a model or an effort level needs a passing eval run
 (`evals/README.md`); the effort of both features is `low` by default.
 
+**Related incidents (AI-4, alert noise reduction):** incidents of one customer that start within
+`Ai__Correlation__WindowMinutes` (5) of the first one and share a signal are grouped as "primary incident +
+affected", for notifications only (no incident is ever closed, hidden or changed). Deterministic L1 rules decide:
+the same host or IP with errors of the same family (network: DNS / timeout / refused / unreachable / TLS; application:
+HTTP 5xx / 4xx / content) is grouped by the rule; weaker signals (same host with unrelated errors, same parent domain
+and error type, or the same network / 5xx error on another host) only make a candidate. The model (feature
+`CorrelationGrouping`, same masking and budget as above) is asked only to judge the candidates and write the
+explanation; it never runs on the alert path.
+
+- **A1 (today, decision K3):** the watcher (`Ai__Correlation__PollSeconds`, 30) proposes groups on *Incidents →
+  Related incidents*; a CustomerAdmin keeps the members they want ("Group the selected incidents") or rejects them.
+  Notifications are not changed. The page shows the acceptance rate over `Ai__Correlation__AcceptanceWindowDays` (28);
+  undecided proposals expire after `Ai__Correlation__ProposalExpiryHours` (24) and are not counted.
+- **A3 (off until `MaxAutonomy` of `CorrelationGrouping` in `AiFeatures.All` is raised after > 90 % acceptance):**
+  the DOWN alert of a rule-linked incident is folded into the primary's notification, only when the primary's own
+  DOWN was delivered; folded alerts are recorded per channel ("Grouped with incident #…"). The decision is a few
+  indexed queries plus one short write transaction: it never waits for the model, waits at most
+  `Ai__Correlation__AlertPathLockTimeoutSeconds` (2) for the database write lock, and fails open (any doubt, error
+  or busy database sends the alert on its own). Eligibility is re-checked under the lock, so a switch-off in the same
+  moment wins.
+  - **Follow-up:** one short "Also affected (likely same cause as incident #N): "B", "C"" message per group goes to
+    the customer's channels (not voice calls) once the first unreported fold is `Ai__Correlation__FollowUpDelaySeconds`
+    (60) old; monitors folded after it go into a later, again debounced, follow-up. Webhooks get status
+    `also_affected`, `incidentId` (the primary incident) and `alsoAffected` (`monitorId`, `name`).
+  - **Fold cap:** a folded monitor still down `Ai__Correlation__MaxFoldMinutes` (15) after its fold gets its own DOWN.
+  - **Undo:** when the primary recovers (after its UP was sent), an admin undoes the group, the customer switches
+    grouping off, or the customer is no longer eligible for automatic grouping (AI opt-out, `Ai__Enabled=false`,
+    `Ai__Correlation__MaxAutonomy` lowered, plan without `CorrelationGrouping`, budget used up), every folded monitor
+    still down gets its own DOWN. The watcher checks all of this every poll, so any of these switches takes effect
+    within one `PollSeconds`.
+  - **Durable, once:** a held-back DOWN is claimed first (`IncidentGroupMembers.NotifiedAtUtc`, a conditional update
+    that only succeeds while it is unmarked and the incident still open) and then queued; if the queue refuses it (full,
+    shutting down) the claim is released and the watcher tries again on its next poll, also after a restart. Two
+    callers never both send it. A crash between claim and delivery loses it like any alert still in the in-memory
+    queue. Follow-ups claim their members (`ReportedAtUtc`) the same way.
+  - A held-back DOWN whose incident has recovered by the time it is delivered is dropped, and it never supersedes or
+    cancels another alert of the monitor (a waiting UP wins); it does not cancel the monitor's pending escalations
+    either. Escalations (FEAT-5), maintenance (FEAT-3) and region quorum (FEAT-6) are otherwise unchanged.
+  - A folded monitor that recovers before anybody was told about it (no follow-up, no own DOWN) while the primary is
+    still down has its UP folded too; once reported, its UP is sent normally.
+  - `Ai__Correlation__MaxAutonomy` (`A3`) can only lower the level (`A0` switches the feature off).
+- Customers switch grouping off on the same page; it needs `Ai__Enabled`, the AI opt-in and a plan with
+  `CorrelationGrouping`. A used-up budget keeps the free rule-based proposals, skips the model and turns A3 off.
+- **Multi-instance (OPS-3):** the watcher scans, sends follow-ups / held-back DOWNs and queues explanations only on
+  the holder of the `ai-correlation` cluster lease, renewing it before each step. Each group's explanation is queued
+  once per membership (`IncidentGroups.ExplanationQueuedAtUtc`; a member joining an automatic group resets it), also
+  when the model cannot explain it. Every instance refreshes an in-memory hint each poll so that, at A1, UP alerts
+  run no extra database query. **Rolling changes:** while instances run with different autonomy (e.g. during a rolling
+  deploy that lowers `Ai__Correlation__MaxAutonomy` or changes the catalog level), an A1 instance may not see automatic
+  groups made by an A3 instance for up to one poll; a folded member's UP is then sent instead of folded. Nothing is
+  lost: the group is still undone by the watcher and its held-back DOWNs are sent.
+
+**Upgrading an existing installation (AI-4):** adds the tables `IncidentGroups` and `IncidentGroupMembers` and the
+column `Customers.AlertGroupingEnabled`. Until the EF migrations (OPS-1) exist, the schema is created by
+`EnsureCreated` only on an empty database: back up and recreate the database, or apply the migration once OPS-1 lands
+(`Customers.AlertGroupingEnabled` must default to **true**; the new tables start empty).
+
 **Settings suggestions (AI-5, autonomy A1):** every `Ai__Suggestions__IntervalMinutes` the job reads each monitor's
 central checks (outside maintenance, confirmation probes excluded) and incidents of the last `WindowDays` days, but only
 those recorded since its last settings change, and suggests: a higher failure threshold when most incidents recovered

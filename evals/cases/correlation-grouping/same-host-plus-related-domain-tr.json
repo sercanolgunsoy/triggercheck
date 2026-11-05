@@ -1,0 +1,58 @@
+{
+  "id": "same-host-plus-related-domain-tr",
+  "feature": "CorrelationGrouping",
+  "language": "tr",
+  "description": "Turkish summary: api.example.test and www.example.test time out together.",
+  "expect": {
+    "primaryCause": "candidate_verdicts",
+    "keep": [
+      "Storefront"
+    ],
+    "leaveOut": []
+  },
+  "group": {
+    "incidents": [
+      {
+        "name": "Orders API",
+        "type": "Http",
+        "target": "https://api.example.test/orders",
+        "startedMinutesAgo": 5,
+        "cause": "Timeout after 10s"
+      },
+      {
+        "name": "Users API",
+        "type": "Http",
+        "target": "https://api.example.test/users",
+        "startedMinutesAgo": 4.5,
+        "cause": "Timeout after 10s"
+      },
+      {
+        "name": "Storefront",
+        "type": "Http",
+        "target": "https://www.example.test/",
+        "startedMinutesAgo": 4,
+        "cause": "Timeout after 10s"
+      }
+    ]
+  },
+  "secrets": [],
+  "canned": {
+    "summary": "example.test alan adındaki üç monitör bir dakika içinde zaman aşımına uğradı; aynı kesintinin parçası görünüyorlar.",
+    "hypotheses": [
+      {
+        "cause": "www.example.test de aynı alan adında ve aynı zaman aşımıyla aynı anda düştü.",
+        "confidence": "high",
+        "evidence": [
+          "incident C: aynı alan adı, aynı hata türü"
+        ],
+        "category": "shared_cause",
+        "evidence_refs": [
+          "incident C",
+          "incident A"
+        ]
+      }
+    ],
+    "suggested_actions": [],
+    "unknowns": []
+  }
+}

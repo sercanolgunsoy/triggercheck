@@ -42,6 +42,11 @@ public class Customer
     /// switched on, and selectable on the AI features page.
     /// </summary>
     public string AiLanguage { get; set; } = "en";
+    /// <summary>
+    /// AI-4: grouping of related incidents (proposals at A1, automatic notification grouping at A3). The customer can
+    /// switch it off entirely; then every incident is notified on its own and nothing is proposed.
+    /// </summary>
+    public bool AlertGroupingEnabled { get; set; } = true;
 
     // ---- SLA reports (FEAT-10) ----
     /// <summary>Opt-in: e-mail the monthly SLA report to the customer admins on the 1st of the month.</summary>

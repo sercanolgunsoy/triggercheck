@@ -883,4 +883,10 @@
   <data name="Status pages on custom domains" xml:space="preserve">
     <value>Özel alan adlarında durum sayfaları</value>
   </data>
+  <data name="Grouping suggestions accepted (last {0} days)" xml:space="preserve">
+    <value>Kabul edilen gruplama önerileri (son {0} gün)</value>
+  </data>
+  <data name="{0} accepted, {1} rejected" xml:space="preserve">
+    <value>{0} kabul, {1} ret</value>
+  </data>
 </root>

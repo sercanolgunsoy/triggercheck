@@ -84,6 +84,7 @@ public static partial class EvalGrader
         ["slow_tls"] = ["slow_tls"],
         ["slow_connect"] = ["slow_connect"],
         ["slow_ttfb"] = ["slow_ttfb"],
+        [EvalCorrelation.Label] = ["shared_cause", "independent", "unclear"], // AI-4: graded from expect.keep / leaveOut
         // AI-5: the suggestion the rules made (hypotheses[].category is the suggestion code).
         ["raise_failure_threshold"] = ["raise_failure_threshold"],
         ["raise_timeout"] = ["raise_timeout"],

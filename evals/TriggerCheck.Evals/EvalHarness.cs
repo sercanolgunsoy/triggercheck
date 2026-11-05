@@ -11,6 +11,7 @@ using TriggerCheck.Ai;
 using TriggerCheck.Ai.Client;
 using TriggerCheck.Ai.Execution;
 using TriggerCheck.Ai.Features;
+using TriggerCheck.Ai.Features.Correlation;
 using TriggerCheck.Ai.Interpretation;
 using TriggerCheck.Domain;
 using TriggerCheck.Domain.Entities;
@@ -90,6 +91,7 @@ public static class EvalHarness
         var prompts = new PromptRecorder();
         services.AddScoped<IAiContextProvider>(sp => new RecordingContextProvider(ActivatorUtilities.CreateInstance<IncidentInterpretationProvider>(sp), prompts));
         services.AddScoped<IAiContextProvider>(sp => new RecordingContextProvider(ActivatorUtilities.CreateInstance<SlowdownExplanationProvider>(sp), prompts));
+        services.AddScoped<IAiContextProvider>(sp => new RecordingContextProvider(ActivatorUtilities.CreateInstance<CorrelationGroupingProvider>(sp), prompts));
         services.AddScoped<IAiContextProvider>(sp => new RecordingContextProvider(ActivatorUtilities.CreateInstance<SettingsSuggestionProvider>(sp), prompts));
 
         var report = new EvalReport
@@ -132,13 +134,20 @@ public static class EvalHarness
                     continue;
                 }
                 AiDecision? decision = null;
+                EvalCorrelationSeed? correlation = null;
                 using (var scope = sp.CreateScope())
                 {
                     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-                    var job = await SeedAsync(db, scenario, ct);
+                    AiJob? job;
+                    if (scenario.Feature == AiFeatures.CorrelationGrouping)
+                        job = (correlation = await EvalCorrelation.SeedAsync(scope.ServiceProvider, scenario, ct)).Job;
+                    else
+                        job = await SeedAsync(db, scenario, ct);
                     if (job is not null) decision = await scope.ServiceProvider.GetRequiredService<IAiInterpreter>().RunAsync(job, ct);
                 }
-                var result = EvalGrader.Grade(scenario, recorder.LastRequest, recorder.LastResult, decision, prompts.Last);
+                var result = correlation is not null
+                    ? EvalCorrelation.Grade(scenario, correlation, recorder.LastRequest, recorder.LastResult, decision, prompts.Last)
+                    : EvalGrader.Grade(scenario, recorder.LastRequest, recorder.LastResult, decision, prompts.Last);
                 result.Model = o.ModelFor(scenario.Feature);
                 result.Effort = o.EffortFor(scenario.Feature);
                 result.CostUsd = decision?.CostEstimate ?? 0;

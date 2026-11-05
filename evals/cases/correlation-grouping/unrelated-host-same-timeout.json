@@ -1,0 +1,58 @@
+{
+  "id": "unrelated-host-same-timeout",
+  "feature": "CorrelationGrouping",
+  "language": "en",
+  "description": "A shop API outage; at the same time an unrelated status provider times out.",
+  "expect": {
+    "primaryCause": "candidate_verdicts",
+    "keep": [],
+    "leaveOut": [
+      "Partner status"
+    ]
+  },
+  "group": {
+    "incidents": [
+      {
+        "name": "Cart service",
+        "type": "Http",
+        "target": "https://api.shop.test/cart",
+        "startedMinutesAgo": 6,
+        "cause": "Timeout after 10s"
+      },
+      {
+        "name": "Checkout service",
+        "type": "Http",
+        "target": "https://api.shop.test/checkout",
+        "startedMinutesAgo": 5.5,
+        "cause": "Timeout after 10s"
+      },
+      {
+        "name": "Partner status",
+        "type": "Http",
+        "target": "https://status.partner.test/",
+        "startedMinutesAgo": 5,
+        "cause": "Timeout after 10s"
+      }
+    ]
+  },
+  "secrets": [],
+  "canned": {
+    "summary": "The cart and checkout endpoints on api.shop.test time out together; the partner status page is a separate problem.",
+    "hypotheses": [
+      {
+        "cause": "Different domain and provider; only the timeout matches.",
+        "confidence": "medium",
+        "evidence": [
+          "incident C is on status.partner.test, not shop.test"
+        ],
+        "category": "independent",
+        "evidence_refs": [
+          "incident C",
+          "incident A"
+        ]
+      }
+    ],
+    "suggested_actions": [],
+    "unknowns": []
+  }
+}

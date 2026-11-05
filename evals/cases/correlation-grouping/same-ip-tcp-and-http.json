@@ -1,0 +1,60 @@
+{
+  "id": "same-ip-tcp-and-http",
+  "feature": "CorrelationGrouping",
+  "language": "en",
+  "description": "A database host refuses TCP and its HTTP admin port; another server refuses too.",
+  "expect": {
+    "primaryCause": "candidate_verdicts",
+    "keep": [],
+    "leaveOut": [
+      "Cache port"
+    ]
+  },
+  "group": {
+    "incidents": [
+      {
+        "name": "DB port",
+        "type": "Tcp",
+        "target": "10.20.0.5",
+        "startedMinutesAgo": 6,
+        "cause": "Connection refused",
+        "port": 5432
+      },
+      {
+        "name": "DB admin",
+        "type": "Http",
+        "target": "http://10.20.0.5:8080/status",
+        "startedMinutesAgo": 5.8,
+        "cause": "Connection refused"
+      },
+      {
+        "name": "Cache port",
+        "type": "Tcp",
+        "target": "10.20.0.9",
+        "startedMinutesAgo": 5.5,
+        "cause": "Connection refused",
+        "port": 6379
+      }
+    ]
+  },
+  "secrets": [],
+  "canned": {
+    "summary": "The server 10.20.0.5 refuses connections on both monitored ports. The refusal on 10.20.0.9 is on a different machine.",
+    "hypotheses": [
+      {
+        "cause": "A different IP address; nothing but the error type is shared.",
+        "confidence": "medium",
+        "evidence": [
+          "incident C: host 10.20.0.9, incident A and B: 10.20.0.5"
+        ],
+        "category": "independent",
+        "evidence_refs": [
+          "incident C",
+          "incident A"
+        ]
+      }
+    ],
+    "suggested_actions": [],
+    "unknowns": []
+  }
+}

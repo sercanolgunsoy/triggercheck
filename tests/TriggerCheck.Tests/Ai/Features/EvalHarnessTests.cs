@@ -71,7 +71,8 @@ public class EvalHarnessTests
     [Fact]
     public async Task Harness_with_fake_client_passes_the_gate_and_writes_a_report()
     {
-        var report = await EvalHarness.RunAsync(EvalScenario.LoadAll(CasesDir), new EvalOptions());
+        var all = EvalScenario.LoadAll(CasesDir);
+        var report = await EvalHarness.RunAsync(all, new EvalOptions());
 
         Assert.Equal("fake", report.Mode);
         Assert.All(report.Cases, c => Assert.True(c.Passed, $"{c.Id}: {string.Join("; ", c.Notes)}"));
@@ -115,6 +116,42 @@ public class EvalHarnessTests
         Assert.True(f.PrimaryCauseAccuracy < 0.3);
         Assert.False(report.GatePassed);
         Assert.Contains(report.Cases, c => c.Notes.Any(n => n.Contains("expected one of", StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public void Correlation_cases_cover_keep_leave_out_and_both_languages()
+    {
+        var cases = EvalScenario.LoadAll(CasesDir).Where(c => c.Feature == AiFeatures.CorrelationGrouping).ToList();
+        Assert.True(cases.Count >= 10, $"AI-4 needs labelled scenarios, found {cases.Count}");
+        Assert.Contains(cases, c => c.Expect.Keep.Count > 0);
+        Assert.Contains(cases, c => c.Expect.LeaveOut.Count > 0);
+        Assert.Contains(cases, c => c.Expect.Keep.Count == 0 && c.Expect.LeaveOut.Count == 0); // explanation only
+        Assert.Contains(cases, c => c.Language == "tr");
+        Assert.Contains(cases, c => c.Secrets.Count > 0);
+    }
+
+    [Fact]
+    public async Task Correlation_answers_that_group_everything_fail_the_gate()
+    {
+        var cases = EvalScenario.LoadAll(CasesDir).Where(c => c.Feature == AiFeatures.CorrelationGrouping).ToList();
+        // Every candidate ("incident C".."incident E") is declared part of the group with high confidence.
+        var greedy = JsonNode.Parse(JsonSerializer.Serialize(new
+        {
+            summary = "All incidents share one cause.",
+            hypotheses = new[] { "C", "D", "E" }.Select(l => new { cause = "same time", confidence = "high", evidence = new[] { "same window" },
+                category = "shared_cause", evidence_refs = new[] { "incident " + l } }).ToArray(),
+            suggested_actions = Array.Empty<object>(),
+            unknowns = Array.Empty<string>(),
+        }))!;
+        foreach (var c in cases) c.Canned = greedy.DeepClone();
+
+        var report = await EvalHarness.RunAsync(cases, new EvalOptions());
+
+        var f = Assert.Single(report.Features);
+        Assert.Equal(AiFeatures.CorrelationGrouping, f.Feature);
+        Assert.True(f.PrimaryCauseAccuracy < 0.6, $"accuracy {f.PrimaryCauseAccuracy}");
+        Assert.False(report.GatePassed);
+        Assert.Contains(report.Cases, c => c.Id == "unrelated-host-same-timeout" && !c.PrimaryCauseOk);
     }
 
     [Fact]

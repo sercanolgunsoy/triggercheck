@@ -83,6 +83,8 @@ public static class DependencyInjection
         services.AddSingleton<INotifier, TwilioSmsNotifier>();
         services.AddSingleton<INotifier, TwilioVoiceNotifier>();
         services.AddScoped<IAlertDispatcher, AlertDispatcher>();
+        // AI-4 (A3): the AI layer may register a notification grouping; without it every alert is sent on its own.
+        services.TryAddScoped<IAlertGrouping, NoAlertGrouping>();
         // Runner -> bounded queue -> sender (own concurrency, timeouts, retries). Registered before the scheduler so
         // it stops after it (hosted services stop in reverse order) and can drain the last alerts.
         services.AddSingleton<AlertDeliveryThrottle>();

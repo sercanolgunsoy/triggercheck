@@ -2059,4 +2059,142 @@
   <data name="Review the values and click Create to save. Nothing has been saved yet." xml:space="preserve">
     <value>Değerleri gözden geçirin ve kaydetmek için Oluştur'a tıklayın. Henüz hiçbir şey kaydedilmedi.</value>
   </data>
+  <data name="AI: likely separate" xml:space="preserve">
+    <value>YZ: muhtemelen ayrı</value>
+  </data>
+  <data name="AI: likely the same cause" xml:space="preserve">
+    <value>YZ: muhtemelen aynı neden</value>
+  </data>
+  <data name="Accepted" xml:space="preserve">
+    <value>Kabul edildi</value>
+  </data>
+  <data name="Accepted suggestions (last {0} days)" xml:space="preserve">
+    <value>Kabul edilen öneriler (son {0} gün)</value>
+  </data>
+  <data name="Group the selected incidents" xml:space="preserve">
+    <value>Seçili olayları grupla</value>
+  </data>
+  <data name="Group these {0} incidents?" xml:space="preserve">
+    <value>Bu {0} olay gruplansın mı?</value>
+  </data>
+  <data name="Grouped automatically" xml:space="preserve">
+    <value>Otomatik gruplandı</value>
+  </data>
+  <data name="Grouped incidents" xml:space="preserve">
+    <value>Gruplanan olaylar</value>
+  </data>
+  <data name="Grouped under" xml:space="preserve">
+    <value>Şu olayın altında gruplandı:</value>
+  </data>
+  <data name="Grouping of related incidents is currently unavailable. Every incident is notified on its own." xml:space="preserve">
+    <value>İlişkili olayların gruplanması şu anda kullanılamıyor. Her olay için ayrı bildirim gönderilir.</value>
+  </data>
+  <data name="Grouping of related incidents is not included in your plan." xml:space="preserve">
+    <value>İlişkili olayların gruplanması planınıza dahil değil.</value>
+  </data>
+  <data name="Grouping of related incidents is part of the AI features, which are turned off for your account." xml:space="preserve">
+    <value>İlişkili olayların gruplanması, hesabınızda kapalı olan yapay zekâ özelliklerinin bir parçasıdır.</value>
+  </data>
+  <data name="Grouping of related incidents is switched off. Every incident is notified on its own." xml:space="preserve">
+    <value>İlişkili olayların gruplanması kapalı. Her olay için ayrı bildirim gönderilir.</value>
+  </data>
+  <data name="Grouping of related incidents was switched off. Every incident is notified on its own." xml:space="preserve">
+    <value>İlişkili olayların gruplanması kapatıldı. Her olay için ayrı bildirim gönderilir.</value>
+  </data>
+  <data name="Grouping of related incidents was switched on." xml:space="preserve">
+    <value>İlişkili olayların gruplanması açıldı.</value>
+  </data>
+  <data name="Keep in group" xml:space="preserve">
+    <value>Grupta tut</value>
+  </data>
+  <data name="Keep separate" xml:space="preserve">
+    <value>Ayrı tut</value>
+  </data>
+  <data name="Monitors that go down within a few minutes of each other with the same signals (same host or IP, same error type) can be grouped into one primary incident and the affected ones. Grouping only combines notifications: no incident is closed or hidden, and monitors left out of a group are notified on their own." xml:space="preserve">
+    <value>Birkaç dakika içinde aynı sinyallerle (aynı sunucu veya IP, aynı hata türü) çöken monitörler tek bir ana olay ve etkilenenler olarak gruplanabilir. Gruplama yalnızca bildirimleri birleştirir: hiçbir olay kapatılmaz veya gizlenmez, grup dışında kalan monitörler ayrı bildirim alır.</value>
+  </data>
+  <data name="No groups yet." xml:space="preserve">
+    <value>Henüz grup yok.</value>
+  </data>
+  <data name="No suggestions right now." xml:space="preserve">
+    <value>Şu anda öneri yok.</value>
+  </data>
+  <data name="Notifications of related incidents are combined: the first incident is notified at once, related ones that follow are listed in one short follow-up instead of separate alerts. When it recovers, or after {0} minutes, monitors still down are notified on their own." xml:space="preserve">
+    <value>İlişkili olayların bildirimleri birleştirilir: ilk olay hemen bildirilir, ardından gelen ilişkili olaylar ayrı uyarılar yerine tek bir kısa takip mesajında listelenir. İlk olay düzeldiğinde veya {0} dakika sonra, hâlâ çalışmayan monitörler ayrı ayrı bildirilir.</value>
+  </data>
+  <data name="Possibly related" xml:space="preserve">
+    <value>Muhtemelen ilişkili</value>
+  </data>
+  <data name="Primary" xml:space="preserve">
+    <value>Ana olay</value>
+  </data>
+  <data name="Primary incident" xml:space="preserve">
+    <value>Ana olay (grup)</value>
+  </data>
+  <data name="Primary incident of a group" xml:space="preserve">
+    <value>Bir grubun ana olayı</value>
+  </data>
+  <data name="Recent groups" xml:space="preserve">
+    <value>Son gruplar</value>
+  </data>
+  <data name="Rejected" xml:space="preserve">
+    <value>Reddedildi</value>
+  </data>
+  <data name="Related incidents" xml:space="preserve">
+    <value>İlişkili olaylar</value>
+  </data>
+  <data name="Same signals" xml:space="preserve">
+    <value>Aynı sinyaller</value>
+  </data>
+  <data name="Suggested" xml:space="preserve">
+    <value>Önerildi</value>
+  </data>
+  <data name="Suggestions" xml:space="preserve">
+    <value>Öneriler</value>
+  </data>
+  <data name="Switch grouping off" xml:space="preserve">
+    <value>Gruplamayı kapat</value>
+  </data>
+  <data name="Switch grouping on" xml:space="preserve">
+    <value>Gruplamayı aç</value>
+  </data>
+  <data name="The group was undone. Monitors that are still down are notified on their own." xml:space="preserve">
+    <value>Gruplama geri alındı. Hâlâ çalışmayan monitörler ayrı ayrı bildirilir.</value>
+  </data>
+  <data name="The incidents were grouped." xml:space="preserve">
+    <value>Olaylar gruplandı.</value>
+  </data>
+  <data name="The suggestion was rejected. The incidents stay separate." xml:space="preserve">
+    <value>Öneri reddedildi. Olaylar ayrı kalır.</value>
+  </data>
+  <data name="This suggestion was already decided." xml:space="preserve">
+    <value>Bu öneri için zaten karar verilmiş.</value>
+  </data>
+  <data name="TriggerCheck suggests groups of related incidents for you to accept or reject. Notifications are not changed." xml:space="preserve">
+    <value>TriggerCheck, kabul etmeniz veya reddetmeniz için ilişkili olay grupları önerir. Bildirimler değişmez.</value>
+  </data>
+  <data name="Undo grouping" xml:space="preserve">
+    <value>Gruplamayı geri al</value>
+  </data>
+  <data name="Undone" xml:space="preserve">
+    <value>Geri alındı</value>
+  </data>
+  <data name="same IP address" xml:space="preserve">
+    <value>aynı IP adresi</value>
+  </data>
+  <data name="same domain" xml:space="preserve">
+    <value>aynı alan adı</value>
+  </data>
+  <data name="same error type" xml:space="preserve">
+    <value>aynı hata türü</value>
+  </data>
+  <data name="same host" xml:space="preserve">
+    <value>aynı sunucu</value>
+  </data>
+  <data name="started within a few minutes" xml:space="preserve">
+    <value>birkaç dakika içinde başladı</value>
+  </data>
+  <data name="{0} accepted, {1} rejected" xml:space="preserve">
+    <value>{0} kabul, {1} ret</value>
+  </data>
 </root>

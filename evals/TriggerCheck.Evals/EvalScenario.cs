@@ -29,6 +29,8 @@ public sealed class EvalScenario
     public EvalAnomaly? Anomaly { get; set; }
     public List<EvalPeriod> Maintenance { get; set; } = [];
     public double? BaselineMedianMs { get; set; }
+    /// <summary>AI-4 (CorrelationGrouping): the incidents around the outage. Required for that feature.</summary>
+    public EvalGroup? Group { get; set; }
     /// <summary>Planted strings (credentials, URL paths, e-mail addresses) that must never reach the model.</summary>
     public List<string> Secrets { get; set; } = [];
     /// <summary>AI-9: the text the customer types into the monitor setup assistant. Required for MonitorSetupAssistant.</summary>
@@ -66,6 +68,7 @@ public sealed class EvalScenario
             if (s.Feature == AiFeatures.SlowdownExplanation && s.Anomaly is null) throw new InvalidDataException($"{file}: anomaly missing");
             if (s.Feature == AiFeatures.QuestionAnswer && (string.IsNullOrWhiteSpace(s.Question) || s.QaMonitors.Count == 0)) throw new InvalidDataException($"{file}: question or qaMonitors missing");
             if (s.Feature == AiFeatures.MonitorSetupAssistant && string.IsNullOrWhiteSpace(s.Request)) throw new InvalidDataException($"{file}: request missing");
+            if (s.Feature == AiFeatures.CorrelationGrouping && s.Group is null) throw new InvalidDataException($"{file}: group missing");
             if (!EvalGrader.Labels.ContainsKey(s.Expect.PrimaryCause)) throw new InvalidDataException($"{file}: unknown label '{s.Expect.PrimaryCause}'");
             result.Add(s);
         }
@@ -103,6 +106,10 @@ public sealed class EvalExpectation
     public Dictionary<string, JsonElement>? Fields { get; set; }
     /// <summary>AI-9: server-side adjustments that must be reported (MonitorSetupNoteKind names).</summary>
     public List<string> Notes { get; set; } = [];
+    /// <summary>AI-4: monitor names of the candidates that belong to the group (the model must recommend exactly these).</summary>
+    public List<string> Keep { get; set; } = [];
+    /// <summary>AI-4: monitor names of the candidates that must be left out (they keep their own notifications).</summary>
+    public List<string> LeaveOut { get; set; } = [];
 }
 
 public sealed class EvalMonitor

@@ -85,6 +85,7 @@ public sealed class TwilioSmsNotifier(IHttpClientFactory f, IOptionsMonitor<Twil
                               + (string.IsNullOrEmpty(m.Error) ? "" : $" - {AlertMessage.OneLine(m.Error)}"),
             AlertKind.Escalation => $"TriggerCheck ESCALATION {m.EscalationLevel}: {AlertMessage.OneLine(m.MonitorName)} ({m.MaskedTarget}) still DOWN, not acknowledged"
                                     + (m.DowntimeText is { } down ? $", down for {down}" : ""),
+            AlertKind.GroupUpdate => $"TriggerCheck ALSO DOWN (same cause as {AlertMessage.OneLine(m.MonitorName)}): {m.AffectedText}",
             _ => $"TriggerCheck UP: {AlertMessage.OneLine(m.MonitorName)} ({m.MaskedTarget}) {m.OccurredAtUtc:HH:mm} UTC"
                  + (m.DowntimeText is { } d ? $", down for {d}" : "")
                  + (m.DuringMaintenance ? " (during maintenance)" : "")
@@ -111,6 +112,8 @@ public sealed class TwilioVoiceNotifier(IHttpClientFactory f, IOptionsMonitor<Tw
             AlertKind.Escalation => $"TriggerCheck escalation. Monitor {name} is still down and nobody has acknowledged the incident.",
             // Not routed to voice calls by AlertDispatcher (a certificate warning is not worth a phone call); kept for completeness.
             AlertKind.CertificateExpiring => $"TriggerCheck notice. The certificate of monitor {name} expires in {m.CertificateDaysLeft ?? 0} days.",
+            // Not routed to voice calls either (the primary already paged).
+            AlertKind.GroupUpdate => $"TriggerCheck notice. More monitors are down, likely for the same cause as monitor {name}.",
             _ => "This is a test call from TriggerCheck. Your alert channel works."
         };
         // Control characters are not allowed in XML at all (escaping does not help): drop them.
