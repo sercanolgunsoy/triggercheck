@@ -68,7 +68,7 @@ public sealed class NarrativeReportJob(AppDbContext db, IAiInterpreter interpret
     /// of another instance wins quietly); a finished row with another time zone or language, or any finished row when
     /// <paramref name="reset"/> is set (except Ready), goes back to Requested. Running rows are never touched.
     /// </summary>
-    /// <returns>True when a row is now waiting for (or being given to) the job.</returns>
+    /// <returns>True: the period has a narrative row (new, reset, queued, running or ready); false: a finished row was kept.</returns>
     public static async Task<bool> EnsureRequestedAsync(AppDbContext db, int customerId, NarrativePeriod period, string timeZoneId, string language,
         DateTime now, bool reset, CancellationToken ct)
     {
@@ -110,7 +110,7 @@ public sealed class NarrativeReportJob(AppDbContext db, IAiInterpreter interpret
                     .SetProperty(r => r.CompletedAtUtc, (DateTime?)null), ct);
             return true;
         }
-        return row.Status is ReportNarrativeStatus.Requested or ReportNarrativeStatus.Running;
+        return row.Status is ReportNarrativeStatus.Requested or ReportNarrativeStatus.Running or ReportNarrativeStatus.Ready;
     }
 
     private async Task<int> ProcessAsync(CancellationToken ct)
