@@ -21,8 +21,26 @@ public sealed record AiJob(string Feature, int CustomerId, string SubjectType, s
 /// </param>
 /// <param name="EvidenceKeys">Keys of the evidence items present in <paramref name="UserContent"/> ("check #1234", "ttfb", ...).</param>
 /// <param name="RefAllowed">(category, key) → whether that key may support a hypothesis of that category.</param>
+/// <param name="Output">
+/// Optional own output contract (schema + validation) for features whose answer is not an AiInterpretation (AI-6
+/// narrative). Null: the shared interpretation schema and L3 validation.
+/// </param>
 public sealed record AiPrompt(string FeatureInstructions, string UserContent, IReadOnlyList<string> AllowedActions,
-    IReadOnlyList<string>? Categories = null, IReadOnlySet<string>? EvidenceKeys = null, Func<string, string, bool>? RefAllowed = null);
+    IReadOnlyList<string>? Categories = null, IReadOnlySet<string>? EvidenceKeys = null, Func<string, string, bool>? RefAllowed = null,
+    IAiOutputContract? Output = null);
+
+/// <summary>A feature-specific structured output: the JSON schema sent to the model and the validation of its answer.</summary>
+public interface IAiOutputContract
+{
+    IReadOnlyDictionary<string, System.Text.Json.JsonElement> Schema { get; }
+
+    /// <summary>Validated JSON to store, or null JSON with an error code (the decision becomes Failed).</summary>
+    AiOutputCheck Check(string? json);
+}
+
+/// <param name="Json">Validated output to store (null: rejected).</param>
+/// <param name="ErrorCode">Short machine code when rejected, e.g. "invalid_output".</param>
+public sealed record AiOutputCheck(string? Json, string? ErrorCode = null);
 
 /// <summary>
 /// Builds the model input for one feature (registered per feature in DI). Must load data only through

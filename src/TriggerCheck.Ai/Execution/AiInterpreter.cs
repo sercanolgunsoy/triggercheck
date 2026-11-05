@@ -90,7 +90,7 @@ public sealed class AiInterpreter(
         if (prompt is null) return null;
 
         var system = AiPrompts.For(prompt.FeatureInstructions);
-        var schema = AiInterpretationSchema.Build(prompt.AllowedActions, prompt.Categories);
+        var schema = prompt.Output?.Schema ?? AiInterpretationSchema.Build(prompt.AllowedActions, prompt.Categories);
         decision.InputHash = Hash(decision.Model, decision.Effort, system, JsonSerializer.Serialize(schema), prompt.UserContent);
 
         // Identical input: reuse the succeeded answer, or wait out the cool-down after a refusal / failure.
@@ -142,6 +142,20 @@ public sealed class AiInterpreter(
 
             switch (result.Outcome)
             {
+                case AiCallOutcome.Succeeded when prompt.Output is not null:
+                    // Feature-specific contract (e.g. AI-6 narrative: only numbers from the input).
+                    var check = prompt.Output.Check(result.Json);
+                    if (check.Json is null)
+                    {
+                        logger.LogWarning("AI output for {Feature} {SubjectType} {SubjectId} was rejected: {Code}", feature.Name, job.SubjectType, job.SubjectId, check.ErrorCode);
+                        decision.Status = AiDecisionStatus.Failed;
+                        decision.ErrorCode = AiCallResult.SafeCode(check.ErrorCode) ?? "invalid_output";
+                        break;
+                    }
+                    decision.OutputJson = check.Json;
+                    decision.AutonomyLevel = AiAutonomy.A0;
+                    decision.Status = AiDecisionStatus.Succeeded;
+                    break;
                 case AiCallOutcome.Succeeded:
                     var parsed = AiInterpretation.TryParse(result.Json);
                     // Category / evidence_refs contract first (drops ungrounded hypotheses), then the general L3 policy.

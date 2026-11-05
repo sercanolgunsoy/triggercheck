@@ -37,6 +37,9 @@ public sealed class AiOptions
 
     public AiEventOptions Events { get; set; } = new();
 
+    /// <summary>AI-6 narrative report batch job ("Ai:Narrative", see <see cref="global::TriggerCheck.Ai.Narrative.AiNarrativeOptions"/>).</summary>
+    public global::TriggerCheck.Ai.Narrative.AiNarrativeOptions Narrative { get; set; } = new();
+
     public static readonly IReadOnlySet<string> Efforts = new HashSet<string> { "low", "medium", "high", "xhigh", "max" };
 
     /// <summary>Unknown effort values (default and per feature); checked at startup.</summary>

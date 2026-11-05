@@ -35,6 +35,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
     public DbSet<StatusPageNote> StatusPageNotes => Set<StatusPageNote>();
     public DbSet<StatusPageEvent> StatusPageEvents => Set<StatusPageEvent>();
     public DbSet<MonthlyReportDelivery> MonthlyReportDeliveries => Set<MonthlyReportDelivery>();
+    public DbSet<ReportNarrative> ReportNarratives => Set<ReportNarrative>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -284,6 +285,17 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
             e.HasOne<Customer>().WithMany().HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Cascade);
             e.Property(x => x.Month).HasMaxLength(7).IsRequired();
             e.HasIndex(x => new { x.CustomerId, x.Month }).IsUnique();
+        });
+
+        // AI-6: one narrative per customer and report period (also the cross-instance claim of the batch job).
+        b.Entity<ReportNarrative>(e =>
+        {
+            e.HasOne<Customer>().WithMany().HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Cascade);
+            e.Property(x => x.PeriodKey).HasMaxLength(8).IsRequired();
+            e.Property(x => x.TimeZoneId).HasMaxLength(64).IsRequired();
+            e.Property(x => x.Language).HasMaxLength(8);
+            e.HasIndex(x => new { x.CustomerId, x.Kind, x.PeriodKey }).IsUnique();
+            e.HasIndex(x => x.Status);
         });
 
         b.Entity<ApiKey>(e =>

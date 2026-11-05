@@ -10,13 +10,15 @@ using TriggerCheck.Ai.Context;
 using TriggerCheck.Ai.Execution;
 using TriggerCheck.Ai.Features;
 using TriggerCheck.Ai.Interpretation;
+using TriggerCheck.Ai.Narrative;
+using TriggerCheck.Monitoring.Reporting;
 
 namespace TriggerCheck.Ai;
 
 public static class DependencyInjection
 {
     /// <summary>
-    /// Registers the AI layer (AI-0, AI-1, AI-2, AI-3, AI-10). The real Claude client is used only when Ai:Enabled is true AND a key
+    /// Registers the AI layer (AI-0, AI-1, AI-2, AI-3, AI-6, AI-10). The real Claude client is used only when Ai:Enabled is true AND a key
     /// is configured (Ai:ApiKey or ANTHROPIC_API_KEY); otherwise <see cref="UnavailableAiClient"/> reports "AI
     /// unavailable" and every job is recorded as skipped. Tests replace <see cref="IAiClient"/> with
     /// <see cref="FakeAiClient"/>. The monitoring layer does not depend on this project.
@@ -53,6 +55,13 @@ public static class DependencyInjection
         services.AddScoped<IAiContextProvider, SlowdownExplanationProvider>();
         services.AddScoped<AiEventScanner>();
         services.AddHostedService<AiEventWatcher>();
+
+        // AI-6: narrative SLA reports (batch job; the report page and the monthly e-mail only read).
+        services.TryAddScoped<SlaReportService>();
+        services.AddScoped<IAiContextProvider, NarrativeReportProvider>();
+        services.AddScoped<NarrativeReportJob>();
+        services.AddScoped<NarrativeReports>();
+        services.AddHostedService<NarrativeReportService>();
 
         services.AddScoped<BaselineJob>();
         services.AddHostedService<BaselineHostedService>();
