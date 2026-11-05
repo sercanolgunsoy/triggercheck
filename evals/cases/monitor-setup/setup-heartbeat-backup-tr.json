@@ -1,0 +1,18 @@
+{
+  "id": "setup-heartbeat-backup-tr",
+  "feature": "MonitorSetupAssistant",
+  "language": "tr",
+  "description": "Turkish: daily backup job, alert after one hour of delay: heartbeat with a grace period.",
+  "request": "Gece yedekleme işim her gün çalışıyor, bir saatten fazla gecikirse haber ver",
+  "expect": {
+    "primaryCause": "setup_form",
+    "fields": { "type": "Heartbeat", "target": "", "intervalSeconds": 86400, "gracePeriodSeconds": 3600 }
+  },
+  "canned": {
+    "outcome": "form", "clarification": null,
+    "explanation": "Bir heartbeat monitörü yedekleme işinin her gün ping göndermesini bekler; ping bir saatten fazla gecikirse alarm verilir.",
+    "type": "heartbeat", "name": "Gece yedekleme", "target": null, "port": null, "keyword": null,
+    "http_method": null, "expected_status_codes": null, "interval_seconds": 86400, "timeout_seconds": null, "failure_threshold": null,
+    "dns_record_type": null, "json_path": null, "assertion_operator": null, "expected_value": null, "grace_period_seconds": 3600
+  }
+}

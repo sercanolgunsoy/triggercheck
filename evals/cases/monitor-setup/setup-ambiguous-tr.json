@@ -1,0 +1,16 @@
+{
+  "id": "setup-ambiguous-tr",
+  "feature": "MonitorSetupAssistant",
+  "language": "tr",
+  "description": "Turkish: no address given; a clarification question in Turkish.",
+  "request": "sitemi izle",
+  "expect": { "primaryCause": "setup_clarify" },
+  "canned": {
+    "outcome": "clarify",
+    "clarification": "Hangi sitenin izlenmesini istiyorsunuz? Lütfen adresini yazın.",
+    "explanation": "İstekte izlenecek bir adres yok.",
+    "type": null, "name": null, "target": null, "port": null, "keyword": null,
+    "http_method": null, "expected_status_codes": null, "interval_seconds": null, "timeout_seconds": null, "failure_threshold": null,
+    "dns_record_type": null, "json_path": null, "assertion_operator": null, "expected_value": null, "grace_period_seconds": null
+  }
+}

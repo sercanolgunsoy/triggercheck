@@ -1987,4 +1987,76 @@
   <data name="(unknown record)" xml:space="preserve">
     <value>(bilinmeyen kayıt)</value>
   </data>
+  <data name="Describe what to monitor" xml:space="preserve">
+    <value>Neyi izlemek istediğinizi yazın</value>
+  </data>
+  <data name="e.g. Check example.com/checkout every minute and alert if the text 'Pay now' is missing" xml:space="preserve">
+    <value>ör. example.com/odeme sayfasını dakikada bir kontrol et, 'Şimdi öde' yazısı yoksa alarm ver</value>
+  </data>
+  <data name="The assistant only fills in the form below; nothing is saved until you click Create. Links are shared with the AI as host name only, and text in quotes is not shared at all." xml:space="preserve">
+    <value>Asistan yalnızca aşağıdaki formu doldurur; Oluştur'a tıklayana kadar hiçbir şey kaydedilmez. Bağlantılar yapay zekâyla yalnızca sunucu adı olarak paylaşılır, tırnak içindeki metin hiç paylaşılmaz.</value>
+  </data>
+  <data name="Fill in the form" xml:space="preserve">
+    <value>Formu doldur</value>
+  </data>
+  <data name="Monitor setup assistant" xml:space="preserve">
+    <value>Monitör kurulum asistanı</value>
+  </data>
+  <data name="You asked for a check every {0}. Your plan ({1}) allows {2} at the fastest, so {2} was set." xml:space="preserve">
+    <value>{0} aralıkla kontrol istediniz. Planınız ({1}) en sık {2} aralığa izin veriyor, bu yüzden {2} ayarlandı.</value>
+  </data>
+  <data name="A check every {0} is not offered; {1} was set." xml:space="preserve">
+    <value>{0} kontrol aralığı sunulmuyor; {1} ayarlandı.</value>
+  </data>
+  <data name="The timeout was changed from {0} s to {1} s (it must be 1-60 s and shorter than the check interval)." xml:space="preserve">
+    <value>Zaman aşımı {0} sn yerine {1} sn yapıldı (1-60 sn arasında ve kontrol aralığından kısa olmalı).</value>
+  </data>
+  <data name="The failure threshold was changed from {0} to {1} (allowed: 1-5)." xml:space="preserve">
+    <value>Hata eşiği {0} yerine {1} yapıldı (izin verilen: 1-5).</value>
+  </data>
+  <data name="The grace period was changed from {0} s to {1} s (allowed: {2}-{3} s)." xml:space="preserve">
+    <value>Tolerans süresi {0} sn yerine {1} sn yapıldı (izin verilen: {2}-{3} sn).</value>
+  </data>
+  <data name="The suggested port is not valid; enter a port between 1 and 65535." xml:space="preserve">
+    <value>Önerilen port geçerli değil; 1 ile 65535 arasında bir port girin.</value>
+  </data>
+  <data name="The user name and password were removed from the address; credentials in the URL are not supported." xml:space="preserve">
+    <value>Kullanıcı adı ve parola adresten çıkarıldı; URL içinde kimlik bilgisi desteklenmez.</value>
+  </data>
+  <data name="GET is used instead of HEAD because keyword and JSON monitors need the response body." xml:space="preserve">
+    <value>Anahtar kelime ve JSON monitörleri yanıt gövdesine ihtiyaç duyduğu için HEAD yerine GET kullanıldı.</value>
+  </data>
+  <data name="The suggested status codes were not valid; the default 200-299 is used." xml:space="preserve">
+    <value>Önerilen durum kodları geçerli değildi; varsayılan 200-299 kullanıldı.</value>
+  </data>
+  <data name="The assistant referred to text that is not in your request; that value was left empty." xml:space="preserve">
+    <value>Asistan isteğinizde olmayan bir metne başvurdu; bu değer boş bırakıldı.</value>
+  </data>
+  <data name="Your description was too long and was shortened." xml:space="preserve">
+    <value>Açıklamanız çok uzundu ve kısaltıldı.</value>
+  </data>
+  <data name="Describe the monitor you need first." xml:space="preserve">
+    <value>Önce ihtiyacınız olan monitörü tarif edin.</value>
+  </data>
+  <data name="The AI budget of your plan is used up this month. Please fill in the form yourself." xml:space="preserve">
+    <value>Planınızın bu ayki yapay zekâ bütçesi doldu. Lütfen formu kendiniz doldurun.</value>
+  </data>
+  <data name="You have used the assistant often in the last hour. Please try again later or fill in the form yourself." xml:space="preserve">
+    <value>Asistanı son bir saatte çok sık kullandınız. Lütfen daha sonra tekrar deneyin veya formu kendiniz doldurun.</value>
+  </data>
+  <data name="The assistant could not fill in the form this time. Please try again or fill it in yourself." xml:space="preserve">
+    <value>Asistan bu sefer formu dolduramadı. Lütfen tekrar deneyin veya formu kendiniz doldurun.</value>
+  </data>
+  <data name="The assistant is not available for your account." xml:space="preserve">
+    <value>Asistan hesabınız için kullanılamıyor.</value>
+  </data>
+  <data name="The assistant could not tell which kind of monitor you need. Please name the address or host and what to check." xml:space="preserve">
+    <value>Asistan hangi tür monitöre ihtiyacınız olduğunu anlayamadı. Lütfen adresi veya sunucuyu ve neyin kontrol edileceğini belirtin.</value>
+  </data>
+  <data name="Some suggested values need your attention; see the highlighted fields." xml:space="preserve">
+    <value>Önerilen bazı değerler kontrol etmenizi gerektiriyor; işaretli alanlara bakın.</value>
+  </data>
+  <data name="Review the values and click Create to save. Nothing has been saved yet." xml:space="preserve">
+    <value>Değerleri gözden geçirin ve kaydetmek için Oluştur'a tıklayın. Henüz hiçbir şey kaydedilmedi.</value>
+  </data>
 </root>

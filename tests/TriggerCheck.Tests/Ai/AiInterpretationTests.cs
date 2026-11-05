@@ -117,7 +117,7 @@ public class AiInterpretationTests
     [Fact]
     public void Feature_catalog_and_plan_rules()
     {
-        Assert.Equal(7, AiFeatures.All.Count);
+        Assert.Equal(8, AiFeatures.All.Count);
         Assert.Equal(AiAutonomy.A1, AiFeatures.Find(AiFeatures.CorrelationGrouping)!.MaxAutonomy); // K3: starts at A1
         Assert.Equal(AiAutonomy.A2, AiFeatures.Find(AiFeatures.PostmortemDraft)!.MaxAutonomy);
         Assert.Equal("IncidentInterpretation,SlowdownExplanation", AiFeatures.Format(["SlowdownExplanation", "bogus", "IncidentInterpretation"]));

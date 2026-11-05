@@ -31,6 +31,10 @@ public sealed class EvalScenario
     public double? BaselineMedianMs { get; set; }
     /// <summary>Planted strings (credentials, URL paths, e-mail addresses) that must never reach the model.</summary>
     public List<string> Secrets { get; set; } = [];
+    /// <summary>AI-9: the text the customer types into the monitor setup assistant. Required for MonitorSetupAssistant.</summary>
+    public string? Request { get; set; }
+    /// <summary>AI-9: the plan's minimum check interval (default 15 s), to label the clamping.</summary>
+    public int? PlanMinIntervalSeconds { get; set; }
     /// <summary>Model answer used in fake mode (CI): a well-formed, correct interpretation for the case.</summary>
     public JsonNode? Canned { get; set; }
     /// <summary>AI-7 (QuestionAnswer): the question, the customer's monitors, another tenant's monitors and the scripted turns (see <see cref="EvalQa"/>).</summary>
@@ -61,6 +65,7 @@ public sealed class EvalScenario
             if (s.Feature == AiFeatures.IncidentInterpretation && s.Incident is null) throw new InvalidDataException($"{file}: incident missing");
             if (s.Feature == AiFeatures.SlowdownExplanation && s.Anomaly is null) throw new InvalidDataException($"{file}: anomaly missing");
             if (s.Feature == AiFeatures.QuestionAnswer && (string.IsNullOrWhiteSpace(s.Question) || s.QaMonitors.Count == 0)) throw new InvalidDataException($"{file}: question or qaMonitors missing");
+            if (s.Feature == AiFeatures.MonitorSetupAssistant && string.IsNullOrWhiteSpace(s.Request)) throw new InvalidDataException($"{file}: request missing");
             if (!EvalGrader.Labels.ContainsKey(s.Expect.PrimaryCause)) throw new InvalidDataException($"{file}: unknown label '{s.Expect.PrimaryCause}'");
             result.Add(s);
         }
@@ -91,6 +96,13 @@ public sealed class EvalExpectation
     public List<string> Tools { get; set; } = [];
     /// <summary>AI-7: text the answer must not contain (e.g. a link planted in an error text).</summary>
     public List<string> NotInAnswer { get; set; } = [];
+    /// <summary>
+    /// AI-9: expected values of the pre-filled form (property names of MonitorSetupFields in camelCase, enums as names,
+    /// e.g. "type": "Keyword", "intervalSeconds": 60). Fields not listed are not graded.
+    /// </summary>
+    public Dictionary<string, JsonElement>? Fields { get; set; }
+    /// <summary>AI-9: server-side adjustments that must be reported (MonitorSetupNoteKind names).</summary>
+    public List<string> Notes { get; set; } = [];
 }
 
 public sealed class EvalMonitor

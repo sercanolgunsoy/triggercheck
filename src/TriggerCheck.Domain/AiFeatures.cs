@@ -3,7 +3,7 @@ using TriggerCheck.Domain.Entities;
 namespace TriggerCheck.Domain;
 
 /// <summary>
-/// Catalog of the AI features (docs/BACKLOG.md, AI-2..AI-8) and the plan rules for them (AI-10). A plan stores the
+/// Catalog of the AI features (docs/BACKLOG.md, AI-2..AI-9) and the plan rules for them (AI-10). A plan stores the
 /// names of its features in <see cref="Plan.AiFeatures"/>.
 /// </summary>
 public static class AiFeatures
@@ -15,6 +15,7 @@ public static class AiFeatures
     public const string NarrativeReport = "NarrativeReport";                 // AI-6
     public const string QuestionAnswer = "QuestionAnswer";                   // AI-7
     public const string PostmortemDraft = "PostmortemDraft";                 // AI-8
+    public const string MonitorSetupAssistant = "MonitorSetupAssistant";     // AI-9
 
     /// <param name="MaxAutonomy">Highest autonomy level the feature may produce today; model output is clamped to it.</param>
     public sealed record Info(string Name, string BacklogId, AiAutonomy MaxAutonomy);
@@ -25,6 +26,7 @@ public static class AiFeatures
         new(IncidentInterpretation, "AI-2", AiAutonomy.A0),
         new(SlowdownExplanation, "AI-3", AiAutonomy.A0),
         new(SettingsSuggestions, "AI-5", AiAutonomy.A1),
+        new(MonitorSetupAssistant, "AI-9", AiAutonomy.A1), // fills the create form, never saves
         new(CorrelationGrouping, "AI-4", AiAutonomy.A1),
         new(NarrativeReport, "AI-6", AiAutonomy.A0),
         new(QuestionAnswer, "AI-7", AiAutonomy.A0),

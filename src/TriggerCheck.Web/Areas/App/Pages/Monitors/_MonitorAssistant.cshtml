@@ -1,0 +1,41 @@
+@model TriggerCheck.Web.Areas.App.Pages.Monitors.CreateModel
+@*
+    AI-9 monitor setup assistant (autonomy A1). The description is posted to the Assist handler, which re-renders the page
+    with the form below pre-filled and validated. The assistant never saves: only the form's Create button does. Hidden
+    when AI is off, the customer opted out or the plan does not include it. Model text is HTML-encoded by Razor.
+*@
+@{
+    var a = Model.Assistant;
+}
+<section class="card mb-3" id="monitor-assistant" aria-labelledby="monitor-assistant-title">
+    <div class="card-body">
+        <h3 class="h6 d-flex align-items-center gap-2" id="monitor-assistant-title">
+            <span class="badge text-bg-info ai-badge">@Icons.Get("sparkles", 12) AI</span> @L["Describe what to monitor"]
+        </h3>
+        <form method="post" asp-page="Create" asp-page-handler="Assist" class="m-0">
+            <label for="assistant-request" class="form-label visually-hidden">@L["Describe what to monitor"]</label>
+            <textarea id="assistant-request" name="assistantRequest" class="form-control" rows="2" maxlength="1000"
+                      aria-describedby="assistant-help" placeholder="@L["e.g. Check example.com/checkout every minute and alert if the text 'Pay now' is missing"]">@a.Request</textarea>
+            <div class="form-text" id="assistant-help">@L["The assistant only fills in the form below; nothing is saved until you click Create. Links are shared with the AI as host name only, and text in quotes is not shared at all."]</div>
+            <button type="submit" class="btn btn-outline-primary btn-sm mt-2">@L["Fill in the form"]</button>
+        </form>
+        @if (a.Explanation is not null || a.Messages.Count > 0)
+        {
+            <div class="alert @(a.IsError ? "alert-warning" : "alert-info") mt-3 mb-0" role="status" data-assistant-filled="@(a.Filled ? "true" : "false")">
+                @if (a.Explanation is not null)
+                {
+                    <p class="mb-2 ai-summary"><span class="badge text-bg-info ai-badge">@L["AI-generated"]</span> @a.Explanation</p>
+                }
+                @if (a.Messages.Count > 0)
+                {
+                    <ul class="mb-0 small">
+                        @foreach (var m in a.Messages)
+                        {
+                            <li>@m</li>
+                        }
+                    </ul>
+                }
+            </div>
+        }
+    </div>
+</section>

@@ -18,7 +18,7 @@ namespace TriggerCheck.Ai;
 public static class DependencyInjection
 {
     /// <summary>
-    /// Registers the AI layer (AI-0, AI-1, AI-2, AI-3, AI-5, AI-10). The real Claude client is used only when Ai:Enabled is true AND a key
+    /// Registers the AI layer (AI-0, AI-1, AI-2, AI-3, AI-5, AI-9, AI-10). The real Claude client is used only when Ai:Enabled is true AND a key
     /// is configured (Ai:ApiKey or ANTHROPIC_API_KEY); otherwise <see cref="UnavailableAiClient"/> reports "AI
     /// unavailable" and every job is recorded as skipped. Tests replace <see cref="IAiClient"/> with
     /// <see cref="FakeAiClient"/>. The monitoring layer does not depend on this project.
@@ -61,6 +61,9 @@ public static class DependencyInjection
         services.AddScoped<IAiContextProvider, SettingsSuggestionProvider>();
         services.AddScoped<SettingsSuggestionJob>();
         services.AddHostedService<SettingsSuggestionHostedService>();
+
+        // AI-9: monitor setup assistant (fills the create form on request; never saves).
+        services.AddScoped<Features.MonitorSetup.MonitorSetupAssistant>();
 
         services.AddScoped<BaselineJob>();
         services.AddHostedService<BaselineHostedService>();

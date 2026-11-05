@@ -1,0 +1,19 @@
+{
+  "id": "setup-keyword-payment",
+  "feature": "MonitorSetupAssistant",
+  "language": "en",
+  "description": "Payment page with a quoted keyword and a session token in the query: keyword monitor every minute.",
+  "request": "Monitor https://shop.example.test/checkout/pay?session=abc123xyz every minute, alert if the 'Pay now' text is missing",
+  "expect": {
+    "primaryCause": "setup_form",
+    "fields": { "type": "Keyword", "target": "https://shop.example.test/checkout/pay?session=abc123xyz", "keyword": "Pay now", "intervalSeconds": 60 }
+  },
+  "secrets": ["/checkout/pay", "abc123xyz", "Pay now"],
+  "canned": {
+    "outcome": "form", "clarification": null,
+    "explanation": "A keyword monitor checks the payment page every minute and alerts when the quoted text is missing.",
+    "type": "keyword", "name": "shop.example.test payment page", "target": "[U1]", "port": null, "keyword": "[T1]",
+    "http_method": null, "expected_status_codes": null, "interval_seconds": 60, "timeout_seconds": null, "failure_threshold": null,
+    "dns_record_type": null, "json_path": null, "assertion_operator": null, "expected_value": null, "grace_period_seconds": null
+  }
+}

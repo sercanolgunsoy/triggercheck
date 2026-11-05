@@ -76,12 +76,13 @@ public static class DbSeeder
 
     /// <summary>
     /// AI features and monthly budget of the default plans (AI-10, docs/BACKLOG.md): Basic only AI-2 (limited);
-    /// Standard + AI-3, AI-5; Pro + AI-4, AI-6; Enterprise + AI-7, AI-8. SuperAdmins edit these on the Plans page.
+    /// Standard + AI-3, AI-5; Pro + AI-4, AI-6; Enterprise + AI-7, AI-8. AI-9 (monitor setup assistant) is not in the
+    /// AI-10 list; it starts at Standard like the other A1 feature (AI-5). SuperAdmins edit these on the Plans page.
     /// </summary>
     public static void ApplyDefaultAiQuota(Plan plan)
     {
         string[] basic = [AiFeatures.IncidentInterpretation];
-        string[] standard = [.. basic, AiFeatures.SlowdownExplanation, AiFeatures.SettingsSuggestions];
+        string[] standard = [.. basic, AiFeatures.SlowdownExplanation, AiFeatures.SettingsSuggestions, AiFeatures.MonitorSetupAssistant];
         string[] pro = [.. standard, AiFeatures.CorrelationGrouping, AiFeatures.NarrativeReport];
         string[] enterprise = [.. pro, AiFeatures.QuestionAnswer, AiFeatures.PostmortemDraft];
         (string[] features, int calls, long tokens) = plan.Name switch
