@@ -2257,4 +2257,181 @@
   <data name="{0} accepted, {1} rejected" xml:space="preserve">
     <value>{0} kabul, {1} ret</value>
   </data>
+  <data name="A chosen status page does not show this monitor. Your text was saved but not published." xml:space="preserve">
+    <value>Seçilen bir durum sayfası bu monitörü göstermiyor. Metniniz kaydedildi ancak yayınlanmadı.</value>
+  </data>
+  <data name="A postmortem can be drafted once the incident is resolved." xml:space="preserve">
+    <value>Postmortem taslağı olay çözüldükten sonra hazırlanabilir.</value>
+  </data>
+  <data name="AI drafts are not available for your account. You can write the draft yourself." xml:space="preserve">
+    <value>Yapay zekâ taslakları hesabınız için kullanılamıyor. Taslağı kendiniz yazabilirsiniz.</value>
+  </data>
+  <data name="AI drafts are not available. You can write the draft yourself." xml:space="preserve">
+    <value>Yapay zekâ taslakları kullanılamıyor. Taslağı kendiniz yazabilirsiniz.</value>
+  </data>
+  <data name="AI postmortem drafts are not included in your plan." xml:space="preserve">
+    <value>Yapay zekâ postmortem taslakları planınıza dahil değil.</value>
+  </data>
+  <data name="Acknowledged by the team" xml:space="preserve">
+    <value>Ekip tarafından onaylandı</value>
+  </data>
+  <data name="Another monitor failed" xml:space="preserve">
+    <value>Başka bir monitör hata verdi</value>
+  </data>
+  <data name="Approve and publish" xml:space="preserve">
+    <value>Onayla ve yayınla</value>
+  </data>
+  <data name="Approved and published on {0} status page(s)." xml:space="preserve">
+    <value>Onaylandı ve {0} durum sayfasında yayınlandı.</value>
+  </data>
+  <data name="Approved by {0} on {1} and published on: {2}." xml:space="preserve">
+    <value>{0} tarafından {1} tarihinde onaylandı ve şu sayfalarda yayınlandı: {2}.</value>
+  </data>
+  <data name="Certificate / TLS error" xml:space="preserve">
+    <value>Sertifika / TLS hatası</value>
+  </data>
+  <data name="Choose at least one status page to publish on. Your text was not published." xml:space="preserve">
+    <value>Yayınlamak için en az bir durum sayfası seçin. Metniniz yayınlanmadı.</value>
+  </data>
+  <data name="Client errors (HTTP 4xx)" xml:space="preserve">
+    <value>İstemci hataları (HTTP 4xx)</value>
+  </data>
+  <data name="Connection error" xml:space="preserve">
+    <value>Bağlantı hatası</value>
+  </data>
+  <data name="Content check failed" xml:space="preserve">
+    <value>İçerik kontrolü başarısız</value>
+  </data>
+  <data name="Customer message" xml:space="preserve">
+    <value>Müşteri mesajı</value>
+  </data>
+  <data name="Customer message (published on approval)" xml:space="preserve">
+    <value>Müşteri mesajı (onaylanınca yayınlanır)</value>
+  </data>
+  <data name="DNS error" xml:space="preserve">
+    <value>DNS hatası</value>
+  </data>
+  <data name="Draft" xml:space="preserve">
+    <value>Taslak</value>
+  </data>
+  <data name="Draft again with AI" xml:space="preserve">
+    <value>Yapay zekâ ile yeniden taslak oluştur</value>
+  </data>
+  <data name="Draft with AI" xml:space="preserve">
+    <value>Yapay zekâ ile taslak oluştur</value>
+  </data>
+  <data name="During maintenance" xml:space="preserve">
+    <value>Bakım sırasında</value>
+  </data>
+  <data name="Failed regions" xml:space="preserve">
+    <value>Hata veren bölgeler</value>
+  </data>
+  <data name="First failing check" xml:space="preserve">
+    <value>İlk başarısız kontrol</value>
+  </data>
+  <data name="Impact" xml:space="preserve">
+    <value>Etki</value>
+  </data>
+  <data name="Incident opened (monitor DOWN)" xml:space="preserve">
+    <value>Olay açıldı (monitör DOWN)</value>
+  </data>
+  <data name="Likely cause (internal, never published)" xml:space="preserve">
+    <value>Olası neden (dahili, asla yayınlanmaz)</value>
+  </data>
+  <data name="Likely cause and customer message" xml:space="preserve">
+    <value>Olası neden ve müşteri mesajı</value>
+  </data>
+  <data name="Maintenance ended" xml:space="preserve">
+    <value>Bakım bitti</value>
+  </data>
+  <data name="Maintenance started" xml:space="preserve">
+    <value>Bakım başladı</value>
+  </data>
+  <data name="Missed heartbeat / ping" xml:space="preserve">
+    <value>Kaçan heartbeat / ping</value>
+  </data>
+  <data name="No postmortem has been drafted for this incident yet." xml:space="preserve">
+    <value>Bu olay için henüz postmortem taslağı hazırlanmadı.</value>
+  </data>
+  <data name="None" xml:space="preserve">
+    <value>Yok</value>
+  </data>
+  <data name="Nothing here is public until a customer admin approves it. Only the customer message is published, exactly as approved, as a note on the chosen status pages." xml:space="preserve">
+    <value>Bir müşteri yöneticisi onaylayana kadar buradaki hiçbir şey herkese açık değildir. Yalnızca müşteri mesajı, onaylandığı haliyle, seçilen durum sayfalarında not olarak yayınlanır.</value>
+  </data>
+  <data name="Other error" xml:space="preserve">
+    <value>Diğer hata</value>
+  </data>
+  <data name="Other monitors affected" xml:space="preserve">
+    <value>Etkilenen diğer monitörler</value>
+  </data>
+  <data name="Postmortem" xml:space="preserve">
+    <value>Postmortem</value>
+  </data>
+  <data name="Postmortem and status page draft" xml:space="preserve">
+    <value>Postmortem ve durum sayfası taslağı</value>
+  </data>
+  <data name="Postmortem of incident #{0}" xml:space="preserve">
+    <value>#{0} numaralı olayın postmortemi</value>
+  </data>
+  <data name="Publish the customer message on the selected status pages? It becomes public immediately." xml:space="preserve">
+    <value>Müşteri mesajı seçilen durum sayfalarında yayınlansın mı? Hemen herkese açık olur.</value>
+  </data>
+  <data name="Published" xml:space="preserve">
+    <value>Yayınlandı</value>
+  </data>
+  <data name="Replace the current texts with a new AI draft?" xml:space="preserve">
+    <value>Mevcut metinler yeni bir yapay zekâ taslağıyla değiştirilsin mi?</value>
+  </data>
+  <data name="Resolved (monitor UP)" xml:space="preserve">
+    <value>Çözüldü (monitör UP)</value>
+  </data>
+  <data name="Save draft" xml:space="preserve">
+    <value>Taslağı kaydet</value>
+  </data>
+  <data name="Server errors (HTTP 5xx)" xml:space="preserve">
+    <value>Sunucu hataları (HTTP 5xx)</value>
+  </data>
+  <data name="Shown on status pages" xml:space="preserve">
+    <value>Gösterildiği durum sayfaları</value>
+  </data>
+  <data name="The AI budget of this month is used up. You can write the draft yourself." xml:space="preserve">
+    <value>Bu ayın yapay zekâ bütçesi doldu. Taslağı kendiniz yazabilirsiniz.</value>
+  </data>
+  <data name="The AI draft could not be generated. You can write the draft yourself." xml:space="preserve">
+    <value>Yapay zekâ taslağı oluşturulamadı. Taslağı kendiniz yazabilirsiniz.</value>
+  </data>
+  <data name="The AI draft is ready. Review and edit it; nothing is published until you approve it." xml:space="preserve">
+    <value>Yapay zekâ taslağı hazır. İnceleyip düzenleyin; siz onaylayana kadar hiçbir şey yayınlanmaz.</value>
+  </data>
+  <data name="The AI only writes text: times, durations and counts are filled in from the incident data." xml:space="preserve">
+    <value>Yapay zekâ yalnızca metni yazar: saatler, süreler ve sayılar olay verisinden doldurulur.</value>
+  </data>
+  <data name="The draft was saved. Nothing is published yet." xml:space="preserve">
+    <value>Taslak kaydedildi. Henüz hiçbir şey yayınlanmadı.</value>
+  </data>
+  <data name="The likely cause can have at most {0} and the customer message at most {1} characters of plain text." xml:space="preserve">
+    <value>Olası neden en fazla {0}, müşteri mesajı en fazla {1} karakter düz metin olabilir.</value>
+  </data>
+  <data name="This monitor is not shown on any status page, so there is nowhere to publish. You can still keep the postmortem here." xml:space="preserve">
+    <value>Bu monitör hiçbir durum sayfasında gösterilmiyor, bu yüzden yayınlanacak yer yok. Postmortemi yine de burada saklayabilirsiniz.</value>
+  </data>
+  <data name="This postmortem was already approved and published." xml:space="preserve">
+    <value>Bu postmortem zaten onaylandı ve yayınlandı.</value>
+  </data>
+  <data name="Timeline" xml:space="preserve">
+    <value>Zaman çizelgesi</value>
+  </data>
+  <data name="Unexpected HTTP status code" xml:space="preserve">
+    <value>Beklenmeyen HTTP durum kodu</value>
+  </data>
+  <data name="Write the customer message before publishing." xml:space="preserve">
+    <value>Yayınlamadan önce müşteri mesajını yazın.</value>
+  </data>
+  <data name="after {0}" xml:space="preserve">
+    <value>{0} sonra</value>
+  </data>
+  <data name="{0} of {1}" xml:space="preserve">
+    <value>{0} / {1}</value>
+  </data>
 </root>

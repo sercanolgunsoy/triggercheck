@@ -37,6 +37,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
     public DbSet<StatusPageEvent> StatusPageEvents => Set<StatusPageEvent>();
     public DbSet<MonthlyReportDelivery> MonthlyReportDeliveries => Set<MonthlyReportDelivery>();
     public DbSet<ReportNarrative> ReportNarratives => Set<ReportNarrative>();
+    public DbSet<PostmortemDraft> PostmortemDrafts => Set<PostmortemDraft>();
     public DbSet<IncidentGroup> IncidentGroups => Set<IncidentGroup>();
     public DbSet<IncidentGroupMember> IncidentGroupMembers => Set<IncidentGroupMember>();
     public DbSet<ClusterLease> ClusterLeases => Set<ClusterLease>();
@@ -311,6 +312,23 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
             e.Property(x => x.Language).HasMaxLength(8);
             e.HasIndex(x => new { x.CustomerId, x.Kind, x.PeriodKey }).IsUnique();
             e.HasIndex(x => x.Status);
+        });
+
+        // AI-8: one postmortem draft per incident (published only after a CustomerAdmin approves it).
+        b.Entity<PostmortemDraft>(e =>
+        {
+            e.HasOne<Customer>().WithMany().HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<Incident>().WithMany().HasForeignKey(x => x.IncidentId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => x.IncidentId).IsUnique();
+            e.HasIndex(x => x.CustomerId);
+            e.Property(x => x.Language).HasMaxLength(8);
+            e.Property(x => x.CauseCategory).HasMaxLength(64);
+            e.Property(x => x.LikelyCause).HasMaxLength(PostmortemDraft.MaxLikelyCauseLength).IsRequired();
+            e.Property(x => x.CustomerMessage).HasMaxLength(PostmortemDraft.MaxCustomerMessageLength).IsRequired();
+            e.Property(x => x.CreatedByUserId).HasMaxLength(450);
+            e.Property(x => x.UpdatedByUserId).HasMaxLength(450);
+            e.Property(x => x.ApprovedByUserId).HasMaxLength(450);
+            e.Property(x => x.PublishedStatusPageIds).HasMaxLength(400);
         });
 
         b.Entity<ApiKey>(e =>

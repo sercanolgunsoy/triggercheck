@@ -13,8 +13,11 @@ public class SettingsSuggestionLeaderTests
 {
     private static Task<int> FlappingMonitorAsync(AiTestHost h, int customerId) => h.WithDbAsync(async db =>
     {
-        var m = new Domain.Entities.Monitor { CustomerId = customerId, Name = "Flappy", Type = MonitorType.Http, Target = "https://flap.example.test/",
-            IntervalSeconds = 60, FailureThreshold = 1, Status = MonitorStatus.Up, CreatedAtUtc = h.Now.AddDays(-60) };
+        var m = new Domain.Entities.Monitor
+        {
+            CustomerId = customerId, Name = "Flappy", Type = MonitorType.Http, Target = "https://flap.example.test/",
+            IntervalSeconds = 60, FailureThreshold = 1, Status = MonitorStatus.Up, CreatedAtUtc = h.Now.AddDays(-60)
+        };
         db.Monitors.Add(m);
         for (var i = 0; i < 10; i++)
         {

@@ -8,12 +8,12 @@ validation) and the grader scores the exact request and the raw model output.
 ## The gate
 
 - A change to a **prompt** (`src/TriggerCheck.Ai/Execution/AiPrompts.cs`, `src/TriggerCheck.Ai/Features/AiFeaturePrompts.cs`,
-  `src/TriggerCheck.Ai/Features/Correlation/CorrelationPrompts.cs`, `src/TriggerCheck.Ai/Narrative/NarrativeOutput.cs` for AI-6),
+  `src/TriggerCheck.Ai/Features/Correlation/CorrelationPrompts.cs`, `src/TriggerCheck.Ai/Narrative/NarrativeOutput.cs` for AI-6, `src/TriggerCheck.Ai/Features/Postmortem/PostmortemOutput.cs` for AI-8),
   a context provider, the output schema, a **model** (`Ai:Model`, `Ai:Features:<Name>:Model`) or an **effort** level
   is merged only after a real run (below) passes for the affected feature: primary-cause accuracy, evidence rate and
   language rate each **≥ 80 %**, **zero** masking failures, and for AI-3 the "no outage yet" statement in ≥ 80 % of
   cases; for AI-6 the focus-monitor rate and the **number grounding** rate (the "Primary cause" and "Evidence"
-  columns, see below) each ≥ 80 %. Paste the summary table of `evals/reports/last-report.md` into the pull request.
+  columns, see below) each ≥ 80 %; for AI-8 the cause, grounded-output and language rates each ≥ 80 % and **no** invented number. Paste the summary table of `evals/reports/last-report.md` into the pull request.
 - Decision K1 (moving a high-volume feature from `claude-opus-5-5` to `claude-haiku-5-5`) is made with the same run:
   `--model claude-haiku-5-5`.
 - **Autonomy upgrades** (raising `MaxAutonomy` in `src/TriggerCheck.Domain/AiFeatures.cs`, e.g. A0 → A1) need a real
@@ -41,7 +41,7 @@ ANTHROPIC_API_KEY=... dotnet run --project evals/TriggerCheck.Evals -- --real
 ANTHROPIC_API_KEY=... dotnet run --project evals/TriggerCheck.Evals -- --real --yes
 
 # options
---feature IncidentInterpretation | SlowdownExplanation | CorrelationGrouping | QuestionAnswer | MonitorSetupAssistant | NarrativeReport | ...   only one feature
+--feature IncidentInterpretation | SlowdownExplanation | CorrelationGrouping | QuestionAnswer | MonitorSetupAssistant | NarrativeReport | PostmortemDraft | ...   only one feature
 --case tls                                                only cases whose id contains "tls"
 --model claude-haiku-5-5  --effort medium                 override Ai:Model / Ai:Effort for the run
 --threshold 0.8                                           gate threshold
@@ -52,7 +52,8 @@ The exit code is 0 when the gate passes, 1 when it fails, 2 for usage errors. A 
 roughly 28 × (4k input + 1.5k output tokens) ≈ 0.11M input + 0.04M output tokens, i.e. about **$1.30 with
 `claude-opus-5-5`** at list prices (less with prompt caching); the 13 AI-4 cases add roughly 13 × (2k input + 1k
 output tokens), about $0.35. The report shows the measured tokens and cost per case.
-The 11 AI-6 cases add roughly 11 × (3k input + 1k output tokens), about $0.35.
+The 11 AI-6 cases add roughly 11 × (3k input + 1k output tokens), about $0.35; the 10 AI-8 cases roughly 10 × (2k input + 1k output
+tokens), about $0.30 (more with `Ai:Features:PostmortemDraft:Effort` = `medium`).
 
 ## Layout
 
@@ -68,6 +69,7 @@ evals/
     settings-suggestions/          AI-5: 8 labelled scenarios (one per suggestion kind, en + tr)
     question-answer/               AI-7: 8 Q&A scenarios (tool loop; en + tr, tenant isolation, injection, write request)
     monitor-setup/                 AI-9: 14 labelled requests (every monitor type, clarification, clamping, masking; en + tr)
+    postmortem-draft/              AI-8: 10 resolved incidents (main causes, host outage, maintenance, prompt injection; en + tr)
   reports/                         gitignored, except sample-report.md
     last-report.md / .json         last run (per feature and per case, tokens, cost)
     prompts/<case>.txt             the user turn actually sent for each case
@@ -194,6 +196,27 @@ hypotheses). `canned` is the model's JSON answer using the placeholders `[U1]` /
 Labels that need judgement (for example `maintenance_aftermath`) are kept few; when a real run disagrees with a label,
 look at `reports/prompts/<case>.txt` and the model's answer before changing either.
 
+## AI-8 (postmortem / status page draft)
+
+Cases (`"feature": "PostmortemDraft"`) use the AI-2 format with a **resolved** incident (`resolvedMinutesAgo`) and an
+AI-2 label (`"expect": { "primaryCause": "http_5xx" }`, optional `notInAnswer`). The production
+`PostmortemDraftProvider` computes the timeline and impact from the seeded data and offers them only as placeholder keys
+(`incident.duration`, `incident.started_at`, `incident.error`, `maintenance.ended_at`, `{{service}}` for the public
+name, ... see `reports/prompts/<case>.txt`); the `canned` answer, like the model's, writes no numbers:
+
+```json
+"canned": { "likely_cause": { "category": "http_5xx", "confidence": "high", "text": "The checks failed with {{incident.error}} for {{incident.duration}}." },
+            "customer_message": "{{service}} was unavailable from {{incident.started_at}} to {{incident.resolved_at}}. It is resolved.",
+            "unknowns": [] }
+```
+
+Graded by `EvalPostmortem`: **primary cause** = the validated `likely_cause.category` is accepted for the label;
+**evidence** = grounded, publishable output (a customer message survived, the production contract removed no sentence,
+every placeholder was offered, the rendered message contains neither the monitored host nor `notInAnswer` / secrets);
+**numbers** = an independent check that no raw text has a digit outside placeholders (one invented number fails the
+gate); **masking** and **language** (of the customer message) as for AI-2. A test feeds a hostile answer (invented
+figures, an injected refund link, a wrong cause) through all cases and expects the gate to fail.
+
 ## AI-7 (questions in natural language)
 
 Q&A cases (`"feature": "QuestionAnswer"`, label `qa_grounded_answer`) describe the customer's monitors with their
@@ -217,5 +240,4 @@ A real run of the 8 cases makes 2-4 calls each with a larger prompt (tools + res
 
 - Cases recorded from the local UAT test servers (ports 8765 / 8767 / 8799, docs/UAT-REPORT.md) and from 👎 feedback in
   `AiDecisions` (exported without customer data).
-- Cases for AI-8 as it lands, with its own folder and threshold.
 - AI-6 weekly narratives use the same provider and contract; add weekly cases when the weekly view gets real use.

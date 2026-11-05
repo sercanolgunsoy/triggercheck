@@ -238,7 +238,7 @@ public static partial class EvalQa
         if (missingTools.Count > 0) r.Notes.Add("tools not used: " + string.Join(", ", missingTools));
         r.PrimaryCategory = string.Join(" ", cited);
 
-                var unreturned = cited.Where(c => !fromData.Contains(c, StringComparison.Ordinal)).ToList();
+        var unreturned = cited.Where(c => !fromData.Contains(c, StringComparison.Ordinal)).ToList();
         r.EvidenceOk = unreturned.Count == 0 && (expected.Count == 0 || cited.Count > 0);
         if (!r.EvidenceOk) r.Notes.Add(unreturned.Count > 0 ? "cited but never returned by a tool: " + string.Join(", ", unreturned) : "no record cited");
 
