@@ -1,0 +1,84 @@
+{
+  "id": "qa-down-now-tr",
+  "feature": "QuestionAnswer",
+  "language": "tr",
+  "description": "Which monitors are down right now (Turkish).",
+  "expect": {
+    "primaryCause": "qa_grounded_answer",
+    "references": [
+      "monitor:Ödeme servisi"
+    ],
+    "tools": [
+      "list_monitors"
+    ],
+    "notInAnswer": []
+  },
+  "question": "Şu anda hangi monitörler çalışmıyor?",
+  "qaMonitors": [
+    {
+      "name": "Ödeme servisi",
+      "type": "Http",
+      "target": "https://odeme.example.test/api",
+      "status": "Down",
+      "checks": [
+        {
+          "minutesAgo": 1,
+          "repeat": 5,
+          "everyMinutes": 1,
+          "up": false,
+          "ms": 3,
+          "status": null,
+          "error": "Connection refused"
+        }
+      ],
+      "incidents": [],
+      "lastError": "Connection refused"
+    },
+    {
+      "name": "Kurumsal site",
+      "type": "Http",
+      "target": "https://www.example.test/",
+      "status": "Up",
+      "checks": [
+        {
+          "minutesAgo": 1,
+          "repeat": 5,
+          "everyMinutes": 1,
+          "up": true,
+          "ms": 140,
+          "status": 200
+        }
+      ],
+      "incidents": []
+    }
+  ],
+  "otherTenant": [],
+  "secrets": [
+    "/api"
+  ],
+  "cannedTurns": [
+    {
+      "tools": [
+        {
+          "name": "list_monitors",
+          "input": {
+            "status": "down"
+          }
+        }
+      ]
+    },
+    {
+      "tools": [
+        {
+          "name": "monitor_details",
+          "input": {
+            "monitor_id": "{{monitor_id:Ödeme servisi}}"
+          }
+        }
+      ]
+    },
+    {
+      "answer": "Şu anda yalnızca {{monitor:Ödeme servisi}} çalışmıyor; son hata bağlantının reddedilmesi (Connection refused). Diğer monitörleriniz çalışıyor."
+    }
+  ]
+}

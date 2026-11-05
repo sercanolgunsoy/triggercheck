@@ -33,6 +33,11 @@ public sealed class EvalScenario
     public List<string> Secrets { get; set; } = [];
     /// <summary>Model answer used in fake mode (CI): a well-formed, correct interpretation for the case.</summary>
     public JsonNode? Canned { get; set; }
+    /// <summary>AI-7 (QuestionAnswer): the question, the customer's monitors, another tenant's monitors and the scripted turns (see <see cref="EvalQa"/>).</summary>
+    public string? Question { get; set; }
+    public List<EvalQaMonitor> QaMonitors { get; set; } = [];
+    public List<EvalQaMonitor> OtherTenant { get; set; } = [];
+    public JsonArray? CannedTurns { get; set; }
 
     public static readonly JsonSerializerOptions Json = new()
     {
@@ -55,6 +60,7 @@ public sealed class EvalScenario
             if (AiFeatures.Find(s.Feature) is null) throw new InvalidDataException($"{file}: unknown feature '{s.Feature}'");
             if (s.Feature == AiFeatures.IncidentInterpretation && s.Incident is null) throw new InvalidDataException($"{file}: incident missing");
             if (s.Feature == AiFeatures.SlowdownExplanation && s.Anomaly is null) throw new InvalidDataException($"{file}: anomaly missing");
+            if (s.Feature == AiFeatures.QuestionAnswer && (string.IsNullOrWhiteSpace(s.Question) || s.QaMonitors.Count == 0)) throw new InvalidDataException($"{file}: question or qaMonitors missing");
             if (!EvalGrader.Labels.ContainsKey(s.Expect.PrimaryCause)) throw new InvalidDataException($"{file}: unknown label '{s.Expect.PrimaryCause}'");
             result.Add(s);
         }
@@ -80,6 +86,11 @@ public sealed class EvalExpectation
     public string PrimaryCause { get; set; } = "";
     /// <summary>AI-3: the summary must say that there is no outage yet.</summary>
     public bool NoOutageStatement { get; set; }
+    /// <summary>AI-7: records the answer must cite ("monitor:Name", "incident:Name#1") and tools it must have used.</summary>
+    public List<string> References { get; set; } = [];
+    public List<string> Tools { get; set; } = [];
+    /// <summary>AI-7: text the answer must not contain (e.g. a link planted in an error text).</summary>
+    public List<string> NotInAnswer { get; set; } = [];
 }
 
 public sealed class EvalMonitor

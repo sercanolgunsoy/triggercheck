@@ -1,0 +1,92 @@
+{
+  "id": "qa-slowest-last-week",
+  "feature": "QuestionAnswer",
+  "language": "en",
+  "description": "Ranking by average response time over last week.",
+  "expect": {
+    "primaryCause": "qa_grounded_answer",
+    "references": [
+      "monitor:Payments API"
+    ],
+    "tools": [
+      "monitor_stats"
+    ],
+    "notInAnswer": []
+  },
+  "question": "Which service was slowest last week?",
+  "qaMonitors": [
+    {
+      "name": "Storefront",
+      "type": "Http",
+      "target": "https://shop.example.test/",
+      "status": "Up",
+      "checks": [
+        {
+          "minutesAgo": 1440,
+          "repeat": 10,
+          "everyMinutes": 60,
+          "up": true,
+          "ms": 120,
+          "status": 200
+        }
+      ],
+      "incidents": []
+    },
+    {
+      "name": "Payments API",
+      "type": "Http",
+      "target": "https://pay.example.test/v1/charge?key=sk_live_secret123",
+      "status": "Up",
+      "checks": [
+        {
+          "minutesAgo": 1440,
+          "repeat": 10,
+          "everyMinutes": 60,
+          "up": true,
+          "ms": 850,
+          "status": 200
+        }
+      ],
+      "incidents": []
+    },
+    {
+      "name": "Product finder",
+      "type": "Http",
+      "target": "https://search.example.test/q",
+      "status": "Up",
+      "checks": [
+        {
+          "minutesAgo": 1440,
+          "repeat": 10,
+          "everyMinutes": 60,
+          "up": true,
+          "ms": 300,
+          "status": 200
+        }
+      ],
+      "incidents": []
+    }
+  ],
+  "otherTenant": [],
+  "secrets": [
+    "sk_live_secret123",
+    "/v1/charge"
+  ],
+  "cannedTurns": [
+    {
+      "tools": [
+        {
+          "name": "monitor_stats",
+          "input": {
+            "from": "2026-03-03T00:00:00Z",
+            "to": "2026-03-10T00:00:00Z",
+            "sort_by": "slowest"
+          }
+        }
+      ]
+    },
+    {
+      "answer": "{{monitor:Payments API}} was the slowest last week: 850 ms on average over 10 checks. Next were {{monitor:Product finder}} (300 ms) and {{monitor:Storefront}} (120 ms)."
+    }
+  ]
+}
