@@ -12,6 +12,7 @@ using TriggerCheck.Ai.Features;
 using TriggerCheck.Ai.Features.Correlation;
 using TriggerCheck.Ai.Interpretation;
 using TriggerCheck.Monitoring.Alerting;
+using TriggerCheck.Monitoring.Cluster;
 
 namespace TriggerCheck.Ai;
 
@@ -29,6 +30,7 @@ public static class DependencyInjection
             .Validate(o => !o.InvalidEfforts().Any(), "Ai:Effort / Ai:Features:*:Effort must be one of: low, medium, high, xhigh, max.")
             .ValidateOnStart();
         services.TryAddSingleton(TimeProvider.System);
+        services.AddClusterLeases(); // OPS-3: the watcher and the baseline job run on one instance at a time
 
         services.AddSingleton<IAiClient>(sp =>
         {

@@ -20,7 +20,7 @@
         <span asp-validation-for="Input.Name" class="text-danger small"></span>
     </div>
     <div class="col-md-6">
-        <label asp-for="Input.Type" class="form-label"></label>
+        <label asp-for="Input.Type" class="form-label" for="monitor-type"></label>
         <select asp-for="Input.Type" class="form-select" id="monitor-type" data-monitor-type>
             @foreach (var t in Enum.GetValues<MonitorType>())
             {
@@ -31,8 +31,8 @@
     </div>
 
     <fieldset class="col-md-8" data-types="@probed" hidden="@Off(probed)" disabled="@Off(probed)">
-        <label asp-for="Input.Target" class="form-label"></label>
-        <input asp-for="Input.Target" class="form-control" id="monitor-target" placeholder="@(isUrlType ? "https://example.com" : "example.com")"
+        <label asp-for="Input.Target" class="form-label" for="monitor-target"></label>
+        <input asp-for="Input.Target" class="form-control" id="monitor-target" aria-describedby="target-help" placeholder="@(isUrlType ? "https://example.com" : "example.com")"
                data-placeholder-http="https://example.com" data-placeholder-keyword="https://example.com" data-placeholder-jsonapi="https://api.example.com/health" />
         <div class="form-text" id="target-help" data-help-default="@hostHelp" data-help-http="@urlHelp" data-help-keyword="@urlHelp"
              data-help-jsonapi="@urlHelp" data-help-dns="@dnsHelp">@(isUrlType ? urlHelp : Model.Input.Type == MonitorType.Dns ? dnsHelp : hostHelp)</div>
@@ -139,7 +139,7 @@
                 <option value="@i" selected="@(Model.Input.IntervalSeconds == i)">@Fmt.Interval(i)</option>
             }
         </select>
-        <span asp-validation-for="Input.IntervalSeconds" class="text-danger small"></span>
+        <span asp-validation-for="Input.IntervalSeconds" class="text-danger small" id="heartbeat-interval-validation"></span>
     </fieldset>
     <fieldset class="col-md-4" data-types="Heartbeat" hidden="@Off("Heartbeat")" disabled="@Off("Heartbeat")">
         <label asp-for="Input.GracePeriodSeconds" class="form-label"></label>

@@ -1,8 +1,8 @@
 # Deployment
 
 TriggerCheck runs as **one process**: the Razor Pages web app plus the monitoring engine (scheduler, alerting,
-retention). Run exactly one instance per database, because the scheduler assumes it is the only one. Data lives in
-SQLite. Postgres notes come with OPS-2.
+retention). Several instances may share one database (see [Running multiple instances](#running-multiple-instances));
+one instance is the default. Data lives in SQLite. Postgres notes come with OPS-2.
 
 ## Container image
 
@@ -122,6 +122,51 @@ When an OTLP endpoint is configured, the app exports:
 
 If no endpoint is configured, OpenTelemetry is not registered at all and nothing is exported.
 
+## Running multiple instances
+
+Two or more instances can share one database (for availability or load). Every instance runs the full app,
+scheduler included; nothing has to be switched off per instance.
+
+- **Instance id:** `Monitoring__InstanceId` names the instance in leases (max 100 characters, must be unique per running
+  process). Default: machine name + process id + a random suffix. **Recommended: a stable id per instance** (e.g. the
+  pod / container name of a StatefulSet, `web-1`, `web-2`): at startup the instance frees the leases it still held
+  before a crash, so its monitors and jobs resume at once. With the default id a crashed instance's leases are only
+  taken over when they expire (see below).
+- **Monitor checks:** each check slot runs on exactly one instance. A free instance claims the due monitor with a
+  conditional update of `Monitors.LeasedUntilUtc` / `LeaseOwner` (compare-and-set, portable to Postgres), runs it,
+  advances the next check and releases the lease. A crashed instance's leases expire after 2 x the monitor's timeout +
+  `Monitoring__SchedulerLeaseMarginSeconds` (30) and are then taken over.
+- **"Check now"** takes the same lease, so it never overlaps with a scheduled check (or another "check now") on any
+  instance: it waits while another run holds the monitor (at most the probe timeout + 5 s, capped at 30 s) and then
+  asks the user to try again. The schedule is unchanged by the lease. This matters because the monitor's concurrency
+  token only guards status transitions and user edits: overlapping runs could lose a failure count, skip the delay of
+  a confirmation probe or send a certificate warning twice.
+- **Jobs that run on one instance at a time** (cluster lease in `ClusterLeases`, renewed by the holder, taken over
+  about three intervals after the holder stops, or at once when it shuts down cleanly): billing maintenance, the AI
+  event watcher and the AI baseline job. Long runs renew the lease before each side effect (each billing item, each
+  baseline batch) and stop if it was lost; the AI event watcher starts its scan over whenever its hold was interrupted.
+- **Jobs that are safe on every instance:** alert delivery (each instance sends what its own checks produced), escalation
+  (each step is claimed in the database), the e-mail outbox (rows are claimed), monthly SLA reports (unique
+  customer + month row written with the e-mails), status page notices (unique event keys, also for digests), remote
+  probe leases (claimed conditionally, only while still due), retention cleanup (idempotent deletes; it just runs N
+  times).
+- **Per instance, so effectively N times the configured value:** rate limits (logins, "check now", API, agent
+  requests), alert delivery throttles and queue sizes, output / domain caches (a change can take up to their TTL to
+  show on the other instances), `/health/ready` (each instance reports its own scheduler heartbeat).
+- **SQLite:** all instances must reach the same database file on a local filesystem (several containers on one host
+  sharing a volume). WAL mode does not work over network filesystems; for instances on different hosts use Postgres
+  (OPS-2). Postgres could later select due monitors with `FOR UPDATE SKIP LOCKED` to save wasted claims; the
+  compare-and-set stays the guarantee.
+- **Limit:** a check that outlives its lease (e.g. a database stall longer than the margin) can overlap with the
+  instance that reclaimed it. The concurrency token still prevents a duplicate incident or status alert, but the
+  overlap can lose a failure count or repeat a certificate warning; it is logged as a warning ("outlived its scheduler
+  lease").
+
+**Upgrading an existing installation:** OPS-3 adds columns (`Monitors.LeasedUntilUtc`, `Monitors.LeaseOwner`) and a
+table (`ClusterLeases`). Until the EF migrations (OPS-1) exist, the schema is created by `EnsureCreated` only on an
+empty database; on an existing one it does nothing, and the scheduler then fails with "no such column". Back up and
+recreate the database, or apply the migration once OPS-1 lands (both columns nullable, no default needed).
+
 ## Backup (SQLite, safe with WAL)
 
 The database runs in WAL mode, so recent commits may exist only in `triggercheck.db-wal`. **Do not `cp` the `.db`
@@ -212,7 +257,7 @@ Sign-up and trials work either way. Complete the sandbox checklist below before 
 | `Billing__TrialDays` (14), `Billing__TrialReminderDaysBefore` (3), `Billing__PastDueGraceDays` (7) | no | Trial length, when the "trial ends soon" e-mail goes out, and how long a failed renewal keeps its plan. |
 | `Billing__MaxTrialsPerDomain` (3), `Billing__PublicEmailDomains` | no | Trial cap per company domain. `0` means no cap. Public mail providers (gmail.com, outlook.com, ...) are only limited per address. |
 | `Billing__FallbackPlanName` (`Basic`) | no | Plan that customers move to when a trial ends without a subscription, a past-due subscription passes its grace period, or a cancelled subscription reaches the end of its paid period. |
-| `Billing__MaintenanceIntervalMinutes` (15) | no | How often the billing job runs. `0` disables it. Run it in **one** instance only, the same as the monitoring scheduler. Every step is idempotent, and its state changes are conditional. |
+| `Billing__MaintenanceIntervalMinutes` (15) | no | How often the billing job runs. `0` disables it. With several instances it runs on one of them at a time (cluster lease, see [Running multiple instances](#running-multiple-instances)). Every step is idempotent, and its state changes are conditional. |
 | `Billing__CheckoutRecheckAfterMinutes` (10), `Billing__CheckoutTimeoutMinutes` (60) | no | An open checkout is checked again with iyzico after 10 minutes, which covers a closed tab or a lost callback. It is closed as failed after 60 minutes if iyzico has not confirmed it. |
 | `Billing__WebhookMaxAgeHours` (72) | no | Webhook events older than this, or more than 10 minutes in the future, are recorded but not applied. |
 | `Billing__UnconfirmedAccountDays` (2) | no | Unconfirmed sign-ups are deleted after this many days. |
@@ -593,7 +638,8 @@ certificate via `Agent__ClientCertificatePath` / `Agent__ClientCertificatePasswo
 only for the region's own, unexpired lease item, once; foreign, replayed or late results are ignored, and a result for
 a monitor that was edited, paused or deleted after the lease is discarded.
 
-**Scaling note:** results are applied in the main app process (single instance on SQLite, like the scheduler).
+**Scaling note:** results are applied in the main app process. With several app instances any of them may serve an
+agent: leases are claimed conditionally in the database and results meet on the monitor's concurrency token.
 
 **Upgrading an existing installation:** FEAT-6 adds tables (`Regions`, `MonitorRegionStates`) and columns
 (`CheckResults.RegionId`/`VotedUp`, `Incidents.FailedRegions`, `Plans.MaxRegions`, `Monitors.LastProbeFingerprint`/

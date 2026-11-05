@@ -541,6 +541,9 @@
   <data name="The webhook address points to a private or internal network and is not allowed." xml:space="preserve">
     <value>Webhook adresi özel veya dahili bir ağı gösteriyor ve kullanılamaz.</value>
   </data>
+  <data name="This monitor is being checked right now. Try again in a few seconds." xml:space="preserve">
+    <value>Bu monitör şu anda kontrol ediliyor. Birkaç saniye sonra tekrar deneyin.</value>
+  </data>
   <data name="This monitor was checked moments ago. Try again in {0} seconds." xml:space="preserve">
     <value>Bu monitör az önce kontrol edildi. {0} saniye sonra tekrar deneyin.</value>
   </data>
@@ -594,6 +597,12 @@
   </data>
   <data name="Response time chart" xml:space="preserve">
     <value>Yanıt süresi grafiği</value>
+  </data>
+  <data name="{0} checks in this period, {1} failed, {2} incidents. Average response time {3} ms, fastest interval {4} ms, slowest interval {5} ms." xml:space="preserve">
+    <value>Bu dönemde {0} kontrol, {1} başarısız, {2} olay. Ortalama yanıt süresi {3} ms, en hızlı aralık {4} ms, en yavaş aralık {5} ms.</value>
+  </data>
+  <data name="Average phases: DNS {0} ms, connect {1} ms, TLS {2} ms, waiting for the response {3} ms, transfer {4} ms." xml:space="preserve">
+    <value>Ortalama aşamalar: DNS {0} ms, bağlantı {1} ms, TLS {2} ms, yanıt bekleme {3} ms, aktarım {4} ms.</value>
   </data>
   <data name="Phase breakdown (average, ms)" xml:space="preserve">
     <value>Aşama kırılımı (ortalama, ms)</value>

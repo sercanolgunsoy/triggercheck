@@ -8,6 +8,7 @@ using Microsoft.Extensions.Options;
 using TriggerCheck.Monitoring.Alerting;
 using TriggerCheck.Monitoring.Checks;
 using TriggerCheck.Monitoring.Checks.Dns;
+using TriggerCheck.Monitoring.Cluster;
 using TriggerCheck.Monitoring.Diagnostics;
 using TriggerCheck.Monitoring.Engine;
 using TriggerCheck.Monitoring.Escalation;
@@ -101,6 +102,8 @@ public static class DependencyInjection
 
         // ---- background jobs ----
         services.AddScoped<RetentionCleaner>();
+        services.AddClusterLeases(); // OPS-3: instance id + per-job leases
+        services.AddScoped<ManualCheckRunner>(); // OPS-3: "check now" under the monitor lease
         services.AddSingleton<MonitorScheduler>();
         services.AddHostedService(sp => sp.GetRequiredService<MonitorScheduler>());
         services.AddHostedService<RetentionCleanupService>();
