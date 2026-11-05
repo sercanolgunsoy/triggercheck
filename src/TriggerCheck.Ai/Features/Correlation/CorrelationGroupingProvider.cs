@@ -69,7 +69,9 @@ public sealed class CorrelationGroupingProvider(IncidentCorrelationService group
             var label = CorrelationPrompts.Label(i);
             var line = Line(m, primaryDescribed);
             b.Fact("incident " + label, line);
-            b.Untrusted("error " + label, m.Incident.Cause, ErrorTextChars);
+            // K5: masked explicitly (and again by Untrusted): keyword / JSON assertion errors lose the configured keyword,
+            // path and values; credentials, e-mail addresses and URL paths are removed.
+            b.Untrusted("error " + label, AiMasker.MaskText(m.Incident.Cause), ErrorTextChars);
         }
         return new AiPrompt(CorrelationPrompts.Instructions, b.Build(), [], CorrelationPrompts.Categories,
             AiFeaturePrompts.EvidenceKeys(b), CorrelationPrompts.IsAllowed);

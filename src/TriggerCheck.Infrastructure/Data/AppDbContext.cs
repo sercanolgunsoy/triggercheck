@@ -362,6 +362,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
             e.HasOne(x => x.Incident).WithMany().HasForeignKey(x => x.IncidentId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(x => x.IncidentId).IsUnique();
             e.HasIndex(x => x.CustomerId);
+            e.HasIndex(x => new { x.FoldedAtUtc, x.NotifiedAtUtc });
         });
 
         // OPS-3: scheduler lease per monitor and cluster-wide job leases.

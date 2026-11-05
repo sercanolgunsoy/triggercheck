@@ -49,6 +49,11 @@ public class IncidentGroup
     public DateTime? DecidedAtUtc { get; set; }
     /// <summary>Identity user id of the admin who accepted / rejected / ungrouped it (no FK).</summary>
     public string? DecidedByUserId { get; set; }
+    /// <summary>
+    /// When the AI explanation job was queued for the current members (null = not yet, or members changed since).
+    /// Set once per membership, so a group the model cannot explain is not queued again on every scan.
+    /// </summary>
+    public DateTime? ExplanationQueuedAtUtc { get; set; }
 
     public List<IncidentGroupMember> Members { get; set; } = [];
 }
@@ -70,4 +75,12 @@ public class IncidentGroupMember
     public bool Included { get; set; }
     /// <summary>A3: its DOWN notification was folded into the primary's (null = it was notified on its own).</summary>
     public DateTime? FoldedAtUtc { get; set; }
+    /// <summary>
+    /// A3: when the folded DOWN was handed to the alert queue on its own after all (group undone, fold cap reached).
+    /// Set only after a successful enqueue; the watcher re-queues folded, still-open members where it is null and the
+    /// fold no longer applies, so a held-back DOWN cannot be lost.
+    /// </summary>
+    public DateTime? NotifiedAtUtc { get; set; }
+    /// <summary>A3: when the member was listed in an "also affected" follow-up of its group (null = not yet).</summary>
+    public DateTime? ReportedAtUtc { get; set; }
 }

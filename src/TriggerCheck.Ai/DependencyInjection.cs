@@ -61,6 +61,7 @@ public static class DependencyInjection
         // AI-4: incident correlation. L1 rules + proposals (A1); the alert-path hook groups notifications only at A3.
         services.AddOptions<AiCorrelationOptions>().Bind(config.GetSection(AiCorrelationOptions.Section));
         services.TryAddSingleton<CorrelationAutonomy>();
+        services.TryAddSingleton<CorrelationRuntimeState>();
         services.AddScoped<IncidentCorrelationService>();
         services.AddScoped<IAiContextProvider, CorrelationGroupingProvider>();
         services.AddScoped<IAlertGrouping, CorrelationAlertGrouping>();

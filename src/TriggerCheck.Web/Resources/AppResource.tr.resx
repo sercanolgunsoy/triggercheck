@@ -1990,8 +1990,8 @@
   <data name="No suggestions right now." xml:space="preserve">
     <value>Şu anda öneri yok.</value>
   </data>
-  <data name="Notifications of related incidents are combined: the first incident is notified at once, related ones that follow are shown under it here instead of being notified separately. When it recovers, monitors still down are notified on their own." xml:space="preserve">
-    <value>İlişkili olayların bildirimleri birleştirilir: ilk olay hemen bildirilir, ardından gelen ilişkili olaylar ayrı bildirilmek yerine burada onun altında gösterilir. İlk olay düzeldiğinde hâlâ çalışmayan monitörler ayrı ayrı bildirilir.</value>
+  <data name="Notifications of related incidents are combined: the first incident is notified at once, related ones that follow are listed in one short follow-up instead of separate alerts. When it recovers, or after 15 minutes, monitors still down are notified on their own." xml:space="preserve">
+    <value>İlişkili olayların bildirimleri birleştirilir: ilk olay hemen bildirilir, ardından gelen ilişkili olaylar ayrı uyarılar yerine tek bir kısa takip mesajında listelenir. İlk olay düzeldiğinde veya 15 dakika sonra, hâlâ çalışmayan monitörler ayrı ayrı bildirilir.</value>
   </data>
   <data name="Possibly related" xml:space="preserve">
     <value>Muhtemelen ilişkili</value>

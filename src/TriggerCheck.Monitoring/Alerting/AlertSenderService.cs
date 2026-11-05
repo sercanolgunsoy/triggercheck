@@ -20,6 +20,10 @@ namespace TriggerCheck.Monitoring.Alerting;
 /// the monitor's waiting and retrying escalations, but an escalation never supersedes anything: it does not touch the
 /// status lane (the original DOWN is always delivered), and a newer escalation does not cancel an older one's
 /// delivery; a still waiting older escalation is merged into the newer one (its channels are added).</item>
+/// <item>AI-4 group follow-ups (<see cref="AlertKind.GroupUpdate"/>) have a fourth lane per (primary) monitor that behaves
+/// like the escalation lane: nothing supersedes them and a waiting one is merged into the newer one (affected monitors
+/// are combined). A <see cref="AlertMessage.Deferred"/> DOWN (held back by grouping, sent later) does not make the
+/// monitor's escalations stale.</item>
 /// <item>Fairness: delivery attempts are throttled by <see cref="AlertDeliveryThrottle"/> (global and per customer)
 /// and retry waits hold no slot, so one tenant's failing endpoint cannot stall other tenants' alerts.</item>
 /// </list>
@@ -41,14 +45,22 @@ public sealed class AlertSenderService(
     private readonly object _lock = new();
     private readonly Dictionary<(int MonitorId, LaneKind Lane), Lane> _lanes = new();
 
-    private enum LaneKind { Status, Certificate, Escalation }
+    private enum LaneKind { Status, Certificate, Escalation, GroupUpdate }
 
     private static (int MonitorId, LaneKind Lane) LaneKey(AlertMessage m) => (m.MonitorId, m.Kind switch
     {
         AlertKind.CertificateExpiring => LaneKind.Certificate,
         AlertKind.Escalation => LaneKind.Escalation,
+        AlertKind.GroupUpdate => LaneKind.GroupUpdate,
         _ => LaneKind.Status
     });
+
+    /// <summary>Lanes whose alerts never supersede each other; a waiting one is merged into the newer one.</summary>
+    private static bool IsMergingLane(LaneKind lane) => lane is LaneKind.Escalation or LaneKind.GroupUpdate;
+
+    private static AlertMessage Merge(AlertMessage older, AlertMessage newer) => newer.Kind == AlertKind.GroupUpdate
+        ? newer with { AlsoAffected = (older.AlsoAffected ?? []).Union(newer.AlsoAffected ?? []).ToList() }
+        : MergeEscalations(older, newer);
 
     /// <summary>A waiting escalation merged into a newer one: the newer level, delivered to the channels of both.</summary>
     private static AlertMessage MergeEscalations(AlertMessage older, AlertMessage newer) =>
@@ -81,7 +93,7 @@ public sealed class AlertSenderService(
                 lock (_lock)
                 {
                     // A status alert (recovery, or a DOWN of a new incident) makes the monitor's escalations stale.
-                    if (key.Lane == LaneKind.Status && _lanes.TryGetValue((message.MonitorId, LaneKind.Escalation), out var escalations))
+                    if (key.Lane == LaneKind.Status && !message.Deferred && _lanes.TryGetValue((message.MonitorId, LaneKind.Escalation), out var escalations))
                     {
                         staleEscalation = escalations.Waiting;
                         escalations.Waiting = null;
@@ -89,9 +101,9 @@ public sealed class AlertSenderService(
                     }
                     if (_lanes.TryGetValue(key, out var lane))
                     {
-                        if (key.Lane == LaneKind.Escalation)
+                        if (IsMergingLane(key.Lane))
                         {
-                            if (lane.Waiting is { } older) message = MergeEscalations(merged = older, message);
+                            if (lane.Waiting is { } older) message = Merge(merged = older, message);
                         }
                         else
                         {

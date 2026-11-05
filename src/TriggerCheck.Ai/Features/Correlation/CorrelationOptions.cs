@@ -26,7 +26,40 @@ public sealed class AiCorrelationOptions
     /// </summary>
     public AiAutonomy MaxAutonomy { get; set; } = AiAutonomy.A3;
 
+    /// <summary>
+    /// A3: a folded member that is still down this many minutes after it was folded gets its own DOWN alert (the fold
+    /// is only meant for the first minutes of a shared outage).
+    /// </summary>
+    public int MaxFoldMinutes { get; set; } = 15;
+    /// <summary>
+    /// A3: the "also affected" follow-up of a group waits this long after the first not yet reported fold, so members
+    /// folded close together go out in one message.
+    /// </summary>
+    public int FollowUpDelaySeconds { get; set; } = 60;
+    /// <summary>
+    /// A3: how long the alert path waits for the database write lock before it gives up and sends the alert on its own.
+    /// </summary>
+    public int AlertPathLockTimeoutSeconds { get; set; } = 2;
+
     public TimeSpan Window => TimeSpan.FromMinutes(Math.Clamp(WindowMinutes, 1, 60));
+    public TimeSpan MaxFold => TimeSpan.FromMinutes(Math.Clamp(MaxFoldMinutes, 1, 24 * 60));
+    public TimeSpan FollowUpDelay => TimeSpan.FromSeconds(Math.Clamp(FollowUpDelaySeconds, 0, 3600));
+}
+
+/// <summary>
+/// Per-process hint for the alert path (singleton): whether automatic groups may exist, so an UP alert at A1 needs no
+/// database query. Starts true (unknown) and is refreshed by <see cref="CorrelationWatcher"/> on every instance each
+/// poll; set again whenever this process creates an automatic group. Leftover groups are undone by the watcher.
+/// </summary>
+public sealed class CorrelationRuntimeState
+{
+    private volatile bool _autoGroupsMayExist = true;
+
+    public bool AutoGroupsMayExist
+    {
+        get => _autoGroupsMayExist;
+        set => _autoGroupsMayExist = value;
+    }
 }
 
 /// <summary>

@@ -489,13 +489,40 @@ explanation; it never runs on the alert path.
   undecided proposals expire after `Ai__Correlation__ProposalExpiryHours` (24) and are not counted.
 - **A3 (off until `MaxAutonomy` of `CorrelationGrouping` in `AiFeatures.All` is raised after > 90 % acceptance):**
   the DOWN alert of a rule-linked incident is folded into the primary's notification, only when the primary's own
-  DOWN was delivered; folded alerts are recorded per channel ("Grouped with incident #…"). When the primary recovers
-  (or the group is undone, or grouping is switched off), members still down get their own DOWN at once. The decision
-  is a few indexed queries, never waits for the model, and fails open (any doubt or error sends the alert).
-  Escalations (FEAT-5), maintenance (FEAT-3) and region quorum (FEAT-6) are unchanged. `Ai__Correlation__MaxAutonomy`
-  (`A3`) can only lower the level (`A0` switches the feature off).
+  DOWN was delivered; folded alerts are recorded per channel ("Grouped with incident #…"). The decision is a few
+  indexed queries plus one short write transaction: it never waits for the model, waits at most
+  `Ai__Correlation__AlertPathLockTimeoutSeconds` (2) for the database write lock, and fails open (any doubt, error
+  or busy database sends the alert on its own). Eligibility is re-checked under the lock, so a switch-off in the same
+  moment wins.
+  - **Follow-up:** one short "Also affected (likely same cause as incident #N): "B", "C"" message per group goes to
+    the customer's channels (not voice calls) once the first unreported fold is `Ai__Correlation__FollowUpDelaySeconds`
+    (60) old; monitors folded after it go into a later, again debounced, follow-up. Webhooks get status
+    `also_affected` and `alsoAffected` (names).
+  - **Fold cap:** a folded monitor still down `Ai__Correlation__MaxFoldMinutes` (15) after its fold gets its own DOWN.
+  - **Undo:** when the primary recovers (after its UP was sent), an admin undoes the group, the customer switches
+    grouping off, or the customer is no longer eligible for automatic grouping (AI opt-out, `Ai__Enabled=false`,
+    `Ai__Correlation__MaxAutonomy` lowered, plan without `CorrelationGrouping`, budget used up), every folded monitor
+    still down gets its own DOWN. The watcher checks all of this every poll, so any of these switches takes effect
+    within one `PollSeconds`.
+  - **Durable:** a held-back DOWN is marked as sent (`IncidentGroupMembers.NotifiedAtUtc`) only after it was
+    accepted by the alert queue; the watcher re-queues the unmarked ones on every poll (queue full, shutdown, crash,
+    restart), so it may arrive twice after a crash but is never lost. Such a DOWN does not cancel the monitor's
+    pending escalations; escalations (FEAT-5), maintenance (FEAT-3) and region quorum (FEAT-6) are otherwise unchanged.
+  - A folded monitor that recovers before anybody was told about it (no follow-up, no own DOWN) while the primary is
+    still down has its UP folded too; once reported, its UP is sent normally.
+  - `Ai__Correlation__MaxAutonomy` (`A3`) can only lower the level (`A0` switches the feature off).
 - Customers switch grouping off on the same page; it needs `Ai__Enabled`, the AI opt-in and a plan with
   `CorrelationGrouping`. A used-up budget keeps the free rule-based proposals, skips the model and turns A3 off.
+- **Multi-instance (OPS-3):** the watcher scans, sends follow-ups / held-back DOWNs and queues explanations only on
+  the holder of the `ai-correlation` cluster lease, renewing it before each step. Each group's explanation is queued
+  once per membership (`IncidentGroups.ExplanationQueuedAtUtc`), also when the model cannot explain it. Every
+  instance refreshes an in-memory hint so that, at A1, UP alerts run no extra database query.
+
+**Upgrading an existing installation (AI-4):** adds the tables `IncidentGroups` and `IncidentGroupMembers` and the
+column `Customers.AlertGroupingEnabled`. Until the EF migrations (OPS-1) exist, the schema is created by
+`EnsureCreated` only on an empty database: back up and recreate the database, or apply the migration once OPS-1 lands
+(`Customers.AlertGroupingEnabled` must default to **true**; the new tables start empty).
+
 **Settings suggestions (AI-5, autonomy A1):** every `Ai__Suggestions__IntervalMinutes` the job reads each monitor's
 central checks (outside maintenance, confirmation probes excluded) and incidents of the last `WindowDays` days, but only
 those recorded since its last settings change, and suggests: a higher failure threshold when most incidents recovered

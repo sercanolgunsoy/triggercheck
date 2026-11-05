@@ -9,7 +9,9 @@ using TriggerCheck.Ai.Features.Correlation;
 using TriggerCheck.Ai.Interpretation;
 using TriggerCheck.Domain;
 using TriggerCheck.Domain.Entities;
+using Microsoft.Extensions.Hosting;
 using TriggerCheck.Monitoring.Alerting;
+using TriggerCheck.Monitoring.Cluster;
 
 namespace TriggerCheck.Tests.Ai.Features;
 
@@ -318,6 +320,115 @@ public class CorrelationTests
         var customer = await GroupsAsync(auto, s => s.CustomerAsync(c2.Id));
         Assert.Equal(CorrelationMode.Automatic, await GroupsAsync(auto, s => s.ModeAsync(customer!)));
         Assert.Equal(0, (await ScanAsync(auto)).Proposed); // grouping happens on the alert path in A3
+    }
+
+    [Fact]
+    public async Task A_keyword_never_reaches_the_model()
+    {
+        await using var host = await AiTestHost.CreateAsync();
+        var c = await host.AddCustomerAsync();
+        var a = await DownAsync(host, c.Id, "https://shop.example.test/checkout", "Keyword 'PromoCodeXmas2026' not found in response", 3);
+        await DownAsync(host, c.Id, "https://shop.example.test/cart", "Keyword 'Sepete ekle hazine' not found in response", 2.5);
+        await DownAsync(host, c.Id, "https://www.example.test/", "Unexpected status code 503 (expected 200-299)", 2);
+        await host.WithDbAsync(db => db.Monitors.Where(m => db.Incidents.Any(i => i.MonitorId == m.Id && i.Id == a))
+            .ExecuteUpdateAsync(u => u.SetProperty(m => m.Type, MonitorType.Keyword).SetProperty(m => m.Keyword, "PromoCodeXmas2026")));
+        await ScanAsync(host);
+        var g = Assert.Single(await AllGroupsAsync(host));
+
+        await host.RunAsync(GroupJob(c.Id, g.Id));
+
+        var request = Assert.Single(host.Client.Requests);
+        Assert.DoesNotContain("PromoCodeXmas2026", request.UserContent);
+        Assert.DoesNotContain("Sepete ekle", request.UserContent);
+        Assert.Contains("Keyword not found in response", request.UserContent);
+    }
+
+    [Fact]
+    public async Task An_accepted_proposal_is_never_extended_by_a_later_scan()
+    {
+        await using var host = await AiTestHost.CreateAsync();
+        var c = await host.AddCustomerAsync();
+        var a = await DownAsync(host, c.Id, "https://api.example.test/a", Timeout, 3);
+        var b = await DownAsync(host, c.Id, "https://api.example.test/b", Timeout, 2.5);
+        await ScanAsync(host);
+        var g = Assert.Single(await AllGroupsAsync(host));
+        await GroupsAsync(host, s => s.AcceptAsync(c.Id, g.Id, [b], "admin"));
+
+        var late = await DownAsync(host, c.Id, "https://api.example.test/c", Timeout, 1);
+        await ScanAsync(host);
+
+        g = (await AllGroupsAsync(host)).Single(x => x.Id == g.Id);
+        Assert.Equal([a, b], g.Members.Select(m => m.IncidentId).Order());
+        Assert.DoesNotContain(await AllGroupsAsync(host), x => x.Members.Any(m => m.IncidentId == late) && x.Status != IncidentGroupStatus.Proposed);
+    }
+
+    [Fact]
+    public async Task A_group_the_model_cannot_explain_is_queued_once()
+    {
+        await using var host = await AiTestHost.CreateAsync();
+        var c = await host.AddCustomerAsync();
+        await DownAsync(host, c.Id, "https://api.example.test/a", Timeout, 3);
+        await DownAsync(host, c.Id, "https://api.example.test/b", Timeout, 2.5);
+        Assert.Equal(1, (await ScanAsync(host)).JobsQueued);
+        var g = Assert.Single(await AllGroupsAsync(host));
+        Assert.NotNull(g.ExplanationQueuedAtUtc);
+        // The members disappear (e.g. monitor deleted): the provider builds nothing, so no decision is ever written.
+        await host.WithDbAsync(db => db.IncidentGroupMembers.Where(m => m.GroupId == g.Id && m.Role != IncidentGroupRole.Primary).ExecuteDeleteAsync());
+        await host.Services.GetRequiredService<AiJobQueue>().Reader.ReadAsync(); // the worker took the job
+        Assert.Null(await host.RunAsync(GroupJob(c.Id, g.Id)));
+
+        Assert.Equal(0, (await ScanAsync(host)).JobsQueued);
+        Assert.Equal(0, (await ScanAsync(host)).JobsQueued);
+    }
+
+    [Fact]
+    public async Task Watcher_scans_only_on_the_lease_holder()
+    {
+        await using var host = await AiTestHost.CreateAsync(new() { ["Ai:Correlation:PollSeconds"] = "1" });
+        var c = await host.AddCustomerAsync();
+        await DownAsync(host, c.Id, "https://api.example.test/a", Timeout, 3);
+        await DownAsync(host, c.Id, "https://api.example.test/b", Timeout, 2.5);
+        await host.WithDbAsync(db =>
+        {
+            db.ClusterLeases.Add(new ClusterLease { Name = CorrelationWatcher.LeaseName, Owner = "other-instance", LeasedUntilUtc = host.Now.AddDays(1) });
+            return db.SaveChangesAsync();
+        });
+        var watcher = host.Services.GetServices<IHostedService>().OfType<CorrelationWatcher>().Single();
+        await watcher.StartAsync(CancellationToken.None);
+        try
+        {
+            for (var i = 0; i < 5; i++)
+            {
+                host.Time.Advance(TimeSpan.FromSeconds(1));
+                await Task.Delay(100);
+            }
+            Assert.Empty(await AllGroupsAsync(host));
+
+            await host.WithDbAsync(db => db.ClusterLeases.Where(l => l.Name == CorrelationWatcher.LeaseName)
+                .ExecuteUpdateAsync(u => u.SetProperty(l => l.LeasedUntilUtc, host.Now)));
+            for (var i = 0; i < 200 && (await AllGroupsAsync(host)).Count == 0; i++)
+            {
+                host.Time.Advance(TimeSpan.FromSeconds(1));
+                await Task.Delay(25);
+            }
+            Assert.Single(await AllGroupsAsync(host));
+        }
+        finally
+        {
+            await watcher.StopAsync(CancellationToken.None);
+        }
+        Assert.True(await host.WithDbAsync(db => db.ClusterLeases.Where(l => l.Name == CorrelationWatcher.LeaseName).Select(l => l.LeasedUntilUtc).SingleAsync()) <= host.Now);
+    }
+
+    [Fact]
+    public async Task Watcher_stops_when_AI_is_off_and_nothing_is_left_to_undo()
+    {
+        await using var host = await AiTestHost.CreateAsync(new() { ["Ai:Enabled"] = "false" });
+        var watcher = host.Services.GetServices<IHostedService>().OfType<CorrelationWatcher>().Single();
+        await watcher.StartAsync(CancellationToken.None);
+        await watcher.ExecuteTask!.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.False(host.Services.GetRequiredService<CorrelationRuntimeState>().AutoGroupsMayExist);
+        await watcher.StopAsync(CancellationToken.None);
     }
 
     [Fact]

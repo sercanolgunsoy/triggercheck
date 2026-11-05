@@ -97,10 +97,13 @@ public sealed class AlertDispatcher(
         if (message is { IsDownLike: true, IncidentId: int incidentId, AckUrl: null })
             message = message with { AckUrl = ackLinks.CreateUrl(incidentId, message.CustomerId) };
         var deliveries = await ResolveAsync(db, message, ct);
-        if (deliveries.Count == 0) return [];
-
-        var notifications = await Task.WhenAll(deliveries.Select(d => DeliverAsync(d.Target, d.Blocked, message, ct, stopRetrying, superseded)));
-        await SaveAsync(db, message, notifications);
+        Notification[] notifications = [];
+        if (deliveries.Count > 0)
+        {
+            notifications = await Task.WhenAll(deliveries.Select(d => DeliverAsync(d.Target, d.Blocked, message, ct, stopRetrying, superseded)));
+            await SaveAsync(db, message, notifications);
+        }
+        await AfterDeliveredAsync(message, ct);
         return notifications;
     }
 
@@ -147,6 +150,20 @@ public sealed class AlertDispatcher(
         }
     }
 
+    /// <summary>AI-4: follow-up work of the grouping once an alert was sent (e.g. a primary's UP undoes its group).</summary>
+    private async Task AfterDeliveredAsync(AlertMessage message, CancellationToken ct)
+    {
+        if (grouping is null || message.Kind is not (AlertKind.Down or AlertKind.Up) || message.MonitorId == 0) return;
+        try
+        {
+            await grouping.AfterDeliveredAsync(message, ct);
+        }
+        catch (Exception ex) when (!ct.IsCancellationRequested)
+        {
+            logger.LogError(ex, "Alert grouping follow-up failed for monitor {MonitorId}", message.MonitorId);
+        }
+    }
+
     private async Task<bool> IsStillUnacknowledgedAsync(AlertMessage message, CancellationToken ct)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
@@ -173,7 +190,7 @@ public sealed class AlertDispatcher(
 
         var query = db.AlertChannels.AsNoTracking()
             .Where(c => c.CustomerId == message.CustomerId && c.IsEnabled)
-            .Where(c => message.Kind != AlertKind.CertificateExpiring || c.Type != AlertChannelType.VoiceCall);
+            .Where(c => (message.Kind != AlertKind.CertificateExpiring && message.Kind != AlertKind.GroupUpdate) || c.Type != AlertChannelType.VoiceCall);
         if (message.ChannelIds is { } only)
         {
             var ids = only.ToList();

@@ -14,6 +14,12 @@ public interface IAlertGrouping
     /// notification rows (it is covered by the group's primary notification).
     /// </summary>
     Task<string?> TryFoldAsync(AlertMessage message, CancellationToken ct);
+
+    /// <summary>
+    /// Called after a DOWN / UP that was not folded has been delivered (or found no channel), so work that must not
+    /// delay the alert (e.g. undoing the group of a recovered primary) runs afterwards. Must not throw for expected cases.
+    /// </summary>
+    Task AfterDeliveredAsync(AlertMessage message, CancellationToken ct) => Task.CompletedTask;
 }
 
 /// <summary>Default: every alert is delivered on its own.</summary>

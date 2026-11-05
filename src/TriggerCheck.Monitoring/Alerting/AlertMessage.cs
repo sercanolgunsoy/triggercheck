@@ -17,7 +17,13 @@ public enum AlertKind
     /// FEAT-5: an incident is still open and unacknowledged after an escalation step's delay; sent only to that step's
     /// channels (<see cref="AlertMessage.ChannelIds"/>). Has its own lane in <see cref="AlertSenderService"/>.
     /// </summary>
-    Escalation
+    Escalation,
+    /// <summary>
+    /// AI-4 (A3): follow-up of an incident group: monitors whose DOWN alerts were folded into the primary's
+    /// (<see cref="AlertMessage.AlsoAffected"/>). Sent for the primary monitor (<see cref="AlertMessage.IncidentId"/> =
+    /// primary incident), in its own lane; never to voice-call channels.
+    /// </summary>
+    GroupUpdate
 }
 
 /// <summary>A status-change alert for one monitor, a certificate-expiry warning, an escalation, or a channel test message.</summary>
@@ -26,6 +32,11 @@ public enum AlertKind
 /// <param name="ChannelIds">Restricts delivery to these channels of the customer (escalation steps); null = all enabled channels.</param>
 /// <param name="AckUrl">Protected deep link to the acknowledge page, added by the dispatcher when configured.</param>
 /// <param name="DuringMaintenance">UP alert of a monitor that recovered during a maintenance window (FEAT-3).</param>
+/// <param name="AlsoAffected">GroupUpdate (AI-4): names of the monitors affected along with the primary.</param>
+/// <param name="Deferred">
+/// AI-4: a DOWN that was held back by notification grouping and is sent on its own later (group undone, fold cap). It
+/// does not supersede the monitor's waiting or retrying escalations (they are newer than the incident it reports).
+/// </param>
 public sealed record AlertMessage(
     int MonitorId,
     int CustomerId,
@@ -40,7 +51,9 @@ public sealed record AlertMessage(
     int EscalationLevel = 0,
     IReadOnlyList<int>? ChannelIds = null,
     string? AckUrl = null,
-    bool DuringMaintenance = false)
+    bool DuringMaintenance = false,
+    IReadOnlyList<string>? AlsoAffected = null,
+    bool Deferred = false)
 {
     public string StatusText => Kind switch
     {
@@ -48,11 +61,17 @@ public sealed record AlertMessage(
         AlertKind.Up => "up",
         AlertKind.CertificateExpiring => "certificate_expiring",
         AlertKind.Escalation => "escalation",
+        AlertKind.GroupUpdate => "also_affected",
         _ => "test"
     };
 
     /// <summary>Upper-case status for titles: DOWN / UP / TEST / CERTIFICATE EXPIRING / ESCALATION.</summary>
-    public string StatusLabel => Kind == AlertKind.CertificateExpiring ? "CERTIFICATE EXPIRING" : StatusText.ToUpperInvariant();
+    public string StatusLabel => Kind switch
+    {
+        AlertKind.CertificateExpiring => "CERTIFICATE EXPIRING",
+        AlertKind.GroupUpdate => "ALSO AFFECTED",
+        _ => StatusText.ToUpperInvariant()
+    };
 
     /// <summary>DOWN and escalation alerts: the monitor is (still) down.</summary>
     public bool IsDownLike => Kind is AlertKind.Down or AlertKind.Escalation;
@@ -74,8 +93,12 @@ public sealed record AlertMessage(
             ? $"The TLS certificate of monitor \"{OneLine(MonitorName)}\" expires in {days} day{(days == 1 ? "" : "s")}."
             : $"The TLS certificate of monitor \"{OneLine(MonitorName)}\" expires soon.",
         AlertKind.Escalation => $"Monitor \"{OneLine(MonitorName)}\" is still DOWN and nobody has acknowledged the incident (escalation level {EscalationLevel}).",
+        AlertKind.GroupUpdate => $"Also affected (likely same cause as incident #{IncidentId} of \"{OneLine(MonitorName)}\"): {AffectedText}.",
         _ => "This is a test notification from TriggerCheck."
     };
+
+    /// <summary>GroupUpdate: "\"B\", \"C\"" (names on one line).</summary>
+    public string AffectedText => string.Join(", ", (AlsoAffected ?? []).Select(n => $"\"{OneLine(n)}\""));
 
     /// <summary>
     /// Monitor target without credentials / query string (<see cref="SecretMasker.MaskUrl"/>), for chat, SMS and voice
@@ -135,6 +158,11 @@ public sealed record AlertMessage(
         new(monitor.Id, monitor.CustomerId, monitor.Name, monitor.Target, AlertKind.CertificateExpiring, null,
             DateTime.SpecifyKind(occurredAtUtc, DateTimeKind.Utc), null,
             monitor.CertExpiresAtUtc is { } e ? DateTime.SpecifyKind(e, DateTimeKind.Utc) : null);
+
+    /// <summary>AI-4 follow-up: <paramref name="affected"/> are down too, likely with the same cause as the primary incident.</summary>
+    public static AlertMessage ForGroupUpdate(Domain.Entities.Monitor primary, int primaryIncidentId, IReadOnlyList<string> affected, DateTime occurredAtUtc) =>
+        new(primary.Id, primary.CustomerId, primary.Name, primary.Target, AlertKind.GroupUpdate, null,
+            DateTime.SpecifyKind(occurredAtUtc, DateTimeKind.Utc), IncidentId: primaryIncidentId, AlsoAffected: affected);
 
     /// <summary>The message sent by "Send test notification".</summary>
     public static AlertMessage TestFor(int customerId, DateTime occurredAtUtc) =>
