@@ -1,0 +1,22 @@
+{
+  "id": "insights-plan-limit-monitors",
+  "feature": "PlatformInsights",
+  "language": "en",
+  "description": "A customer uses nearly every monitor and every status page of its plan: upgrade signal.",
+  "expect": { "primaryCause": "insights_summary", "focusCustomers": ["Growing Startup"] },
+  "insights": {
+    "customers": [
+      { "name": "Growing Startup", "plan": "Basic", "maxMonitors": 20, "maxStatusPages": 1, "statusPages": 1,
+        "monitors": [ { "name": "Startup service", "target": "https://startup.example.test/health", "repeat": 19 } ] },
+      { "name": "Roomy Enterprise", "plan": "Enterprise", "maxMonitors": 500, "maxStatusPages": null, "statusPages": 4,
+        "monitors": [ { "name": "Enterprise portal", "target": "https://enterprise.example.test/", "repeat": 3 } ] }
+    ]
+  },
+  "canned": {
+    "headline": "[[C1]] on the {{C1.plan}} plan is close to its limits and is an upgrade candidate.",
+    "points": [
+      "[[C1]] uses {{C1.limit.monitors.used}} of {{C1.limit.monitors.limit}} monitors ({{C1.limit.monitors.percent}}).",
+      "[[C1]] uses {{C1.limit.status_pages.used}} of {{C1.limit.status_pages.limit}} status pages ({{C1.limit.status_pages.percent}})."
+    ]
+  }
+}

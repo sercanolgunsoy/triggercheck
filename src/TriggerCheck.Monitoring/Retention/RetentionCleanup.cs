@@ -14,12 +14,15 @@ namespace TriggerCheck.Monitoring.Retention;
 /// and UTC day, only needed for today's limit) are kept for <see cref="SmsVoiceUsageDays"/> days.
 /// AI records follow the same retention: AI decisions (never those of the current month, which the AI budget counts),
 /// closed anomaly signals and closed settings suggestions (kept at least Ai:Suggestions:DismissDays + 1 days, so a
-/// dismissal suppresses its kind for the whole period).
+/// dismissal suppresses its kind for the whole period). Platform AI decisions without a customer (AI-12) are kept
+/// <see cref="PlatformAiDecisionDays"/> days.
 /// </summary>
 public sealed class RetentionCleaner(IDbContextFactory<AppDbContext> dbFactory, TimeProvider time, ILogger<RetentionCleaner> logger,
     Microsoft.Extensions.Configuration.IConfiguration? config = null)
 {
     public const int SmsVoiceUsageDays = 35;
+    /// <summary>AI decisions without a customer (AI-12 platform insight summaries) are kept this many days.</summary>
+    public const int PlatformAiDecisionDays = 400;
     /// <summary>Default of Ai:Suggestions:DismissDays (the option itself lives in the AI layer, which this project does not reference).</summary>
     public const int DefaultSuggestionDismissDays = 30;
 
@@ -57,7 +60,7 @@ public sealed class RetentionCleaner(IDbContextFactory<AppDbContext> dbFactory, 
                 .ExecuteDeleteAsync(ct);
             var aiCutoff = cutoff < monthStart ? cutoff : monthStart;
             ai += await db.AiDecisions
-                .Where(d => d.CreatedAtUtc < aiCutoff && customerIds.Contains(d.CustomerId))
+                .Where(d => d.CreatedAtUtc < aiCutoff && d.CustomerId != null && customerIds.Contains(d.CustomerId.Value))
                 .ExecuteDeleteAsync(ct);
             ai += await db.AnomalySignals
                 .Where(a => a.EndedAtUtc != null && a.EndedAtUtc < cutoff && customerIds.Contains(a.CustomerId))
@@ -69,6 +72,10 @@ public sealed class RetentionCleaner(IDbContextFactory<AppDbContext> dbFactory, 
                 .Where(x => x.ClosedAtUtc != null && x.ClosedAtUtc < suggestionCutoff && customerIds.Contains(x.CustomerId))
                 .ExecuteDeleteAsync(ct);
         }
+
+        // AI-12: platform-level decisions (no customer, SuperAdmin insight summaries) are kept for a fixed period.
+        var platformCutoff = now.AddDays(-PlatformAiDecisionDays);
+        ai += await db.AiDecisions.Where(d => d.CustomerId == null && d.CreatedAtUtc < platformCutoff).ExecuteDeleteAsync(ct);
 
         // Notifications of monitors that no longer exist (they have no FK, so no cascade).
         notifications += await db.Notifications

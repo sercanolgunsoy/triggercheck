@@ -185,8 +185,11 @@ public class SettingsSuggestionTests
     private static async Task<MonitorEntity> FlappingMonitorAsync(AiTestHost host, int customerId, int briefIncidents = 14) =>
         await host.WithDbAsync(async db =>
         {
-            var m = new MonitorEntity { CustomerId = customerId, Name = "Flappy", Type = MonitorType.Http, Target = "https://flap.example.test/x?key=secret",
-                IntervalSeconds = 60, TimeoutSeconds = 10, FailureThreshold = 1, Status = MonitorStatus.Up, CreatedAtUtc = host.Now.AddDays(-60) };
+            var m = new MonitorEntity
+            {
+                CustomerId = customerId, Name = "Flappy", Type = MonitorType.Http, Target = "https://flap.example.test/x?key=secret",
+                IntervalSeconds = 60, TimeoutSeconds = 10, FailureThreshold = 1, Status = MonitorStatus.Up, CreatedAtUtc = host.Now.AddDays(-60)
+            };
             db.Monitors.Add(m);
             for (var i = 0; i < briefIncidents; i++)
             {
@@ -310,8 +313,11 @@ public class SettingsSuggestionTests
                 db.CheckResults.Add(new CheckResult { MonitorId = m.Id, CheckedAtUtc = host.Now.AddMinutes(-10 - i * 5), IsUp = true, StatusCode = 200, ResponseTimeMs = 100 });
             // Only confirmation probes miss the keyword (each failure is followed by its confirmation, counted once).
             for (var i = 0; i < 20; i++)
-                db.CheckResults.Add(new CheckResult { MonitorId = m.Id, CheckedAtUtc = host.Now.AddMinutes(-12 - i * 5), IsUp = false, StatusCode = 200,
-                    ResponseTimeMs = 100, Error = "Keyword 'Hello' not found in response", IsConfirmation = true });
+                db.CheckResults.Add(new CheckResult
+                {
+                    MonitorId = m.Id, CheckedAtUtc = host.Now.AddMinutes(-12 - i * 5), IsUp = false, StatusCode = 200,
+                    ResponseTimeMs = 100, Error = "Keyword 'Hello' not found in response", IsConfirmation = true
+                });
             await db.SaveChangesAsync();
         });
         await RunJobAsync(host);
@@ -392,8 +398,11 @@ public class SettingsSuggestionTests
 
         async Task DecisionAsync(AiDecisionStatus status) => await host.WithDbAsync(async db =>
         {
-            db.AiDecisions.Add(new AiDecision { CustomerId = c.Id, Feature = AiFeatures.SettingsSuggestions, SubjectType = SettingsSuggestionProvider.SubjectType,
-                SubjectId = s.Id.ToString(CultureInfo.InvariantCulture), Model = "m", Effort = "low", Status = status, CreatedAtUtc = host.Now });
+            db.AiDecisions.Add(new AiDecision
+            {
+                CustomerId = c.Id, Feature = AiFeatures.SettingsSuggestions, SubjectType = SettingsSuggestionProvider.SubjectType,
+                SubjectId = s.Id.ToString(CultureInfo.InvariantCulture), Model = "m", Effort = "low", Status = status, CreatedAtUtc = host.Now
+            });
             await db.SaveChangesAsync();
         });
 
@@ -422,8 +431,11 @@ public class SettingsSuggestionTests
         var m = await host.AddMonitorAsync(c.Id, x => { x.Type = MonitorType.Keyword; x.Keyword = "Open Sesame"; x.Status = MonitorStatus.Down; });
         var (suggestionId, incidentId) = await host.WithDbAsync(async db =>
         {
-            var sug = new SettingsSuggestion { CustomerId = c.Id, MonitorId = m.Id, Kind = SettingsSuggestionKind.TargetMayBeWrong, CreatedAtUtc = host.Now,
-                EvidenceJson = SuggestionFact.Serialize([new("failed_checks", "40"), new(TopErrorKey, "Keyword 'Open Sesame' not found in response")]) };
+            var sug = new SettingsSuggestion
+            {
+                CustomerId = c.Id, MonitorId = m.Id, Kind = SettingsSuggestionKind.TargetMayBeWrong, CreatedAtUtc = host.Now,
+                EvidenceJson = SuggestionFact.Serialize([new("failed_checks", "40"), new(TopErrorKey, "Keyword 'Open Sesame' not found in response")])
+            };
             db.SettingsSuggestions.Add(sug);
             db.CheckResults.Add(new CheckResult { MonitorId = m.Id, CheckedAtUtc = host.Now.AddMinutes(-1), StatusCode = 200, Error = "Keyword 'Open Sesame' not found in response" });
             var inc = new Incident { MonitorId = m.Id, StartedAtUtc = host.Now.AddMinutes(-2), Cause = "Keyword 'Open Sesame' not found in response" };
@@ -456,8 +468,11 @@ public class SettingsSuggestionTests
         await host.WithDbAsync(async db =>
         {
             foreach (var days in new[] { 20, 40 })
-                db.SettingsSuggestions.Add(new SettingsSuggestion { CustomerId = c.Id, MonitorId = m.Id, Status = SettingsSuggestionStatus.Dismissed,
-                    CreatedAtUtc = host.Now.AddDays(-days), ClosedAtUtc = host.Now.AddDays(-days) });
+                db.SettingsSuggestions.Add(new SettingsSuggestion
+                {
+                    CustomerId = c.Id, MonitorId = m.Id, Status = SettingsSuggestionStatus.Dismissed,
+                    CreatedAtUtc = host.Now.AddDays(-days), ClosedAtUtc = host.Now.AddDays(-days)
+                });
             await db.SaveChangesAsync();
         });
         Task CleanAsync(Microsoft.Extensions.Configuration.IConfiguration? config) => host.InScopeAsync(sp => new TriggerCheck.Monitoring.Retention.RetentionCleaner(
@@ -605,8 +620,11 @@ public class SettingsSuggestionTests
         var mp = await FlappingMonitorAsync(host, poor.Id);
         await host.WithDbAsync(async db =>
         {
-            db.AiDecisions.Add(new AiDecision { CustomerId = poor.Id, Feature = AiFeatures.IncidentInterpretation, SubjectType = "Incident", SubjectId = "1",
-                Model = "m", Effort = "low", Status = AiDecisionStatus.Succeeded, InputTokens = 10, OutputTokens = 10, CreatedAtUtc = host.Now });
+            db.AiDecisions.Add(new AiDecision
+            {
+                CustomerId = poor.Id, Feature = AiFeatures.IncidentInterpretation, SubjectType = "Incident", SubjectId = "1",
+                Model = "m", Effort = "low", Status = AiDecisionStatus.Succeeded, InputTokens = 10, OutputTokens = 10, CreatedAtUtc = host.Now
+            });
             await db.SaveChangesAsync();
         });
         await RunJobAsync(host);

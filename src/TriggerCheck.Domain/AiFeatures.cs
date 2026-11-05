@@ -17,6 +17,12 @@ public static class AiFeatures
     public const string PostmortemDraft = "PostmortemDraft";                 // AI-8
     public const string MonitorSetupAssistant = "MonitorSetupAssistant";     // AI-9
 
+    /// <summary>
+    /// AI-12: SuperAdmin platform insight summary. Not a plan feature (not in <see cref="All"/>): it is never sold to or
+    /// run for a customer; its <see cref="Entities.AiDecision"/> rows have no customer and use the platform budget.
+    /// </summary>
+    public const string PlatformInsights = "PlatformInsights";
+
     /// <param name="MaxAutonomy">Highest autonomy level the feature may produce today; model output is clamped to it.</param>
     public sealed record Info(string Name, string BacklogId, AiAutonomy MaxAutonomy);
 

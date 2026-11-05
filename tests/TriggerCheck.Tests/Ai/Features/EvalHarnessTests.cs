@@ -192,8 +192,11 @@ public class EvalHarnessTests
         var greedy = JsonNode.Parse(JsonSerializer.Serialize(new
         {
             summary = "All incidents share one cause.",
-            hypotheses = new[] { "C", "D", "E" }.Select(l => new { cause = "same time", confidence = "high", evidence = new[] { "same window" },
-                category = "shared_cause", evidence_refs = new[] { "incident " + l } }).ToArray(),
+            hypotheses = new[] { "C", "D", "E" }.Select(l => new
+            {
+                cause = "same time", confidence = "high", evidence = new[] { "same window" },
+                category = "shared_cause", evidence_refs = new[] { "incident " + l }
+            }).ToArray(),
             suggested_actions = Array.Empty<object>(),
             unknowns = Array.Empty<string>(),
         }))!;

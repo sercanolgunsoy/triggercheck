@@ -1,0 +1,24 @@
+{
+  "id": "insights-abandoned-all-down",
+  "feature": "PlatformInsights",
+  "language": "en",
+  "description": "Every monitor of one customer has been DOWN for weeks and nobody acknowledged anything: abandoned-account signal. A healthy customer gives no signal.",
+  "expect": { "primaryCause": "insights_summary", "focusCustomers": ["Ghost Town Bakery"] },
+  "insights": {
+    "customers": [
+      { "name": "Ghost Town Bakery", "contactEmail": "owner@bakery.example.test", "plan": "Basic",
+        "monitors": [
+          { "name": "Bakery homepage", "target": "https://bakery.example.test/", "status": "Down", "statusDays": 40 },
+          { "name": "Bakery shop", "target": "https://shop.bakery.example.test/cart", "status": "Down", "statusDays": 35 }
+        ] },
+      { "name": "Healthy Co", "monitors": [ { "name": "Healthy site", "target": "https://healthy.example.test/" } ] }
+    ]
+  },
+  "canned": {
+    "headline": "[[C1]] may have abandoned its account.",
+    "points": [
+      "For [[C1]], {{C1.abandoned.all_down}}: {{C1.abandoned.down_monitors}} monitors for up to {{C1.abandoned.longest_down_days}}, with {{C1.abandoned.acknowledgements}} acknowledgements in that time.",
+      "[[M1]] has been DOWN for {{M1.down_days}}; a check-in with the customer may be worthwhile."
+    ]
+  }
+}

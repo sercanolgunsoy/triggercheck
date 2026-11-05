@@ -51,7 +51,12 @@ public enum AiDecisionStatus
 public class AiDecision
 {
     public long Id { get; set; }
-    public int CustomerId { get; set; }
+    /// <summary>
+    /// The tenant the call was made for. Null only for platform-level SuperAdmin calls (AI-12 insight summaries,
+    /// <see cref="TriggerCheck.Domain.AiFeatures.PlatformInsights"/>): they are billed to the platform budget
+    /// (Ai:Insights:*), never to a customer's plan quota.
+    /// </summary>
+    public int? CustomerId { get; set; }
     /// <summary>Feature name, see <see cref="TriggerCheck.Domain.AiFeatures"/>.</summary>
     public string Feature { get; set; } = "";
     /// <summary>What the decision is about, e.g. "Incident" / "42".</summary>

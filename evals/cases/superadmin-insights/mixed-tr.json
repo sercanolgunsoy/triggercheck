@@ -1,0 +1,24 @@
+{
+  "id": "insights-mixed-tr",
+  "feature": "PlatformInsights",
+  "language": "tr",
+  "description": "Turkish: one noisy, one near its monitor limit and one abandoned customer; the abandoned and the upgrade candidate come first.",
+  "expect": { "primaryCause": "insights_summary", "focusCustomers": ["Terk Edilmiş Ltd", "Büyüyen Ajans"] },
+  "insights": {
+    "customers": [
+      { "name": "Kahve Dükkanı Test", "monitors": [ { "name": "Sipariş API", "target": "https://kahve.example.test/api/siparis", "incidents": 12 } ] },
+      { "name": "Büyüyen Ajans", "plan": "Basic", "maxMonitors": 10,
+        "monitors": [ { "name": "Müşteri sitesi", "target": "https://ajans.example.test/", "repeat": 9 } ] },
+      { "name": "Terk Edilmiş Ltd", "contactEmail": "info@terk.example.test",
+        "monitors": [ { "name": "Eski kampanya", "target": "https://kampanya.example.test/", "status": "Down", "statusDays": 20 } ] }
+    ]
+  },
+  "canned": {
+    "headline": "[[C3]] hesabı terk edilmiş olabilir; [[C2]] plan sınırına yaklaşıyor.",
+    "points": [
+      "[[C3]] için {{C3.abandoned.all_down}}, en uzun kesinti {{C3.abandoned.longest_down_days}} sürüyor ve onaylama sayısı {{C3.abandoned.acknowledgements}}.",
+      "[[C2]] monitör sınırının {{C2.limit.monitors.percent}} kadarını kullanıyor ({{C2.limit.monitors.used}} / {{C2.limit.monitors.limit}}).",
+      "[[C1]] son {{rule.window_days}} içinde {{C1.noise.incidents}} olay üretti; en gürültülü monitörü [[M1]]."
+    ]
+  }
+}

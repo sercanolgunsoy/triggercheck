@@ -36,6 +36,11 @@ public sealed class EvalScenario
     /// <summary>Filled by the harness (AI-6): monitor name → id of the seeded monitors.</summary>
     [JsonIgnore]
     public Dictionary<string, int> SeededMonitorIds { get; } = new();
+    /// <summary>AI-12 (PlatformInsights): the platform's customers, monitors and usage (see <see cref="InsightsEval"/>).</summary>
+    public EvalInsights? Insights { get; set; }
+    /// <summary>Filled by the harness (AI-12): customer name → id of the seeded customers.</summary>
+    [JsonIgnore]
+    public Dictionary<string, int> SeededCustomerIds { get; } = new();
     /// <summary>AI-4 (CorrelationGrouping): the incidents around the outage. Required for that feature.</summary>
     public EvalGroup? Group { get; set; }
     /// <summary>AI-9: the text the customer types into the monitor setup assistant. Required for MonitorSetupAssistant.</summary>
@@ -68,12 +73,18 @@ public sealed class EvalScenario
             var s = JsonSerializer.Deserialize<EvalScenario>(File.ReadAllText(file), Json)
                 ?? throw new InvalidDataException($"Empty case file {file}");
             if (string.IsNullOrWhiteSpace(s.Id)) s.Id = Path.GetFileNameWithoutExtension(file);
-            if (AiFeatures.Find(s.Feature) is null) throw new InvalidDataException($"{file}: unknown feature '{s.Feature}'");
+            if (AiFeatures.Find(s.Feature) is null && s.Feature != AiFeatures.PlatformInsights) throw new InvalidDataException($"{file}: unknown feature '{s.Feature}'");
             if (s.Feature == AiFeatures.IncidentInterpretation && s.Incident is null) throw new InvalidDataException($"{file}: incident missing");
             if (s.Feature == AiFeatures.SlowdownExplanation && s.Anomaly is null) throw new InvalidDataException($"{file}: anomaly missing");
             if (s.Feature == AiFeatures.QuestionAnswer && (string.IsNullOrWhiteSpace(s.Question) || s.QaMonitors.Count == 0)) throw new InvalidDataException($"{file}: question or qaMonitors missing");
             if (s.Feature == AiFeatures.MonitorSetupAssistant && string.IsNullOrWhiteSpace(s.Request)) throw new InvalidDataException($"{file}: request missing");
             if (s.Feature == AiFeatures.CorrelationGrouping && s.Group is null) throw new InvalidDataException($"{file}: group missing");
+            if (s.Feature == AiFeatures.PlatformInsights)
+            {
+                if (s.Insights is not { Customers.Count: > 0 }) throw new InvalidDataException($"{file}: insights customers missing");
+                var names = s.Insights.Customers.Select(c => c.Name).ToHashSet();
+                if (s.Expect.FocusCustomers.FirstOrDefault(n => !names.Contains(n)) is { } unknown) throw new InvalidDataException($"{file}: unknown focus customer '{unknown}'");
+            }
             if (s.Feature == AiFeatures.NarrativeReport)
             {
                 if (s.Narrative is not { Monitors.Count: > 0 }) throw new InvalidDataException($"{file}: narrative monitors missing");
@@ -107,6 +118,8 @@ public sealed class EvalExpectation
     public bool NoOutageStatement { get; set; }
     /// <summary>AI-6: monitors (by name) that "what happened" or "what to watch" must reference by their label.</summary>
     public List<string> FocusMonitors { get; set; } = [];
+    /// <summary>AI-12: customers (by name) the summary must reference by their [[label]].</summary>
+    public List<string> FocusCustomers { get; set; } = [];
     /// <summary>AI-6: the true figures of monitors, for the grader's independent claim check (not the production engine).</summary>
     public List<EvalMonitorFacts> MonitorFacts { get; set; } = [];
     /// <summary>AI-7: records the answer must cite ("monitor:Name", "incident:Name#1") and tools it must have used.</summary>

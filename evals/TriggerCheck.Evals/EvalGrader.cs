@@ -96,6 +96,8 @@ public static partial class EvalGrader
         // AI-9: the outcome of the assistant (graded with the expected form fields in MonitorSetupEval).
         [MonitorSetupEval.FormLabel] = [MonitorSetupEval.FormLabel],
         [MonitorSetupEval.ClarifyLabel] = [MonitorSetupEval.ClarifyLabel],
+        // AI-12: graded by InsightsEval (focus customers referenced, contract + independent grounding), not by a cause category.
+        [InsightsEval.Label] = [InsightsEval.Label],
     };
 
     /// <summary>Categories that only make sense for slowdowns are not counted for incident causes (and vice versa).</summary>
