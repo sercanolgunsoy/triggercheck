@@ -1,3 +1,4 @@
+using System.Data.Common;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -36,6 +37,18 @@ public enum NarrativeState
 /// <param name="Names">Label ("monitor A") → current monitor name of this customer, for display only.</param>
 public sealed record NarrativeView(NarrativeState State, long? DecisionId = null, NarrativeOutput? Output = null, IReadOnlyDictionary<string, string>? Names = null);
 
+/// <summary>Outcome of a panel request (<see cref="NarrativeReports.RequestAsync"/>).</summary>
+public enum NarrativeRequestResult
+{
+    Queued,
+    /// <summary>Already queued, running or ready.</summary>
+    AlreadyQueued,
+    /// <summary>The last attempt finished less than the request cool-down ago.</summary>
+    CoolingDown,
+    OverBudget,
+    Unavailable
+}
+
 /// <param name="Wait">The monthly e-mail should be held back for this run: the narrative is still expected before the deadline.</param>
 public sealed record MailNarrative(bool Wait, NarrativeOutput? Output = null, IReadOnlyDictionary<string, string>? Names = null)
 {
@@ -63,6 +76,21 @@ public sealed partial class NarrativeReports(AppDbContext db, IAiClient client, 
     /// <param name="periodComplete">The period has ended.</param>
     public async Task<NarrativeView> GetAsync(Customer customer, NarrativePeriod period, string timeZoneId, bool periodComplete, CancellationToken ct)
     {
+        try
+        {
+            return await GetCoreAsync(customer, period, timeZoneId, periodComplete, ct);
+        }
+        catch (DbException ex)
+        {
+            // E.g. the ReportNarratives table does not exist yet (database created before AI-6, schema via OPS-1): the
+            // report page works without the narrative.
+            logger.LogWarning(ex, "AI narrative lookup failed; the report is shown without it");
+            return new(NarrativeState.Off);
+        }
+    }
+
+    private async Task<NarrativeView> GetCoreAsync(Customer customer, NarrativePeriod period, string timeZoneId, bool periodComplete, CancellationToken ct)
+    {
         if (!Available) return new(NarrativeState.Off);
         if (!customer.AiEnabled) return new(NarrativeState.OptOut);
         if (!AiFeatures.PlanAllows(customer.Plan, AiFeatures.NarrativeReport)) return new(NarrativeState.NotInPlan);
@@ -88,23 +116,42 @@ public sealed partial class NarrativeReports(AppDbContext db, IAiClient client, 
 
     /// <summary>
     /// Queues the narrative of a complete period for the batch job (CustomerAdmin; the page checks the role). A ready
-    /// narrative in the same zone is kept; a failed / skipped / other-zone one is requested again.
+    /// narrative in the same zone is kept; a failed / skipped / other-zone one is requested again once the request
+    /// cool-down (<see cref="AiNarrativeOptions.RequestCooldownMinutes"/>) since it finished has passed. Nothing is
+    /// queued while the AI budget is used up (it would only record another budget skip).
     /// </summary>
-    /// <returns>False when AI is not available for the customer.</returns>
-    public async Task<bool> RequestAsync(Customer customer, NarrativePeriod period, string timeZoneId, CancellationToken ct)
+    public async Task<NarrativeRequestResult> RequestAsync(Customer customer, NarrativePeriod period, string timeZoneId, CancellationToken ct)
     {
-        if (!Available || !customer.AiEnabled || !AiFeatures.PlanAllows(customer.Plan, AiFeatures.NarrativeReport)) return false;
-        return await NarrativeReportJob.EnsureRequestedAsync(db, customer.Id, period, timeZoneId, AiJob.NormalizeLanguage(customer.AiLanguage),
-            time.GetUtcNow().UtcDateTime, reset: true, ct);
+        if (!Available || !customer.AiEnabled || !AiFeatures.PlanAllows(customer.Plan, AiFeatures.NarrativeReport)) return NarrativeRequestResult.Unavailable;
+        try
+        {
+            if ((await usage.GetMonthlyUsageAsync(customer.Id, ct)).IsOverBudget) return NarrativeRequestResult.OverBudget;
+            var cooldown = TimeSpan.FromMinutes(Math.Max(0, options.Value.Narrative.RequestCooldownMinutes));
+            return await NarrativeReportJob.EnsureRequestedAsync(db, customer.Id, period, timeZoneId, AiJob.NormalizeLanguage(customer.AiLanguage),
+                    time.GetUtcNow().UtcDateTime, cooldown, ct) switch
+            {
+                NarrativeReportJob.EnsureResult.Queued => NarrativeRequestResult.Queued,
+                NarrativeReportJob.EnsureResult.CoolingDown => NarrativeRequestResult.CoolingDown,
+                _ => NarrativeRequestResult.AlreadyQueued,
+            };
+        }
+        catch (DbException ex)
+        {
+            logger.LogWarning(ex, "AI narrative request failed");
+            return NarrativeRequestResult.Unavailable;
+        }
     }
 
     /// <summary>
     /// The narrative for the monthly SLA e-mail of <paramref name="monthKey"/>, or whether to wait for it. The e-mail
     /// waits only while a narrative can still come (AI available, customer eligible, budget left, row missing, queued,
     /// running or retryable) and only until <see cref="AiNarrativeOptions.EmailWaitMinutes"/> after the month ended;
-    /// otherwise it goes without. Never throws: any error means "send without".
+    /// otherwise it goes without. The wait never goes past <paramref name="latestSendUtc"/> (the end of the mailer's
+    /// catch-up window minus a run), so a long wait can never make the e-mail miss its window. Never throws: any error
+    /// means "send without".
     /// </summary>
-    public async Task<MailNarrative> ForMailAsync(int customerId, string monthKey, string timeZoneId, DateTime periodEndUtc, CancellationToken ct)
+    public async Task<MailNarrative> ForMailAsync(int customerId, string monthKey, string timeZoneId, DateTime periodEndUtc, DateTime latestSendUtc,
+        CancellationToken ct)
     {
         try
         {
@@ -125,7 +172,9 @@ public sealed partial class NarrativeReports(AppDbContext db, IAiClient client, 
                 || row.Status is ReportNarrativeStatus.Requested or ReportNarrativeStatus.Running
                 || (row.Status == ReportNarrativeStatus.Failed && row.Attempts < Math.Max(1, n.MaxAttempts));
             if (!stillExpected) return MailNarrative.None;
-            if (time.GetUtcNow().UtcDateTime >= periodEndUtc.AddMinutes(Math.Max(0, n.EmailWaitMinutes))) return MailNarrative.None;
+            var deadline = periodEndUtc.AddMinutes(Math.Max(0, n.EmailWaitMinutes));
+            if (deadline > latestSendUtc) deadline = latestSendUtc;
+            if (time.GetUtcNow().UtcDateTime >= deadline) return MailNarrative.None;
             if (row?.Status != ReportNarrativeStatus.Running && (await usage.GetMonthlyUsageAsync(customerId, ct)).IsOverBudget) return MailNarrative.None;
             return new(true);
         }

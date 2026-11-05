@@ -21,6 +21,21 @@ public sealed partial class AiContextBuilder
     /// <summary>Every fact key and untrusted-data source written so far (candidate evidence_refs).</summary>
     public IReadOnlySet<string> Keys => _keys;
 
+    /// <summary>
+    /// Typed numbers, dates and literals of the trusted facts written so far (number grounding, AI-5 / AI-6). Recorded
+    /// as each fact is written, from the value actually sent; identifiers and untrusted blocks never add facts.
+    /// </summary>
+    public Grounding.GroundingFacts Facts { get; } = new();
+
+    private string? _subject;
+
+    /// <summary>The entity ("monitor A") the following facts belong to, until the next <see cref="Section"/> or call.</summary>
+    public AiContextBuilder Subject(string? subject)
+    {
+        _subject = subject;
+        return this;
+    }
+
     /// <param name="language">UI language of the reader ("en", "tr"); the summary is written in it.</param>
     public AiContextBuilder(string language)
     {
@@ -30,11 +45,29 @@ public sealed partial class AiContextBuilder
 
     public AiContextBuilder Section(string title)
     {
+        _subject = null;
         _sb.AppendLine().Append("## ").AppendLine(Clean(title));
         return this;
     }
 
     public AiContextBuilder Fact(string key, object? value) => Fact(key, value, identifier: false);
+
+    /// <summary>A fact with an explicit grounding unit (default: from the key's suffix, see <see cref="Grounding.GroundingFacts.UnitOf"/>).</summary>
+    public AiContextBuilder Fact(string key, object? value, Grounding.GroundingUnit unit) => Fact(key, value, identifier: false, unit);
+
+    /// <summary>
+    /// A change written as "0.124 (down)" / "3 (up)" (no sign: "+0.1234" would be masked as a phone number) and
+    /// recorded as a signed delta, so "fell by 3" is grounded only by a decrease of 3.
+    /// </summary>
+    public AiContextBuilder Delta(string key, double value, Grounding.GroundingUnit? unit = null)
+    {
+        var abs = Math.Abs(value).ToString(CultureInfo.InvariantCulture);
+        _keys.Add(Clean(key));
+        _sb.Append(Clean(key)).Append(": ").Append(abs).AppendLine(value > 0 ? " (up)" : value < 0 ? " (down)" : " (no change)");
+        // "No change" is not a number to quote: a zero change must not ground a written 0.
+        if (value != 0) Facts.AddNumber(key, (decimal)Math.Abs(value), unit, _subject, Math.Sign(value), previous: false);
+        return this;
+    }
 
     /// <summary>
     /// A system-generated identifier (monitor name, id, feature code): masked like any fact except for the long-token
@@ -42,7 +75,7 @@ public sealed partial class AiContextBuilder
     /// </summary>
     public AiContextBuilder Identifier(string key, object? value) => Fact(key, value, identifier: true);
 
-    private AiContextBuilder Fact(string key, object? value, bool identifier)
+    private AiContextBuilder Fact(string key, object? value, bool identifier, Grounding.GroundingUnit? unit = null)
     {
         var text = value switch
         {
@@ -51,8 +84,11 @@ public sealed partial class AiContextBuilder
             IFormattable f => f.ToString(null, CultureInfo.InvariantCulture),
             _ => value.ToString() ?? "",
         };
+        var sent = Clean(AiMasker.MaskText(text, longTokens: !identifier));
         _keys.Add(Clean(key));
-        _sb.Append(Clean(key)).Append(": ").AppendLine(Clean(AiMasker.MaskText(text, longTokens: !identifier)));
+        _sb.Append(Clean(key)).Append(": ").AppendLine(sent);
+        if (!identifier)
+            Facts.AddValue(key, value is string or null ? sent : value, unit, _subject);
         return this;
     }
 

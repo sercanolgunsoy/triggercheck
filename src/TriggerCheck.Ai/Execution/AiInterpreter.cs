@@ -90,7 +90,8 @@ public sealed class AiInterpreter(
         if (prompt is null) return null;
 
         var system = AiPrompts.For(prompt.FeatureInstructions);
-        var schema = prompt.Output?.Schema ?? AiInterpretationSchema.Build(prompt.AllowedActions, prompt.Categories);
+        var contract = prompt.Output ?? new AiInterpretationContract(prompt, validator, feature.MaxAutonomy);
+        var schema = contract.Schema;
         decision.InputHash = Hash(decision.Model, decision.Effort, system, JsonSerializer.Serialize(schema), prompt.UserContent);
 
         // Identical input: reuse the succeeded answer, or wait out the cool-down after a refusal / failure.
@@ -142,36 +143,19 @@ public sealed class AiInterpreter(
 
             switch (result.Outcome)
             {
-                case AiCallOutcome.Succeeded when prompt.Output is not null:
-                    // Feature-specific contract (e.g. AI-6 narrative: only numbers from the input).
-                    var check = prompt.Output.Check(result.Json);
+                case AiCallOutcome.Succeeded:
+                    // The feature's contract: categories / evidence refs, number grounding and the L3 policy (or its own, AI-6).
+                    var check = contract.Check(result.Json);
                     if (check.Json is null)
                     {
-                        logger.LogWarning("AI output for {Feature} {SubjectType} {SubjectId} was rejected: {Code}", feature.Name, job.SubjectType, job.SubjectId, check.ErrorCode);
+                        logger.LogWarning("AI output for {Feature} {SubjectType} {SubjectId} did not match the contract: {Code}", feature.Name, job.SubjectType, job.SubjectId, check.ErrorCode);
                         decision.Status = AiDecisionStatus.Failed;
                         decision.ErrorCode = AiCallResult.SafeCode(check.ErrorCode) ?? "invalid_output";
                         break;
                     }
                     decision.OutputJson = check.Json;
-                    decision.AutonomyLevel = AiAutonomy.A0;
-                    decision.Status = AiDecisionStatus.Succeeded;
-                    break;
-                case AiCallOutcome.Succeeded:
-                    var parsed = AiInterpretation.TryParse(result.Json);
-                    // Category / evidence_refs contract first (drops ungrounded hypotheses), then the general L3 policy.
-                    if (parsed is not null) parsed = AiInterpretationValidator.ApplyContract(parsed, prompt.Categories, prompt.EvidenceKeys, prompt.RefAllowed);
-                    if (parsed is not null && prompt.Grounding is not null) parsed = prompt.Grounding(parsed);
-                    var valid = parsed is null ? null : validator.Validate(parsed, prompt.AllowedActions, feature.MaxAutonomy);
-                    if (valid is null)
-                    {
-                        logger.LogWarning("AI output for {Feature} {SubjectType} {SubjectId} did not match the contract", feature.Name, job.SubjectType, job.SubjectId);
-                        decision.Status = AiDecisionStatus.Failed;
-                        decision.ErrorCode = "invalid_output";
-                        break;
-                    }
-                    decision.OutputJson = valid.Interpretation.ToJson();
-                    decision.MaxConfidence = valid.MaxConfidence;
-                    decision.AutonomyLevel = valid.AutonomyLevel;
+                    decision.MaxConfidence = check.MaxConfidence;
+                    decision.AutonomyLevel = check.AutonomyLevel > feature.MaxAutonomy ? feature.MaxAutonomy : check.AutonomyLevel;
                     decision.Status = AiDecisionStatus.Succeeded;
                     break;
                 case AiCallOutcome.Refused:

@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using TriggerCheck.Ai;
 using TriggerCheck.Infrastructure.Data;
 using TriggerCheck.Monitoring.Reporting;
 using TriggerCheck.Web.StatusPages;
@@ -10,7 +12,11 @@ public static class ReportingSetup
 {
     public static IServiceCollection AddReporting(this IServiceCollection services, IConfiguration config)
     {
-        services.Configure<ReportOptions>(config.GetSection(ReportOptions.Section));
+        // AI-6: the e-mail's wait for the narrative must end well inside the catch-up window, or the e-mail is lost.
+        services.AddOptions<ReportOptions>().Bind(config.GetSection(ReportOptions.Section))
+            .Validate<IOptions<AiOptions>>((r, ai) => ai.Value.Narrative.EmailWaitMinutes < (long)Math.Max(1, r.CatchUpDays) * 1440 - MonthlyReportMailer.RunSpacingMinutes(r),
+                "Ai:Narrative:EmailWaitMinutes must be shorter than Reports:CatchUpDays minus two runs of Reports:JobIntervalMinutes.")
+            .ValidateOnStart();
         services.AddScoped<SlaReportService>();
         services.AddScoped<SlaReportCache>();
         services.AddMemoryCache();

@@ -6,6 +6,15 @@
   "expect": {
     "focusMonitors": [
       "Partner API"
+    ],
+    "monitorFacts": [
+      {
+        "name": "Partner API",
+        "uptimePercent": 99.814,
+        "slaTarget": 99.9,
+        "slaMet": false,
+        "incidents": 1
+      }
     ]
   },
   "narrative": {

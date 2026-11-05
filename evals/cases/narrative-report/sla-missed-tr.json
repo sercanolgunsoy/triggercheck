@@ -6,6 +6,15 @@
   "expect": {
     "focusMonitors": [
       "Ödeme servisi"
+    ],
+    "monitorFacts": [
+      {
+        "name": "Ödeme servisi",
+        "uptimePercent": 99.7644,
+        "slaTarget": 99.95,
+        "slaMet": false,
+        "incidents": 1
+      }
     ]
   },
   "narrative": {

@@ -48,8 +48,8 @@ ANTHROPIC_API_KEY=... dotnet run --project evals/TriggerCheck.Evals -- --real --
 --cases <dir>  --out <dir>                                defaults: evals/cases, evals/reports
 ```
 
-The exit code is 0 when the gate passes, 1 when it fails, 2 for usage errors. A real run of all 39 cases costs
-roughly 39 × (4k input + 1.5k output tokens) ≈ 0.16M input + 0.06M output tokens, i.e. about **$1.80 with
+The exit code is 0 when the gate passes, 1 when it fails, 2 for usage errors. A real run of all 47 cases costs
+roughly 47 × (4k input + 1.5k output tokens) ≈ 0.19M input + 0.07M output tokens, i.e. about **$2.20 with
 `claude-opus-5-5`** at list prices (less with prompt caching); the report shows the measured tokens and cost per case.
 
 ## Layout
@@ -136,9 +136,10 @@ every hypothesis whose category is not in the enum or whose refs resolve to noth
   appear in the request actually sent (system prompt + user content).
 - **Language**: the request asks for the case's language and the summary is written in it.
 - **No outage statement** (AI-3): the summary says that there is no outage yet.
-- **Numbers** (AI-5): every number, date and time in the model's text appears in the input (`AiNumberGrounding`,
-  the same rule production applies: an ungrounded summary fails the call, other ungrounded text is dropped). One
-  invented number fails the feature's gate.
+- **Numbers** (AI-5): every number, date and time in the model's text is backed by the typed facts of the input
+  (the shared `NumberGrounding` engine with the strict policy, the same rule production applies: an ungrounded summary
+  fails the call, other ungrounded text is dropped; untrusted error text grounds nothing). One invented number fails
+  the feature's gate.
 
 AI-5 cases describe the monitor's history (`checks`, and `incidents` with `repeat` / `everyMinutes`); the harness runs
 the production `SettingsSuggestionJob` rules on it and explains the suggestion they make. The label is the suggestion
@@ -151,9 +152,13 @@ AI-6 (`EvalGrader.GradeNarrative`) reuses the columns:
 
 - **Primary cause** = focus: every `focusMonitors` entry is referenced by its label in `monitors` of a "what happened"
   or "what to watch" item of the validated narrative (labels, not text matching).
-- **Evidence** = numbers: the raw model output contains no number that is missing from the input facts
-  (`NarrativeNumbers`: percentages, decimals with `.` or `,`, thousands groups, durations such as "2 h 15 min" /
-  "2 saat 15 dakika"; numbers inside `<untrusted_data>` do not count) and production accepted the narrative.
+- **Evidence** = numbers and claims: the raw model output passes the production narrative contract (shared
+  `NumberGrounding` engine on the provider's typed `GroundingFacts`: units, the monitor a statement is about,
+  previous-period values, change directions, the 0 / 100 guard, no links or contacts, no SLA "met" for a missed target)
+  **and** an independent grader check (`EvalGrader.WrongClaims`, not the production engine) against the case's
+  `expect.monitorFacts` (uptime and SLA target per monitor computed by hand, SLA met / missed, incident count), and
+  production accepted the narrative. A test feeds the review's hostile prompt-injection answer through this and
+  expects it to fail both.
 - **Masking**: no monitor name, URL path, planted secret or e-mail address in the request (monitors are sent as
   "monitor A", "monitor B", ...).
 - **Language**: as for AI-2.

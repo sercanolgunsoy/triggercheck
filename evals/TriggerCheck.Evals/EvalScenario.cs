@@ -93,6 +93,18 @@ public sealed class EvalExpectation
     public bool NoOutageStatement { get; set; }
     /// <summary>AI-6: monitors (by name) that "what happened" or "what to watch" must reference by their label.</summary>
     public List<string> FocusMonitors { get; set; } = [];
+    /// <summary>AI-6: the true figures of monitors, for the grader's independent claim check (not the production engine).</summary>
+    public List<EvalMonitorFacts> MonitorFacts { get; set; } = [];
+}
+
+/// <summary>Expected figures of one monitor in the report period (computed by hand from the case data).</summary>
+public sealed class EvalMonitorFacts
+{
+    public string Name { get; set; } = "";
+    public double? UptimePercent { get; set; }
+    public double? SlaTarget { get; set; }
+    public bool? SlaMet { get; set; }
+    public int? Incidents { get; set; }
 }
 
 /// <summary>

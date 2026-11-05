@@ -217,7 +217,8 @@ public static partial class EvalGrader
         {
             var texts = new[] { raw.Summary }.Concat(hypotheses.SelectMany(h => new[] { h.Cause }.Concat(h.Evidence ?? [])))
                 .Concat((raw.SuggestedActions ?? []).Select(a => a?.Description)).Concat(raw.Unknowns ?? []);
-            var invented = texts.SelectMany(t => AiNumberGrounding.Ungrounded(t, request.UserContent)).Distinct().ToList();
+            var facts = prompt?.Facts ?? new Ai.Grounding.GroundingFacts();
+            var invented = texts.SelectMany(t => Ai.Grounding.NumberGrounding.Ungrounded(t, facts, Ai.Grounding.GroundingPolicy.Strict)).Distinct().ToList();
             r.NumbersOk = invented.Count == 0;
             if (!r.NumbersOk.Value) r.Notes.Add("numbers not in the input: " + string.Join(", ", invented));
         }
@@ -274,14 +275,18 @@ public static partial class EvalGrader
             return r;
         }
         r.Summary = raw.Headline;
-        var texts = new[] { raw.Headline }.Concat(raw.WhatHappened.Concat(raw.WhatChanged).Concat(raw.WhatToWatch).Select(i => i.Text)).ToList();
+        var items = new[] { new NarrativeItem(raw.Headline, []) }.Concat(raw.WhatHappened).Concat(raw.WhatChanged).Concat(raw.WhatToWatch).ToList();
+        var texts = items.Select(i => i.Text).ToList();
 
-        // ---- numbers: none invented (raw output, before the contract strips anything) ----
-        var facts = (prompt?.Output as NarrativeOutputContract)?.Facts ?? new HashSet<decimal>();
-        var invented = texts.SelectMany(t => NarrativeNumbers.Ungrounded(t, facts)).Distinct().ToList();
+        // ---- numbers: none invented (raw output, before the contract strips anything; the production rules) ----
+        var contract = prompt?.Output as NarrativeOutputContract;
+        var invented = contract is null ? texts : items.SelectMany(i => contract.Problems(i.Text, i.Monitors)).Distinct().ToList();
         var validated = decision?.Status == AiDecisionStatus.Succeeded ? NarrativeOutput.TryParse(decision.OutputJson) : null;
-        r.EvidenceOk = invented.Count == 0 && validated is not null;
+        // ---- claims: checked independently of the production engine against the case's expected per-monitor facts ----
+        var wrongClaims = WrongClaims(s, items, contract?.Labels);
+        r.EvidenceOk = invented.Count == 0 && wrongClaims.Count == 0 && validated is not null;
         if (invented.Count > 0) r.Notes.Add("numbers not in the input: " + string.Join(", ", invented));
+        if (wrongClaims.Count > 0) r.Notes.Add("claims contradict the expected facts: " + string.Join(", ", wrongClaims));
         if (validated is null) r.Notes.Add("narrative rejected (" + (decision?.ErrorCode ?? decision?.Status.ToString() ?? "none") + ")");
 
         // ---- focus monitors referenced by label ----
@@ -297,6 +302,67 @@ public static partial class EvalGrader
         r.LanguageOk = requestLanguageOk && LooksTurkish(string.Join(" ", texts)) == (expectedLanguage == "Turkish");
         if (!r.LanguageOk) r.Notes.Add($"narrative is not in {expectedLanguage}");
         return r;
+    }
+
+    [GeneratedRegex(@"\b[Mm]onit(?:o|ö)r\s+([A-Z])\b")]
+    private static partial Regex LabelRef();
+
+    [GeneratedRegex(@"(?<![0-9.,])%?\s?([0-9]{1,3}(?:[.,][0-9]+)?)\s?%")]
+    private static partial Regex PercentClaim();
+
+    [GeneratedRegex(@"(?<![0-9.,])%\s?([0-9]{1,3}(?:[.,][0-9]+)?)(?![0-9])")]
+    private static partial Regex PrefixPercentClaim();
+
+    [GeneratedRegex(@"(?i)(?<![0-9.,])([0-9]+)\s+(?:incidents?|outages?|olay|kesinti)\b")]
+    private static partial Regex IncidentClaim();
+
+    [GeneratedRegex(@"(?i)\b(?:met|meets|achieved|within (?:its |the )?(?:sla|target))\b|karşıladı|tutturdu|hedefini tuttu|hedefine ulaştı")]
+    private static partial Regex MetClaim();
+
+    [GeneratedRegex(@"(?i)\b(?:missed|not met|below)\b|kaçırd|altında")]
+    private static partial Regex MissedClaim();
+
+    [GeneratedRegex(@"(?i)january|previous|prior|last month|ocak|önceki|geçen ay")]
+    private static partial Regex PreviousCue();
+
+    /// <summary>
+    /// Independent claim check (AI-6 grader; deliberately not the production <c>NumberGrounding</c>): for every text that
+    /// is about exactly one monitor with expected facts (<see cref="EvalExpectation.MonitorFacts"/>), a percentage next to
+    /// "uptime" must be its uptime (or SLA target) rounded as written, an SLA "met / missed" claim must agree, and an
+    /// incident count must be its count (previous-period sentences excepted).
+    /// </summary>
+    public static List<string> WrongClaims(EvalScenario s, IReadOnlyList<NarrativeItem> items, IReadOnlyDictionary<string, int>? labels)
+    {
+        var wrong = new List<string>();
+        if (labels is null || s.Expect.MonitorFacts.Count == 0) return wrong;
+        var expectedByLabel = new Dictionary<string, EvalMonitorFacts>();
+        foreach (var f in s.Expect.MonitorFacts)
+            if (s.SeededMonitorIds.TryGetValue(f.Name, out var id) && labels.FirstOrDefault(kv => kv.Value == id).Key is { } label)
+                expectedByLabel[label] = f;
+        foreach (var item in items)
+        {
+            var subjects = LabelRef().Matches(item.Text).Select(m => "monitor " + m.Groups[1].Value)
+                .Concat(item.Monitors.Select(x => x.StartsWith("monitor ", StringComparison.OrdinalIgnoreCase) ? "monitor " + x[^1..].ToUpperInvariant() : "monitor " + x.ToUpperInvariant()))
+                .Distinct().ToList();
+            if (subjects.Count != 1 || !expectedByLabel.TryGetValue(subjects[0], out var e)) continue;
+            var t = item.Text;
+            var previous = PreviousCue().IsMatch(t);
+            if (e.SlaMet is bool met && (met ? MissedClaim().IsMatch(t) && !MetClaim().IsMatch(t) : MetClaim().IsMatch(t) && !MissedClaim().IsMatch(t)))
+                wrong.Add($"{subjects[0]} SLA {(met ? "missed" : "met")}");
+            if (!previous && (t.Contains("uptime", StringComparison.OrdinalIgnoreCase) || t.Contains("erişilebilir", StringComparison.OrdinalIgnoreCase)))
+                foreach (var m in PercentClaim().Matches(t).Concat(PrefixPercentClaim().Matches(t)))
+                {
+                    var text = m.Groups[1].Value.Replace(',', '.');
+                    if (!decimal.TryParse(text, System.Globalization.NumberStyles.AllowDecimalPoint, System.Globalization.CultureInfo.InvariantCulture, out var v)) continue;
+                    var decimals = text.Contains('.') ? text.Length - text.IndexOf('.') - 1 : 0;
+                    bool Is(double? x) => x is double d && Math.Round((decimal)d, decimals, MidpointRounding.AwayFromZero) == v && !(v == 100 && (decimal)d != 100);
+                    if (!Is(e.UptimePercent) && !Is(e.SlaTarget)) wrong.Add($"{subjects[0]} uptime {m.Value.Trim()}");
+                }
+            if (!previous && e.Incidents is int n)
+                foreach (Match m in IncidentClaim().Matches(t))
+                    if (int.Parse(m.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture) != n) wrong.Add($"{subjects[0]} incidents {m.Groups[1].Value}");
+        }
+        return wrong;
     }
 
     /// <summary>Turkish-only letters, or at least two common Turkish words.</summary>

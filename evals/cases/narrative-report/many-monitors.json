@@ -7,6 +7,20 @@
     "focusMonitors": [
       "Payments",
       "Inventory sync"
+    ],
+    "monitorFacts": [
+      {
+        "name": "Payments",
+        "uptimePercent": 99.876,
+        "slaTarget": 99.95,
+        "slaMet": false,
+        "incidents": 2
+      },
+      {
+        "name": "Inventory sync",
+        "uptimePercent": 99.9752,
+        "incidents": 1
+      }
     ]
   },
   "narrative": {

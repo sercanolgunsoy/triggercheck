@@ -123,3 +123,24 @@ public sealed class AiOutputValidator : IAiOutputValidator
     public AiInterpretationValidator.Result? Validate(AiInterpretation raw, IReadOnlyCollection<string> allowedActions, AiAutonomy maxAutonomy) =>
         AiInterpretationValidator.Validate(raw, allowedActions, maxAutonomy);
 }
+
+/// <summary>
+/// Default output contract of the interpreting features (AI-2, AI-3, AI-5): the shared schema, then the category /
+/// evidence_refs contract (<see cref="AiInterpretationValidator.ApplyContract"/>), then number grounding when the prompt
+/// carries facts (<see cref="Grounding.NumberGrounding.Apply"/>, strict: numbers as given), then the L3 policy.
+/// </summary>
+public sealed class AiInterpretationContract(Execution.AiPrompt prompt, IAiOutputValidator validator, AiAutonomy maxAutonomy) : Execution.IAiOutputContract
+{
+    public IReadOnlyDictionary<string, System.Text.Json.JsonElement> Schema { get; } = AiInterpretationSchema.Build(prompt.AllowedActions, prompt.Categories);
+
+    public Execution.AiOutputCheck Check(string? json)
+    {
+        var parsed = AiInterpretation.TryParse(json);
+        if (parsed is not null) parsed = AiInterpretationValidator.ApplyContract(parsed, prompt.Categories, prompt.EvidenceKeys, prompt.RefAllowed);
+        if (parsed is not null && prompt.Facts is not null) parsed = Grounding.NumberGrounding.Apply(parsed, prompt.Facts, Grounding.GroundingPolicy.Strict);
+        var valid = parsed is null ? null : validator.Validate(parsed, prompt.AllowedActions, maxAutonomy);
+        return valid is null
+            ? new(null, "invalid_output")
+            : new(valid.Interpretation.ToJson(), null, valid.MaxConfidence, valid.AutonomyLevel);
+    }
+}

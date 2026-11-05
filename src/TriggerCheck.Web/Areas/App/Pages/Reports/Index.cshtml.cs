@@ -24,7 +24,7 @@ namespace TriggerCheck.Web.Areas.App.Pages.Reports;
 /// has none (it spends AI budget).
 /// </summary>
 public class IndexModel(AppDbContext db, ICurrentCustomer current, SlaReportCache reports, SlaReportPdf pdf, TimeProvider time,
-    Text<AppResource> L, SlaReportService weekly, NarrativeReports narratives) : PageModel
+    Text<AppResource> L, NarrativeReports narratives) : PageModel
 {
     public const int MonthsOffered = 12, WeeksOffered = 9;
 
@@ -66,10 +66,21 @@ public class IndexModel(AppDbContext db, ICurrentCustomer current, SlaReportCach
         }
         var customer = await current.GetCustomerAsync(ct);
         var period = new NarrativePeriod(Week is null ? ReportPeriodKind.Monthly : ReportPeriodKind.Weekly, Report.PeriodKey);
-        if (await narratives.RequestAsync(customer, period, Report.TimeZoneId, ct))
-            TempData["Success"] = L["The AI narrative is being prepared. It appears here within a few minutes."].Value;
-        else
-            TempData["Error"] = L["AI narratives are not available for your account."].Value;
+        switch (await narratives.RequestAsync(customer, period, Report.TimeZoneId, ct))
+        {
+            case NarrativeRequestResult.Queued or NarrativeRequestResult.AlreadyQueued:
+                TempData["Success"] = L["The AI narrative is being prepared. It appears here within a few minutes."].Value;
+                break;
+            case NarrativeRequestResult.CoolingDown:
+                TempData["Error"] = L["The AI narrative was tried recently. Please try again later."].Value;
+                break;
+            case NarrativeRequestResult.OverBudget:
+                TempData["Error"] = L["The AI budget of this month is used up."].Value;
+                break;
+            default:
+                TempData["Error"] = L["AI narratives are not available for your account."].Value;
+                break;
+        }
         return RedirectToPage(new { month = Week is null ? Month : null, week = Week });
     }
 
@@ -133,7 +144,7 @@ public class IndexModel(AppDbContext db, ICurrentCustomer current, SlaReportCach
         {
             if (!Weeks.Contains(week) || !SlaReportService.TryParseWeekKey(week, out var isoYear, out var isoWeek)) return false;
             Week = week;
-            Report = (await weekly.BuildWeekAsync(cid, isoYear, isoWeek, TimeZoneId, ct))!;
+            Report = (await reports.GetWeekAsync(cid, isoYear, isoWeek, TimeZoneId, ct))!;
             return true;
         }
         Report = (await reports.GetAsync(cid, selected.Year, selected.Month, TimeZoneId, ct))!;

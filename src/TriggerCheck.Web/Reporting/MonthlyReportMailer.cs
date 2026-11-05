@@ -89,6 +89,9 @@ public sealed class MonthlyReportMailer(AppDbContext db, SlaReportService report
     TimeProvider time, IOptionsMonitor<ReportOptions> options, Text<SharedResource> L, ILogger<MonthlyReportMailer> logger,
     NarrativeReports narratives)
 {
+    /// <summary>Safety margin before the end of the catch-up window: two runs of the job (at least an hour).</summary>
+    public static int RunSpacingMinutes(ReportOptions o) => 2 * Math.Max(60, o.JobIntervalMinutes);
+
     public async Task<int> RunAsync(CancellationToken ct)
     {
         var now = time.GetUtcNow().UtcDateTime;
@@ -106,7 +109,10 @@ public sealed class MonthlyReportMailer(AppDbContext db, SlaReportService report
             {
                 if (await db.MonthlyReportDeliveries.AnyAsync(d => d.CustomerId == c.Id && d.Month == key, ct)) continue;
                 var (_, monthEnd) = SlaReportService.MonthRange(month.Year, month.Month, tz);
-                var narrative = await narratives.ForMailAsync(c.Id, key, NarrativeReportJob.ZoneId(c.ReportTimeZoneId), monthEnd, ct);
+                // Never wait past the catch-up window (minus one run of this job): the e-mail must still go out.
+                var windowEnd = MaintenanceSchedule.LocalToUtc(new DateTime(local.Year, local.Month, 1).AddDays(Math.Max(1, options.CurrentValue.CatchUpDays)), tz);
+                var latestSend = windowEnd.AddMinutes(-RunSpacingMinutes(options.CurrentValue));
+                var narrative = await narratives.ForMailAsync(c.Id, key, NarrativeReportJob.ZoneId(c.ReportTimeZoneId), monthEnd, latestSend, ct);
                 if (narrative.Wait) continue; // the AI narrative is still being prepared; a later run sends (with or without it)
                 var report = await reports.BuildAsync(c.Id, month.Year, month.Month, c.ReportTimeZoneId, ct);
                 if (report is null) continue;

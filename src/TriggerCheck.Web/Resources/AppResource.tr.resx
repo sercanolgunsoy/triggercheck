@@ -1984,4 +1984,10 @@
   <data name="No AI narrative: there was nothing to report for this period." xml:space="preserve">
     <value>Yapay zekâ anlatısı yok: bu dönemde raporlanacak bir şey yoktu.</value>
   </data>
+  <data name="The AI narrative was tried recently. Please try again later." xml:space="preserve">
+    <value>Yapay zekâ anlatısı kısa süre önce denendi. Lütfen daha sonra tekrar deneyin.</value>
+  </data>
+  <data name="The AI budget of this month is used up." xml:space="preserve">
+    <value>Bu ayın yapay zekâ bütçesi tükendi.</value>
+  </data>
 </root>

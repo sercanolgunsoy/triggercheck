@@ -21,21 +21,20 @@ public sealed record AiJob(string Feature, int CustomerId, string SubjectType, s
 /// </param>
 /// <param name="EvidenceKeys">Keys of the evidence items present in <paramref name="UserContent"/> ("check #1234", "ttfb", ...).</param>
 /// <param name="RefAllowed">(category, key) → whether that key may support a hypothesis of that category.</param>
-/// <param name="Grounding">
-/// Optional feature-specific output check, applied after the category contract: returns the output with ungrounded
-/// parts removed, or null when it is unusable (recorded as Failed / "invalid_output"). AI-5 uses it to drop text with
-/// numbers that are not in the input (<see cref="Interpretation.AiNumberGrounding"/>).
-/// </param>
 /// <param name="Output">
 /// Optional own output contract (schema + validation) for features whose answer is not an AiInterpretation (AI-6
-/// narrative). Null: the shared interpretation schema and L3 validation.
+/// narrative). Null: <see cref="Interpretation.AiInterpretationContract"/> (category contract, number grounding when
+/// <paramref name="Facts"/> is set, L3 validation).
+/// </param>
+/// <param name="Facts">
+/// Typed facts of <paramref name="UserContent"/> (<see cref="Context.AiContextBuilder.Facts"/>). When set, the output may
+/// only contain numbers, dates and times they back (<see cref="Grounding.NumberGrounding"/>; AI-5, AI-6).
 /// </param>
 public sealed record AiPrompt(string FeatureInstructions, string UserContent, IReadOnlyList<string> AllowedActions,
     IReadOnlyList<string>? Categories = null, IReadOnlySet<string>? EvidenceKeys = null, Func<string, string, bool>? RefAllowed = null,
-    Func<Interpretation.AiInterpretation, Interpretation.AiInterpretation?>? Grounding = null,
-    IAiOutputContract? Output = null);
+    IAiOutputContract? Output = null, Grounding.GroundingFacts? Facts = null);
 
-/// <summary>A feature-specific structured output: the JSON schema sent to the model and the validation of its answer.</summary>
+/// <summary>A feature's structured output: the JSON schema sent to the model and the validation of its answer.</summary>
 public interface IAiOutputContract
 {
     IReadOnlyDictionary<string, System.Text.Json.JsonElement> Schema { get; }
@@ -46,7 +45,10 @@ public interface IAiOutputContract
 
 /// <param name="Json">Validated output to store (null: rejected).</param>
 /// <param name="ErrorCode">Short machine code when rejected, e.g. "invalid_output".</param>
-public sealed record AiOutputCheck(string? Json, string? ErrorCode = null);
+/// <param name="MaxConfidence">Highest hypothesis confidence (interpretations only).</param>
+/// <param name="AutonomyLevel">Highest autonomy among validated actions (A0 when none).</param>
+public sealed record AiOutputCheck(string? Json, string? ErrorCode = null,
+    Domain.Entities.AiConfidence? MaxConfidence = null, Domain.Entities.AiAutonomy AutonomyLevel = Domain.Entities.AiAutonomy.A0);
 
 /// <summary>
 /// Builds the model input for one feature (registered per feature in DI). Must load data only through

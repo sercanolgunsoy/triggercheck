@@ -160,20 +160,24 @@ public class SettingsSuggestionTests
     [Fact]
     public void Numbers_not_in_the_input_are_rejected()
     {
-        const string input = "brief_incidents: 14\nincidents: 15\np99_ms: 4500\nshare: 9.1\nlast_match_at: 2026-03-09T19:20:00Z";
-        Assert.True(AiNumberGrounding.IsGrounded("14 of 15 incidents; p99 4500 ms (4,500 / 4.500), 9,1 %, at 2026-03-09 19:20", input));
-        Assert.Equal(["16"], AiNumberGrounding.Ungrounded("16 of 15 incidents", input));
-        Assert.NotEmpty(AiNumberGrounding.Ungrounded("about 4.5 seconds", input)); // unit conversion = a new number
-        Assert.NotEmpty(AiNumberGrounding.Ungrounded("since 2026-03-08", input));
+        // Shared engine (TriggerCheck.Ai.Grounding), strict policy; facts recorded by the context builder.
+        var b = new TriggerCheck.Ai.Context.AiContextBuilder("en")
+            .Fact("brief_incidents", "14").Fact("incidents", "15").Fact("p99_ms", "4500").Fact("share", "9.1").Fact("last_match_at", "2026-03-09T19:20:00Z");
+        var facts = b.Facts;
+        var strict = TriggerCheck.Ai.Grounding.GroundingPolicy.Strict;
+        Assert.True(TriggerCheck.Ai.Grounding.NumberGrounding.IsGrounded("14 of 15 incidents; p99 4500 ms (4,500 / 4.500), 9,1 %, at 2026-03-09 19:20", facts, strict));
+        Assert.Equal(["16"], TriggerCheck.Ai.Grounding.NumberGrounding.Ungrounded("16 of 15 incidents", facts, strict));
+        Assert.NotEmpty(TriggerCheck.Ai.Grounding.NumberGrounding.Ungrounded("about 4.5 seconds", facts, strict)); // unit conversion = a new number
+        Assert.NotEmpty(TriggerCheck.Ai.Grounding.NumberGrounding.Ungrounded("since 2026-03-08", facts, strict));
 
         var output = new AiInterpretation("14 of 15 incidents were brief.",
             [new AiHypothesis("Brief blips.", AiConfidence.High, ["14 brief", "20 brief"]), new AiHypothesis("Invented 99 cases.", AiConfidence.Low, ["x"])],
             [new AiSuggestedAction("raise_failure_threshold", "Set it to 3.", AiAutonomy.A1, true)], ["Maybe 7 more."]);
-        var grounded = AiNumberGrounding.Apply(output, input)!;
+        var grounded = TriggerCheck.Ai.Grounding.NumberGrounding.Apply(output, facts, strict)!;
         Assert.Equal(["14 brief"], Assert.Single(grounded.Hypotheses).Evidence);
         Assert.Empty(grounded.SuggestedActions);
         Assert.Empty(grounded.Unknowns);
-        Assert.Null(AiNumberGrounding.Apply(output with { Summary = "17 incidents." }, input));
+        Assert.Null(TriggerCheck.Ai.Grounding.NumberGrounding.Apply(output with { Summary = "17 incidents." }, facts, strict));
     }
 
     // ---------------- job + explanation ----------------

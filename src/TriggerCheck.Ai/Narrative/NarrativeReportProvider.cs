@@ -1,6 +1,7 @@
 using System.Globalization;
 using TriggerCheck.Ai.Context;
 using TriggerCheck.Ai.Execution;
+using TriggerCheck.Ai.Grounding;
 using TriggerCheck.Domain;
 using TriggerCheck.Domain.Entities;
 using TriggerCheck.Domain.Reporting;
@@ -70,14 +71,15 @@ public sealed record NarrativePeriod(ReportPeriodKind Kind, string Key)
 /// <summary>
 /// AI-6 context (subject = <see cref="NarrativePeriod"/> key of one customer). Every number is computed here from the
 /// database (the FEAT-10 <see cref="SlaReportService"/> for this and the previous period, plus incidents, slowdown
-/// signals and certificates through the tenant-scoped <see cref="AiTenantData"/>) and passed in as a fact; the contract
-/// (<see cref="NarrativeOutputContract"/>) rejects any number of the output that is not among them. Monitors get
+/// signals and certificates through the tenant-scoped <see cref="AiTenantData"/>) and written as a typed fact (unit,
+/// monitor label, previous period, signed change; <see cref="GroundingFacts"/>); the contract
+/// (<see cref="NarrativeOutputContract"/>) rejects any number of the output that those facts do not back. Monitors get
 /// neutral labels ("monitor A"), names and targets are never sent (decision K5). No "now" in the content: an unchanged
 /// period gives the same input (idempotency).
 /// </summary>
 public sealed class NarrativeReportProvider(AiTenantData data, SlaReportService reports) : IAiContextProvider
 {
-    public const int MaxMonitors = 20, MaxIncidents = 5, CauseChars = 160;
+    public const int MaxMonitors = 20, MaxIncidents = 5;
 
     public string Feature => AiFeatures.NarrativeReport;
 
@@ -96,17 +98,19 @@ public sealed class NarrativeReportProvider(AiTenantData data, SlaReportService 
         var b = new AiContextBuilder(job.Language);
         b.Section("Report period")
             .Fact("kind", period.Kind == ReportPeriodKind.Monthly ? "monthly" : "weekly")
-            .Fact("period", period.Key)
+            .Identifier("period", period.Key)
             .Fact("period_start_utc", report.PeriodStartUtc)
             .Fact("period_end_utc", report.PeriodEndUtc)
             .Identifier("time_zone", report.TimeZoneId)
             .Fact("history_incomplete", report.HistoryIncomplete ? "yes (older than the data retention; figures may be incomplete)" : "no");
+        if (period.Kind == ReportPeriodKind.Monthly) b.Facts.AddMonth(report.Year, report.Month);
+        else if (SlaReportService.TryParseWeekKey(period.Key, out _, out var weekNumber)) b.Fact("week_number", weekNumber, GroundingUnit.Count);
 
-        AddSummary(b, "Totals of this period", report.Summary);
+        AddSummary(b, "Totals of this period", "", report.Summary);
         var prevMonitors = new Dictionary<int, MonitorSlaReport>();
         if (previous is { Monitors.Count: > 0 })
         {
-            AddSummary(b, "Totals of the previous period (" + period.Previous().Key + ")", previous.Summary);
+            AddSummary(b, "Totals of the previous period (" + period.Previous().Key + ")", "previous_", previous.Summary);
             AddChanges(b, report.Summary, previous.Summary);
             prevMonitors = previous.Monitors.ToDictionary(m => m.MonitorId);
         }
@@ -120,43 +124,49 @@ public sealed class NarrativeReportProvider(AiTenantData data, SlaReportService 
         var labels = new Dictionary<string, int>();
         for (var i = 0; i < listed.Count; i++) labels[NarrativeOutputContract.Label(i)] = listed[i].MonitorId;
         var labelOf = labels.ToDictionary(kv => kv.Value, kv => kv.Key);
+        var slaResults = new Dictionary<string, string>();
 
         var (start, end) = (report.PeriodStartUtc, report.PeriodEndUtc);
         var anomalies = await data.AnomalyCountsAsync(job.CustomerId, start, end, ct);
         var entities = (await data.MonitorsAsync(job.CustomerId, listed.Select(m => m.MonitorId).ToList(), ct)).ToDictionary(m => m.Id);
 
-        b.Section("Monitors (labels only; names are not shared)");
+        // One section per monitor: its figures are facts of that label only (a statement about monitor A may not use B's).
         foreach (var m in listed)
         {
+            var label = labelOf[m.MonitorId];
             entities.TryGetValue(m.MonitorId, out var e);
             prevMonitors.TryGetValue(m.MonitorId, out var p);
-            var parts = new List<string>
-            {
-                $"type={m.Type}",
-                "sla_target=" + Num(m.SlaTarget),
-                "uptime_percent=" + Num(m.UptimePercent),
-                "sla=" + (m.SlaMet switch { true => "met", false => "missed", _ => "no_target" }),
-                "downtime_minutes=" + Num(m.DowntimeMinutes),
-                "maintenance_minutes=" + Num(m.MaintenanceMinutes),
-                "incidents=" + m.IncidentCount.ToString(CultureInfo.InvariantCulture),
-                "mttr_minutes=" + Num(m.MttrMinutes),
-                "avg_response_ms=" + Num(m.AvgResponseMs),
-                "p95_response_ms=" + Num(m.P95ResponseMs),
-                "slowdown_signals=" + (anomalies.TryGetValue(m.MonitorId, out var a) ? a : 0).ToString(CultureInfo.InvariantCulture),
-            };
+            var sla = m.SlaMet switch { true => "met", false => "missed", _ => "no_target" };
+            slaResults[label] = sla;
+            b.Section(label + " (name not shared)").Subject(label)
+                .Fact("type", m.Type)
+                .Fact("sla_target", m.SlaTarget, GroundingUnit.Percent)
+                .Fact("uptime_percent", m.UptimePercent)
+                .Fact("sla", sla)
+                .Fact("downtime_minutes", m.DowntimeMinutes)
+                .Fact("incidents", m.IncidentCount, GroundingUnit.Count)
+                .Fact("mttr_minutes", m.MttrMinutes)
+                .Fact("avg_response_ms", m.AvgResponseMs)
+                .Fact("p95_response_ms", m.P95ResponseMs);
+            // Zeros only where they mean something: a "0" elsewhere must not ground "0 minutes of downtime".
+            if (m.MaintenanceMinutes > 0) b.Fact("maintenance_minutes", m.MaintenanceMinutes);
+            if (anomalies.TryGetValue(m.MonitorId, out var a) && a > 0) b.Fact("slowdown_signals", a, GroundingUnit.Count);
             if (p is not null)
-                parts.AddRange(["previous_uptime_percent=" + Num(p.UptimePercent), "previous_incidents=" + p.IncidentCount.ToString(CultureInfo.InvariantCulture),
-                    "previous_p95_response_ms=" + Num(p.P95ResponseMs)]);
-            else parts.Add("previous_period=not_monitored");
-            if (e is not null && e.CreatedAtUtc >= start) parts.Add("added_this_period=yes");
+                b.Fact("previous_uptime_percent", p.UptimePercent)
+                    .Fact("previous_downtime_minutes", p.DowntimeMinutes)
+                    .Fact("previous_incidents", p.IncidentCount, GroundingUnit.Count)
+                    .Fact("previous_p95_response_ms", p.P95ResponseMs);
+            else b.Fact("previous_period", "not monitored");
+            if (e is not null && e.CreatedAtUtc >= start) b.Fact("added_this_period", "yes");
             if (e?.CertExpiresAtUtc is DateTime exp)
-                parts.AddRange(["certificate_expires=" + exp.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-                    "certificate_days_left_at_period_end=" + ((int)Math.Floor((exp - end).TotalDays)).ToString(CultureInfo.InvariantCulture)]);
-            b.Fact(labelOf[m.MonitorId], string.Join(' ', parts));
+                b.Fact("certificate_expires", exp.Date)
+                    .Fact("certificate_days_left_at_period_end", (int)Math.Floor((exp - end).TotalDays), GroundingUnit.Days);
         }
         if (report.Monitors.Count > listed.Count)
-            b.Fact("monitors_not_listed", report.Monitors.Count - listed.Count);
+            b.Section("Other monitors").Fact("monitors_not_listed", report.Monitors.Count - listed.Count, GroundingUnit.Count);
 
+        // Incidents: computed facts and a fixed error class only. The free-text cause is external text: it is not sent
+        // (prompt injection into the official e-mail, and host names in it could de-anonymise "monitor A").
         var incidents = (await data.IncidentsStartedAsync(job.CustomerId, start, end, ct))
             .Where(i => labelOf.ContainsKey(i.MonitorId))
             .Select(i => (Incident: i, Minutes: ((i.ResolvedAtUtc ?? end) - i.StartedAtUtc).TotalMinutes))
@@ -168,52 +178,77 @@ public sealed class NarrativeReportProvider(AiTenantData data, SlaReportService 
             var (inc, minutes) = incidents[i];
             var key = "incident " + (char)('a' + i);
             var status = await data.FailingStatusCodeAsync(job.CustomerId, inc.MonitorId, inc.StartedAtUtc.AddMinutes(-10), inc.ResolvedAtUtc ?? end, ct);
-            b.Fact(key, $"monitor={labelOf[inc.MonitorId]} started_at={AiContextBuilder.Iso(inc.StartedAtUtc)} duration_minutes={Num(Math.Round(minutes, 1))}"
-                + $" state={(inc.ResolvedAtUtc is null ? "ongoing_at_period_end" : "resolved")}"
-                + (status is int sc ? $" last_failing_status_code={sc}" : "")
-                + (inc.ResolvedDuringMaintenance ? " resolved_during_maintenance=yes" : ""));
-            b.Untrusted(key + " cause", inc.Cause, CauseChars);
+            b.Subject(labelOf[inc.MonitorId])
+                .Fact(key + " monitor", labelOf[inc.MonitorId])
+                .Fact(key + " started_at", inc.StartedAtUtc)
+                .Fact(key + " duration_minutes", Math.Round(minutes, 1))
+                .Fact(key + " state", inc.ResolvedAtUtc is null ? "ongoing at the end of the period" : "resolved")
+                .Fact(key + " error_class", ErrorClass(inc.Cause, status));
+            if (status is int sc) b.Fact(key + " status_code", sc);
+            if (inc.ResolvedDuringMaintenance) b.Fact(key + " resolved_during_maintenance", "yes");
         }
 
         var content = b.Build();
-        var contract = new NarrativeOutputContract(NarrativeNumbers.FactsOf(content), labels);
-        return new AiPrompt(NarrativePrompts.Instructions, content, [], Output: contract);
+        var contract = new NarrativeOutputContract(b.Facts, labels, slaResults, NarrativeOutputContract.Policy(PreviousNames(period)));
+        return new AiPrompt(NarrativePrompts.Instructions, content, [], Output: contract, Facts: b.Facts);
     }
 
-    private static void AddSummary(AiContextBuilder b, string title, SlaSummary s) =>
+    private static void AddSummary(AiContextBuilder b, string title, string prefix, SlaSummary s) =>
         b.Section(title)
-            .Fact("monitors", s.MonitorCount)
-            .Fact("uptime_percent", Num(s.UptimePercent))
-            .Fact("downtime_minutes", Num(s.DowntimeMinutes))
-            .Fact("downtime", Human(s.DowntimeMinutes))
-            .Fact("incidents", s.IncidentCount)
-            .Fact("mttr_minutes", Num(s.MttrMinutes))
-            .Fact("avg_response_ms", Num(s.AvgResponseMs))
-            .Fact("p95_response_ms", Num(s.P95ResponseMs))
-            .Fact("sla_targets_met", s.SlaMet)
-            .Fact("sla_targets_missed", s.SlaMissed);
+            .Fact(prefix + "monitors", s.MonitorCount, GroundingUnit.Count)
+            .Fact(prefix + "uptime_percent", s.UptimePercent)
+            .Fact(prefix + "downtime_minutes", s.DowntimeMinutes)
+            .Identifier(prefix + "downtime", Human(s.DowntimeMinutes)) // presentation only; durations ground on the minutes
+            .Fact(prefix + "incidents", s.IncidentCount, GroundingUnit.Count)
+            .Fact(prefix + "mttr_minutes", s.MttrMinutes)
+            .Fact(prefix + "avg_response_ms", s.AvgResponseMs)
+            .Fact(prefix + "p95_response_ms", s.P95ResponseMs)
+            .Fact(prefix + "sla_targets_met", s.SlaMet, GroundingUnit.Count)
+            .Fact(prefix + "sla_targets_missed", s.SlaMissed, GroundingUnit.Count);
 
-    /// <summary>Precomputed changes (absolute value + direction), so the model never has to subtract.</summary>
+    /// <summary>Precomputed changes with their direction, so the model never subtracts and "fell by" can be checked.</summary>
     private static void AddChanges(AiContextBuilder b, SlaSummary now, SlaSummary prev)
     {
         b.Section("Changes compared with the previous period");
-        if (now.UptimePercent is double u && prev.UptimePercent is double pu) b.Fact("uptime_change_percentage_points", Signed(Math.Round(u - pu, 4)));
-        b.Fact("downtime_change_minutes", Signed(Math.Round(now.DowntimeMinutes - prev.DowntimeMinutes, 1)));
-        b.Fact("incidents_change", Signed(now.IncidentCount - prev.IncidentCount));
+        if (now.UptimePercent is double u && prev.UptimePercent is double pu) b.Delta("uptime_change_percentage_points", Math.Round(u - pu, 4));
+        b.Delta("downtime_change_minutes", Math.Round(now.DowntimeMinutes - prev.DowntimeMinutes, 1));
+        b.Delta("incidents_change", now.IncidentCount - prev.IncidentCount, GroundingUnit.Count);
         if (now.P95ResponseMs is int p && prev.P95ResponseMs is int pp)
         {
-            b.Fact("p95_response_change_ms", Signed(p - pp));
-            if (pp > 0) b.Fact("p95_response_change_percent", Signed(Math.Round(100.0 * (p - pp) / pp, 1)));
+            b.Delta("p95_response_change_ms", p - pp);
+            if (pp > 0) b.Delta("p95_response_change_percent", Math.Round(100.0 * (p - pp) / pp, 1));
         }
-        if (now.AvgResponseMs is double avg && prev.AvgResponseMs is double pavg) b.Fact("avg_response_change_ms", Signed(Math.Round(avg - pavg, 1)));
-        b.Fact("monitor_count_change", Signed(now.MonitorCount - prev.MonitorCount));
+        if (now.AvgResponseMs is double avg && prev.AvgResponseMs is double pavg) b.Delta("avg_response_change_ms", Math.Round(avg - pavg, 1));
+        b.Delta("monitor_count_change", now.MonitorCount - prev.MonitorCount, GroundingUnit.Count);
     }
 
-    internal static string Num(double? v) => v is double d ? d.ToString(CultureInfo.InvariantCulture) : "n/a";
+    /// <summary>Words that mean "the previous period" for the 0 / 100 guard: its key and month names (en, tr).</summary>
+    private static string[] PreviousNames(NarrativePeriod period)
+    {
+        var prev = period.Previous();
+        if (prev.Kind != ReportPeriodKind.Monthly) return [prev.Key];
+        var m = DateTime.ParseExact(prev.Key, "yyyy-MM", CultureInfo.InvariantCulture);
+        return [prev.Key, m.ToString("MMMM", CultureInfo.GetCultureInfo("en")), m.ToString("MMMM", CultureInfo.GetCultureInfo("tr"))];
+    }
 
-    /// <summary>"0.05 (up)" / "3 (down)" / "0 (no change)". No "+" sign: the masker would take "+0.1234" for a phone number.</summary>
-    private static string Signed(double v) =>
-        Math.Abs(v).ToString(CultureInfo.InvariantCulture) + (v > 0 ? " (up)" : v < 0 ? " (down)" : " (no change)");
+    /// <summary>Fixed error class of an incident (never the free text): from the failing status code, else from the cause.</summary>
+    public static string ErrorClass(string? cause, int? statusCode)
+    {
+        if (statusCode is >= 500 and <= 599) return "http_5xx";
+        if (statusCode is >= 400 and <= 499) return "http_4xx";
+        var c = (cause ?? "").ToLowerInvariant();
+        return c switch
+        {
+            _ when c.Contains("timeout") || c.Contains("timed out") => "timeout",
+            _ when c.Contains("dns") || c.Contains("resolve") || c.Contains("name or service") => "dns",
+            _ when c.Contains("certificate") || c.Contains("ssl") || c.Contains("tls") => "tls",
+            _ when c.Contains("refused") || c.Contains("reset") || c.Contains("unreachable") => "connection",
+            _ when c.Contains("keyword") || c.Contains("json") => "content_check",
+            _ when c.Contains("heartbeat") || c.Contains("ping") => "heartbeat_or_ping",
+            _ when c.Contains("status") || c.Contains("http") => "http_status",
+            _ => "other",
+        };
+    }
 
     /// <summary>"2 h 15 min" for 135.4 minutes (rounded to whole minutes; "0 min" for none).</summary>
     public static string Human(double minutes)

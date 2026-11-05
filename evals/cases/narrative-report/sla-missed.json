@@ -6,6 +6,22 @@
   "expect": {
     "focusMonitors": [
       "Checkout API"
+    ],
+    "monitorFacts": [
+      {
+        "name": "Checkout API",
+        "uptimePercent": 99.7024,
+        "slaTarget": 99.9,
+        "slaMet": false,
+        "incidents": 1
+      },
+      {
+        "name": "Company blog",
+        "uptimePercent": 100,
+        "slaTarget": 99.0,
+        "slaMet": true,
+        "incidents": 0
+      }
     ]
   },
   "narrative": {

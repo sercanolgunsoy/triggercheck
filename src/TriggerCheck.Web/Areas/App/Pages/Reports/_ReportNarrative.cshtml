@@ -49,9 +49,17 @@
         break;
     case NarrativeState.Requestable:
     case NarrativeState.Failed:
+    case NarrativeState.Budget:
+    case NarrativeState.NoData:
         <div class="ai-unavailable small text-muted d-flex flex-wrap align-items-center gap-2">
             @Icons.Get("sparkles", 14)
-            @(v.State == NarrativeState.Failed ? L["The AI narrative could not be generated."] : L["No AI narrative for this period yet."])
+            @switch (v.State)
+            {
+                case NarrativeState.Failed: @L["The AI narrative could not be generated."] break;
+                case NarrativeState.Budget: @L["AI summary unavailable this month."] break;
+                case NarrativeState.NoData: @L["No AI narrative: there was nothing to report for this period."] break;
+                default: @L["No AI narrative for this period yet."] break;
+            }
             @if (Model.CanRequest)
             {
                 <form method="post" asp-page-handler="Narrative" asp-route-month="@(Model.Week is null ? Model.Month : null)" asp-route-week="@Model.Week" class="d-inline m-0">
@@ -59,9 +67,6 @@
                 </form>
             }
         </div>
-        break;
-    case NarrativeState.Budget:
-        <div class="ai-unavailable small text-muted">@Icons.Get("sparkles", 14) @L["AI summary unavailable this month."]</div>
         break;
     case NarrativeState.NotComplete:
         <div class="ai-unavailable small text-muted">@Icons.Get("sparkles", 14) @L["The AI narrative is available once the period is over."]</div>
@@ -72,9 +77,6 @@
     case NarrativeState.OptOut:
         <div class="ai-unavailable small text-muted">@Icons.Get("sparkles", 14) @L["AI summaries are turned off for your account."]
             @if (Model.CanRequest) { <a asp-area="App" asp-page="/Ai/Index">@L["AI settings"]</a> }</div>
-        break;
-    case NarrativeState.NoData:
-        <div class="ai-unavailable small text-muted">@Icons.Get("sparkles", 14) @L["No AI narrative: there was nothing to report for this period."]</div>
         break;
     default: // Off: the report works without AI; nothing to say
         break;
