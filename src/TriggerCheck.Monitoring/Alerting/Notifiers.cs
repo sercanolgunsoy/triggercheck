@@ -90,7 +90,7 @@ public sealed class WebhookNotifier(IHttpClientFactory httpClientFactory) : INot
     {
         var payload = new WebhookPayload(message.MonitorId, message.MonitorName, message.Target, message.StatusText,
             message.Error, message.OccurredAtUtc, message.CertificateExpiresAtUtc,
-            message.IsDownLike ? message.IncidentId : null, message.Kind == AlertKind.Escalation ? message.EscalationLevel : null, message.AckLink,
+            message.IsDownLike || message.Kind == AlertKind.GroupUpdate ? message.IncidentId : null, message.Kind == AlertKind.Escalation ? message.EscalationLevel : null, message.AckLink,
             message.Kind == AlertKind.Up && message.DuringMaintenance ? true : null,
             message.Kind == AlertKind.GroupUpdate ? message.AlsoAffected : null);
         return WebhookPost.JsonAsync(httpClientFactory, target.Address, payload, "Webhook", ct);
@@ -100,7 +100,7 @@ public sealed class WebhookNotifier(IHttpClientFactory httpClientFactory) : INot
 /// <summary>Webhook body; serialized with web (camelCase) defaults.</summary>
 public sealed record WebhookPayload(int MonitorId, string MonitorName, string Target, string Status, string? Error, DateTime OccurredAtUtc,
     DateTime? CertificateExpiresAtUtc = null, int? IncidentId = null, int? EscalationLevel = null, string? AcknowledgeUrl = null,
-    bool? DuringMaintenance = null, IReadOnlyList<string>? AlsoAffected = null);
+    bool? DuringMaintenance = null, IReadOnlyList<AffectedMonitor>? AlsoAffected = null);
 
 /// <summary>
 /// Shared POST logic for every HTTP-based channel. Always uses the guarded <see cref="MonitoringHttpClients.Webhook"/>

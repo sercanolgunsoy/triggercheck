@@ -18,8 +18,12 @@ namespace TriggerCheck.Web.Areas.App.Pages.Incidents;
 /// they choose) or rejects, the acceptance rate (decision K3), recent groups (automatic ones can be undone) and the
 /// switch to turn grouping off. Viewers see everything read-only. Every query is filtered by RequiredCustomerId.
 /// </summary>
-public class GroupsModel(AppDbContext db, ICurrentCustomer current, IncidentCorrelationService groups, AiPanels ai, Text<AppResource> L) : PageModel
+public class GroupsModel(AppDbContext db, ICurrentCustomer current, IncidentCorrelationService groups, AiPanels ai, Text<AppResource> L,
+    Microsoft.Extensions.Options.IOptions<AiCorrelationOptions> correlationOptions) : PageModel
 {
+    /// <summary>A3 fold cap shown in the Automatic mode text (Ai:Correlation:MaxFoldMinutes).</summary>
+    public int MaxFoldMinutes => (int)correlationOptions.Value.MaxFold.TotalMinutes;
+
     public const int RecentCount = 20;
 
     public sealed record MemberRow(int IncidentId, string Label, IncidentGroupRole Role, int MonitorId, string MonitorName,

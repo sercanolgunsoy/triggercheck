@@ -77,10 +77,10 @@ public class IncidentGroupMember
     public DateTime? FoldedAtUtc { get; set; }
     /// <summary>
     /// A3: when the folded DOWN was handed to the alert queue on its own after all (group undone, fold cap reached).
-    /// Set only after a successful enqueue; the watcher re-queues folded, still-open members where it is null and the
-    /// fold no longer applies, so a held-back DOWN cannot be lost.
+    /// Claimed (set) right before the enqueue and reset if the queue refuses it; the watcher re-queues folded,
+    /// still-open members where it is null and the fold no longer applies.
     /// </summary>
     public DateTime? NotifiedAtUtc { get; set; }
-    /// <summary>A3: when the member was listed in an "also affected" follow-up of its group (null = not yet).</summary>
+    /// <summary>A3: when the member was listed in an "also affected" follow-up (claimed before the enqueue; null = not yet).</summary>
     public DateTime? ReportedAtUtc { get; set; }
 }

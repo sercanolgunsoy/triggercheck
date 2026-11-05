@@ -23,7 +23,8 @@ namespace TriggerCheck.Monitoring.Alerting;
 /// <item>AI-4 group follow-ups (<see cref="AlertKind.GroupUpdate"/>) have a fourth lane per (primary) monitor that behaves
 /// like the escalation lane: nothing supersedes them and a waiting one is merged into the newer one (affected monitors
 /// are combined). A <see cref="AlertMessage.Deferred"/> DOWN (held back by grouping, sent later) does not make the
-/// monitor's escalations stale.</item>
+/// monitor's escalations stale, never supersedes a waiting status alert or cancels the one in delivery, and is dropped
+/// when a status alert is already waiting (the dispatcher also drops it once its incident is resolved).</item>
 /// <item>Fairness: delivery attempts are throttled by <see cref="AlertDeliveryThrottle"/> (global and per customer)
 /// and retry waits hold no slot, so one tenant's failing endpoint cannot stall other tenants' alerts.</item>
 /// </list>
@@ -59,7 +60,7 @@ public sealed class AlertSenderService(
     private static bool IsMergingLane(LaneKind lane) => lane is LaneKind.Escalation or LaneKind.GroupUpdate;
 
     private static AlertMessage Merge(AlertMessage older, AlertMessage newer) => newer.Kind == AlertKind.GroupUpdate
-        ? newer with { AlsoAffected = (older.AlsoAffected ?? []).Union(newer.AlsoAffected ?? []).ToList() }
+        ? newer with { AlsoAffected = (older.AlsoAffected ?? []).Concat(newer.AlsoAffected ?? []).DistinctBy(m => m.MonitorId).ToList() }
         : MergeEscalations(older, newer);
 
     /// <summary>A waiting escalation merged into a newer one: the newer level, delivered to the channels of both.</summary>
@@ -88,7 +89,7 @@ public sealed class AlertSenderService(
                 var message = received;
                 var key = LaneKey(message);
                 Lane? started = null;
-                AlertMessage? skipped = null, merged = null, staleEscalation = null;
+                AlertMessage? skipped = null, merged = null, staleEscalation = null, staleDeferred = null;
                 CancellationTokenSource? toCancel = null, escalationToCancel = null;
                 lock (_lock)
                 {
@@ -104,13 +105,22 @@ public sealed class AlertSenderService(
                         if (IsMergingLane(key.Lane))
                         {
                             if (lane.Waiting is { } older) message = Merge(merged = older, message);
+                            lane.Waiting = message;
+                        }
+                        else if (message.Deferred)
+                        {
+                            // A held-back DOWN is older news than anything already in the lane: it never supersedes a
+                            // waiting alert or cancels the retries of the one in delivery; behind a waiting alert it is
+                            // dropped (that alert is newer, e.g. the monitor's UP).
+                            if (lane.Waiting is null) lane.Waiting = message;
+                            else staleDeferred = message;
                         }
                         else
                         {
                             skipped = lane.Waiting;
                             toCancel = lane.Superseded;
+                            lane.Waiting = message;
                         }
-                        lane.Waiting = message;
                     }
                     else
                     {
@@ -124,6 +134,11 @@ public sealed class AlertSenderService(
                 if (skipped is not null) Track(RecordSkippedAsync(skipped));
                 if (staleEscalation is not null) Track(RecordSkippedAsync(staleEscalation));
                 if (merged is not null) queue.MarkDone(merged); // delivered as part of the newer escalation
+                if (staleDeferred is not null)
+                {
+                    logger.LogInformation("Held-back DOWN for monitor {MonitorId} dropped: a newer alert is waiting", staleDeferred.MonitorId);
+                    queue.MarkDone(staleDeferred);
+                }
                 if (started is not null) Track(RunLaneAsync(message, started, stoppingToken));
             }
         }

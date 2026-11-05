@@ -88,6 +88,13 @@ public sealed class AlertDispatcher(
                 message.IncidentId, message.MonitorId);
             return [];
         }
+        // AI-4: a held-back DOWN whose incident recovered meanwhile is stale (its UP is, or was, on its way): not sent.
+        if (message is { Kind: AlertKind.Down, Deferred: true } && !await IsIncidentOpenAsync(db, message, ct))
+        {
+            logger.LogInformation("Held-back DOWN of incident {IncidentId} (monitor {MonitorId}) not sent: resolved meanwhile",
+                message.IncidentId, message.MonitorId);
+            return [];
+        }
         // AI-4 (A3): a DOWN / UP covered by its group's primary notification is recorded, not sent. Fails open.
         if (await TryFoldAsync(message, ct) is { } folded)
         {
@@ -169,6 +176,10 @@ public sealed class AlertDispatcher(
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         return await IsStillUnacknowledgedAsync(db, message, ct);
     }
+
+    /// <summary>AI-4: the alert's incident (tenant-checked) is still open.</summary>
+    private static Task<bool> IsIncidentOpenAsync(AppDbContext db, AlertMessage message, CancellationToken ct) =>
+        db.Incidents.AnyAsync(i => i.Id == message.IncidentId && i.Monitor.CustomerId == message.CustomerId && i.ResolvedAtUtc == null, ct);
 
     /// <summary>FEAT-5: an escalation is only delivered while its incident is still open and unacknowledged.</summary>
     private static Task<bool> IsStillUnacknowledgedAsync(AppDbContext db, AlertMessage message, CancellationToken ct) =>

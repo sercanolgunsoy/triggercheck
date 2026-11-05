@@ -44,9 +44,9 @@ public sealed record CorrelationAcceptance(int Accepted, int Rejected, int RuleM
 /// <see cref="CorrelationMode.Automatic"/> (re-checked under the write lock) and the lock is free within
 /// <see cref="AiCorrelationOptions.AlertPathLockTimeoutSeconds"/>; anything else sends the alert (fail open);</item>
 /// <item>a folded DOWN is never lost: whenever the fold stops applying (group undone, mode no longer Automatic, fold
-/// cap reached) and the incident is still open, the DOWN is queued on its own and only then marked
-/// (<see cref="IncidentGroupMember.NotifiedAtUtc"/>); the watcher re-queues the unmarked ones (queue full / shut down,
-/// crash, restart);</item>
+/// cap reached) and the incident is still open, the DOWN is claimed (<see cref="IncidentGroupMember.NotifiedAtUtc"/>)
+/// and queued on its own; a refused enqueue releases the claim and the watcher tries again (queue full / shut down,
+/// restart); a DOWN of an incident that recovered meanwhile is dropped by the dispatcher;</item>
 /// <item>folded members still open are listed in one debounced "also affected" follow-up per group;</item>
 /// <item>work that is not needed to decide an alert (undoing the group of a recovered primary) runs after the alert was
 /// sent.</item>
@@ -340,7 +340,8 @@ public sealed class IncidentCorrelationService(
         // Serialized with switch-off, ungroup and undo (SQLite takes the write lock at BEGIN): eligibility and the group
         // state are re-read under the lock, so nothing is folded into a group that is being undone or after switch-off.
         await using var tx = await db.Database.BeginTransactionAsync(ct);
-        if (await ModeAsync(cid, ct) != CorrelationMode.Automatic) return null;
+        // Cheap re-check under the lock (flags, plan, autonomy); the budget aggregation already ran just before it.
+        if (!autonomy.Automatic || await CustomerAsync(cid, ct) is not { } customer || !Eligible(customer, aiOptions.Value)) return null;
         if (await db.IncidentGroupMembers.AnyAsync(m => m.IncidentId == incident.Id, ct)) return null;
         var ids = earlier.Select(x => x.Incident.Id).ToList();
         var memberships = await db.IncidentGroupMembers.AsNoTracking().Include(m => m.Group)
@@ -358,6 +359,9 @@ public sealed class IncidentCorrelationService(
                     .Select(i => (DateTime?)i.StartedAtUtc).FirstOrDefaultAsync(ct);
                 if (primaryStart is null || incident.StartedAtUtc - primaryStart.Value > window) continue;
                 groupId = membership.GroupId;
+                var joined = groupId;
+                // New member: explain the group again (same transaction).
+                await db.IncidentGroups.Where(g => g.Id == joined).ExecuteUpdateAsync(u => u.SetProperty(g => g.ExplanationQueuedAtUtc, (DateTime?)null), ct);
             }
             else
             {
@@ -452,12 +456,14 @@ public sealed class IncidentCorrelationService(
         if (member is not { Role: IncidentGroupRole.Primary }) return;
         try
         {
-            await WithShortLockAsync(() => DissolveAsync(message.CustomerId, member.GroupId, null, ct));
+            if (!await WithShortLockAsync(() => DissolveGroupAsync(message.CustomerId, member.GroupId, null, ct))) return;
         }
         catch (Exception ex) when (ex is DbException or InvalidOperationException && !ct.IsCancellationRequested)
         {
             logger.LogInformation(ex, "Undoing incident group {GroupId} deferred to the correlation watcher", member.GroupId);
+            return;
         }
+        await NotifyPendingAsync(message.CustomerId, member.GroupId, ct);
     }
 
     /// <summary>
@@ -465,23 +471,27 @@ public sealed class IncidentCorrelationService(
     /// write transaction, then every folded member still down is queued on its own (<see cref="NotifyPendingAsync"/>).
     /// Returns the number of alerts queued.
     /// </summary>
-    public async Task<int> DissolveAsync(int customerId, int groupId, string? userId, CancellationToken ct = default)
+    public async Task<int> DissolveAsync(int customerId, int groupId, string? userId, CancellationToken ct = default) =>
+        await DissolveGroupAsync(customerId, groupId, userId, ct) ? await NotifyPendingAsync(customerId, groupId, ct) : 0;
+
+    /// <summary>The write transaction of <see cref="DissolveAsync"/>: true when the group was automatic and is now undone.</summary>
+    private async Task<bool> DissolveGroupAsync(int customerId, int groupId, string? userId, CancellationToken ct)
     {
-        await using (var tx = await db.Database.BeginTransactionAsync(ct))
-        {
-            var n = await DissolveWhereAsync(db.IncidentGroups.Where(g => g.Id == groupId && g.CustomerId == customerId && g.Status == IncidentGroupStatus.Auto), userId, ct);
-            await tx.CommitAsync(ct);
-            if (n == 0) return 0;
-        }
-        logger.LogInformation("Incident group {GroupId} of customer {CustomerId} undone", groupId, customerId);
-        return await NotifyPendingAsync(customerId, groupId, ct);
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        var n = await DissolveWhereAsync(db.IncidentGroups.Where(g => g.Id == groupId && g.CustomerId == customerId && g.Status == IncidentGroupStatus.Auto), userId, ct);
+        await tx.CommitAsync(ct);
+        if (n > 0) logger.LogInformation("Incident group {GroupId} of customer {CustomerId} undone", groupId, customerId);
+        return n > 0;
     }
 
     /// <summary>
     /// Queues the own DOWN of every folded member whose fold no longer applies (group not automatic any more, or folded
     /// longer than <see cref="AiCorrelationOptions.MaxFoldMinutes"/>) and whose incident is still open, then marks it
-    /// (<see cref="IncidentGroupMember.NotifiedAtUtc"/>). Marked only after a successful enqueue: a full or stopped queue
-    /// leaves it for the next call (at least once). Optionally limited to one customer / group.
+    /// (<see cref="IncidentGroupMember.NotifiedAtUtc"/>). Claim first: the mark is set by a conditional UPDATE (still
+    /// unmarked, incident still open) and only the caller that set it queues the DOWN, so overlapping calls never send
+    /// it twice and an UP arriving meanwhile is never folded; a full or stopped queue resets the mark for the next call.
+    /// A crash between claim and queue loses it like any alert still in the in-memory queue. Optionally limited to one
+    /// customer / group.
     /// </summary>
     public async Task<int> NotifyPendingAsync(int? customerId = null, int? groupId = null, CancellationToken ct = default)
     {
@@ -498,14 +508,20 @@ public sealed class IncidentCorrelationService(
         foreach (var m in pending)
         {
             var i = m.Incident;
+            var memberId = m.Id;
+            DateTime? now = Now;
+            var claimed = await db.IncidentGroupMembers
+                .Where(x => x.Id == memberId && x.NotifiedAtUtc == null && x.Incident.ResolvedAtUtc == null)
+                .ExecuteUpdateAsync(u => u.SetProperty(x => x.NotifiedAtUtc, now), ct);
+            if (claimed != 1) continue; // another caller has it, or the incident recovered meanwhile
             var alert = AlertMessage.For(i.Monitor, AlertKind.Down, i.StartedAtUtc) with { Error = i.Cause ?? i.Monitor.LastError, IncidentId = i.Id, Deferred = true };
             if (!queue.TryEnqueue(alert))
             {
                 logger.LogWarning("Could not queue the held-back DOWN of incident {IncidentId}; retried by the correlation watcher", i.Id);
+                await db.IncidentGroupMembers.Where(x => x.Id == memberId && x.NotifiedAtUtc == now)
+                    .ExecuteUpdateAsync(u => u.SetProperty(x => x.NotifiedAtUtc, (DateTime?)null), CancellationToken.None);
                 continue;
             }
-            await db.IncidentGroupMembers.Where(x => x.Id == m.Id && x.NotifiedAtUtc == null)
-                .ExecuteUpdateAsync(u => u.SetProperty(x => x.NotifiedAtUtc, Now), CancellationToken.None);
             queued++;
         }
         if (queued > 0) logger.LogInformation("{Count} held-back DOWN alert(s) of grouped incidents queued on their own", queued);
@@ -515,7 +531,8 @@ public sealed class IncidentCorrelationService(
     /// <summary>
     /// One debounced "also affected" follow-up per automatic group: folded members still down that were neither reported
     /// nor notified on their own, once the earliest of them was folded at least
-    /// <see cref="AiCorrelationOptions.FollowUpDelaySeconds"/> ago. Marked reported only after a successful enqueue.
+    /// <see cref="AiCorrelationOptions.FollowUpDelaySeconds"/> ago. Each member is claimed (ReportedAtUtc) before the
+    /// follow-up is queued and released again when the queue refuses it.
     /// </summary>
     public async Task<int> SendFollowUpsAsync(CancellationToken ct = default)
     {
@@ -533,13 +550,27 @@ public sealed class IncidentCorrelationService(
             var primary = await db.Incidents.AsNoTracking().Include(i => i.Monitor)
                 .FirstOrDefaultAsync(i => i.Id == group.PrimaryIncidentId && i.Monitor.CustomerId == group.CustomerId && i.ResolvedAtUtc == null, ct);
             if (primary is null) continue; // the group is being undone: its members get their own DOWN instead
-            var members = g.OrderBy(m => m.Incident.StartedAtUtc).ThenBy(m => m.Id).ToList();
-            var alert = AlertMessage.ForGroupUpdate(primary.Monitor, primary.Id, members.Select(m => m.Incident.Monitor.Name).ToList(), Now);
-            if (!queue.TryEnqueue(alert)) continue;
-            var ids = members.Select(m => m.Id).ToList();
-            var now = Now;
-            await db.IncidentGroupMembers.Where(x => ids.Contains(x.Id) && x.ReportedAtUtc == null)
-                .ExecuteUpdateAsync(u => u.SetProperty(x => x.ReportedAtUtc, now), CancellationToken.None);
+            // Claim each member first (still unreported, not notified on its own, still down), then send only those.
+            DateTime? now = Now;
+            var claimedMembers = new List<IncidentGroupMember>();
+            foreach (var m in g.OrderBy(m => m.Incident.StartedAtUtc).ThenBy(m => m.Id))
+            {
+                var memberId = m.Id;
+                if (await db.IncidentGroupMembers
+                        .Where(x => x.Id == memberId && x.ReportedAtUtc == null && x.NotifiedAtUtc == null && x.Incident.ResolvedAtUtc == null)
+                        .ExecuteUpdateAsync(u => u.SetProperty(x => x.ReportedAtUtc, now), ct) == 1)
+                    claimedMembers.Add(m);
+            }
+            if (claimedMembers.Count == 0) continue;
+            var alert = AlertMessage.ForGroupUpdate(primary.Monitor, primary.Id,
+                claimedMembers.Select(m => new AffectedMonitor(m.Incident.MonitorId, m.Incident.Monitor.Name)).ToList(), now.Value);
+            if (!queue.TryEnqueue(alert))
+            {
+                var ids = claimedMembers.Select(m => m.Id).ToList();
+                await db.IncidentGroupMembers.Where(x => ids.Contains(x.Id) && x.ReportedAtUtc == now)
+                    .ExecuteUpdateAsync(u => u.SetProperty(x => x.ReportedAtUtc, (DateTime?)null), CancellationToken.None);
+                continue;
+            }
             sent++;
         }
         return sent;

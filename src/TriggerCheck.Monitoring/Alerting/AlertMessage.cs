@@ -32,7 +32,7 @@ public enum AlertKind
 /// <param name="ChannelIds">Restricts delivery to these channels of the customer (escalation steps); null = all enabled channels.</param>
 /// <param name="AckUrl">Protected deep link to the acknowledge page, added by the dispatcher when configured.</param>
 /// <param name="DuringMaintenance">UP alert of a monitor that recovered during a maintenance window (FEAT-3).</param>
-/// <param name="AlsoAffected">GroupUpdate (AI-4): names of the monitors affected along with the primary.</param>
+/// <param name="AlsoAffected">GroupUpdate (AI-4): the monitors affected along with the primary.</param>
 /// <param name="Deferred">
 /// AI-4: a DOWN that was held back by notification grouping and is sent on its own later (group undone, fold cap). It
 /// does not supersede the monitor's waiting or retrying escalations (they are newer than the incident it reports).
@@ -52,7 +52,7 @@ public sealed record AlertMessage(
     IReadOnlyList<int>? ChannelIds = null,
     string? AckUrl = null,
     bool DuringMaintenance = false,
-    IReadOnlyList<string>? AlsoAffected = null,
+    IReadOnlyList<AffectedMonitor>? AlsoAffected = null,
     bool Deferred = false)
 {
     public string StatusText => Kind switch
@@ -98,7 +98,7 @@ public sealed record AlertMessage(
     };
 
     /// <summary>GroupUpdate: "\"B\", \"C\"" (names on one line).</summary>
-    public string AffectedText => string.Join(", ", (AlsoAffected ?? []).Select(n => $"\"{OneLine(n)}\""));
+    public string AffectedText => string.Join(", ", (AlsoAffected ?? []).Select(m => $"\"{OneLine(m.Name)}\""));
 
     /// <summary>
     /// Monitor target without credentials / query string (<see cref="SecretMasker.MaskUrl"/>), for chat, SMS and voice
@@ -160,7 +160,7 @@ public sealed record AlertMessage(
             monitor.CertExpiresAtUtc is { } e ? DateTime.SpecifyKind(e, DateTimeKind.Utc) : null);
 
     /// <summary>AI-4 follow-up: <paramref name="affected"/> are down too, likely with the same cause as the primary incident.</summary>
-    public static AlertMessage ForGroupUpdate(Domain.Entities.Monitor primary, int primaryIncidentId, IReadOnlyList<string> affected, DateTime occurredAtUtc) =>
+    public static AlertMessage ForGroupUpdate(Domain.Entities.Monitor primary, int primaryIncidentId, IReadOnlyList<AffectedMonitor> affected, DateTime occurredAtUtc) =>
         new(primary.Id, primary.CustomerId, primary.Name, primary.Target, AlertKind.GroupUpdate, null,
             DateTime.SpecifyKind(occurredAtUtc, DateTimeKind.Utc), IncidentId: primaryIncidentId, AlsoAffected: affected);
 
@@ -219,3 +219,6 @@ public interface INotifier
 
     Task<NotifyResult> SendAsync(NotifyTarget target, AlertMessage message, CancellationToken ct);
 }
+
+/// <summary>AI-4: a monitor listed in a group follow-up (<see cref="AlertKind.GroupUpdate"/>).</summary>
+public sealed record AffectedMonitor(int MonitorId, string Name);

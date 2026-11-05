@@ -21,7 +21,7 @@
                 @switch (Model.Mode)
                 {
                     case CorrelationMode.Automatic:
-                        <p class="mb-2" data-grouping-mode="automatic"><span class="badge text-bg-primary">@L["Automatic"]</span> @L["Notifications of related incidents are combined: the first incident is notified at once, related ones that follow are listed in one short follow-up instead of separate alerts. When it recovers, or after 15 minutes, monitors still down are notified on their own."]</p>
+                        <p class="mb-2" data-grouping-mode="automatic"><span class="badge text-bg-primary">@L["Automatic"]</span> @L["Notifications of related incidents are combined: the first incident is notified at once, related ones that follow are listed in one short follow-up instead of separate alerts. When it recovers, or after {0} minutes, monitors still down are notified on their own.", Model.MaxFoldMinutes]</p>
                         break;
                     case CorrelationMode.Suggest:
                         <p class="mb-2" data-grouping-mode="suggest"><span class="badge text-bg-info">@L["Suggestions"]</span> @L["TriggerCheck suggests groups of related incidents for you to accept or reject. Notifications are not changed."]</p>

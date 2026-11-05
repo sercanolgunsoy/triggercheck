@@ -47,12 +47,21 @@ public class CorrelationAlertTests
         public ConcurrentQueue<AlertMessage> Sent { get; } = new();
         public Func<AlertMessage, NotifyResult>? Behavior { get; set; }
         public AlertChannelType Type => AlertChannelType.Email;
+        /// <summary>Deliveries of this monitor wait (asynchronously) for <see cref="Release"/>; <see cref="Entered"/> fires on the first.</summary>
+        public int? HoldMonitorId { get; set; }
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public Task<NotifyResult> SendAsync(NotifyTarget target, AlertMessage message, CancellationToken ct)
+        public async Task<NotifyResult> SendAsync(NotifyTarget target, AlertMessage message, CancellationToken ct)
         {
+            if (message.MonitorId == HoldMonitorId)
+            {
+                Entered.TrySetResult();
+                await Release.Task;
+            }
             var r = Behavior?.Invoke(message) ?? NotifyResult.Ok;
             if (r.Success) Sent.Enqueue(message);
-            return Task.FromResult(r);
+            return r;
         }
     }
 
@@ -60,8 +69,15 @@ public class CorrelationAlertTests
     private sealed class GateQueue(AlertQueue inner) : IAlertQueue
     {
         public volatile bool Refuse;
-        public bool TryEnqueue(AlertMessage message) => !Refuse && inner.TryEnqueue(message);
+        /// <summary>Runs right before each enqueue (sees the database as the caller left it at that moment).</summary>
+        public Action<AlertMessage>? OnEnqueue;
+        public bool TryEnqueue(AlertMessage message)
+        {
+            OnEnqueue?.Invoke(message);
+            return !Refuse && inner.TryEnqueue(message);
+        }
     }
+
 
     private sealed record Setup(MonitoringTestHost Host, MapChecker Checker, Mailbox Mail, FakeAiClient Ai, GateQueue Queue, Customer Customer) : IAsyncDisposable
     {
@@ -237,7 +253,8 @@ public class CorrelationAlertTests
         var first = Assert.Single(t.Sent, m => m.Kind == AlertKind.GroupUpdate);
         Assert.Equal("Orders", first.MonitorName);
         Assert.Equal((await t.IncidentAsync(a.Id)).Id, first.IncidentId);
-        Assert.Equal(["Users", "Billing"], first.AlsoAffected);
+        Assert.Equal(["Users", "Billing"], first.AlsoAffected!.Select(m => m.Name));
+        Assert.Equal([b.Id, c.Id], first.AlsoAffected!.Select(m => m.MonitorId));
         Assert.Contains("Also affected (likely same cause as incident #", first.Headline);
         Assert.Equal(0, (await t.ScanAsync()).FollowUps); // reported once
 
@@ -245,7 +262,7 @@ public class CorrelationAlertTests
         Assert.Equal(0, (await t.ScanAsync()).FollowUps);
         t.Host.Time.Advance(TimeSpan.FromSeconds(61));
         Assert.Equal(1, (await t.ScanAsync()).FollowUps);
-        Assert.Equal(["Search"], t.Sent.Where(m => m.Kind == AlertKind.GroupUpdate).Last().AlsoAffected);
+        Assert.Equal(["Search"], t.Sent.Where(m => m.Kind == AlertKind.GroupUpdate).Last().AlsoAffected!.Select(m => m.Name));
 
         // A reported member's recovery is not folded any more: the customer was told it is down.
         await t.UpAsync(b);
@@ -629,6 +646,141 @@ public class CorrelationAlertTests
         var d = await t.MonitorAsync("https://api.example.test/d", "Search");
         await t.DownAsync(d);
         Assert.Contains("Search", t.Names(AlertKind.Down));
+    }
+
+    [Fact]
+    public async Task A_held_back_down_arriving_after_the_up_is_dropped()
+    {
+        await using var t = await CreateAsync();
+        var (_, b) = await FoldOneAsync(t);
+        var incident = await t.IncidentAsync(b.Id);
+        await t.Host.WithDbAsync(db => db.Incidents.Where(i => i.Id == incident.Id).ExecuteUpdateAsync(u => u.SetProperty(i => i.ResolvedAtUtc, t.Host.Now)));
+
+        // The held-back DOWN reaches the dispatcher after the incident recovered: stale, not sent.
+        Assert.True(t.Host.Alerts.TryEnqueue(AlertMessage.For(incident.Monitor, AlertKind.Down, incident.StartedAtUtc) with { IncidentId = incident.Id, Deferred = true }));
+        await t.Host.AlertsIdleAsync();
+        Assert.DoesNotContain("Users", t.Names(AlertKind.Down));
+        // NotifyPending does not even queue it for a recovered incident.
+        await t.GroupsServiceAsync(async s => { await s.SetEnabledAsync(t.Customer.Id, false, "admin"); return 0; });
+        await t.Host.AlertsIdleAsync();
+        Assert.DoesNotContain("Users", t.Names(AlertKind.Down));
+    }
+
+    [Fact]
+    public async Task A_held_back_down_never_replaces_a_waiting_up_or_cancels_the_delivery_in_progress()
+    {
+        await using var t = await CreateAsync();
+        var (_, b) = await FoldOneAsync(t);
+        var incident = await t.IncidentAsync(b.Id);
+        // Group undone with B's own DOWN marked as queued, so its UPs are not folded and its incident stays open: only
+        // the sender's lane rule can stop the stale DOWN here.
+        await t.Host.WithDbAsync(async db =>
+        {
+            await db.IncidentGroups.ExecuteUpdateAsync(u => u.SetProperty(g => g.Status, IncidentGroupStatus.Dissolved));
+            await db.IncidentGroupMembers.Where(m => m.IncidentId == incident.Id).ExecuteUpdateAsync(u => u.SetProperty(m => m.NotifiedAtUtc, t.Host.Now));
+        });
+        t.Mail.HoldMonitorId = b.Id;
+
+        // A status alert of B is in delivery (held), its UP waits behind it, then the held-back DOWN arrives.
+        Assert.True(t.Host.Alerts.TryEnqueue(new AlertMessage(b.Id, t.Customer.Id, "Users", b.Target, AlertKind.Up, null, t.Host.Now, TimeSpan.FromMinutes(1))));
+        await t.Mail.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.True(t.Host.Alerts.TryEnqueue(new AlertMessage(b.Id, t.Customer.Id, "Users", b.Target, AlertKind.Up, null, t.Host.Now, TimeSpan.FromMinutes(1))));
+        Assert.True(t.Host.Alerts.TryEnqueue(AlertMessage.For(incident.Monitor, AlertKind.Down, incident.StartedAtUtc) with { IncidentId = incident.Id, Deferred = true }));
+        // Wait until the sender has read both: one of the three is then done (dropped, or superseded without the fix).
+        for (var i = 0; i < 500 && t.Host.Alerts.Pending > 2; i++) await Task.Delay(10);
+        Assert.Equal(2, t.Host.Alerts.Pending);
+        t.Mail.Release.SetResult();
+        await t.Host.AlertsIdleAsync();
+
+        // Both UPs were delivered (none superseded by the stale DOWN); the DOWN was dropped.
+        Assert.Equal(2, t.Names(AlertKind.Up).Count(n => n == "Users"));
+        Assert.DoesNotContain("Users", t.Names(AlertKind.Down));
+        Assert.DoesNotContain(await t.NotificationsAsync(b.Id), n => n.Error?.StartsWith(AlertDispatcher.SupersededError) == true);
+    }
+
+    [Fact]
+    public async Task Overlapping_notify_calls_send_the_held_back_down_once()
+    {
+        await using var t = await CreateAsync();
+        var (_, b) = await FoldOneAsync(t);
+        await t.Host.WithDbAsync(db => db.IncidentGroups.ExecuteUpdateAsync(u => u.SetProperty(g => g.Status, IncidentGroupStatus.Dissolved)));
+
+        var counts = await Task.WhenAll(Enumerable.Range(0, 4).Select(_ => t.GroupsServiceAsync(s => s.NotifyPendingAsync())));
+        await t.Host.AlertsIdleAsync();
+
+        Assert.Equal(1, counts.Sum());
+        Assert.Equal(["Users"], t.Names(AlertKind.Down).Where(n => n == "Users"));
+    }
+
+    [Fact]
+    public async Task Marks_are_claimed_before_the_enqueue_and_released_when_it_fails()
+    {
+        await using var t = await CreateAsync();
+        var a = await t.MonitorAsync("https://api.example.test/a", "Orders");
+        var b = await t.MonitorAsync("https://api.example.test/b", "Users");
+        await t.DownAsync(a);
+        await t.DownAsync(b);
+        var up = new AlertMessage(b.Id, t.Customer.Id, "Users", b.Target, AlertKind.Up, null, t.Host.Now, TimeSpan.FromMinutes(1));
+
+        // At the moment the follow-up is queued, B is already marked as reported: an UP arriving then is not folded.
+        string? foldAtEnqueue = "not called";
+        DateTime? reportedAtEnqueue = null;
+        t.Queue.OnEnqueue = m =>
+        {
+            if (m.Kind != AlertKind.GroupUpdate) return;
+            reportedAtEnqueue = t.Host.WithDbAsync(db => db.IncidentGroupMembers.Where(x => x.Incident.MonitorId == b.Id).Select(x => x.ReportedAtUtc).SingleAsync()).GetAwaiter().GetResult();
+            foldAtEnqueue = t.GroupsServiceAsync(s => s.TryFoldAsync(up)).GetAwaiter().GetResult();
+        };
+        t.Queue.Refuse = true;
+        t.Host.Time.Advance(TimeSpan.FromSeconds(61));
+        Assert.Equal(0, (await t.ScanAsync()).FollowUps);
+        Assert.NotNull(reportedAtEnqueue);
+        Assert.Null(foldAtEnqueue);
+        // The queue refused: the claim is released and the follow-up is sent by the next scan.
+        Assert.Null(await t.Host.WithDbAsync(db => db.IncidentGroupMembers.Where(x => x.Incident.MonitorId == b.Id).Select(x => x.ReportedAtUtc).SingleAsync()));
+        t.Queue.OnEnqueue = null;
+        t.Queue.Refuse = false;
+        Assert.Equal(1, (await t.ScanAsync()).FollowUps);
+
+        // Same for the held-back DOWN: claimed (NotifiedAtUtc) before the enqueue, released when it fails.
+        DateTime? notifiedAtEnqueue = null;
+        t.Queue.OnEnqueue = m =>
+        {
+            if (m is { Kind: AlertKind.Down, Deferred: true })
+                notifiedAtEnqueue = t.Host.WithDbAsync(db => db.IncidentGroupMembers.Where(x => x.Incident.MonitorId == b.Id).Select(x => x.NotifiedAtUtc).SingleAsync()).GetAwaiter().GetResult();
+        };
+        t.Queue.Refuse = true;
+        await t.Host.WithDbAsync(db => db.IncidentGroups.ExecuteUpdateAsync(u => u.SetProperty(g => g.Status, IncidentGroupStatus.Dissolved)));
+        Assert.Equal(0, await t.GroupsServiceAsync(s => s.NotifyPendingAsync()));
+        Assert.NotNull(notifiedAtEnqueue);
+        Assert.Null(await t.Host.WithDbAsync(db => db.IncidentGroupMembers.Where(x => x.Incident.MonitorId == b.Id).Select(x => x.NotifiedAtUtc).SingleAsync()));
+    }
+
+    [Fact]
+    public async Task A_member_joining_an_automatic_group_gets_it_explained_again()
+    {
+        await using var t = await CreateAsync();
+        await FoldOneAsync(t);
+        await t.Host.WithDbAsync(db => db.IncidentGroups.ExecuteUpdateAsync(u => u.SetProperty(g => g.ExplanationQueuedAtUtc, t.Host.Now)));
+        var c = await t.MonitorAsync("https://api.example.test/c", "Billing");
+        await t.DownAsync(c);
+
+        var g = Assert.Single(await t.GroupsAsync());
+        Assert.Equal(3, g.Members.Count);
+        Assert.Null(g.ExplanationQueuedAtUtc);
+    }
+
+    [Fact]
+    public void Group_update_webhook_carries_the_primary_incident_and_the_affected_monitors()
+    {
+        var m = AlertMessage.ForGroupUpdate(new MonitorEntity { Id = 1, CustomerId = 2, Name = "Orders", Target = "https://api.example.test/a" }, 42,
+            [new AffectedMonitor(5, "Users"), new AffectedMonitor(6, "Users")], DateTime.UtcNow);
+        Assert.Equal("also_affected", m.StatusText);
+        Assert.Contains("incident #42", m.Headline);
+        var json = System.Text.Json.JsonSerializer.Serialize(new WebhookPayload(m.MonitorId, m.MonitorName, m.Target, m.StatusText, m.Error, m.OccurredAtUtc,
+            IncidentId: m.Kind == AlertKind.GroupUpdate ? m.IncidentId : null, AlsoAffected: m.AlsoAffected), new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+        Assert.Contains("\"incidentId\":42", json);
+        Assert.Contains("\"monitorId\":6", json);
     }
 
     [Fact]

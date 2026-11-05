@@ -163,7 +163,7 @@ public class CorrelationTests
         var first = await GroupsAsync(host, s => s.GetAsync(c.Id, ids[0]));
         await GroupsAsync(host, s => s.AcceptAsync(c.Id, ids[0], first!.Members.Select(m => m.IncidentId).ToList(), "u"));
         var second = await GroupsAsync(host, s => s.GetAsync(c.Id, ids[1]));
-        await GroupsAsync(host, s => s.AcceptAsync(c.Id, ids[1], first.Members.Select(m => m.IncidentId).ToList(), "u")); // keeps none of its own: a rejection
+        await GroupsAsync(host, s => s.AcceptAsync(c.Id, ids[1], first!.Members.Select(m => m.IncidentId).ToList(), "u")); // keeps none of its own: a rejection
         await GroupsAsync(host, s => s.RejectAsync(c.Id, ids[2], "u"));
         // ids[3] stays undecided.
 
