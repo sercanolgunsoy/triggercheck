@@ -45,6 +45,9 @@ public sealed class AiOptions
     public Qa.AiQaOptions Qa { get; set; } = new();
     public AiSetupAssistantOptions SetupAssistant { get; set; } = new();
 
+    /// <summary>"Ai:Insights": AI-12 SuperAdmin platform insights (rule thresholds and the platform budget of the summary).</summary>
+    public Insights.AiInsightOptions Insights { get; set; } = new();
+
     public static readonly IReadOnlySet<string> Efforts = new HashSet<string> { "low", "medium", "high", "xhigh", "max" };
 
     /// <summary>Unknown effort values (default and per feature); checked at startup.</summary>

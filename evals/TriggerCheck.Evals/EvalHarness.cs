@@ -125,6 +125,16 @@ public static class EvalHarness
                 current = scenario;
                 recorder.Reset();
                 prompts.Last = null;
+                if (scenario.Feature == AiFeatures.PlatformInsights)
+                {
+                    // AI-12 is platform-wide: its own scratch database per case, the production rules and summary service.
+                    var insight = await InsightsEval.RunAsync(scenario, recorder, options, ct);
+                    insight.Model = o.ModelFor(scenario.Feature);
+                    insight.Effort = o.EffortFor(scenario.Feature);
+                    insight.CostUsd = decimal.Round(o.PriceFor(insight.Model).Estimate(insight.InputTokens, insight.OutputTokens, insight.CacheReadTokens, insight.CacheWriteTokens), 6);
+                    report.Cases.Add(insight);
+                    continue;
+                }
                 if (scenario.Feature == AiFeatures.MonitorSetupAssistant)
                 {
                     // AI-9 is interactive (no job / provider): the production assistant answers the case's request.

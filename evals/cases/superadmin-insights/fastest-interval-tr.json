@@ -1,0 +1,22 @@
+{
+  "id": "insights-fastest-interval-tr",
+  "feature": "PlatformInsights",
+  "language": "tr",
+  "description": "Turkish: most monitors of a customer run at the plan's fastest interval while a faster plan exists (upgrade signal).",
+  "expect": { "primaryCause": "insights_summary", "focusCustomers": ["Hızlı Kontrol AŞ"] },
+  "insights": {
+    "customers": [
+      { "name": "Hızlı Kontrol AŞ", "plan": "Standard", "minIntervalSeconds": 60,
+        "monitors": [
+          { "name": "Ödeme servisi", "target": "https://odeme.example.test/", "intervalSeconds": 60, "repeat": 4 },
+          { "name": "Blog", "target": "https://blog.example.test/", "intervalSeconds": 300 }
+        ] }
+    ]
+  },
+  "canned": {
+    "headline": "[[C1]] daha hızlı kontrol aralığı için yükseltme adayı.",
+    "points": [
+      "[[C1]], {{C1.plan}} planında monitörlerinden {{C1.limit.fastest_interval.used}} tanesini planın en hızlı aralığında çalıştırıyor ({{C1.limit.fastest_interval.percent}})."
+    ]
+  }
+}

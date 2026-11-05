@@ -1,0 +1,26 @@
+{
+  "id": "insights-noisy-flapping",
+  "feature": "PlatformInsights",
+  "language": "en",
+  "description": "One customer produces many short incidents (flaps) and alerts from one monitor. A suspended customer with even more flaps is not part of the signals.",
+  "expect": { "primaryCause": "insights_summary", "focusCustomers": ["Flicker Media"] },
+  "insights": {
+    "customers": [
+      { "name": "Flicker Media", "plan": "Pro",
+        "monitors": [
+          { "name": "Video API", "target": "https://video.example.test/api/v2", "intervalSeconds": 60, "flaps": 15, "alerts": 30 },
+          { "name": "CDN edge", "target": "https://cdn.example.test/", "incidents": 2 }
+        ] },
+      { "name": "Suspended Spam Co", "isActive": false,
+        "monitors": [ { "name": "Spam endpoint", "target": "https://spam.example.test/", "flaps": 40 } ] },
+      { "name": "Quiet Ltd", "monitors": [ { "name": "Quiet site", "target": "https://quiet.example.test/" } ] }
+    ]
+  },
+  "canned": {
+    "headline": "[[C1]] is the noisiest customer of the week.",
+    "points": [
+      "[[C1]] had {{C1.noise.incidents}} incidents in {{rule.window_days}}, {{C1.noise.flaps}} of them flaps ({{C1.noise.flap_share}}), and {{C1.noise.alerts}} alerts.",
+      "[[M1]] alone accounts for {{M1.incidents}} incidents; a higher failure threshold could reduce the noise."
+    ]
+  }
+}

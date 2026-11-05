@@ -219,7 +219,7 @@ public sealed class AiEventScanner(AppDbContext db, IAiJobQueue queue, IOptions<
             var horizon = now - (cooldown > hostWindow ? cooldown : hostWindow);
             var recent = await db.AiDecisions.AsNoTracking()
                 .Where(d => d.Feature == AiFeatures.IncidentInterpretation && d.SubjectType == AiSubjects.Incident
-                            && customerIds.Contains(d.CustomerId) && d.CreatedAtUtc >= horizon)
+                            && d.CustomerId != null && customerIds.Contains(d.CustomerId.Value) && d.CreatedAtUtc >= horizon)
                 .Select(d => new { d.SubjectId, d.CreatedAtUtc }).ToListAsync(ct);
             var recentIds = recent.Select(r => int.TryParse(r.SubjectId, CultureInfo.InvariantCulture, out var id) ? id : 0).Where(id => id > 0).Distinct().ToList();
             var recentIncidents = recentIds.Count == 0 ? [] : await db.Incidents.AsNoTracking().Where(i => recentIds.Contains(i.Id))

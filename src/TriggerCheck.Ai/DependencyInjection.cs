@@ -22,7 +22,7 @@ namespace TriggerCheck.Ai;
 public static class DependencyInjection
 {
     /// <summary>
-    /// Registers the AI layer (AI-0, AI-1, AI-2, AI-3, AI-4, AI-5, AI-6, AI-7, AI-8, AI-9, AI-10). The real Claude client is used only when Ai:Enabled is true AND a key
+    /// Registers the AI layer (AI-0, AI-1, AI-2, AI-3, AI-4, AI-5, AI-6, AI-7, AI-8, AI-9, AI-10, AI-12). The real Claude client is used only when Ai:Enabled is true AND a key
     /// is configured (Ai:ApiKey or ANTHROPIC_API_KEY); otherwise <see cref="UnavailableAiClient"/> reports "AI
     /// unavailable" and every job is recorded as skipped. Tests replace <see cref="IAiClient"/> with
     /// <see cref="FakeAiClient"/>. The monitoring layer does not depend on this project.
@@ -90,6 +90,10 @@ public static class DependencyInjection
         services.AddScoped<Features.Postmortem.PostmortemFactsLoader>();
         services.AddScoped<IAiContextProvider, Features.Postmortem.PostmortemDraftProvider>();
         services.AddScoped<Features.Postmortem.PostmortemDrafts>();
+        // AI-12: SuperAdmin platform insights (rule-based signals; the AI summary only on request, platform budget).
+        services.AddScoped<Insights.InsightDataLoader>();
+        services.AddScoped<Insights.PlatformInsights>();
+        services.AddScoped<Insights.InsightSummaryService>();
 
         services.AddScoped<BaselineJob>();
         services.AddHostedService<BaselineHostedService>();

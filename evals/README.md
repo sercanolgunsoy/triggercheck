@@ -8,7 +8,7 @@ validation) and the grader scores the exact request and the raw model output.
 ## The gate
 
 - A change to a **prompt** (`src/TriggerCheck.Ai/Execution/AiPrompts.cs`, `src/TriggerCheck.Ai/Features/AiFeaturePrompts.cs`,
-  `src/TriggerCheck.Ai/Features/Correlation/CorrelationPrompts.cs`, `src/TriggerCheck.Ai/Narrative/NarrativeOutput.cs` for AI-6, `src/TriggerCheck.Ai/Features/Postmortem/PostmortemOutput.cs` for AI-8),
+  `src/TriggerCheck.Ai/Features/Correlation/CorrelationPrompts.cs`, `src/TriggerCheck.Ai/Narrative/NarrativeOutput.cs` for AI-6, `src/TriggerCheck.Ai/Features/Postmortem/PostmortemOutput.cs` for AI-8, `src/TriggerCheck.Ai/Insights/InsightSummary.cs` for AI-12),
   a context provider, the output schema, a **model** (`Ai:Model`, `Ai:Features:<Name>:Model`) or an **effort** level
   is merged only after a real run (below) passes for the affected feature: primary-cause accuracy, evidence rate and
   language rate each **≥ 80 %**, **zero** masking failures, and for AI-3 the "no outage yet" statement in ≥ 80 % of
@@ -41,7 +41,7 @@ ANTHROPIC_API_KEY=... dotnet run --project evals/TriggerCheck.Evals -- --real
 ANTHROPIC_API_KEY=... dotnet run --project evals/TriggerCheck.Evals -- --real --yes
 
 # options
---feature IncidentInterpretation | SlowdownExplanation | CorrelationGrouping | QuestionAnswer | MonitorSetupAssistant | NarrativeReport | PostmortemDraft | ...   only one feature
+--feature IncidentInterpretation | SlowdownExplanation | CorrelationGrouping | QuestionAnswer | MonitorSetupAssistant | NarrativeReport | PostmortemDraft | PlatformInsights | ...   only one feature
 --case tls                                                only cases whose id contains "tls"
 --model claude-haiku-5-5  --effort medium                 override Ai:Model / Ai:Effort for the run
 --threshold 0.8                                           gate threshold
@@ -70,6 +70,7 @@ evals/
     question-answer/               AI-7: 8 Q&A scenarios (tool loop; en + tr, tenant isolation, injection, write request)
     monitor-setup/                 AI-9: 14 labelled requests (every monitor type, clarification, clamping, masking; en + tr)
     postmortem-draft/              AI-8: 10 resolved incidents (main causes, host outage, maintenance, prompt injection; en + tr)
+    superadmin-insights/           AI-12: 7 platform scenarios (noise, plan limits, AI quota / SMS, abandoned, masking; en + tr)
   reports/                         gitignored, except sample-report.md
     last-report.md / .json         last run (per feature and per case, tokens, cost)
     prompts/<case>.txt             the user turn actually sent for each case
@@ -235,6 +236,28 @@ tools, caps, budget); a real run lets the model choose its own tool calls. The r
 
 A real run of the 8 cases makes 2-4 calls each with a larger prompt (tools + results), roughly 8 × 3 × 4k input +
 8 × 3 × 0.5k output tokens, about **$0.65 with `claude-opus-5-5`** at list prices (less with caching).
+
+## AI-12 (SuperAdmin platform insights)
+
+Cases (`"feature": "PlatformInsights"`, label `insights_summary`) describe the platform: `insights.customers`, each on
+its own plan (`maxMonitors`, `minIntervalSeconds`, `maxStatusPages`, `maxRegions`, `allowsSmsVoice`, `aiCallLimit`,
+`isActive`) with usage (`statusPages`, `smsPeak`, `aiCalls`, `acknowledgedDaysAgo`) and `monitors` (`status`,
+`statusDays`, `intervalSeconds`, `remoteRegions`, `incidents`, `flaps`, `alerts`, `repeat`), plus
+`"expect": { "focusCustomers": [names] }`. Each case gets its own scratch database (the signals are platform-wide); the
+production `InsightRules` compute the signals and the production `InsightSummaryService` makes the call (labels,
+prompt, contract, platform budget). Customers are labelled `C1, C2, ...` in signal order (noise, then plan-limit
+pressure, then abandoned; within a signal most significant first) and monitors `M1, M2, ...`; see
+`reports/prompts/<case>.txt`. The `canned` answer is `{"headline": ..., "points": [...]}` with `[[C1]]` labels and
+`{{C1.noise.incidents}}` placeholders, no numbers. Columns:
+
+- **Primary cause** = focus: every `focusCustomers` entry is referenced by its `[[label]]` in the validated summary.
+- **Evidence** = grounded: the raw output passes the production contract with nothing removed **and** an independent
+  grader check (`InsightsEval.WrongClaims`): no digit outside placeholders / labels, no placeholder that was not
+  offered, no label that was not sent or that points to a record that does not exist (no invented numbers or customers).
+- **Masking**: no customer or monitor name, target host, contact e-mail or planted secret in the request.
+- **Language** as above.
+
+A real run of the 7 cases is about 7 × (1.5k input + 0.5k output tokens), roughly **$0.10 with `claude-opus-5-5`**.
 
 ## Later
 

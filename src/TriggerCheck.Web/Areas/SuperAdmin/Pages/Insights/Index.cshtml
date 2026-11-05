@@ -1,0 +1,162 @@
+@page
+@model TriggerCheck.Web.Areas.SuperAdmin.Pages.Insights.IndexModel
+@using TriggerCheck.Ai.Insights
+@{
+    ViewData["Title"] = L["Insights"];
+    var r = Model.Report;
+    var t = r.Thresholds;
+    var s = Model.State.Summary;
+    string Usd(decimal v) => "$" + v.ToString("0.0000", System.Globalization.CultureInfo.InvariantCulture);
+    string Num(double v) => v.ToString("#,0.#", Fmt.Culture);
+}
+
+<div class="page-head">
+    <div>
+        <h2>@L["Insights"]</h2>
+        <div class="sub">@L["Platform signals computed by fixed rules. Nothing is sent to customers and nothing is changed automatically."]</div>
+    </div>
+</div>
+
+<div class="card mb-4" id="insights-ai-summary">
+    <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+        <span>@Icons.Get("sparkles", 16) @L["AI summary"]</span>
+        @if (Model.AiAvailable)
+        {
+            <form method="post" asp-page-handler="Summarize" class="m-0">
+                <button type="submit" class="btn btn-sm btn-outline-primary" id="insights-summarize">@(s is null ? L["Generate AI summary"] : L["Refresh AI summary"])</button>
+            </form>
+        }
+    </div>
+    <div class="card-body">
+        @if (!Model.AiAvailable)
+        {
+            <p class="text-muted small mb-2" id="insights-ai-off">@L["AI is switched off; the signals below are computed without it."]</p>
+        }
+        @if (s is not null)
+        {
+            <div data-ai-state="summary">
+                <span class="badge bg-light text-dark border mb-2">@L["AI-generated"]</span>
+                <span class="small text-muted ms-1">@L["Generated {0}", Fmt.Time(Model.State.Latest!.CreatedAtUtc)]</span>
+                @if (Model.SummaryStale)
+                {
+                    <span class="badge bg-warning text-dark ms-1" id="insights-summary-stale">@L["Signals changed since this summary"]</span>
+                }
+                <p class="fw-semibold mb-2" id="insights-headline">
+                    @Model.RenderText(s, s.Headline)
+                </p>
+                @if (s.Points.Count > 0)
+                {
+                    <ul class="mb-0" id="insights-points">
+                        @foreach (var p in s.Points)
+                        {
+                            <li>@Model.RenderText(s, p)</li>
+                        }
+                    </ul>
+                }
+            </div>
+        }
+        else if (Model.AiAvailable)
+        {
+            <p class="text-muted small mb-0">@L["No AI summary yet. The summary only describes the signals below; it writes no numbers of its own."]</p>
+        }
+        @if (Model.State.LastAttempt is { } last && last.Id != Model.State.Latest?.Id)
+        {
+            <p class="small text-muted mt-2 mb-0" id="insights-last-attempt">@(last.Status == AiDecisionStatus.SkippedBudget
+                ? L["The platform AI budget for insight summaries is used up this month."]
+                : L["The last attempt failed ({0}); the signals are not affected.", last.ErrorCode ?? last.Status.ToString()])</p>
+        }
+        <p class="small text-muted mt-2 mb-0" id="insights-ai-usage">@L["Platform AI budget this month: {0} / {1} summaries, estimated cost {2}. Not charged to any customer.", Fmt.Number(Model.Usage.Calls), Fmt.Number(Model.Usage.CallLimit), Usd(Model.Usage.EstimatedCostUsd)]</p>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header fw-semibold">@L["Noisiest customers"] <span class="small text-muted fw-normal">@L["At least {0} incidents or {1} alerts in the last {2} days; flaps are incidents resolved within {3} minutes.", t.NoiseMinIncidents, t.NoiseMinAlerts, t.WindowDays, t.FlapMaxMinutes]</span></div>
+    @if (r.Noise.Count == 0)
+    {
+        <div class="card-body text-muted" id="insights-noise-empty">@L["No customer is above the noise thresholds."]</div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0 align-middle" id="insights-noise">
+                <thead><tr><th>@L["Customer"]</th><th>@L["Plan"]</th><th class="text-end">@L["Incidents"]</th><th class="text-end">@L["Flaps"]</th><th class="text-end">@L["Alerts"]</th><th class="text-end">@L["Monitors"]</th><th class="text-end">@L["Incidents per monitor"]</th><th>@L["Noisiest monitor"]</th></tr></thead>
+                <tbody>
+                @foreach (var n in r.Noise)
+                {
+                    <tr data-customer-id="@n.CustomerId">
+                        <td><a asp-page="/Customers/Details" asp-route-id="@n.CustomerId">@n.CustomerName</a></td>
+                        <td>@n.PlanName</td>
+                        <td class="text-end">@Fmt.Number(n.Incidents)</td>
+                        <td class="text-end">@Fmt.Number(n.Flaps) <span class="text-muted small">(@Fmt.Percent(n.FlapSharePercent))</span></td>
+                        <td class="text-end">@Fmt.Number(n.Alerts)</td>
+                        <td class="text-end">@Fmt.Number(n.Monitors)</td>
+                        <td class="text-end">@Num(n.IncidentsPerMonitor)</td>
+                        <td>@if (n.NoisiestMonitor is { } top) { <a asp-page="/Monitors/Index" asp-route-CustomerId="@n.CustomerId" asp-route-Q="@top.Name">@top.Name</a> <span class="text-muted small">(@Fmt.Number(top.Incidents))</span> }</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+<div class="card mb-4">
+    <div class="card-header fw-semibold">@L["Customers close to their plan limits"] <span class="small text-muted fw-normal">@L["Usage at or above {0}% of a limit (upgrade signal).", t.LimitPressurePercent]</span></div>
+    @if (r.Pressure.Count == 0)
+    {
+        <div class="card-body text-muted" id="insights-pressure-empty">@L["No customer is close to a plan limit."]</div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0 align-middle" id="insights-pressure">
+                <thead><tr><th>@L["Customer"]</th><th>@L["Plan"]</th><th>@L["Limit"]</th><th class="text-end">@L["Used / limit"]</th><th class="text-end">@L["Usage"]</th></tr></thead>
+                <tbody>
+                @foreach (var p in r.Pressure)
+                {
+                    foreach (var l in p.Limits)
+                    {
+                        <tr data-customer-id="@p.CustomerId" data-limit="@l.Kind">
+                            <td><a asp-page="/Customers/Details" asp-route-id="@p.CustomerId">@p.CustomerName</a></td>
+                            <td>@p.PlanName</td>
+                            <td>@Model.LimitName(l.Kind)</td>
+                            <td class="text-end">@Num(l.Used) / @Num(l.Limit)</td>
+                            <td class="text-end">@if (l.Percent >= 100) { <span class="badge bg-danger">@Fmt.Percent(l.Percent)</span> } else { <span class="badge bg-warning text-dark">@Fmt.Percent(l.Percent)</span> }</td>
+                        </tr>
+                    }
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+<div class="card mb-4">
+    <div class="card-header fw-semibold">@L["Possibly abandoned accounts"] <span class="small text-muted fw-normal">@L["Monitors DOWN without interruption for at least {0} days; acknowledgements counted over the same period.", t.AbandonedDownDays]</span></div>
+    @if (r.Abandoned.Count == 0)
+    {
+        <div class="card-body text-muted" id="insights-abandoned-empty">@L["No monitor has been DOWN that long."]</div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0 align-middle" id="insights-abandoned">
+                <thead><tr><th>@L["Customer"]</th><th>@L["Plan"]</th><th class="text-end">@L["DOWN / enabled monitors"]</th><th>@L["Longest DOWN"]</th><th class="text-end">@L["Acknowledgements"]</th></tr></thead>
+                <tbody>
+                @foreach (var a in r.Abandoned)
+                {
+                    var longest = a.DownMonitors[0];
+                    <tr data-customer-id="@a.CustomerId">
+                        <td><a asp-page="/Customers/Details" asp-route-id="@a.CustomerId">@a.CustomerName</a> @if (a.AllDown) { <span class="badge bg-danger">@L["all monitors DOWN"]</span> }</td>
+                        <td>@a.PlanName</td>
+                        <td class="text-end"><a asp-page="/Monitors/Index" asp-route-CustomerId="@a.CustomerId" asp-route-Status="@MonitorStatus.Down">@Fmt.Number(a.DownMonitors.Count) / @Fmt.Number(a.EnabledMonitors)</a></td>
+                        <td><a asp-page="/Monitors/Index" asp-route-CustomerId="@a.CustomerId" asp-route-Q="@longest.Name">@longest.Name</a> <span class="text-muted small">@L["{0} days, since {1}", longest.DownDays, Fmt.Date(longest.DownSinceUtc)]</span></td>
+                        <td class="text-end">@Fmt.Number(a.AcknowledgementsInPeriod)</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+<p class="small text-muted">@L["Thresholds are set with the Ai:Insights:* settings. TriggerCheck keeps no login history, so acknowledgements are the activity evidence."]</p>

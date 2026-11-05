@@ -19,7 +19,7 @@ namespace TriggerCheck.Web.Areas.SuperAdmin.Pages.Ai;
 /// </summary>
 [Authorize(Policy = Policies.SuperAdmin)]
 public class IndexModel(AppDbContext db, IAiUsage usage, IAiClient client, IOptions<AiOptions> options, TimeProvider time, Text<AdminResource> L,
-    IncidentCorrelationService correlation) : PageModel
+    IncidentCorrelationService correlation, TriggerCheck.Ai.Insights.InsightSummaryService insightSummaries) : PageModel
 {
     public AiOptions Options => options.Value;
     public bool KeyConfigured { get; private set; }
@@ -32,6 +32,8 @@ public class IndexModel(AppDbContext db, IAiUsage usage, IAiClient client, IOpti
     public Dictionary<AiDecisionStatus, int> ByStatus { get; private set; } = new();
     /// <summary>AI-4: platform-wide acceptance of grouping suggestions (decision K3: A3 only above 90 % over four weeks).</summary>
     public CorrelationAcceptance GroupingAcceptance { get; private set; } = null!;
+    /// <summary>AI-12: insight summaries are billed to the platform budget (no customer), shown separately.</summary>
+    public TriggerCheck.Ai.Insights.InsightPlatformUsage PlatformInsights { get; private set; } = null!;
 
     public async Task OnGetAsync(CancellationToken ct)
     {
@@ -46,6 +48,7 @@ public class IndexModel(AppDbContext db, IAiUsage usage, IAiClient client, IOpti
         ByStatus = (await month.GroupBy(d => d.Status).Select(g => new { g.Key, Count = g.Count() }).ToListAsync(ct))
             .ToDictionary(x => x.Key, x => x.Count);
         GroupingAcceptance = await correlation.AcceptanceAsync(null, ct);
+        PlatformInsights = await insightSummaries.GetUsageAsync(ct);
     }
 
     public string StatusName(AiDecisionStatus s) => s switch

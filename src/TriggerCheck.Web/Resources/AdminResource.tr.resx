@@ -889,4 +889,133 @@
   <data name="{0} accepted, {1} rejected" xml:space="preserve">
     <value>{0} kabul, {1} ret</value>
   </data>
+  <data name="AI is switched off; the signals below are computed without it." xml:space="preserve">
+    <value>Yapay zekâ kapalı; aşağıdaki sinyaller onsuz hesaplanır.</value>
+  </data>
+  <data name="AI quota" xml:space="preserve">
+    <value>Yapay zekâ kotası</value>
+  </data>
+  <data name="AI summary" xml:space="preserve">
+    <value>Yapay zekâ özeti</value>
+  </data>
+  <data name="Acknowledgements" xml:space="preserve">
+    <value>Onaylamalar</value>
+  </data>
+  <data name="An AI summary was generated a moment ago. Try again in a few minutes." xml:space="preserve">
+    <value>Az önce bir yapay zekâ özeti oluşturuldu. Birkaç dakika sonra tekrar deneyin.</value>
+  </data>
+  <data name="At least {0} incidents or {1} alerts in the last {2} days; flaps are incidents resolved within {3} minutes." xml:space="preserve">
+    <value>Son {2} günde en az {0} olay veya {1} uyarı; {3} dakika içinde çözülen olaylar dalgalanma sayılır.</value>
+  </data>
+  <data name="Customers close to their plan limits" xml:space="preserve">
+    <value>Plan sınırına yaklaşan müşteriler</value>
+  </data>
+  <data name="DOWN / enabled monitors" xml:space="preserve">
+    <value>DOWN / etkin monitörler</value>
+  </data>
+  <data name="Flaps" xml:space="preserve">
+    <value>Dalgalanmalar</value>
+  </data>
+  <data name="Generate AI summary" xml:space="preserve">
+    <value>Yapay zekâ özeti oluştur</value>
+  </data>
+  <data name="Generated {0}" xml:space="preserve">
+    <value>Oluşturulma: {0}</value>
+  </data>
+  <data name="Incidents per monitor" xml:space="preserve">
+    <value>Monitör başına olay</value>
+  </data>
+  <data name="Limit" xml:space="preserve">
+    <value>Sınır</value>
+  </data>
+  <data name="Longest DOWN" xml:space="preserve">
+    <value>En uzun DOWN</value>
+  </data>
+  <data name="Monitors DOWN without interruption for at least {0} days; acknowledgements counted over the same period." xml:space="preserve">
+    <value>En az {0} gündür kesintisiz DOWN olan monitörler; onaylamalar aynı dönem için sayılır.</value>
+  </data>
+  <data name="Monitors at the plan's fastest interval" xml:space="preserve">
+    <value>Planın en hızlı aralığındaki monitörler</value>
+  </data>
+  <data name="No AI summary yet. The summary only describes the signals below; it writes no numbers of its own." xml:space="preserve">
+    <value>Henüz yapay zekâ özeti yok. Özet yalnızca aşağıdaki sinyalleri anlatır; kendi sayısını yazmaz.</value>
+  </data>
+  <data name="No customer is above the noise thresholds." xml:space="preserve">
+    <value>Gürültü eşiklerini aşan müşteri yok.</value>
+  </data>
+  <data name="No customer is close to a plan limit." xml:space="preserve">
+    <value>Plan sınırına yaklaşan müşteri yok.</value>
+  </data>
+  <data name="No monitor has been DOWN that long." xml:space="preserve">
+    <value>Bu kadar uzun süre DOWN kalan monitör yok.</value>
+  </data>
+  <data name="Noisiest customers" xml:space="preserve">
+    <value>En çok gürültü üreten müşteriler</value>
+  </data>
+  <data name="Noisiest monitor" xml:space="preserve">
+    <value>En gürültülü monitör</value>
+  </data>
+  <data name="Platform AI budget this month: {0} / {1} summaries, estimated cost {2}. Not charged to any customer." xml:space="preserve">
+    <value>Bu ayki platform yapay zekâ bütçesi: {0} / {1} özet, tahmini maliyet {2}. Hiçbir müşteriye yansıtılmaz.</value>
+  </data>
+  <data name="Platform insight summaries (not charged to customers)" xml:space="preserve">
+    <value>Platform içgörü özetleri (müşterilere yansıtılmaz)</value>
+  </data>
+  <data name="Platform signals computed by fixed rules. Nothing is sent to customers and nothing is changed automatically." xml:space="preserve">
+    <value>Sabit kurallarla hesaplanan platform sinyalleri. Müşterilere hiçbir şey gönderilmez ve hiçbir şey otomatik değiştirilmez.</value>
+  </data>
+  <data name="Possibly abandoned accounts" xml:space="preserve">
+    <value>Terk edilmiş olabilecek hesaplar</value>
+  </data>
+  <data name="Refresh AI summary" xml:space="preserve">
+    <value>Yapay zekâ özetini yenile</value>
+  </data>
+  <data name="Regions per monitor" xml:space="preserve">
+    <value>Monitör başına bölge</value>
+  </data>
+  <data name="SMS / voice per day (busiest day)" xml:space="preserve">
+    <value>Günlük SMS / sesli arama (en yoğun gün)</value>
+  </data>
+  <data name="Signals changed since this summary" xml:space="preserve">
+    <value>Bu özetten sonra sinyaller değişti</value>
+  </data>
+  <data name="The AI summary was generated." xml:space="preserve">
+    <value>Yapay zekâ özeti oluşturuldu.</value>
+  </data>
+  <data name="The last attempt failed ({0}); the signals are not affected." xml:space="preserve">
+    <value>Son deneme başarısız oldu ({0}); sinyaller bundan etkilenmez.</value>
+  </data>
+  <data name="The platform AI budget for insight summaries is used up this month." xml:space="preserve">
+    <value>İçgörü özetleri için platform yapay zekâ bütçesi bu ay doldu.</value>
+  </data>
+  <data name="The signals have not changed; the last AI summary is still current." xml:space="preserve">
+    <value>Sinyaller değişmedi; son yapay zekâ özeti hâlâ güncel.</value>
+  </data>
+  <data name="There are no signals to summarize." xml:space="preserve">
+    <value>Özetlenecek sinyal yok.</value>
+  </data>
+  <data name="Thresholds are set with the Ai:Insights:* settings. TriggerCheck keeps no login history, so acknowledgements are the activity evidence." xml:space="preserve">
+    <value>Eşikler Ai:Insights:* ayarlarıyla belirlenir. TriggerCheck oturum açma geçmişi tutmadığı için etkinlik kanıtı olarak onaylamalar kullanılır.</value>
+  </data>
+  <data name="Usage" xml:space="preserve">
+    <value>Kullanım</value>
+  </data>
+  <data name="Usage at or above {0}% of a limit (upgrade signal)." xml:space="preserve">
+    <value>Bir sınırın %{0} veya üzerinde kullanım (yükseltme sinyali).</value>
+  </data>
+  <data name="Used / limit" xml:space="preserve">
+    <value>Kullanılan / sınır</value>
+  </data>
+  <data name="all monitors DOWN" xml:space="preserve">
+    <value>tüm monitörler DOWN</value>
+  </data>
+  <data name="unknown customer" xml:space="preserve">
+    <value>bilinmeyen müşteri</value>
+  </data>
+  <data name="unknown monitor" xml:space="preserve">
+    <value>bilinmeyen monitör</value>
+  </data>
+  <data name="{0} days, since {1}" xml:space="preserve">
+    <value>{0} gün, {1} tarihinden beri</value>
+  </data>
 </root>

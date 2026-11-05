@@ -1201,6 +1201,9 @@
   <data name="AI usage" xml:space="preserve">
     <value>Yapay zekâ kullanımı</value>
   </data>
+  <data name="Insights" xml:space="preserve">
+    <value>İçgörüler</value>
+  </data>
   <data name="AI calls" xml:space="preserve">
     <value>Yapay zekâ çağrıları</value>
   </data>
