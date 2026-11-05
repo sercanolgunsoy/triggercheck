@@ -10,6 +10,7 @@ using TriggerCheck.Ai.Context;
 using TriggerCheck.Ai.Execution;
 using TriggerCheck.Ai.Features;
 using TriggerCheck.Ai.Interpretation;
+using TriggerCheck.Ai.Qa;
 using TriggerCheck.Monitoring.Cluster;
 
 namespace TriggerCheck.Ai;
@@ -63,6 +64,29 @@ public static class DependencyInjection
 
         services.AddScoped<BaselineJob>();
         services.AddHostedService<BaselineHostedService>();
+
+        services.AddQuestionAnswer(); // AI-7
         return services;
+    }
+
+    /// <summary>
+    /// AI-7 natural-language Q&amp;A: its own tool-use client (real only when AI is enabled and a key is configured, like
+    /// <see cref="IAiClient"/>), the read-only toolbox, the per-user limiter and the number-grounding hook (replaceable).
+    /// </summary>
+    private static void AddQuestionAnswer(this IServiceCollection services)
+    {
+        services.AddOptions<AiOptions>()
+            .Validate(o => AiOptions.Efforts.Contains((o.Qa.Effort ?? "").Trim().ToLowerInvariant()), "Ai:Qa:Effort must be one of: low, medium, high, xhigh, max.");
+        services.AddSingleton<IAiToolClient>(sp =>
+        {
+            var o = sp.GetRequiredService<IOptions<AiOptions>>().Value;
+            return o.Enabled && o.ResolveApiKey() is not null
+                ? ActivatorUtilities.CreateInstance<AnthropicAiToolClient>(sp)
+                : new UnavailableAiToolClient();
+        });
+        services.AddSingleton<QaRateLimiter>();
+        services.TryAddSingleton<IQaAnswerGrounding, QaNumberGrounding>();
+        services.AddScoped<QaToolbox>();
+        services.AddScoped<IQuestionAnswerService, QuestionAnswerService>();
     }
 }

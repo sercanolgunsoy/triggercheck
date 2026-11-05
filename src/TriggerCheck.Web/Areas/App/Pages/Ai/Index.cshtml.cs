@@ -31,7 +31,7 @@ public class IndexModel(AppDbContext db, ICurrentCustomer current, IAiUsage usag
         Usage = await usage.GetMonthlyUsageAsync(Customer.Id, ct);
         var returnUrl = Url.Page("/Ai/Index", new { area = "App" }) ?? "/App/Ai";
         var decisions = await db.AiDecisions.AsNoTracking()
-            .Where(d => d.CustomerId == Customer.Id && d.Status == AiDecisionStatus.Succeeded)
+            .Where(d => d.CustomerId == Customer.Id && d.Status == AiDecisionStatus.Succeeded && d.Feature != AiFeatures.QuestionAnswer) // AI-7 answers are not stored
             .OrderByDescending(d => d.Id)
             .Take(RecentCount)
             .ToListAsync(ct);

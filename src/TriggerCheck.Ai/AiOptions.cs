@@ -39,6 +39,9 @@ public sealed class AiOptions
 
     public AiSuggestionOptions Suggestions { get; set; } = new();
 
+    /// <summary>"Ai:Qa": natural-language questions (AI-7), see <see cref="Qa.AiQaOptions"/>.</summary>
+    public Qa.AiQaOptions Qa { get; set; } = new();
+
     public static readonly IReadOnlySet<string> Efforts = new HashSet<string> { "low", "medium", "high", "xhigh", "max" };
 
     /// <summary>Unknown effort values (default and per feature); checked at startup.</summary>

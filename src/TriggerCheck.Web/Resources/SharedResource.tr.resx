@@ -1576,4 +1576,7 @@
   <data name="{0} changed state {1} times since the last notice and is currently available." xml:space="preserve">
     <value>{0}, son bildirimden bu yana {1} kez durum değiştirdi ve şu anda erişilebilir.</value>
   </data>
+  <data name="Ask AI" xml:space="preserve">
+    <value>Yapay zekâya sor</value>
+  </data>
 </root>

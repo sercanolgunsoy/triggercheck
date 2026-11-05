@@ -20,7 +20,8 @@ public interface IAiUsage
 }
 
 /// <param name="Calls">
-/// Calls that reached the model this month (they returned token usage), plus calls in progress (budget reserved).
+/// Calls that reached the model this month (they returned token usage), plus calls in progress (budget reserved). A
+/// Q&amp;A question counts each model call of its tool loop (<see cref="AiDecision.ModelCalls"/>).
 /// Skips and calls that failed before the model answered (network, rate limit, timeout without usage) are free.
 /// </param>
 /// <param name="Tokens">
@@ -91,7 +92,8 @@ public sealed class AiUsageService(AppDbContext db, IAiClient client, IOptions<A
             .Select(g => new
             {
                 g.Key.CustomerId, g.Key.Model,
-                Calls = g.Count(x => x.Status == AiDecisionStatus.Pending || x.InputTokens + x.OutputTokens > 0),
+                // A tool loop (AI-7) records every model call it made or reserved in ModelCalls; other rows are one call.
+                Calls = g.Sum(x => x.Status == AiDecisionStatus.Pending || x.InputTokens + x.OutputTokens > 0 ? (x.ModelCalls > 1 ? x.ModelCalls : 1) : 0),
                 Input = g.Sum(x => x.InputTokens), Output = g.Sum(x => x.OutputTokens),
                 CacheRead = g.Sum(x => x.CacheReadTokens), CacheWrite = g.Sum(x => x.CacheWriteTokens)
             })
