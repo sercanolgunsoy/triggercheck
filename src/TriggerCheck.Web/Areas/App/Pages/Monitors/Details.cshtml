@@ -197,12 +197,26 @@
             {
                 <div class="small text-muted mb-2" id="maintenance-legend">@L["Grey bands are maintenance windows; checks in them are not counted."]</div>
             }
-            <div class="tc-chart"><canvas id="rtChart" aria-label="@L["Response time chart"]" role="img"></canvas></div>
+            @* UI-3: text alternative of the charts for screen readers. *@
+            var timed = Model.Chart.Where(p => p.Avg is not null).ToList();
+            string Ms(double? v) => v is null ? "–" : Math.Round(v.Value).ToString("N0");
+            // Mean of the bucket averages, weighted by the successful checks of each bucket.
+            double? Mean(Func<DetailsModel.ChartPoint, double?> f)
+            {
+                var xs = timed.Where(p => f(p) is not null).Select(p => (V: f(p)!.Value, W: Math.Max(1, p.Checks - p.Failures))).ToList();
+                return xs.Count > 0 ? xs.Sum(x => x.V * x.W) / xs.Sum(x => x.W) : null;
+            }
+            <p class="visually-hidden" id="rtChart-summary">@L["{0} checks in this period, {1} failed, {2} incidents. Average response time {3} ms, fastest interval {4} ms, slowest interval {5} ms.",
+                Model.Chart.Sum(p => p.Checks), Model.Chart.Sum(p => p.Failures), Model.ChartIncidents.Count,
+                Ms(Mean(p => p.Avg)), Ms(timed.Min(p => p.Avg)), Ms(timed.Max(p => p.Avg))]</p>
+            <div class="tc-chart"><canvas id="rtChart" aria-label="@L["Response time chart"]" aria-describedby="rtChart-summary" role="img"></canvas></div>
             @if (Model.HasPhaseData)
             {
                 <h3 class="h6 mt-4 mb-1">@L["Phase breakdown (average, ms)"]</h3>
                 <div class="small text-muted mb-2">@L["A reused connection has no DNS, connect or TLS phase; these phases count as 0 for it."]</div>
-                <div class="tc-chart"><canvas id="phaseChart" aria-label="@L["Phase breakdown chart"]" role="img"></canvas></div>
+                <p class="visually-hidden" id="phaseChart-summary">@L["Average phases: DNS {0} ms, connect {1} ms, TLS {2} ms, waiting for the response {3} ms, transfer {4} ms.",
+                    Ms(Mean(p => p.Dns)), Ms(Mean(p => p.Connect)), Ms(Mean(p => p.Tls)), Ms(Mean(p => p.Wait)), Ms(Mean(p => p.Transfer))]</p>
+                <div class="tc-chart"><canvas id="phaseChart" aria-label="@L["Phase breakdown chart"]" aria-describedby="phaseChart-summary" role="img"></canvas></div>
             }
         }
     </div>

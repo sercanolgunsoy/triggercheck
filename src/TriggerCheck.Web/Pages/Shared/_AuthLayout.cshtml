@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
 </head>
 <body>
+<a class="skip-link" href="#main-content">@L["Skip to main content"]</a>
 <div class="auth">
     <aside class="auth-aside">
         <a class="brand text-decoration-none" href="/">@Icons.Logo(32) TriggerCheck</a>
@@ -25,17 +26,17 @@
                 </div>
             </div>
         </div>
-        <small class="text-secondary">&copy; @DateTime.UtcNow.Year TriggerCheck</small>
+        <small>&copy; @DateTime.UtcNow.Year TriggerCheck</small>
     </aside>
     <div class="auth-main">
-        <div class="d-flex justify-content-between align-items-center gap-2">
+        <header class="d-flex justify-content-between align-items-center gap-2">
             <a class="d-inline-flex d-lg-none align-items-center gap-2 fw-bold text-body text-decoration-none" href="/">@Icons.Logo(28) TriggerCheck</a>
             <a class="d-none d-lg-inline-flex align-items-center gap-1 small text-muted" href="/">← @L["Back to website"]</a>
             <div class="d-flex gap-2"><partial name="_Toolbar" /></div>
-        </div>
-        <div class="auth-form">
+        </header>
+        <main class="auth-form" id="main-content" tabindex="-1">
             @RenderBody()
-        </div>
+        </main>
     </div>
 </div>
 <script src="~/lib/jquery/dist/jquery.min.js"></script>

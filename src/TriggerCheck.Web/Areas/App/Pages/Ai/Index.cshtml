@@ -91,7 +91,7 @@
                             <dt class="col-sm-5">@L["Tokens"]</dt><dd class="col-sm-7">@Fmt.Number(u.Tokens) / @Fmt.Number(u.TokenLimit)</dd>
                         }
                     </dl>
-                    <div class="progress mb-2" style="height: 6px">
+                    <div class="progress mb-2" style="height: 6px" aria-hidden="true">
                         <div class="progress-bar @(pct >= 100 ? "bg-danger" : pct >= 80 ? "bg-warning" : "bg-success")" style="width: @pct.ToString("0", System.Globalization.CultureInfo.InvariantCulture)%"></div>
                     </div>
                     @if (u.IsOverBudget)

@@ -35,7 +35,7 @@
         <span asp-validation-for="Name" class="text-danger small"></span>
     </div>
     <div class="col-md-6">
-        <label asp-for="Type" class="form-label"></label>
+        <label asp-for="Type" class="form-label" for="channel-type"></label>
         <select asp-for="Type" class="form-select" id="channel-type">
             @foreach (var t in types)
             {
@@ -45,8 +45,8 @@
         <span asp-validation-for="Type" class="text-danger small"></span>
     </div>
     <div class="col-md-12">
-        <label asp-for="Target" class="form-label"></label>
-        <input asp-for="Target" class="form-control" id="channel-target" />
+        <label asp-for="Target" class="form-label" for="channel-target"></label>
+        <input asp-for="Target" class="form-control" id="channel-target" aria-describedby="channel-help" />
         <div class="form-text" id="channel-help"></div>
         <span asp-validation-for="Target" class="text-danger small"></span>
     </div>

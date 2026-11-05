@@ -8,8 +8,8 @@
         @Icons.Get("globe", 15) @lang.ToUpperInvariant()
     </button>
     <ul class="dropdown-menu dropdown-menu-end">
-        <li><a class="dropdown-item @(lang == "en" ? "active" : "")" href="/set-language?culture=en&returnUrl=@Uri.EscapeDataString(here)" lang="en">English</a></li>
-        <li><a class="dropdown-item @(lang == "tr" ? "active" : "")" href="/set-language?culture=tr&returnUrl=@Uri.EscapeDataString(here)" lang="tr">Türkçe</a></li>
+        <li><a class="dropdown-item @(lang == "en" ? "active" : "")" href="/set-language?culture=en&returnUrl=@Uri.EscapeDataString(here)" lang="en" aria-current="@(lang == "en" ? "true" : null)">English</a></li>
+        <li><a class="dropdown-item @(lang == "tr" ? "active" : "")" href="/set-language?culture=tr&returnUrl=@Uri.EscapeDataString(here)" lang="tr" aria-current="@(lang == "tr" ? "true" : null)">Türkçe</a></li>
     </ul>
 </div>
 <button class="tool-btn" type="button" data-theme-toggle aria-label="@L["Toggle dark mode"]" title="@L["Toggle dark mode"]">
