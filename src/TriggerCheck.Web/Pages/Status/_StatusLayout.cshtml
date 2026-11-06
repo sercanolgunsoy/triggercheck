@@ -12,6 +12,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     @if (ViewData["NoIndex"] is true) { <meta name="robots" content="noindex, nofollow" /> }
     <title>@ViewData["Title"]</title>
+    @if (ViewData["Title"] is { } statusTitle)
+    {
+        <meta name="description" content="@L["Current status, uptime and incident history of {0}.", statusTitle]" />
+        <meta property="og:type" content="website" />
+        <meta property="og:title" content="@statusTitle" />
+        <meta property="og:description" content="@L["Current status, uptime and incident history of {0}.", statusTitle]" />
+    }
+    <partial name="_HeadIcons" />
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     @if (basePath is not null) { <link rel="alternate" type="application/atom+xml" title="@ViewData["Title"]" href="@(basePath)/feed" /> }

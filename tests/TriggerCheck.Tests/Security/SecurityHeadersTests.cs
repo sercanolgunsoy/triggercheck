@@ -36,7 +36,8 @@ public class SecurityHeadersTests(TestWebAppFactory f) : IClassFixture<TestWebAp
     /// <summary>Every &lt;script&gt; (inline theme script, Bootstrap, page scripts) carries this response's nonce.</summary>
     private static void AssertScriptsHaveNonce(string html, string nonce)
     {
-        var tags = ScriptTagRx.Matches(html).Select(m => m.Value).ToList();
+        // JSON-LD data blocks (structured data for search engines) are never executed, so they need no nonce.
+        var tags = ScriptTagRx.Matches(html).Select(m => m.Value).Where(t => !t.Contains("application/ld+json")).ToList();
         Assert.NotEmpty(tags);
         Assert.All(tags, t => Assert.Contains($"nonce=\"{nonce}\"", t));
     }

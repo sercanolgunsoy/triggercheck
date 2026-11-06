@@ -117,7 +117,7 @@ public sealed class CustomDomainMiddleware(RequestDelegate next, CustomDomainMap
     public const string ItemKey = "TriggerCheck.StatusPageCustomDomain";
     /// <summary>The path the visitor requested before the rewrite (for links back to the same page).</summary>
     public const string OriginalPathKey = "TriggerCheck.StatusPageOriginalPath";
-    private static readonly string[] StaticPrefixes = ["/css/", "/lib/", "/js/", "/favicon"];
+    private static readonly string[] StaticPrefixes = ["/css/", "/lib/", "/js/", "/img/", "/favicon", "/icon", "/apple-touch-icon", "/site.webmanifest"];
     private static readonly string[] PageSuffixes = ["/feed", "/subscribe", "/confirm", "/unsubscribe"];
 
     public async Task InvokeAsync(HttpContext context)

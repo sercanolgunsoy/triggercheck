@@ -11,8 +11,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] - TriggerCheck</title>
-    <meta name="description" content="@L["Uptime monitoring for websites, APIs and servers. Checks every 15 seconds, instant alerts, clear incident history."]" />
+    <partial name="_SeoHead" />
     <partial name="_ThemeScript" />
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
@@ -23,13 +22,13 @@
 <header class="site-nav">
     <nav class="navbar navbar-expand-lg" aria-label="@L["Main navigation"]">
         <div class="container">
-            <a class="navbar-brand" href="/">@Icons.Logo(30) TriggerCheck</a>
+            <a class="navbar-brand" href="@Seo.Href("/")">@Icons.Logo(30) TriggerCheck</a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#siteNav" aria-controls="siteNav" aria-expanded="false" aria-label="@L["Menu"]">@Icons.Get("menu", 22)</button>
             <div class="collapse navbar-collapse" id="siteNav">
                 <ul class="navbar-nav mx-lg-auto my-2 my-lg-0">
-                    <li class="nav-item"><a class="nav-link @Active("/Features")" href="/Features">@L["Features"]</a></li>
-                    <li class="nav-item"><a class="nav-link @Active("/Pricing")" href="/Pricing">@L["Pricing"]</a></li>
-                    <li class="nav-item"><a class="nav-link" href="/Pricing#faq">@L["FAQ"]</a></li>
+                    <li class="nav-item"><a class="nav-link @Active("/Features")" href="@Seo.Href("/Features")">@L["Features"]</a></li>
+                    <li class="nav-item"><a class="nav-link @Active("/Pricing")" href="@Seo.Href("/Pricing")">@L["Pricing"]</a></li>
+                    <li class="nav-item"><a class="nav-link" href="@Seo.Href("/Pricing#faq")">@L["FAQ"]</a></li>
                 </ul>
                 <div class="d-flex align-items-center gap-2 pb-3 pb-lg-0">
                     <partial name="_Toolbar" />
@@ -56,22 +55,22 @@
     <div class="container">
         <div class="row g-4">
             <div class="col-lg-5">
-                <a class="d-inline-flex align-items-center gap-2 fw-bold fs-5 text-body text-decoration-none" href="/">@Icons.Logo(28) TriggerCheck</a>
+                <a class="d-inline-flex align-items-center gap-2 fw-bold fs-5 text-body text-decoration-none" href="@Seo.Href("/")">@Icons.Logo(28) TriggerCheck</a>
                 <p class="text-muted mt-3 mb-0" style="max-width: 24rem">@L["Uptime monitoring for websites, APIs and servers. Know about downtime before your customers do."]</p>
             </div>
             <div class="col-6 col-lg-2">
                 <h2>@L["Product"]</h2>
                 <ul>
-                    <li><a href="/Features">@L["Features"]</a></li>
-                    <li><a href="/Pricing">@L["Pricing"]</a></li>
-                    <li><a href="/Pricing#compare">@L["Compare plans"]</a></li>
+                    <li><a href="@Seo.Href("/Features")">@L["Features"]</a></li>
+                    <li><a href="@Seo.Href("/Pricing")">@L["Pricing"]</a></li>
+                    <li><a href="@Seo.Href("/Pricing#compare")">@L["Compare plans"]</a></li>
                 </ul>
             </div>
             <div class="col-6 col-lg-2">
                 <h2>@L["Resources"]</h2>
                 <ul>
-                    <li><a href="/Pricing#faq">@L["FAQ"]</a></li>
-                    <li><a href="/Features#alerts">@L["Webhook format"]</a></li>
+                    <li><a href="@Seo.Href("/Pricing#faq")">@L["FAQ"]</a></li>
+                    <li><a href="@Seo.Href("/Features#alerts")">@L["Webhook format"]</a></li>
                     <li><a href="/health">@L["System status"]</a></li>
                 </ul>
             </div>
@@ -89,9 +88,9 @@
         </div>
     </div>
 </footer>
-<script src="~/lib/jquery/dist/jquery.min.js"></script>
-<script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
-<script src="~/js/site.js" asp-append-version="true"></script>
+<script src="~/lib/jquery/dist/jquery.min.js" defer></script>
+<script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js" defer></script>
+<script src="~/js/site.js" asp-append-version="true" defer></script>
 @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

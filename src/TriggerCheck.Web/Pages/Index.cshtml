@@ -2,11 +2,16 @@
 @model IndexModel
 @{
     ViewData["Title"] = L["Uptime monitoring"].Value;
+    ViewData["FullTitle"] = L["TriggerCheck: Uptime monitoring for websites, APIs and servers"].Value;
+    ViewData["Description"] = L["Monitor websites, APIs and servers as often as every {0}. Instant alerts by e-mail, Slack, SMS and webhook, public status pages and a clear incident history.", Fmt.Interval(Model.FastestInterval)].Value;
     Layout = "_MarketingLayout";
     // Deterministic "last 30 checks" strips for the product preview: 1 = up, 2 = slow, 3 = down.
     int[] web = [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1];
     int[] api = [1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,3,3,1,1,1,1,1,1];
     int[] db  = [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,3];
+}
+@section Head {
+    <!script type="application/ld+json">@Seo.JsonLd(Marketing.SoftwareApplication(ViewContext.HttpContext, Model.Plans, L["Uptime monitoring for websites, APIs and servers. Know about downtime before your customers do."].Value))</!script>
 }
 
 <section class="hero">
@@ -18,7 +23,7 @@
                 <p class="lead-lg mb-4">@L["TriggerCheck watches your websites, APIs and servers around the clock and alerts your team the moment something breaks, with a clear record of every incident."]</p>
                 <div class="d-flex flex-wrap gap-2 mb-4">
                     <a class="btn btn-primary btn-lg" href="/Account/Register">@L["Start free trial"] @Icons.Get("arrow-right", 18)</a>
-                    <a class="btn btn-outline-secondary btn-lg" href="/Pricing">@L["See pricing"]</a>
+                    <a class="btn btn-outline-secondary btn-lg" href="@Seo.Href("/Pricing")">@L["See pricing"]</a>
                 </div>
                 <div class="trust-line">
                     @if (Model.Plans.Any(p => p.MonthlyPrice == 0)) { <span>@Icons.Get("check", 16) @L["Free plan available"]</span> }
@@ -95,7 +100,7 @@
                 </div>
             }
         </div>
-        <div class="text-center mt-5"><a class="btn btn-outline-primary" href="/Features">@L["Explore all features"] @Icons.Get("arrow-right", 16)</a></div>
+        <div class="text-center mt-5"><a class="btn btn-outline-primary" href="@Seo.Href("/Features")">@L["Explore all features"] @Icons.Get("arrow-right", 16)</a></div>
     </div>
 </section>
 
@@ -130,7 +135,7 @@
             <p>@L["Upgrade any time for faster checks, more monitors and longer history."]</p>
         </div>
         <partial name="_PlanCards" model="new PlanCardsModel(Model.Plans, Model.ContactEmail)" />
-        <div class="text-center mt-5"><a class="btn btn-link" href="/Pricing#compare">@L["Compare all plan features"] @Icons.Get("arrow-right", 16)</a></div>
+        <div class="text-center mt-5"><a class="btn btn-link" href="@Seo.Href("/Pricing#compare")">@L["Compare all plan features"] @Icons.Get("arrow-right", 16)</a></div>
     </div>
 </section>
 

@@ -1,0 +1,57 @@
+@inject IConfiguration Config
+@* Title, description, canonical / hreflang, Open Graph, Twitter and site-wide JSON-LD of the marketing pages.
+   ViewData: "Title" (shown as "Title - TriggerCheck"), "FullTitle" (replaces that), "Description". *@
+@{
+    var page = Seo.CurrentPage(Context);
+    var lang = Seo.CurrentLanguage;
+    var title = ViewData["FullTitle"]?.ToString() is { Length: > 0 } full ? full : $"{ViewData["Title"]} - TriggerCheck";
+    var description = ViewData["Description"]?.ToString() is { Length: > 0 } d ? d
+        : L["Uptime monitoring for websites, APIs and servers. Checks every 15 seconds, instant alerts, clear incident history."].Value;
+    var canonical = page is null ? null : Seo.Absolute(Context, Seo.PathFor(lang, page));
+    var home = Seo.Absolute(Context, "/");
+    var image = Seo.Absolute(Context, "/img/og-image.png");
+    var site = new object[]
+    {
+        new Dictionary<string, object?>
+        {
+            ["@context"] = "https://schema.org", ["@type"] = "Organization", ["@id"] = home + "#organization",
+            ["name"] = "TriggerCheck", ["url"] = home, ["logo"] = Seo.Absolute(Context, "/icon-512.png"),
+            ["email"] = Marketing.ContactEmail(Config),
+        },
+        new Dictionary<string, object?>
+        {
+            ["@context"] = "https://schema.org", ["@type"] = "WebSite", ["@id"] = home + "#website",
+            ["name"] = "TriggerCheck", ["url"] = home, ["inLanguage"] = new[] { "en", "tr" },
+            ["publisher"] = new Dictionary<string, object> { ["@id"] = home + "#organization" },
+        },
+    };
+}
+<title>@title</title>
+<meta name="description" content="@description" />
+<meta name="robots" content="index, follow, max-image-preview:large" />
+@if (canonical is not null)
+{
+    <link rel="canonical" href="@canonical" />
+    @foreach (var alt in TriggerCheck.Web.Localization.LocalizationSetup.Languages)
+    {
+        <link rel="alternate" hreflang="@alt" href="@Seo.Absolute(Context, Seo.PathFor(alt, page!))" />
+    }
+    <link rel="alternate" hreflang="x-default" href="@Seo.Absolute(Context, page!)" />
+}
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="TriggerCheck" />
+<meta property="og:title" content="@title" />
+<meta property="og:description" content="@description" />
+@if (canonical is not null) { <meta property="og:url" content="@canonical" /> }
+<meta property="og:image" content="@image" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="@L["TriggerCheck uptime monitoring dashboard"]" />
+<meta property="og:locale" content="@Seo.Locale(lang)" />
+<meta property="og:locale:alternate" content="@Seo.Locale(lang == "tr" ? "en" : "tr")" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="@title" />
+<meta name="twitter:description" content="@description" />
+<meta name="twitter:image" content="@image" />
+<partial name="_HeadIcons" />
+<!script type="application/ld+json">@Seo.JsonLd(site)</!script>

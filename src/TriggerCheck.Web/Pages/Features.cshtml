@@ -2,6 +2,8 @@
 @model FeaturesModel
 @{
     ViewData["Title"] = L["Features"].Value;
+    ViewData["FullTitle"] = L["Features: HTTP, keyword, TCP port and ping monitoring - TriggerCheck"].Value;
+    ViewData["Description"] = L["HTTP(S), keyword, TCP port and ping checks with failure thresholds, alerts by e-mail, chat and webhook, an automatic incident log, uptime reports and team roles."].Value;
     Layout = "_MarketingLayout";
     var mailto = $"mailto:{Model.ContactEmail}?subject={Uri.EscapeDataString("TriggerCheck")}";
 }
@@ -13,7 +15,7 @@
         <p class="lead-lg mx-auto mb-4">@L["From a single landing page to hundreds of endpoints: check them often, hear about failures fast and keep a clean history of what happened."]</p>
         <div class="d-flex flex-wrap justify-content-center gap-2">
             <a class="btn btn-primary btn-lg" href="/Account/Register">@L["Start free trial"]</a>
-            <a class="btn btn-outline-secondary btn-lg" href="/Pricing">@L["See pricing"]</a>
+            <a class="btn btn-outline-secondary btn-lg" href="@Seo.Href("/Pricing")">@L["See pricing"]</a>
         </div>
     </div>
 </section>

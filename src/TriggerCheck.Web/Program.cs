@@ -141,6 +141,7 @@ app.MapRazorPages().WithStaticAssets();
 app.MapAppHealthChecks(includeDetails: app.Environment.IsDevelopment());
 app.MapHeartbeatEndpoint();
 app.MapSetLanguage();
+app.MapSeoEndpoints(); // /robots.txt and /sitemap.xml
 app.MapBillingEndpoints();
 app.MapTriggerCheckApi();
 app.MapProbeAgentApi();

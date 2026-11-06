@@ -11,7 +11,8 @@ namespace TriggerCheck.Web.Localization;
 
 /// <summary>
 /// UI languages: English (default) and Turkish. The language comes only from the culture cookie set by
-/// <c>/set-language</c> (the browser's Accept-Language is deliberately ignored so the default stays English).
+/// <c>/set-language</c> (the browser's Accept-Language is deliberately ignored so the default stays English), except on
+/// the marketing pages under the <c>/tr</c> URL prefix, which are always Turkish (<see cref="Infrastructure.Seo"/>).
 /// The formatting culture is always invariant: only CurrentUICulture changes per request.
 /// </summary>
 public static class LocalizationSetup
@@ -38,6 +39,8 @@ public static class LocalizationSetup
     public static WebApplication UseAppLocalization(this WebApplication app)
     {
         Fmt.Configure(app.Services.GetRequiredService<IStringLocalizerFactory>());
+        // /tr/Features → /Features in Turkish (before routing; the provider below reads the recorded language).
+        Infrastructure.Seo.UseUrlLanguage(app);
         app.UseRequestLocalization(new RequestLocalizationOptions
         {
             // Culture (parsing/formatting) is invariant on purpose; a cookie asking for "tr" is not a supported
@@ -45,7 +48,12 @@ public static class LocalizationSetup
             DefaultRequestCulture = new RequestCulture(CultureInfo.InvariantCulture, new CultureInfo(English)),
             SupportedCultures = [CultureInfo.InvariantCulture],
             SupportedUICultures = Languages.Select(l => new CultureInfo(l)).ToList(),
-            RequestCultureProviders = [new CookieRequestCultureProvider()]
+            RequestCultureProviders =
+            [
+                new CustomRequestCultureProvider(ctx => Task.FromResult(ctx.Items[Infrastructure.Seo.UrlLanguageKey] is string lang
+                    ? new ProviderCultureResult(lang, lang) : null)),
+                new CookieRequestCultureProvider()
+            ]
         });
         return app;
     }
@@ -55,12 +63,21 @@ public static class LocalizationSetup
         app.MapGet("/set-language", (string? culture, string? returnUrl, HttpContext ctx) =>
         {
             var lang = Languages.Contains(culture) ? culture! : English;
-            ctx.Response.Cookies.Append(
-                CookieRequestCultureProvider.DefaultCookieName,
-                CookieRequestCultureProvider.MakeCookieValue(new RequestCulture(lang)),
-                new CookieOptions { Expires = DateTimeOffset.UtcNow.AddYears(1), IsEssential = true, HttpOnly = true, SameSite = SameSiteMode.Lax });
+            AppendLanguageCookie(ctx.Response, lang);
             return Results.Redirect(IsLocal(returnUrl) ? returnUrl! : "/");
         });
+
+    /// <summary>Stores the UI language for a year (the only source of the language outside the /tr marketing URLs).</summary>
+    public static void AppendLanguageCookie(HttpResponse response, string lang) =>
+        response.Cookies.Append(
+            CookieRequestCultureProvider.DefaultCookieName,
+            CookieRequestCultureProvider.MakeCookieValue(new RequestCulture(lang)),
+            new CookieOptions { Expires = DateTimeOffset.UtcNow.AddYears(1), IsEssential = true, HttpOnly = true, SameSite = SameSiteMode.Lax });
+
+    /// <summary>The language stored in the culture cookie, if any.</summary>
+    public static string? CookieLanguage(HttpRequest request) =>
+        request.Cookies.TryGetValue(CookieRequestCultureProvider.DefaultCookieName, out var v)
+            ? CookieRequestCultureProvider.ParseCookieValue(v)?.UICultures.FirstOrDefault().Value : null;
 
     private static bool IsLocal(string? url) =>
         !string.IsNullOrEmpty(url) && url[0] == '/' && (url.Length == 1 || (url[1] != '/' && url[1] != '\\'));
