@@ -181,7 +181,7 @@ public class TurkishCoverageTests(StatusPageTestFactory f) : IClassFixture<Statu
     {
         var t = await TenantAsync();
         await SweepAsync(await TurkishAsync(), [
-            "/", "/Features", "/Pricing", "/Account/Login", "/Account/Register", "/Account/ForgotPassword",
+            "/", "/Features", "/Pricing", "/tr/", "/tr/Features", "/tr/Pricing", "/Account/Login", "/Account/Register", "/Account/ForgotPassword",
             $"/status/{t.Slug}", $"/status/{t.Slug}/subscribe"
         ]);
     }

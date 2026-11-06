@@ -1663,4 +1663,28 @@
   <data name="Unlimited team members" xml:space="preserve">
     <value>Sınırsız ekip üyesi</value>
   </data>
+  <data name="TriggerCheck: Uptime monitoring for websites, APIs and servers" xml:space="preserve">
+    <value>TriggerCheck: Web sitesi, API ve sunucu izleme (uptime)</value>
+  </data>
+  <data name="Monitor websites, APIs and servers as often as every {0}. Instant alerts by e-mail, Slack, SMS and webhook, public status pages and a clear incident history." xml:space="preserve">
+    <value>Web sitelerinizi, API'lerinizi ve sunucularınızı {0} sıklığında izleyin. E-posta, Slack, SMS ve webhook ile anında bildirim, herkese açık durum sayfaları ve net olay geçmişi.</value>
+  </data>
+  <data name="Features: HTTP, keyword, TCP port and ping monitoring - TriggerCheck" xml:space="preserve">
+    <value>Özellikler: HTTP, anahtar kelime, TCP port ve ping izleme - TriggerCheck</value>
+  </data>
+  <data name="HTTP(S), keyword, TCP port and ping checks with failure thresholds, alerts by e-mail, chat and webhook, an automatic incident log, uptime reports and team roles." xml:space="preserve">
+    <value>Hata eşikli HTTP(S), anahtar kelime, TCP port ve ping kontrolleri; e-posta, sohbet ve webhook bildirimleri, otomatik olay kaydı, erişilebilirlik raporları ve ekip rolleri.</value>
+  </data>
+  <data name="Uptime monitoring pricing and plans - TriggerCheck" xml:space="preserve">
+    <value>Uptime ve site izleme fiyatları ve planları - TriggerCheck</value>
+  </data>
+  <data name="Compare TriggerCheck plans: check intervals, monitor limits, check history, SMS and voice call alerts and AI features. Try any paid plan free for {0} days." xml:space="preserve">
+    <value>TriggerCheck planlarını karşılaştırın: kontrol aralıkları, monitör limitleri, kontrol geçmişi, SMS ve sesli arama bildirimleri ve yapay zekâ özellikleri. Ücretli planları {0} gün ücretsiz deneyin.</value>
+  </data>
+  <data name="TriggerCheck uptime monitoring dashboard" xml:space="preserve">
+    <value>TriggerCheck erişilebilirlik izleme paneli</value>
+  </data>
+  <data name="Current status, uptime and incident history of {0}." xml:space="preserve">
+    <value>{0} için güncel durum, erişilebilirlik ve olay geçmişi.</value>
+  </data>
 </root>

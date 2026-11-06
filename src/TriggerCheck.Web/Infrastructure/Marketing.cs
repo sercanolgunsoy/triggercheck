@@ -23,6 +23,36 @@ public static class Marketing
 
     /// <summary>Index of the plan shown as "Recommended": the middle one when there are three or more.</summary>
     public static int FeaturedIndex(int count) => count >= 3 ? count / 2 : -1;
+
+    /// <summary>schema.org SoftwareApplication of the product, with one Offer per active plan (USD, monthly).</summary>
+    public static Dictionary<string, object?> SoftwareApplication(HttpContext context, IReadOnlyList<Plan> plans, string description)
+    {
+        var home = Seo.Absolute(context, "/");
+        var pricing = Seo.Absolute(context, Seo.PathFor(Seo.CurrentLanguage, "/Pricing"));
+        return new Dictionary<string, object?>
+        {
+            ["@context"] = "https://schema.org",
+            ["@type"] = "SoftwareApplication",
+            ["name"] = "TriggerCheck",
+            ["url"] = home,
+            ["description"] = description,
+            ["applicationCategory"] = "BusinessApplication",
+            ["applicationSubCategory"] = "Uptime monitoring",
+            ["operatingSystem"] = "Web",
+            ["inLanguage"] = new[] { "en", "tr" },
+            ["image"] = Seo.Absolute(context, "/img/og-image.png"),
+            ["publisher"] = new Dictionary<string, object> { ["@id"] = home + "#organization" },
+            ["offers"] = plans.Count == 0 ? null : plans.Select(p => new Dictionary<string, object>
+            {
+                ["@type"] = "Offer",
+                ["name"] = p.Name,
+                ["price"] = Seo.Price(p.MonthlyPrice),
+                ["priceCurrency"] = "USD",
+                ["url"] = pricing,
+                ["category"] = p.MonthlyPrice == 0 ? "free" : "subscription",
+            }).ToArray(),
+        };
+    }
 }
 
 /// <summary>Model of the _PlanCards partial.</summary>

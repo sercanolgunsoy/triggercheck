@@ -2,14 +2,17 @@
 @{
     var here = Context.Request.Path + Context.Request.QueryString;
     var lang = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
+    // Marketing pages have one URL per language (/Features, /tr/Features): switch to the other URL, not the same one.
+    var page = Seo.CurrentPage(Context);
+    string Back(string l) => Uri.EscapeDataString(page is null ? here : Seo.PathFor(l, page));
 }
 <div class="dropdown">
     <button class="tool-btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="@L["Language"]">
         @Icons.Get("globe", 15) @lang.ToUpperInvariant()
     </button>
     <ul class="dropdown-menu dropdown-menu-end">
-        <li><a class="dropdown-item @(lang == "en" ? "active" : "")" href="/set-language?culture=en&returnUrl=@Uri.EscapeDataString(here)" lang="en" aria-current="@(lang == "en" ? "true" : null)">English</a></li>
-        <li><a class="dropdown-item @(lang == "tr" ? "active" : "")" href="/set-language?culture=tr&returnUrl=@Uri.EscapeDataString(here)" lang="tr" aria-current="@(lang == "tr" ? "true" : null)">Türkçe</a></li>
+        <li><a class="dropdown-item @(lang == "en" ? "active" : "")" href="/set-language?culture=en&returnUrl=@Back("en")" lang="en" aria-current="@(lang == "en" ? "true" : null)">English</a></li>
+        <li><a class="dropdown-item @(lang == "tr" ? "active" : "")" href="/set-language?culture=tr&returnUrl=@Back("tr")" lang="tr" aria-current="@(lang == "tr" ? "true" : null)">Türkçe</a></li>
     </ul>
 </div>
 <button class="tool-btn" type="button" data-theme-toggle aria-label="@L["Toggle dark mode"]" title="@L["Toggle dark mode"]">

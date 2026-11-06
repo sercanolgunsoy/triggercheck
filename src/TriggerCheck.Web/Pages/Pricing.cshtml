@@ -3,6 +3,8 @@
 @inject Microsoft.Extensions.Options.IOptions<TriggerCheck.Web.Billing.BillingOptions> Billing
 @{
     ViewData["Title"] = L["Pricing"].Value;
+    ViewData["FullTitle"] = L["Uptime monitoring pricing and plans - TriggerCheck"].Value;
+    ViewData["Description"] = L["Compare TriggerCheck plans: check intervals, monitor limits, check history, SMS and voice call alerts and AI features. Try any paid plan free for {0} days.", Billing.Value.TrialDays].Value;
     Layout = "_MarketingLayout";
     var plans = Model.Plans;
     var featured = Marketing.FeaturedIndex(plans.Count);
@@ -35,6 +37,29 @@
         AiFeatures.PostmortemDraft => L["Postmortem and status page drafts"].Value,
         _ => feature,
     };
+
+    // Shared by the FAQ markup and its FAQPage structured data (the two must say the same thing).
+    var faq = new[] {
+        (L["How does the check interval work?"].Value, L["Your plan sets the fastest interval you can use. Each monitor can be checked at that interval or any slower one, for example every 1 or 5 minutes."].Value),
+        (L["Will I get an alert for every failed check?"].Value, L["No. A monitor is marked down only after the number of consecutive failures you choose. You get one alert when it goes down and one when it recovers."].Value),
+        (L["What happens when I reach my monitor limit?"].Value, L["Existing monitors keep running. To add more, remove one you no longer need or move to a larger plan."].Value),
+        (L["How long do you keep check results?"].Value, L["Check results are kept for the number of days in your plan and deleted automatically after that. Incidents stay in your history."].Value),
+        (L["Can I change plans later?"].Value, L["Yes. Upgrade, downgrade or cancel at any time on the Billing page; your monitors and history stay as they are."].Value),
+        (L["How does the free trial work?"].Value, L["Paid plans start with a {0}-day free trial, no credit card required. Subscribe before it ends to keep the plan; otherwise your workspace moves to the free plan.", Billing.Value.TrialDays].Value),
+        (L["Do I need to install anything?"].Value, L["No. All checks run from our servers against your public addresses. There is no agent or code to install."].Value) };
+    var faqLd = new Dictionary<string, object>
+    {
+        ["@context"] = "https://schema.org", ["@type"] = "FAQPage",
+        ["mainEntity"] = faq.Select(x => new Dictionary<string, object>
+        {
+            ["@type"] = "Question", ["name"] = x.Item1,
+            ["acceptedAnswer"] = new Dictionary<string, object> { ["@type"] = "Answer", ["text"] = x.Item2 },
+        }).ToArray(),
+    };
+}
+@section Head {
+    <!script type="application/ld+json">@Seo.JsonLd(Marketing.SoftwareApplication(ViewContext.HttpContext, plans, L["Uptime monitoring for websites, APIs and servers. Know about downtime before your customers do."].Value))</!script>
+    <!script type="application/ld+json">@Seo.JsonLd(faqLd)</!script>
 }
 
 <section class="hero pb-5">
@@ -108,14 +133,7 @@
             <h2>@L["Frequently asked questions"]</h2>
         </div>
         <div class="faq">
-            @foreach (var (q, a) in new[] {
-                (L["How does the check interval work?"].Value, L["Your plan sets the fastest interval you can use. Each monitor can be checked at that interval or any slower one, for example every 1 or 5 minutes."].Value),
-                (L["Will I get an alert for every failed check?"].Value, L["No. A monitor is marked down only after the number of consecutive failures you choose. You get one alert when it goes down and one when it recovers."].Value),
-                (L["What happens when I reach my monitor limit?"].Value, L["Existing monitors keep running. To add more, remove one you no longer need or move to a larger plan."].Value),
-                (L["How long do you keep check results?"].Value, L["Check results are kept for the number of days in your plan and deleted automatically after that. Incidents stay in your history."].Value),
-                (L["Can I change plans later?"].Value, L["Yes. Upgrade, downgrade or cancel at any time on the Billing page; your monitors and history stay as they are."].Value),
-                (L["How does the free trial work?"].Value, L["Paid plans start with a {0}-day free trial, no credit card required. Subscribe before it ends to keep the plan; otherwise your workspace moves to the free plan.", Billing.Value.TrialDays].Value),
-                (L["Do I need to install anything?"].Value, L["No. All checks run from our servers against your public addresses. There is no agent or code to install."].Value) })
+            @foreach (var (q, a) in faq)
             {
                 <details>
                     <summary>@q @Icons.Get("chevron-down")</summary>
@@ -133,7 +151,7 @@
             <p>@L["Tell us what you need to monitor and we'll recommend a plan."]</p>
             <div class="d-flex flex-wrap justify-content-center gap-2">
                 <a class="btn btn-light btn-lg" href="@mailto">@L["Contact us"]</a>
-                <a class="btn btn-outline-light btn-lg" href="/Features">@L["Explore features"]</a>
+                <a class="btn btn-outline-light btn-lg" href="@Seo.Href("/Features")">@L["Explore features"]</a>
             </div>
         </div>
     </div>
